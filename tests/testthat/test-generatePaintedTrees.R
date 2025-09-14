@@ -1,198 +1,202 @@
-library(testthat)
-library(ape)
-library(phytools)  # Assuming paintSubTree comes from phytools
+# tests/testthat/test-generatePaintedTrees.R
 
-#' Unit Test Function for generatePaintedTrees
-#'
-#' This function tests various aspects of the generatePaintedTrees function
-#' including input validation, node detection, tree painting, and output format.
-test_generatePaintedTrees <- function() {
-  
-  # Test 1: Basic functionality with a standard tree
-  test_that("Basic functionality works correctly", {
-    set.seed(123)  # For reproducible results
-    tree <- rcoal(100)
-    min_tips <- 10
-    
-    # Capture console output
-    result <- capture_output(
-      painted_trees <- generatePaintedTrees(tree, min_tips)
-    )
-    
-    # Check that function returns a list
-    expect_type(painted_trees, "list")
-    
-    # Check that all elements in the list are phylo objects
-    expect_true(all(sapply(painted_trees, function(x) inherits(x, "phylo"))))
-    
-    # Check that list names follow expected pattern
-    expect_true(all(grepl("^Node \\d+$", names(painted_trees))))
-    
-    # Check that console output contains expected messages
-    expect_true(grepl("eligible nodes are detected", result$output))
-    expect_true(grepl("sub-models generated", result$output))
-  })
-  
-  # Test 2: Tree rooting functionality
-  test_that("Unrooted trees are properly rooted", {
-    set.seed(123)
-    tree <- rcoal(20)
-    tree <- unroot(tree)  # Make tree unrooted
-    
-    expect_false(is.rooted(tree))
-    
-    painted_trees <- suppressMessages(generatePaintedTrees(tree, min_tips = 3))
-    
-    # All returned trees should be rooted
-    expect_true(all(sapply(painted_trees, is.rooted)))
-  })
-  
-  # Test 3: Minimum tips threshold
-  test_that("Minimum tips threshold is respected", {
-    set.seed(123)
-    tree <- rcoal(50)
-    min_tips_high <- 30  # Very restrictive threshold
-    min_tips_low <- 5    # Permissive threshold
-    
-    painted_trees_high <- suppressMessages(generatePaintedTrees(tree, min_tips_high))
-    painted_trees_low <- suppressMessages(generatePaintedTrees(tree, min_tips_low))
-    
-    # High threshold should produce fewer painted trees than low threshold
-    expect_true(length(painted_trees_high) <= length(painted_trees_low))
-    
-    # With very high threshold, might get no eligible nodes
-    if (length(painted_trees_high) > 0) {
-      # Verify that selected nodes actually have enough descendants
-      for (i in seq_along(painted_trees_high)) {
-        node_num <- as.numeric(gsub("Node ", "", names(painted_trees_high)[i]))
-        descendants <- getDescendants(tree, node_num)
-        tip_descendants <- descendants[descendants <= Ntip(tree)]
-        expect_true(length(tip_descendants) >= min_tips_high)
-      }
-    }
-  })
-  
-  # Test 4: Edge cases
-  test_that("Edge cases are handled properly", {
-    set.seed(123)
-    
-    # Very small tree
-    small_tree <- rcoal(5)
-    result_small <- suppressMessages(generatePaintedTrees(small_tree, min_tips = 2))
-    expect_type(result_small, "list")
-    
-    # Minimum tips larger than tree size
-    result_impossible <- suppressMessages(generatePaintedTrees(small_tree, min_tips = 10))
-    expect_equal(length(result_impossible), 0)
-    
-    # Single tip requirement
-    result_single <- suppressMessages(generatePaintedTrees(small_tree, min_tips = 1))
-    expect_type(result_single, "list")
-  })
-  
-  # Test 5: Custom state parameter
-  test_that("Custom state parameter works", {
-    set.seed(123)
-    tree <- rcoal(20)
-    custom_state <- "custom_shift"
-    
-    painted_trees <- suppressMessages(generatePaintedTrees(tree, min_tips = 3, state = custom_state))
-    
-    expect_type(painted_trees, "list")
-    # Note: Testing the actual painting would require inspecting tree attributes
-    # which depends on how paintSubTree stores the state information
-  })
-  
-  # Test 6: Consistency check
-  test_that("Results are consistent across runs with same input", {
-    tree <- rcoal(30)  # Don't set seed here to test with fixed tree
-    min_tips <- 5
-    
-    result1 <- suppressMessages(generatePaintedTrees(tree, min_tips))
-    result2 <- suppressMessages(generatePaintedTrees(tree, min_tips))
-    
-    # Should get same number of painted trees
-    expect_equal(length(result1), length(result2))
-    
-    # Should get same node names
-    expect_equal(names(result1), names(result2))
-  })
-  
-  # Test 7: Tree structure preservation
-  test_that("Original tree structure is preserved in painted trees", {
-    set.seed(123)
-    tree <- rcoal(25)
-    min_tips <- 4
-    
-    painted_trees <- suppressMessages(generatePaintedTrees(tree, min_tips))
-    
-    if (length(painted_trees) > 0) {
-      for (painted_tree in painted_trees) {
-        # Same number of tips
-        expect_equal(Ntip(painted_tree), Ntip(tree))
-        
-        # Same tip labels
-        expect_equal(painted_tree$tip.label, tree$tip.label)
-        
-        # Same number of nodes
-        expect_equal(Nnode(painted_tree), Nnode(tree))
-      }
-    }
-  })
-  
-  # Test 8: Internal helper function
-  test_that("getEligibleNodes helper function works correctly", {
-    set.seed(123)
-    tree <- rcoal(30)
-    min_tips <- 8
-    
-    # We need to extract the helper function to test it
-    # This is a bit tricky since it's defined inside the main function
-    # We'll test indirectly through the main function's behavior
-    
-    painted_trees <- suppressMessages(generatePaintedTrees(tree, min_tips))
-    
-    # Each painted tree should correspond to a node with at least min_tips descendants
-    for (tree_name in names(painted_trees)) {
-      node_num <- as.numeric(gsub("Node ", "", tree_name))
-      descendants <- getDescendants(tree, node_num)
-      tip_descendants <- descendants[descendants <= Ntip(tree)]
-      expect_true(length(tip_descendants) >= min_tips)
-    }
-  })
-  
-  # Test 9: Console output verification
-  test_that("Console messages are informative", {
-    set.seed(123)
-    tree <- rcoal(40)
-    min_tips <- 6
-    
-    output <- capture_output(
-      painted_trees <- generatePaintedTrees(tree, min_tips)
-    )
-    
-    # Extract numbers from output
-    eligible_match <- regmatches(output$output, regexpr("\\d+(?= eligible nodes)", output$output, perl = TRUE))
-    generated_match <- regmatches(output$output, regexpr("\\d+(?= sub-models generated)", output$output, perl = TRUE))
-    
-    if (length(eligible_match) > 0 && length(generated_match) > 0) {
-      eligible_count <- as.numeric(eligible_match)
-      generated_count <- as.numeric(generated_match)
-      
-      # Number of eligible nodes should equal number of generated painted trees
-      expect_equal(eligible_count, generated_count)
-      expect_equal(generated_count, length(painted_trees))
-    }
-  })
-  
-  cat("All tests completed successfully!\n")
+# Use testthat edition 3 if your project is set up for it
+# testthat::local_edition(3)
+
+# Guard tests if required packages aren't available
+skip_if_missing_deps <- function() {
+  testthat::skip_if_not_installed("ape")
+  testthat::skip_if_not_installed("phytools")
 }
 
-# Helper function to run the tests
-run_painted_trees_tests <- function() {
-  cat("Running unit tests for generatePaintedTrees function...\n\n")
-  test_generatePaintedTrees()
-}
+# Optional: load deps explicitly (helpful in non-package projects)
+# library(ape)
+# library(phytools)
 
-# Example usage:
-# run_painted_trees_tests()
+# -------------------------------------------------------------------
+# Test 1: Basic functionality with a standard tree
+# -------------------------------------------------------------------
+test_that("Basic functionality works correctly", {
+  skip_if_missing_deps()
+  
+  set.seed(123)
+  tree <- ape::rcoal(100)
+  min_tips <- 10
+  
+  # Capture stdout produced by cat()
+  out <- testthat::capture_output(
+    painted_trees <- generatePaintedTrees(tree, min_tips)
+  )
+  
+  # Structure checks
+  expect_type(painted_trees, "list")
+  expect_true(all(vapply(painted_trees, function(x) inherits(x, "phylo"), logical(1))))
+  expect_true(all(grepl("^Node \\d+$", names(painted_trees))))
+  
+  # Output checks (because the function uses cat())
+  expect_true(grepl("eligible nodes are detected", out))
+  expect_true(grepl("sub-models generated", out))
+})
+
+# -------------------------------------------------------------------
+# Test 2: Tree rooting functionality
+# -------------------------------------------------------------------
+test_that("Unrooted trees are properly rooted", {
+  skip_if_missing_deps()
+  
+  set.seed(123)
+  tree <- ape::rcoal(20)
+  tree <- ape::unroot(tree)  # make unrooted
+  expect_false(ape::is.rooted(tree))
+  
+  painted_trees <- generatePaintedTrees(tree, min_tips = 3)
+  
+  # All returned trees should be rooted
+  expect_true(all(vapply(painted_trees, ape::is.rooted, logical(1))))
+})
+
+# -------------------------------------------------------------------
+# Test 3: Minimum tips threshold
+# -------------------------------------------------------------------
+test_that("Minimum tips threshold is respected", {
+  skip_if_missing_deps()
+  
+  set.seed(123)
+  tree <- ape::rcoal(50)
+  min_tips_high <- 30
+  min_tips_low  <- 5
+  
+  painted_trees_high <- generatePaintedTrees(tree, min_tips_high)
+  painted_trees_low  <- generatePaintedTrees(tree, min_tips_low)
+  
+  expect_true(length(painted_trees_high) <= length(painted_trees_low))
+  
+  if (length(painted_trees_high) > 0) {
+    for (i in seq_along(painted_trees_high)) {
+      node_num <- as.numeric(sub("^Node\\s+", "", names(painted_trees_high)[i]))
+      descendants <- phytools::getDescendants(tree, node_num)
+      tip_desc    <- descendants[descendants <= ape::Ntip(tree)]
+      expect_true(length(tip_desc) >= min_tips_high)
+    }
+  }
+})
+
+# -------------------------------------------------------------------
+# Test 4: Edge cases
+# -------------------------------------------------------------------
+test_that("Edge cases are handled properly", {
+  skip_if_missing_deps()
+  
+  set.seed(123)
+  small_tree <- ape::rcoal(5)
+  
+  result_small <- generatePaintedTrees(small_tree, min_tips = 2)
+  expect_type(result_small, "list")
+  
+  result_impossible <- generatePaintedTrees(small_tree, min_tips = 10)
+  expect_equal(length(result_impossible), 0)
+  
+  result_single <- generatePaintedTrees(small_tree, min_tips = 1)
+  expect_type(result_single, "list")
+})
+
+# -------------------------------------------------------------------
+# Test 5: Custom state parameter
+# -------------------------------------------------------------------
+test_that("Custom state parameter works", {
+  skip_if_missing_deps()
+  
+  set.seed(123)
+  tree <- ape::rcoal(20)
+  custom_state <- "custom_shift"
+  
+  painted_trees <- generatePaintedTrees(tree, min_tips = 3, state = custom_state)
+  expect_type(painted_trees, "list")
+  # Verifying the actual painting would require inspecting attributes,
+  # which depends on paintSubTree's implementation.
+})
+
+# -------------------------------------------------------------------
+# Test 6: Consistency across runs with same input
+# -------------------------------------------------------------------
+test_that("Results are consistent across runs with same input", {
+  skip_if_missing_deps()
+  
+  tree <- ape::rcoal(30)
+  min_tips <- 5
+  
+  result1 <- generatePaintedTrees(tree, min_tips)
+  result2 <- generatePaintedTrees(tree, min_tips)
+  
+  expect_equal(length(result1), length(result2))
+  expect_equal(names(result1), names(result2))
+})
+
+# -------------------------------------------------------------------
+# Test 7: Tree structure preservation
+# -------------------------------------------------------------------
+test_that("Original tree structure is preserved in painted trees", {
+  skip_if_missing_deps()
+  
+  set.seed(123)
+  tree <- ape::rcoal(25)
+  min_tips <- 4
+  
+  painted_trees <- generatePaintedTrees(tree, min_tips)
+  
+  if (length(painted_trees) > 0) {
+    for (painted_tree in painted_trees) {
+      expect_equal(ape::Ntip(painted_tree),  ape::Ntip(tree))
+      expect_equal(painted_tree$tip.label,    tree$tip.label)
+      expect_equal(ape::Nnode(painted_tree), ape::Nnode(tree))
+    }
+  }
+})
+
+# -------------------------------------------------------------------
+# Test 8: Indirect check of eligible node helper logic
+# -------------------------------------------------------------------
+test_that("Eligible nodes have at least min_tips descendants", {
+  skip_if_missing_deps()
+  
+  set.seed(123)
+  tree <- ape::rcoal(30)
+  min_tips <- 8
+  
+  painted_trees <- generatePaintedTrees(tree, min_tips)
+  
+  for (nm in names(painted_trees)) {
+    node_num <- as.numeric(sub("^Node\\s+", "", nm))
+    descendants <- phytools::getDescendants(tree, node_num)
+    tip_desc    <- descendants[descendants <= ape::Ntip(tree)]
+    expect_true(length(tip_desc) >= min_tips)
+  }
+})
+
+# -------------------------------------------------------------------
+# Test 9: Console output verification (counts)
+# -------------------------------------------------------------------
+test_that("Console output reports matching counts", {
+  skip_if_missing_deps()
+  
+  set.seed(123)
+  tree <- ape::rcoal(40)
+  min_tips <- 6
+  
+  out <- testthat::capture_output(
+    painted_trees <- generatePaintedTrees(tree, min_tips)
+  )
+  
+  eligible_match  <- regmatches(out, regexpr("\\d+(?= eligible nodes)", out, perl = TRUE))
+  generated_match <- regmatches(out, regexpr("\\d+(?= sub-models generated)", out, perl = TRUE))
+  
+  if (length(eligible_match) > 0 && length(generated_match) > 0) {
+    eligible_count  <- as.numeric(eligible_match)
+    generated_count <- as.numeric(generated_match)
+    
+    expect_equal(eligible_count, generated_count)
+    expect_equal(generated_count, length(painted_trees))
+  } else {
+    testthat::skip("Output did not contain expected phrases; check generatePaintedTrees() cat() strings.")
+  }
+})
