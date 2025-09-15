@@ -205,7 +205,7 @@ test_that("paintSubTree_mod preserves complex multi-state mappings with overwrit
   other_internals <- (ape::Ntip(sim2) + 2L):(ape::Ntip(sim2) + ape::Nnode(sim2))
   other_internals <- setdiff(other_internals, c(nd_up, nd_down))
   if (length(other_internals) > 0) {
-    sim3 <- phytools::paintSubTree(sim2, node = other_internals[1], state = "Y", stem = FALSE)
+    sim3 <- paintSubTree_mod(sim2, node = other_internals[1], state = "Y", stem = FALSE, overwrite = FALSE)
   } else {
     sim3 <- sim2
   }
