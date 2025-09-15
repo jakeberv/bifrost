@@ -33,7 +33,7 @@
 #'   \code{\link[ape]{Ntip}}, \code{\link[ape]{Nnode}}, \code{\link[ape]{root}}
 #'
 #' @examples
-#' \donttest{
+#' \dontrun{
 #'   set.seed(123)
 #'   tree <- phytools::pbtree(n = 30, scale = 1)
 #'   painted <- generatePaintedTrees(tree, min_tips = 5, state = "shift")
@@ -107,7 +107,7 @@ generatePaintedTrees <- function(tree, min_tips, state = "shift") {
 #'   \code{\link[phytools]{paintSubTree}}
 #'
 #' @examples
-#' \donttest{
+#' \dontrun{
 #'   set.seed(1)
 #'   tree <- phytools::pbtree(n = 10, scale = 1)
 #'   tree_painted <- phytools::paintSubTree(tree, node = 11, state = "A", anc.state = "A")
@@ -168,7 +168,7 @@ fitMvglsAndExtractGIC <- function(painted_tree, trait_data) {
 #'   \code{\link[phytools]{paintSubTree}}
 #'
 #' @examples
-#' \donttest{
+#' \dontrun{
 #'   set.seed(1)
 #'   tree <- phytools::pbtree(n = 10, scale = 1)
 #'   tree_painted <- phytools::paintSubTree(tree, node = 11, state = "A", anc.state = "A")
@@ -234,7 +234,7 @@ fitMvglsAndExtractBIC <- function(painted_tree, trait_data) {
 #'   \code{\link[phytools]{getStates}}, \code{\link[stats]{as.formula}}
 #'
 #' @examples
-#' \donttest{
+#' \dontrun{
 #'   set.seed(123)
 #'   tree <- phytools::pbtree(n = 15, scale = 1)
 #'   painted <- phytools::paintSubTree(tree, node = 16, state = "A", anc.state = "A")
@@ -320,7 +320,7 @@ fitMvglsAndExtractGIC.formula <- function(formula, painted_tree, trait_data, ...
 #'   \code{\link[phytools]{getStates}}, \code{\link[stats]{as.formula}}
 #'
 #' @examples
-#' \donttest{
+#' \dontrun{
 #'   set.seed(321)
 #'   tree <- phytools::pbtree(n = 12, scale = 1)
 #'   painted <- phytools::paintSubTree(tree, node = 13, state = "A", anc.state = "A")
@@ -404,7 +404,7 @@ fitMvglsAndExtractBIC.formula <- function(formula, painted_tree, trait_data, ...
 #' \code{\link[phytools]{paintSubTree}}
 #'
 #' @examples
-#' \donttest{
+#' \dontrun{
 #'   # Assume we have a baseline and two alternative models
 #'   baseline <- list(GIC = list(GIC = 100))
 #'   alt1     <- list(GIC = list(GIC = 95))
@@ -504,7 +504,7 @@ calculateAllDeltaGIC <- function(model_results, painted_tree_list) {
 #' @seealso \code{\link[phytools]{paintSubTree}}, \code{\link[phytools]{paintBranches}}
 #'
 #' @examples
-#' \donttest{
+#' \dontrun{
 #'   set.seed(1)
 #'   tr <- phytools::pbtree(n = 10, scale = 1)
 #'   # Initialize mappings to "0" globally
@@ -623,7 +623,7 @@ paintSubTree_mod <- function(tree, node, state, anc.state="1", stem=FALSE, overw
 #' \code{\link[ape]{compute.brlen}}
 #'
 #' @examples
-#' \donttest{
+#' \dontrun{
 #'   set.seed(1)
 #'   tr <- phytools::pbtree(n = 10, scale = 1)
 #'   # Initialize to global state "0"
@@ -726,7 +726,7 @@ paintSubTree_removeShift <- function(tree, shift_node, stem=FALSE) {
 #'   \code{\link[phytools]{paintBranches}}
 #'
 #' @examples
-#' \donttest{
+#' \dontrun{
 #'   set.seed(1)
 #'   tr <- phytools::pbtree(n = 12, scale = 1)
 #'
@@ -806,7 +806,7 @@ addShiftToModel <- function(tree, shift_node, current_shift_id) {
 #' \code{\link[ape]{compute.brlen}}
 #'
 #' @examples
-#' \donttest{
+#' \dontrun{
 #'   set.seed(1)
 #'   tr <- phytools::pbtree(n = 10, scale = 1)
 #'   # Initialize a simple global mapping "0" on all edges
@@ -889,7 +889,7 @@ removeShiftFromTree <- function(tree, shift_node, stem=F) {
 #' \code{\link{paintSubTree_removeShift}}
 #'
 #' @examples
-#' \donttest{
+#' \dontrun{
 #'   set.seed(42)
 #'   tr <- phytools::pbtree(n = 12, scale = 1)
 #'
@@ -963,7 +963,7 @@ whichShifts <- function(tree) {
 #' \code{\link{fitMvglsAndExtractBIC.formula}}
 #'
 #' @examples
-#' \donttest{
+#' \dontrun{
 #'   library(mvMORPH)
 #'   set.seed(123)
 #'   tree <- ape::rtree(5)
