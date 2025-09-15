@@ -2,12 +2,65 @@
 % Please edit documentation in R/utils.R
 \name{addShiftToModel}
 \alias{addShiftToModel}
-\title{Add a New Shift to a Phylogenetic Tree Model}
+\title{Add a New Shift (Regime) to a SIMMAP Tree}
 \usage{
 addShiftToModel(tree, shift_node, current_shift_id)
 }
+\arguments{
+\item{tree}{A phylogenetic tree of class \code{phylo} or \code{simmap}.
+If not yet SIMMAP-initialized, ensure edge mappings exist upstream (e.g.,
+by painting a global baseline state) before calling.}
+
+\item{shift_node}{Integer node number in \code{tree} indicating where the
+new regime should begin (the clade rooted at this node will be painted).}
+
+\item{current_shift_id}{Integer ID of the last regime used. The function
+will assign \code{current_shift_id + 1} to the new shift.}
+}
+\value{
+A \code{list} with:
+\describe{
+\item{\code{tree}}{The updated SIMMAP tree with the new regime painted.}
+\item{\code{shift_id}}{The incremented shift ID (integer).}
+}
+}
 \description{
-This function adds a new evolutionary regime (shift) to a SIMMAP-style phylogenetic tree
-by painting the subtree starting at a specified node with a new unique state identifier.
-The shift ID is incremented and returned for tracking multiple shifts in downstream modeling.
+Increments a shift (regime) identifier and paints the subtree starting at
+\code{shift_node} on a SIMMAP-style phylogenetic tree with the new state.
+This enables stepwise construction of multi-regime models by applying
+successive shifts with unique state IDs.
+}
+\details{
+The subtree is painted using \code{paintSubTree_mod()} with
+\code{overwrite = FALSE} and \code{stem = FALSE}, meaning only edges
+matching the target state (typically the current state along that path)
+are selectively overwritten, and the parent (incoming) edge to
+\code{shift_node} is not split or repainted. If you need to force a full
+overwrite or paint the stem, call \code{paintSubTree_mod()} directly.
+}
+\examples{
+\dontrun{
+  set.seed(1)
+  tr <- phytools::pbtree(n = 12, scale = 1)
+
+  # Initialize global mapping to state "0" (baseline)
+  tr0 <- phytools::paintBranches(tr, edge = unique(tr$edge[,2]),
+                                 state = "0", anc.state = "0")
+
+  # Add first shift on an internal node
+  nd <- ape::Ntip(tr0) + 2L
+  res1 <- addShiftToModel(tr0, shift_node = nd, current_shift_id = 0L)
+  res1$shift_id        # 1
+  tr1 <- res1$tree     # SIMMAP with regime "1" painted on that clade
+
+  # Add a second shift somewhere else
+  nd2 <- ape::Ntip(tr1) + 3L
+  res2 <- addShiftToModel(tr1, shift_node = nd2, current_shift_id = res1$shift_id)
+  res2$shift_id        # 2
+}
+
+}
+\seealso{
+\code{\link{paintSubTree_mod}}, \code{\link[phytools]{paintSubTree}},
+\code{\link[phytools]{paintBranches}}
 }

@@ -13,9 +13,74 @@ paintSubTree_mod(
   overwrite = TRUE
 )
 }
+\arguments{
+\item{tree}{An object of class \code{phylo}. If no mapped states are present,
+they are initialized (all edges set to \code{anc.state}).}
+
+\item{node}{Integer node number (in \code{tree}) at which painting begins
+(i.e., the clade rooted at \code{node} will be painted).}
+
+\item{state}{Character (or numeric) label of the new state to paint.}
+
+\item{anc.state}{Character (or numeric) label of the ancestral (baseline)
+state used when initializing mappings or when splitting the stem.
+Default is \code{"1"}.}
+
+\item{stem}{Logical or numeric. If \code{FALSE} (default), the incoming edge
+to \code{node} is left unchanged. If \code{TRUE}, the entire incoming edge
+is assigned to \code{state}. If a numeric value in \eqn{[0,1]}, the parent
+edge is split such that a fraction \code{stem} is assigned to \code{state}
+and \code{1 - stem} remains \code{anc.state}. For tip nodes, \code{stem}
+must be \code{TRUE} (cannot be \code{FALSE}).}
+
+\item{overwrite}{Logical. If \code{TRUE} (default), overwrite the mappings
+on \emph{all} edges in the subtree with \code{state}. If \code{FALSE},
+only edges whose current mapping equals the \emph{target} state are
+overwritten (the target is the current state on the edge leading to
+\code{node}, or \code{anc.state} for tips).}
+}
+\value{
+A modified tree of class \code{c("simmap", "phylo")} with updated
+\code{$maps} and \code{$mapped.edge}.
+}
 \description{
-This function modifies a phylogenetic tree (of class "phylo") by painting a specified subtree
-starting at a given node with a new state, optionally preserving existing state mappings unless overwritten.
-It returns a SIMMAP-style tree with updated edge mappings and supports both full and selective painting,
-as well as optional stem painting from the parent edge.
+Modifies a phylogenetic tree by painting the clade descending from a
+specified node with a new discrete state and returns a SIMMAP-style tree.
+You can either overwrite the entire subtree (\code{overwrite = TRUE}) or
+selectively overwrite only edges currently in a \emph{target} state
+(\code{overwrite = FALSE}). Optional stem painting splits the parent edge
+into ancestral and derived states.
+}
+\details{
+\itemize{
+\item If \code{tree$maps} is \code{NULL}, the function initializes a SIMMAP
+representation by assigning each edge length to \code{anc.state}.
+\item With \code{overwrite = TRUE}, every edge in the subtree is collapsed
+to a single segment labeled \code{state}.
+\item With \code{overwrite = FALSE}, only edges matching the target state
+(the state on the edge entering \code{node}, or \code{anc.state}
+for tips) are replaced; other existing states are preserved.
+\item If \code{stem} is numeric in \eqn{[0,1]}, the parent edge is split
+into two segments: \code{(1 - stem)} of \code{anc.state} and
+\code{stem} of \code{state}.
+}
+}
+\examples{
+\dontrun{
+  set.seed(1)
+  tr <- phytools::pbtree(n = 10, scale = 1)
+  # Initialize mappings to "0" globally
+  tr0 <- phytools::paintBranches(tr, edge = unique(tr$edge[,2]), state = "0", anc.state = "0")
+
+  # Paint an internal clade fully as "1"
+  nd <- ape::Ntip(tr0) + 2L
+  tr1 <- paintSubTree_mod(tr0, node = nd, state = "1", anc.state = "0", stem = TRUE, overwrite = TRUE)
+
+  # Selectively overwrite only edges already in state "0" within the subtree
+  tr2 <- paintSubTree_mod(tr1, node = nd, state = "2", anc.state = "0", stem = 0.25, overwrite = FALSE)
+}
+
+}
+\seealso{
+\code{\link[phytools]{paintSubTree}}, \code{\link[phytools]{paintBranches}}
 }
