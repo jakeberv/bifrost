@@ -17,29 +17,31 @@ BugReports: https://github.com/jakeberv/bifrost/issues
 Depends: R (>= 4.1)
 Imports:
     ape,
-    phytools,
     future,
     future.apply,
-    viridis,
-    parallel,
-    palaeoverse,
-    boot,
+    mvMORPH (>= 1.2.1),
+    phytools,
+    grDevices,
+    stats
+
+Suggests:
+    HDInterval,
     RColorBrewer,
+    boot,
     classInt,
-    pbmcapply,
-    phylolm,
-    scales,
-    patchwork,
-    readxl,
-    univariateML,
     evd,
     fitdistrplus,
-    HDInterval,
-    mvMORPH (>= 1.2.1),
-    tidyverse
-Suggests:
-    testthat (>= 3.0.0),
     knitr,
-    rmarkdown
+    palaeoverse,
+    parallel,
+    patchwork,
+    pbmcapply,
+    phylolm,
+    readxl,
+    rmarkdown,
+    scales,
+    testthat (>= 3.0.0),
+    univariateML,
+    viridis
 VignetteBuilder: knitr
 Config/testthat/edition: 3
