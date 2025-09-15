@@ -986,7 +986,7 @@ extractRegimeVCVs <- function(model_output) {
     stop("model_output does not contain the required components.")
   }
 
-  # Extract the precision matrix (Pinv) for the first regime (base VCV)
+  # Extract the covariance matrix (Pinv) for the first regime (base VCV)
   base_Pinv <- model_output$sigma$Pinv
 
   # Get the parameter for the first regime (base rate)
