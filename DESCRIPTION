@@ -11,7 +11,7 @@ Description: Methods for detecting and visualizing branch-level shifts in trait 
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.2
+RoxygenNote: 7.3.3
 URL: https://github.com/jakeberv/bifrost
 BugReports: https://github.com/jakeberv/bifrost/issues
 Depends: R (>= 4.1)

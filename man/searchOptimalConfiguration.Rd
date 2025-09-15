@@ -2,7 +2,7 @@
 % Please edit documentation in R/searchOptimalConfiguration.R
 \name{searchOptimalConfiguration}
 \alias{searchOptimalConfiguration}
-\title{Search for the Optimal Shift Configuration in a Phylogenetic Model}
+\title{Search for an Optimal Multi-Regime (Shift) Configuration on a Phylogeny}
 \usage{
 searchOptimalConfiguration(
   baseline_tree,
@@ -22,8 +22,165 @@ searchOptimalConfiguration(
   ...
 )
 }
+\arguments{
+\item{baseline_tree}{A rooted SIMMAP/\code{phylo} object representing the baseline
+(single-regime) tree. If not SIMMAP-initialized, it should already be painted to a
+single baseline state and have tip order matching \code{trait_data}.}
+
+\item{trait_data}{A \code{matrix} or \code{data.frame} of trait values with row names
+matching \code{baseline_tree$tip.label} (same order).}
+
+\item{formula}{Character formula passed to \code{mvgls}; defaults to \code{"trait_data ~ 1"}
+(intercept-only). Use \code{cbind()} for multivariate responses
+(e.g., \code{"cbind(t1, t2, ...) ~ 1"}).}
+
+\item{min_descendant_tips}{Integer (≥1). Minimum number of tips required for an internal node
+to be considered as a candidate shift (forwarded to \code{\link{generatePaintedTrees}}).}
+
+\item{num_cores}{Integer. Number of workers for parallel candidate scoring. Uses
+\code{future::plan(multicore)} on Unix and \code{future::plan(multisession)} on Windows.}
+
+\item{ic_uncertainty_threshold}{Numeric (≥0). IC tolerance used in the optional post-search
+pruning step (\code{uncertainty = TRUE}). Shifts whose removal changes the current best IC
+by \eqn{\le} this value are pruned.}
+
+\item{shift_acceptance_threshold}{Numeric (≥0). Minimum IC improvement
+(baseline − new) required to accept a candidate shift during the forward search.
+Larger values yield more conservative models.}
+
+\item{uncertaintyweights}{Logical. If \code{TRUE}, compute per-shift IC weights serially by
+refitting the optimized model with each shift removed in turn. Exactly one of
+\code{uncertaintyweights} or \code{uncertaintyweights_par} must be \code{TRUE} to trigger
+IC-weight calculations.}
+
+\item{uncertaintyweights_par}{Logical. As above, but compute per-shift IC weights in parallel
+using \pkg{future.apply}.}
+
+\item{plot}{Logical. If \code{TRUE}, draw/update a SIMMAP plot as the search proceeds
+(requires \pkg{phytools}).}
+
+\item{IC}{Character. Which information criterion to use, one of \code{"GIC"} or \code{"BIC"}
+(case-sensitive).}
+
+\item{store_model_fit_history}{Logical. If \code{TRUE}, store a per-iteration record of fitted
+models, acceptance decisions, and IC values; warnings/errors are also kept.}
+
+\item{...}{Additional arguments passed to \code{\link[mvMORPH]{mvgls}} (e.g., \code{method},
+\code{penalty}, \code{target}, \code{error}, etc.).}
+}
+\value{
+A named \code{list} with (at minimum):
+\itemize{
+\item \code{user_input}: captured call (as a list) for reproducibility.
+\item \code{tree_no_uncertainty_transformed}: SIMMAP tree from the optimal (no-uncertainty) model
+on the transformed scale used internally by \code{mvgls}.
+\item \code{tree_no_uncertainty_untransformed}: same topology with original edge lengths restored.
+\item \code{model_no_uncertainty}: the final \code{mvgls} model object.
+\item \code{shift_nodes_no_uncertainty}: integer vector of accepted shift nodes.
+\item \code{optimal_ic}: final IC value; \code{baseline_ic}: baseline IC.
+\item \code{IC_used}: \code{"GIC"} or \code{"BIC"}; \code{num_candidates}: count of candidate one-shift models evaluated.
+\item \code{model_fit_history}: if \code{store_model_fit_history = TRUE}, a list of per-iteration fits
+and an \code{ic_acceptance_matrix} (IC value and acceptance flag per step).
+\item \code{VCVs}: named list of regime-specific VCV matrices extracted from the final model
+(penalized-likelihood estimates if PL was used).
+}
+Additional components appear conditionally:
+\itemize{
+\item \code{ic_weights}: a \code{data.frame} of per-shift IC weights and evidence ratios when
+\code{uncertaintyweights} or \code{uncertaintyweights_par} is \code{TRUE}.
+\item \code{tree_uncertainty_transformed}, \code{tree_uncertainty_untransformed},
+\code{model_uncertainty}, \code{shift_nodes_uncertainty}: returned when
+\code{uncertainty = TRUE} and pruning removed at least one shift.
+\item \code{warnings}: character vector of warnings/errors encountered during fitting (if any).
+}
+}
 \description{
-This function performs a stepwise search to identify the optimal configuration of evolutionary regime shifts
-on a phylogenetic tree, using information criteria (GIC or BIC) to guide model selection. It evaluates candidate
-shifts in parallel, fits models at each stage, optionally accounts for model uncertainty, and computes model weights.
+Greedy, stepwise search for evolutionary regime shifts on a SIMMAP-style phylogeny
+using multivariate \code{mvgls} fits from \pkg{mvMORPH}. The routine:
+\enumerate{
+\item builds one-shift candidate trees for all internal nodes meeting a tip-size threshold
+(via \code{\link{generatePaintedTrees}}),
+\item fits each candidate in parallel and ranks them by improvement in the chosen
+information criterion (IC; \code{GIC} or \code{BIC}),
+\item iteratively adds shifts that pass a user-defined acceptance threshold,
+\item optionally revisits accepted shifts to prune overfitting using a small IC tolerance window,
+\item optionally computes per-shift IC weights by refitting the model with each shift removed.
+}
+
+Models are fitted directly in multivariate trait space (no PCA), assuming a multi-rate
+Brownian Motion with proportional VCV scaling across regimes. Extra arguments in \code{...}
+are forwarded to \code{\link[mvMORPH]{mvgls}} (e.g., \code{method = "LL"} or
+\code{method = "PL-LOOCV"}, \code{penalty}, \code{error = TRUE}, etc.).
+}
+\details{
+\strong{Search outline.}
+\enumerate{
+\item \emph{Baseline:} Fit \code{mvgls} on the baseline tree (single regime) to obtain the baseline IC.
+\item \emph{Candidates:} Build one-shift trees for eligible internal nodes
+(\code{\link{generatePaintedTrees}}); fit each with
+\code{\link{fitMvglsAndExtractGIC.formula}} or \code{\link{fitMvglsAndExtractBIC.formula}}
+and rank by ΔIC.
+\item \emph{Greedy add:} Add the top candidate, refit, and accept if
+ΔIC \eqn{\ge} \code{shift_acceptance_threshold}; continue down the ranked list.
+\item \emph{Optional IC weights:} If \code{uncertaintyweights} (or \code{uncertaintyweights_par})
+is \code{TRUE}, compute an IC weight for each accepted shift by refitting the final model with that
+shift removed and comparing the two ICs via \code{\link[mvMORPH]{aicw}}.
+}
+
+\strong{Parallelization.} Candidate sub-model fits are distributed with \pkg{future} + \pkg{future.apply}.
+On Unix, \code{multicore} is used; on Windows, \code{multisession}. A sequential plan is restored afterward.
+
+\strong{Plotting.} If \code{plot = TRUE}, trees are rendered with
+\code{\link[phytools]{plotSimmap}()}; shift IDs are labeled with \code{\link[ape]{nodelabels}()}.
+
+\strong{Regime VCVs.} The returned \code{$VCVs} are extracted from the fitted multi-regime model via
+\code{\link{extractRegimeVCVs}} and reflect regime-specific covariance
+estimates (when \code{mvgls} is fitted under a PL/ML method).
+}
+\section{Convergence and robustness}{
+
+The search is greedy and may converge to a local optimum. Use a stricter
+\code{shift_acceptance_threshold} and/or enable \code{uncertainty = TRUE} to reduce overfitting.
+Re-run with different \code{min_descendant_tips} and IC choices (GIC vs BIC) to assess stability.
+}
+
+\examples{
+\dontrun{
+library(ape)
+library(phytools)
+set.seed(1)
+tr <- pbtree(n = 80, scale = 1)
+# Paint a single global baseline state "0"
+base <- phytools::paintBranches(tr, edge = unique(tr$edge[,2]),
+                                state = "0", anc.state = "0")
+
+# Fake multivariate data (2 traits)
+X <- cbind(trait1 = rnorm(Ntip(base)), trait2 = rnorm(Ntip(base)))
+rownames(X) <- base$tip.label
+
+res <- searchOptimalConfiguration(
+  baseline_tree = base,
+  trait_data    = as.data.frame(X),
+  formula       = "cbind(trait1, trait2) ~ 1",
+  min_descendant_tips = 10,
+  num_cores = 2,
+  shift_acceptance_threshold = 10,  # conservative
+  IC = "GIC",
+  plot = FALSE
+)
+
+res$shift_nodes_no_uncertainty
+res$optimal_ic - res$baseline_ic
+str(res$VCVs)
+}
+
+}
+\seealso{
+\code{\link{generatePaintedTrees}},
+\code{\link{fitMvglsAndExtractGIC.formula}},
+\code{\link{fitMvglsAndExtractBIC.formula}},
+\code{\link{addShiftToModel}},
+\code{\link{removeShiftFromTree}},
+\code{\link{extractRegimeVCVs}};
+packages: \pkg{mvMORPH}, \pkg{phytools}, \pkg{ape}, \pkg{future}, \pkg{future.apply}.
 }

@@ -2,12 +2,71 @@
 % Please edit documentation in R/utils.R
 \name{removeShiftFromTree}
 \alias{removeShiftFromTree}
-\title{Remove a Shift from a Phylogenetic Tree by Reverting to Parent State}
+\title{Remove a Painted Shift from a SIMMAP Tree}
 \usage{
 removeShiftFromTree(tree, shift_node, stem = F)
 }
+\arguments{
+\item{tree}{A phylogenetic tree of class \code{phylo} or \code{simmap}.
+If edge lengths are missing, they are initialized via
+\code{\link[ape]{compute.brlen}}. If \code{$maps} is \code{NULL}, a simple
+mapping is initialized with state \code{"1"} on all edges.}
+
+\item{shift_node}{Integer node ID in \code{tree} at which the painted shift
+begins; the entire descendant clade is considered for removal.}
+
+\item{stem}{Logical or numeric. If \code{FALSE} (default), the incoming edge
+to \code{shift_node} is left unchanged. If \code{TRUE}, the incoming edge
+is reassigned to the parental state. If a numeric value in \eqn{[0,1]},
+the parent edge is split into two segments: \code{1 - stem} and \code{stem}
+both labeled with the parental state (i.e., effectively restored).}
+}
+\value{
+A modified tree of class \code{c("simmap","phylo")} with updated
+\code{$maps} and \code{$mapped.edge}, where edges in the target subtree
+that matched the shift state are overwritten by the parental state.
+}
 \description{
-This function removes a regime shift from a SIMMAP-style phylogenetic tree by repainting the subtree
-starting at a specified node with the state of its parent node. It uses \code{paintSubTree_removeShift()}
-to selectively revert the painted shift without affecting unrelated branches, with optional stem edge handling.
+Selectively removes a previously painted regime (shift) from the clade
+descending from \code{shift_node} in a SIMMAP-style phylogenetic tree, and
+restores the ancestral state inherited from the parent node. Optionally, the
+stem (incoming edge) to \code{shift_node} can be adjusted as well.
+}
+\details{
+\itemize{
+\item The parental state is determined using \code{\link[phytools]{getParent}}
+and \code{\link[phytools]{getStates}} at the parent node of
+\code{shift_node}. If unavailable (e.g., missing parent), the default
+ancestral state \code{"1"} is used.
+\item Edges are selectively overwritten only when their current mapping
+equals the shift state found at \code{shift_node}. Existing mappings
+with other states are preserved.
+\item This implementation assumes edges to be represented as single-state
+segments when testing equality (i.e., \code{names(maps[[i]])} of
+length 1). If edges contain multiple segments, only exact single-state
+matches are overwritten.
+}
+}
+\examples{
+\dontrun{
+  set.seed(1)
+  tr <- phytools::pbtree(n = 10, scale = 1)
+  # Initialize a simple global mapping "0" on all edges
+  tr0 <- phytools::paintBranches(tr, edge = unique(tr$edge[,2]), state = "0", anc.state = "0")
+  # Paint a subtree as shift "1"
+  nd <- ape::Ntip(tr0) + 2L
+  tr1 <- paintSubTree_mod(tr0, node = nd, state = "1", anc.state = "0", stem = TRUE, overwrite = TRUE)
+  # Remove that shift and restore parental state
+  tr2 <- paintSubTree_removeShift(tr1, shift_node = nd, stem = FALSE)
+}
+
+}
+\seealso{
+\code{\link{paintSubTree_mod}},
+\code{\link[phytools]{paintSubTree}},
+\code{\link[phytools]{paintBranches}},
+\code{\link[phytools]{getParent}},
+\code{\link[phytools]{getDescendants}},
+\code{\link[phytools]{getStates}},
+\code{\link[ape]{compute.brlen}}
 }

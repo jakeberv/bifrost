@@ -41,7 +41,7 @@ with the specified \code{state}.
 }
 }
 \examples{
-\donttest{
+\dontrun{
   set.seed(123)
   tree <- phytools::pbtree(n = 30, scale = 1)
   painted <- generatePaintedTrees(tree, min_tips = 5, state = "shift")

@@ -41,7 +41,7 @@ object via \code{\link[stats]{as.formula}} before fitting. The number of regimes
 in \code{painted_tree} is detected with \code{\link[phytools]{getStates}}.
 }
 \examples{
-\donttest{
+\dontrun{
   set.seed(321)
   tree <- phytools::pbtree(n = 12, scale = 1)
   painted <- phytools::paintSubTree(tree, node = 13, state = "A", anc.state = "A")
