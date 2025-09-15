@@ -39,8 +39,8 @@ Imports:
     mvMORPH (>= 1.2.1),
     tidyverse
 Suggests:
+    testthat (>= 3.0.0),
     knitr,
-    rmarkdown,
-    testthat (>= 3.0.0)
+    rmarkdown
 VignetteBuilder: knitr
 Config/testthat/edition: 3
