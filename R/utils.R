@@ -325,10 +325,11 @@ fitMvglsAndExtractGIC.formula <- function(formula, painted_tree, trait_data, ...
 #'   tree <- phytools::pbtree(n = 12, scale = 1)
 #'   painted <- phytools::paintSubTree(tree, node = 13, state = "A", anc.state = "A")
 #'   x <- rnorm(12)
-#'   y <- x + rnorm(12)
-#'   dat <- data.frame(x = x, y = y)
+#'   y1 <- x + rnorm(12, sd = 0.5)
+#'   y2 <- 0.8 * x + rnorm(12, sd = 0.3)    
+#'   dat <- data.frame(x = x, y1 = y1, y2 = y2)
 #'   rownames(dat) <- painted$tip.label
-#'   result <- fitMvglsAndExtractBIC.formula("y ~ x", painted, dat)
+#'   result <- fitMvglsAndExtractBIC.formula(cbind(y1, y2) ~ x, painted, dat)
 #'   result$BIC
 #' }
 #'
