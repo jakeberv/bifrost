@@ -1,5 +1,4 @@
 # Unit tests for fitMvglsAndExtractGIC and fitMvglsAndExtractBIC functions
-# Save this file as test-mvgls-functions.R in your tests/testthat/ directory
 
 library(testthat)
 library(ape)
@@ -12,13 +11,13 @@ create_test_data <- function(n_tips = 20, n_traits = 2, min_tips_high = 5) {
   base_tree <- rcoal(n_tips)
   
   # Generate painted trees using the custom function
-  painted_trees <- generatePaintedTrees(base_tree, min_tips_high = min_tips_high)
+  painted_trees <- generatePaintedTrees(base_tree, min_tips = min_tips_high)
   
   # Select the first painted tree for testing
   painted_tree <- painted_trees[[1]]
   
   # Generate simulated trait data
-  trait_data <- mvSIM(painted_tree, nsim = 1, model = "BMM", param = list(ntraits = n_traits))
+  trait_data <- mvSIM(painted_tree, nsim = n_traits, model = "BMM", param = list(sigma = 0.1, theta = 0))
   
   # Ensure trait_data is a matrix with proper row names
   if (!is.matrix(trait_data)) {
