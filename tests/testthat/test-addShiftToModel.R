@@ -181,8 +181,7 @@ test_that("addShiftToModel error handling for missing paintSubTree_mod", {
   # Skip if the function is available, otherwise expect an error
 
   tree <- create_test_simmap_tree()
-  valid_nodes <- get_valid_internal_nodes(tree)
-  shift_node <- valid_nodes[1]
+  shift_node <- Ntip(tree) + 2
 
   # If paintSubTree_mod doesn't exist, this should fail
   if (!exists("paintSubTree_mod")) {
@@ -196,7 +195,7 @@ test_that("addShiftToModel error handling for missing paintSubTree_mod", {
 
 test_that("addShiftToModel handles root node error correctly", {
   tree <- create_test_simmap_tree()
-  root_node <- get_root_node(tree)
+  root_node <- Ntip(tree) + 1
 
   # Root node should cause an error in paintSubTree_mod due to the indexing issue
   expect_error(addShiftToModel(tree, shift_node = root_node, current_shift_id = 0L),
@@ -205,7 +204,7 @@ test_that("addShiftToModel handles root node error correctly", {
 
 test_that("addShiftToModel works with all valid internal nodes", {
   tree <- create_test_simmap_tree(n_tips = 6)
-  valid_nodes <- get_valid_internal_nodes(tree)
+  valid_nodes <- (Ntip(tree) + 2):(Ntip(tree) + Nnode(tree))
 
   # Should have at least one valid internal node
   expect_true(length(valid_nodes) >= 1)
