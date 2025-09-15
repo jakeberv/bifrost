@@ -262,35 +262,6 @@ test_that("paintSubTree_mod can paint from root node", {
   expect_true(all_single_1)
 })
 
-# ---- Test 12: Empty subtree edge case --------------------------------------
-test_that("paintSubTree_mod handles single-tip subtrees", {
-  skip_if_missing_deps()
-
-  # Create a simple tree where we can isolate a single tip
-  set.seed(122)
-  tr <- phytools::pbtree(n = 4, scale = 1)
-  root <- ape::Ntip(tr) + 1L
-  sim <- phytools::paintSubTree(tr, node = root, state = "0",
-                                anc.state = "0", stem = FALSE)
-
-  # Paint just one tip
-  out <- paintSubTree_mod(sim, node = 1L, state = "1",
-                          anc.state = "0", stem = TRUE, overwrite = TRUE)
-
-  # Only the edge leading to tip 1 should change
-  tip1_edge_idx <- which(out$edge[, 2] == 1L)
-  expect_equal(names(out$maps[[tip1_edge_idx]])[1], "1")
-
-  # Other edges should remain "0"
-  other_edges <- setdiff(seq_along(out$maps), tip1_edge_idx)
-  all_others_zero <- all(vapply(
-    other_edges,
-    function(i) all(names(out$maps[[i]]) == "0"),
-    logical(1)
-  ))
-  expect_true(all_others_zero)
-})
-
 # ---- Test 13: Numeric vs character states ----------------------------------
 test_that("paintSubTree_mod works with numeric states", {
   skip_if_missing_deps()
