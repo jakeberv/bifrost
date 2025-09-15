@@ -1,5 +1,5 @@
 Package: bifrost
-Title: Branch-level Inference Framework for Recognizing Optimal Shifts in Traits.
+Title: Branch-level Inference Framework for Recognizing Optimal Shifts in Traits
 Version: 0.0.0.9000
 Authors@R: 
     person("Jacob", "Berv", , "jberv@umich.edu", role = c("aut", "cre"))
