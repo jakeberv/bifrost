@@ -157,7 +157,7 @@ test_that("fitMvglsAndExtractBIC handles multiple traits", {
   skip_if_not_installed("ape")
   
   # Create test data with multiple traits
-  test_data <- create_test_data(n_tips = 25, n_traits = 4)
+  test_data <- create_test_data(n_tips = 25, n_traits = 10)
   painted_tree <- test_data$painted_tree
   trait_data <- test_data$trait_data
   
@@ -168,7 +168,7 @@ test_that("fitMvglsAndExtractBIC handles multiple traits", {
   expect_type(result, "list")
   expect_named(result, c("model", "BIC"))
   expect_s3_class(result$model, "mvgls")
-  expect_type(result$BIC, "double")
+  expect_type(result$BIC$BIC, "numeric")
 })
 
 test_that("fitMvglsAndExtractBIC throws error for non-matrix trait_data", {
@@ -184,6 +184,22 @@ test_that("fitMvglsAndExtractBIC throws error for non-matrix trait_data", {
   expect_error(
     fitMvglsAndExtractBIC(painted_tree, trait_data),
     "trait_data must be a matrix."
+  )
+})
+
+test_that("fitMvglsAndExtractBIC throws error for univariate trait_data", {
+  skip_if_not_installed("mvMORPH")
+  skip_if_not_installed("ape")
+  
+  # Create test data
+  test_data <- create_test_data(n_tips = 20, n_traits = 1)
+  painted_tree <- test_data$painted_tree
+  trait_data <- test_data$trait_data
+  
+  # Test that error is thrown
+  expect_error(
+    fitMvglsAndExtractBIC(painted_tree, trait_data),
+    "trait_data must be a multivariate."
   )
 })
 
@@ -234,7 +250,7 @@ test_that("functions handle small trees", {
   skip_if_not_installed("ape")
   
   # Create test data with minimum viable tree size
-  test_data <- create_test_data(n_tips = 10, n_traits = 1, min_tips_high = 3)
+  test_data <- create_test_data(n_tips = 10, n_traits = 2, min_tips_high = 3)
   painted_tree <- test_data$painted_tree
   trait_data <- test_data$trait_data
   
