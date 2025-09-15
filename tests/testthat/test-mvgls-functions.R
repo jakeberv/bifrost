@@ -146,8 +146,8 @@ test_that("fitMvglsAndExtractBIC works with valid inputs", {
   expect_s3_class(result$model, "mvgls")
   
   # Check that BIC is a numeric value
-  expect_type(result$BIC, "double")
-  expect_length(result$BIC, 1)
+  expect_type(result$BIC$BIC, "numeric")
+  expect_length(result$BIC, 4)
   expect_false(is.na(result$BIC))
 })
 
