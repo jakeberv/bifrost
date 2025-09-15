@@ -15,6 +15,8 @@ Internal nodes are numbered from \code{Ntip(tree) + 1} to
 
 \item{include.node}{Logical (default \code{FALSE}). If \code{TRUE}, the specified
 node itself is included in the returned vector.}
+
+\item{model_output}{A fitted model object containing regime-level VCVs.}
 }
 \value{
 An integer vector of node numbers (tips and/or internal nodes)
@@ -39,7 +41,6 @@ getDescendants(tree, root_node)
 
 # Include the starting node itself
 getDescendants(tree, root_node, include.node = TRUE)
-
 }
 \seealso{
 \code{\link[ape]{Ntip}}, \code{\link[ape]{Nnode}},

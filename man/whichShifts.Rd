@@ -7,9 +7,7 @@
 whichShifts(tree)
 }
 \arguments{
-\item{tree}{A SIMMAP-formatted phylogenetic tree (class \code{c("simmap","phylo")}).
-The tree must have discrete state mappings, accessible via
-\code{\link[phytools]{getStates}}.}
+\item{tree}{A \code{phylo} tree}
 }
 \value{
 An integer vector of unique node numbers representing the MRCAs of
@@ -45,7 +43,6 @@ For each unique state painted on the tips, the function:
   # Identify shift nodes
   whichShifts(tr1)
 }
-
 }
 \seealso{
 \code{\link[phytools]{getStates}},
