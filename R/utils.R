@@ -799,11 +799,55 @@ removeShiftFromTree <- function(tree, shift_node, stem=F) {
   return(tree)
 }
 
-#' Identify Nodes Representing Shifts in a SIMMAP Tree
+#' Identify Internal Nodes Corresponding to Regime Shifts
 #'
-#' This function identifies internal nodes in a SIMMAP-style phylogenetic tree
-#' that represent regime shifts, based on the most recent common ancestors (MRCAs)
-#' of tips sharing the same painted state.
+#' Scans a SIMMAP-style phylogenetic tree and returns the set of internal nodes
+#' that correspond to regime shifts, as inferred from the most recent common
+#' ancestor (MRCA) of tips sharing the same painted state.
+#'
+#' @param tree A SIMMAP-formatted phylogenetic tree (class \code{c("simmap","phylo")}).
+#'   The tree must have discrete state mappings, accessible via
+#'   \code{\link[phytools]{getStates}}.
+#'
+#' @return An integer vector of unique node numbers representing the MRCAs of
+#'   clades in which a distinct state is expressed. If no shifts are found
+#'   (e.g., all tips share the same state), returns an empty vector.
+#'
+#' @details
+#' For each unique state painted on the tips, the function:
+#' \enumerate{
+#'   \item Identifies all tips carrying that state.
+#'   \item Uses \code{\link[ape]{getMRCA}} to compute the MRCA node of those tips
+#'         (if there are two or more tips).
+#'   \item Collects all such MRCA nodes across states, ensuring uniqueness.
+#' }
+#'
+#' @seealso
+#' \code{\link[phytools]{getStates}},
+#' \code{\link[ape]{getMRCA}},
+#' \code{\link{paintSubTree_mod}},
+#' \code{\link{addShiftToModel}},
+#' \code{\link{paintSubTree_removeShift}}
+#'
+#' @examples
+#' \donttest{
+#'   set.seed(42)
+#'   tr <- phytools::pbtree(n = 12, scale = 1)
+#'
+#'   # Paint global state "0"
+#'   tr0 <- phytools::paintBranches(tr, edge = unique(tr$edge[,2]), state = "0", anc.state = "0")
+#'
+#'   # Add a shift on a subtree as state "1"
+#'   nd <- ape::Ntip(tr0) + 3L
+#'   tr1 <- paintSubTree_mod(tr0, node = nd, state = "1", anc.state = "0", overwrite = TRUE)
+#'
+#'   # Identify shift nodes
+#'   whichShifts(tr1)
+#' }
+#'
+#' @importFrom phytools getStates
+#' @importFrom ape getMRCA
+#' @export
 whichShifts <- function(tree) {
   tip_states <- getStates(tree, type = "tips")
   unique_states <- unique(tip_states)
@@ -821,11 +865,60 @@ whichShifts <- function(tree) {
   return(unique(shift_nodes))
 }
 
-#' Extract Regime-Specific Variance-Covariance Matrices from a BMM mvgls Model
+#' Extract Regime-Specific Variance–Covariance Matrices from a BMM mvgls Model
 #'
-#' This function extracts and scales the regime-specific variance-covariance (VCV) matrices
-#' from a mvgls model fitted under the BMM (Brownian Motion with multiple regimes) framework.
-#' It returns a named list of VCV matrices, each corresponding to an evolutionary regime.
+#' Retrieves and scales the regime-specific variance–covariance (VCV) matrices
+#' from a \code{\link[mvMORPH]{mvgls}} model fitted under a
+#' Brownian Motion with multiple regimes (\code{"BMM"}) model.
+#'
+#' @param model_output An object returned by \code{\link[mvMORPH]{mvgls}}
+#'   that was fitted with \code{model = "BMM"} and contains:
+#'   \describe{
+#'     \item{\code{param}}{A named numeric vector of regime-specific evolutionary rates.}
+#'     \item{\code{sigma}}{A list that must contain \code{Pinv}, the precision matrix
+#'       (inverse of the phylogenetic covariance matrix) used for model fitting.}
+#'   }
+#'
+#' @return A named list of variance–covariance matrices (one per regime).
+#' Each element is a numeric matrix with dimensions equal to the number of
+#' traits in the model. The first regime is returned unscaled, and subsequent
+#' regimes are scaled relative to the first regime's rate parameter.
+#'
+#' @details
+#' The first regime's covariance matrix is taken directly from
+#' \code{model_output$sigma$Pinv}. For each subsequent regime, the covariance
+#' matrix is obtained by multiplying the base covariance matrix by the ratio
+#' of the regime's rate parameter to the first regime's parameter.
+#'
+#' This function is particularly useful for extracting and comparing regime-specific
+#' evolutionary rates from BMM models fitted with \code{\link[mvMORPH]{mvgls}}.
+#'
+#' @note
+#' If \code{model_output} does not contain the required components
+#' (\code{param}, \code{sigma}, and \code{sigma$Pinv}), the function
+#' returns \code{NULL}.
+#'
+#' @seealso
+#' \code{\link[mvMORPH]{mvgls}},
+#' \code{\link{fitMvglsAndExtractGIC.formula}},
+#' \code{\link{fitMvglsAndExtractBIC.formula}}
+#'
+#' @examples
+#' \donttest{
+#'   library(mvMORPH)
+#'   set.seed(123)
+#'   tree <- ape::rtree(5)
+#'   dat <- data.frame(trait = rnorm(5))
+#'   rownames(dat) <- tree$tip.label
+#'
+#'   # Fit a simple BMM model
+#'   fit <- mvgls(trait ~ 1, tree = tree, model = "BMM")
+#'
+#'   # Extract regime-specific VCVs
+#'   extractRegimeVCVs(fit)
+#' }
+#'
+#' @export
 extractRegimeVCVs <- function(model_output) {
   # Ensure the required components are in the model_output
   if (!"param" %in% names(model_output) || !"sigma" %in% names(model_output) || !"Pinv" %in% names(model_output$sigma)) {
@@ -863,11 +956,42 @@ extractRegimeVCVs <- function(model_output) {
   return(vcv_list)
 }
 
-# # Supporting function getDescendants (if not already defined in the environment)
 #' Get All Descendants of a Node in a Phylogenetic Tree
 #'
-#' Recursively retrieves all descendant nodes (internal and/or tips) from a specified node
-#' in a phylogenetic tree of class `"phylo"`. Optionally includes the starting node in the output.
+#' Recursively retrieves all descendant nodes (internal nodes and tips) from a specified
+#' node in a phylogenetic tree of class \code{"phylo"}.
+#'
+#' @param tree An object of class \code{"phylo"} (see \code{\link[ape]{phylo}}).
+#' @param node An integer specifying the node number from which to retrieve descendants.
+#'   Internal nodes are numbered from \code{Ntip(tree) + 1} to
+#'   \code{Ntip(tree) + Nnode(tree)} in the \code{phylo} object.
+#' @param include.node Logical (default \code{FALSE}). If \code{TRUE}, the specified
+#'   node itself is included in the returned vector.
+#'
+#' @return An integer vector of node numbers (tips and/or internal nodes)
+#'   that descend from the specified node. The order of descendants is not guaranteed.
+#'
+#' @details
+#' This function performs a depth-first traversal of the tree, recursively
+#' identifying all nodes downstream of the specified starting node.
+#'
+#' @seealso
+#' \code{\link[ape]{Ntip}}, \code{\link[ape]{Nnode}},
+#' \code{\link[ape]{getMRCA}}, \code{\link[phytools]{getParent}}
+#'
+#' @examples
+#' library(ape)
+#' set.seed(123)
+#' tree <- rtree(5)
+#'
+#' # Get descendants of the root node
+#' root_node <- Ntip(tree) + 1
+#' getDescendants(tree, root_node)
+#'
+#' # Include the starting node itself
+#' getDescendants(tree, root_node, include.node = TRUE)
+#'
+#' @export
 getDescendants <- function(tree, node, include.node = FALSE) {
   # Function to recursively find all descendants of a node
   descendants <- numeric(0)
