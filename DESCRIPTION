@@ -1,18 +1,21 @@
 Package: bifrost
-Title: Branch-level Inference Framework for Recognizing Optimal Shifts in Traits.
+Title: Branch-level Inference Framework for Recognizing Optimal Shifts in Traits
 Version: 0.0.0.9000
-Authors@R: 
-    person("Jacob", "Berv", , "jberv@umich.edu", role = c("aut", "cre"))
-    person("Nathan", "Fox", role = c("aut"))
-    person("Matthew", "Thorstensen", role = c("aut"))
-    person("Henry", "Lloyd-Laney", role = c("aut"))
-Description: Branch-level Inference Framework for Recognizing Optimal Shifts in Traits.
-License: MIT
+Authors@R: c(
+    person(given = "Jacob", family = "Berv", email = "jberv@umich.edu", role = c("aut", "cre")),
+    person(given = "Nathan", family = "Fox", role = "aut"),
+    person(given = "Matthew", family = "Thorstensen", role = "aut"),
+    person(given = "Henry", family = "Lloyd-Laney", role = "aut"))
+Description: Methods for detecting and visualizing branch-level shifts in trait optima on phylogenies.
+    Includes tools for model fitting, uncertainty quantification, and plotting results.
+License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
+URL: https://github.com/jakeberv/bifrost
 BugReports: https://github.com/jakeberv/bifrost/issues
-Imports: 
+Depends: R (>= 4.1)
+Imports:
     ape,
     phytools,
     future,
@@ -26,16 +29,17 @@ Imports:
     pbmcapply,
     phylolm,
     scales,
-    tidyverse,
     patchwork,
     readxl,
     univariateML,
     evd,
     fitdistrplus,
     HDInterval,
-    testthat (>= 3.0.0),
     mvMORPH (>= 1.2.1),
-Suggests: 
+    tidyverse
+Suggests:
+    testthat (>= 3.0.0),
     knitr,
     rmarkdown
 VignetteBuilder: knitr
+Config/testthat/edition: 3
