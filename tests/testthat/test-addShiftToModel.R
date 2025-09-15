@@ -10,8 +10,7 @@ create_test_simmap_tree <- function(n_tips = 6) {
   set.seed(123)
   tree <- pbtree(n = n_tips, scale = 1)
   # Initialize with baseline state "0"
-  simmap_tree <- paintBranches(tree, edge = unique(tree$edge[,2]),
-                               state = "0", anc.state = "0")
+  simmap_tree <- paintSubTree(tree, node = Ntip(tree)+1, state = "0", anc.state = "0")
   return(simmap_tree)
 }
 
@@ -184,7 +183,8 @@ test_that("addShiftToModel error handling for missing paintSubTree_mod", {
   # Skip if the function is available, otherwise expect an error
 
   tree <- create_test_simmap_tree()
-  shift_node <- Ntip(tree) + 1
+  valid_nodes <- get_valid_internal_nodes(tree)
+  shift_node <- valid_nodes[1]
 
   # If paintSubTree_mod doesn't exist, this should fail
   if (!exists("paintSubTree_mod")) {
@@ -193,5 +193,29 @@ test_that("addShiftToModel error handling for missing paintSubTree_mod", {
     # If it exists, the function should work
     result <- addShiftToModel(tree, shift_node = shift_node, current_shift_id = 0L)
     expect_s3_class(result$tree, "simmap")
+  }
+})
+
+test_that("addShiftToModel handles root node error correctly", {
+  tree <- create_test_simmap_tree()
+  root_node <- get_root_node(tree)
+
+  # Root node should cause an error in paintSubTree_mod due to the indexing issue
+  expect_error(addShiftToModel(tree, shift_node = root_node, current_shift_id = 0L),
+               "attempt to select less than one element")
+})
+
+test_that("addShiftToModel works with all valid internal nodes", {
+  tree <- create_test_simmap_tree(n_tips = 6)
+  valid_nodes <- get_valid_internal_nodes(tree)
+
+  # Should have at least one valid internal node
+  expect_true(length(valid_nodes) >= 1)
+
+  # Test that all valid nodes work
+  for (node in valid_nodes) {
+    result <- addShiftToModel(tree, shift_node = node, current_shift_id = 0L)
+    expect_s3_class(result$tree, "simmap")
+    expect_equal(result$shift_id, 1L)
   }
 })
