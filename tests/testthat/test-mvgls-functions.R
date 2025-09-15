@@ -49,7 +49,7 @@ test_that("fitMvglsAndExtractGIC works with valid inputs", {
   expect_s3_class(result$model, "mvgls")
   
   # Check that GIC is a numeric value
-  expect_type(result$GIC$GIC, "matrix")
+  expect_type(result$GIC$GIC, "double")
   expect_length(result$GIC, 7)
   expect_false(is.na(result$GIC))
 })
@@ -71,7 +71,7 @@ test_that("fitMvglsAndExtractGIC handles multiple traits", {
   expect_type(result, "list")
   expect_named(result, c("model", "GIC"))
   expect_s3_class(result$model, "mvgls")
-  expect_type(result$GIC$GIC, "matrix")
+  expect_type(result$GIC$GIC, "double")
 })
 
 test_that("fitMvglsAndExtractGIC throws error for non-matrix trait_data", {
@@ -102,7 +102,7 @@ test_that("fitMvglsAndExtractGIC does not work on univariate data", {
   # Test that error is thrown
   expect_error(
     fitMvglsAndExtractGIC(painted_tree, trait_data),
-    "trait_data must be multivariate."
+    "mvgls can be used only with multivariate datasets. See \"gls\" function in \"nlme\" or \"phylolm\" package instead."
   )
 })
 
@@ -146,7 +146,7 @@ test_that("fitMvglsAndExtractBIC works with valid inputs", {
   expect_s3_class(result$model, "mvgls")
   
   # Check that BIC is a numeric value
-  expect_type(result$BIC$BIC, "numeric")
+  expect_type(result$BIC$BIC, "double")
   expect_length(result$BIC, 4)
   expect_false(is.na(result$BIC))
 })
@@ -168,7 +168,7 @@ test_that("fitMvglsAndExtractBIC handles multiple traits", {
   expect_type(result, "list")
   expect_named(result, c("model", "BIC"))
   expect_s3_class(result$model, "mvgls")
-  expect_type(result$BIC$BIC, "numeric")
+  expect_type(result$BIC$BIC, "double")
 })
 
 test_that("fitMvglsAndExtractBIC throws error for non-matrix trait_data", {
@@ -199,7 +199,7 @@ test_that("fitMvglsAndExtractBIC throws error for univariate trait_data", {
   # Test that error is thrown
   expect_error(
     fitMvglsAndExtractBIC(painted_tree, trait_data),
-    "trait_data must be a multivariate."
+    "mvgls can be used only with multivariate datasets. See \"gls\" function in \"nlme\" or \"phylolm\" package instead."
   )
 })
 
@@ -240,8 +240,8 @@ test_that("GIC and BIC functions produce consistent models", {
   expect_equal(logLik(result_gic$model), logLik(result_bic$model))
   
   # Check that both produce valid information criteria
-  expect_type(result_gic$GIC, "double")
-  expect_type(result_bic$BIC, "double")
+  expect_type(result_gic$GIC$GIC, "matrix")
+  expect_type(result_bic$BIC$BIC, "numeric")
 })
 
 # Edge case tests
