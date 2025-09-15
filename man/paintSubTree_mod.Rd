@@ -14,30 +14,17 @@ paintSubTree_mod(
 )
 }
 \arguments{
-\item{tree}{An object of class \code{phylo}. If no mapped states are present,
-they are initialized (all edges set to \code{anc.state}).}
+\item{tree}{A \code{phylo} tree.}
 
-\item{node}{Integer node number (in \code{tree}) at which painting begins
-(i.e., the clade rooted at \code{node} will be painted).}
+\item{node}{Integer node to paint.}
 
-\item{state}{Character (or numeric) label of the new state to paint.}
+\item{state}{Character regime label.}
 
-\item{anc.state}{Character (or numeric) label of the ancestral (baseline)
-state used when initializing mappings or when splitting the stem.
-Default is \code{"1"}.}
+\item{anc.state}{Character ancestral state label.}
 
-\item{stem}{Logical or numeric. If \code{FALSE} (default), the incoming edge
-to \code{node} is left unchanged. If \code{TRUE}, the entire incoming edge
-is assigned to \code{state}. If a numeric value in \eqn{[0,1]}, the parent
-edge is split such that a fraction \code{stem} is assigned to \code{state}
-and \code{1 - stem} remains \code{anc.state}. For tip nodes, \code{stem}
-must be \code{TRUE} (cannot be \code{FALSE}).}
+\item{stem}{Logical, paint along the stem.}
 
-\item{overwrite}{Logical. If \code{TRUE} (default), overwrite the mappings
-on \emph{all} edges in the subtree with \code{state}. If \code{FALSE},
-only edges whose current mapping equals the \emph{target} state are
-overwritten (the target is the current state on the edge leading to
-\code{node}, or \code{anc.state} for tips).}
+\item{overwrite}{Logical, overwrite existing states.}
 }
 \value{
 A modified tree of class \code{c("simmap", "phylo")} with updated
@@ -79,7 +66,6 @@ into two segments: \code{(1 - stem)} of \code{anc.state} and
   # Selectively overwrite only edges already in state "0" within the subtree
   tr2 <- paintSubTree_mod(tr1, node = nd, state = "2", anc.state = "0", stem = 0.25, overwrite = FALSE)
 }
-
 }
 \seealso{
 \code{\link[phytools]{paintSubTree}}, \code{\link[phytools]{paintBranches}}

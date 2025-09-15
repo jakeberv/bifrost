@@ -7,15 +7,11 @@
 addShiftToModel(tree, shift_node, current_shift_id)
 }
 \arguments{
-\item{tree}{A phylogenetic tree of class \code{phylo} or \code{simmap}.
-If not yet SIMMAP-initialized, ensure edge mappings exist upstream (e.g.,
-by painting a global baseline state) before calling.}
+\item{tree}{A \code{phylo} tree.}
 
-\item{shift_node}{Integer node number in \code{tree} indicating where the
-new regime should begin (the clade rooted at this node will be painted).}
+\item{shift_node}{Integer node ID where the shift is added.}
 
-\item{current_shift_id}{Integer ID of the last regime used. The function
-will assign \code{current_shift_id + 1} to the new shift.}
+\item{current_shift_id}{Integer identifier for the shift.}
 }
 \value{
 A \code{list} with:
@@ -58,7 +54,6 @@ overwrite or paint the stem, call \code{paintSubTree_mod()} directly.
   res2 <- addShiftToModel(tr1, shift_node = nd2, current_shift_id = res1$shift_id)
   res2$shift_id        # 2
 }
-
 }
 \seealso{
 \code{\link{paintSubTree_mod}}, \code{\link[phytools]{paintSubTree}},

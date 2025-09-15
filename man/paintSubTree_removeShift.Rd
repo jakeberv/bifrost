@@ -7,21 +7,11 @@
 paintSubTree_removeShift(tree, shift_node, stem = FALSE)
 }
 \arguments{
-\item{tree}{A phylogenetic tree of class \code{"phylo"} or
-\code{c("simmap","phylo")}. The tree must have initialized
-\code{$edge.length} and \code{$maps}. If \code{$edge.length} is missing,
-it is computed using \code{\link[ape]{compute.brlen}}. If \code{$maps} is
-missing, all edges are assumed to be in state \code{"1"}.}
+\item{tree}{A \code{phylo} tree.}
 
-\item{shift_node}{Integer node number indicating where the shift
-begins (the clade rooted at this node will be repainted).}
+\item{shift_node}{Integer node whose shift is removed.}
 
-\item{stem}{Logical or numeric. If \code{FALSE} (default), the
-incoming edge to \code{shift_node} is left unchanged. If \code{TRUE},
-the entire incoming edge is reassigned to the parental state.
-If a numeric value in \eqn{[0,1]}, the parent edge is split into
-two segments, both labeled with the parental state (effectively
-restoring it).}
+\item{stem}{Logical, remove along the stem.}
 }
 \value{
 A modified tree of class \code{c("simmap","phylo")} with updated
@@ -61,7 +51,6 @@ matches are considered for replacement.
   # Remove the shift: descendants revert to parental state "0"
   tr2 <- paintSubTree_removeShift(tr1, shift_node = nd, stem = FALSE)
 }
-
 }
 \seealso{
 \code{\link{paintSubTree_mod}},
