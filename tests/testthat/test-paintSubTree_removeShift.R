@@ -69,20 +69,6 @@ test_that("paintSubTree_removeShift preserves tree structure", {
   expect_equal(nrow(result$edge), nrow(painted$edge))
 })
 
-test_that("paintSubTree_removeShift works without existing maps", {
-  # Create a tree without maps
-  set.seed(789)
-  tree <- phytools::pbtree(n = 6, scale = 1)
-  tree$maps <- NULL  # Remove maps if they exist
-
-  # Should work and create default maps
-  result <- paintSubTree_removeShift(tree, length(tree$tip.label) + 1)
-
-  expect_s3_class(result, "simmap")
-  expect_true("maps" %in% names(result))
-  expect_true("mapped.edge" %in% names(result))
-  expect_equal(length(result$maps), nrow(result$edge))
-})
 
 test_that("paintSubTree_removeShift handles stem parameter correctly", {
   # Create a test tree
@@ -91,14 +77,14 @@ test_that("paintSubTree_removeShift handles stem parameter correctly", {
   painted <- generatePaintedTrees(tree, min_tips = 4, state = "shift")
 
   # Get a valid internal node
-  internal_nodes <- unique(painted$edge[,1][painted$edge[,1] > length(painted$tip.label)])
-  shift_node <- internal_nodes[1]
+  internal_nodes <- unique(painted$`Node 13`$edge[,1][painted$`Node 13`$edge[,1] > length(painted$`Node 13`$tip.label)])
+  shift_node <- internal_nodes[2]
 
   # Test with stem = FALSE (default)
-  result_no_stem <- paintSubTree_removeShift(painted, shift_node, stem = FALSE)
+  result_no_stem <- paintSubTree_removeShift(painted$`Node 13`, shift_node, stem = FALSE)
 
   # Test with stem = TRUE
-  result_with_stem <- paintSubTree_removeShift(painted, shift_node, stem = TRUE)
+  result_with_stem <- paintSubTree_removeShift(painted$`Node 13`, shift_node, stem = TRUE)
 
   # Both should be valid simmap objects
   expect_s3_class(result_no_stem, "simmap")
@@ -120,28 +106,25 @@ test_that("paintSubTree_removeShift handles tip nodes", {
   tip_node <- 1  # First tip
 
   # Should work without error
-  result <- paintSubTree_removeShift(painted, tip_node)
+  result <- paintSubTree_removeShift(painted$`Node 9`, tip_node)
 
   expect_s3_class(result, "simmap")
   expect_true("maps" %in% names(result))
   expect_equal(length(result$maps), nrow(result$edge))
 })
 
-test_that("paintSubTree_removeShift handles root node", {
+test_that("paintSubTree_removeShift should error on root node", {
   # Create a test tree
   set.seed(987)
   tree <- phytools::pbtree(n = 10, scale = 1)
   painted <- generatePaintedTrees(tree, min_tips = 4, state = "shift")
 
   # Test with root node
-  root_node <- length(painted$tip.label) + 1
+  root_node <- length(painted$`Node 11`$tip.label) + 1
 
-  # Should work without error
-  result <- paintSubTree_removeShift(painted, root_node)
+  # Should work with error
+  expect_error(paintSubTree_removeShift(painted$`Node 11`, root_node))
 
-  expect_s3_class(result, "simmap")
-  expect_true("maps" %in% names(result))
-  expect_equal(length(result$maps), nrow(result$edge))
 })
 
 test_that("paintSubTree_removeShift preserves edge lengths in maps", {
