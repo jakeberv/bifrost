@@ -457,10 +457,70 @@ calculateAllDeltaGIC <- function(model_results, painted_tree_list) {
 
 #' Paint a Subtree in a Phylogenetic Tree with Optional Selective Overwriting
 #'
-#' This function modifies a phylogenetic tree (of class "phylo") by painting a specified subtree
-#' starting at a given node with a new state, optionally preserving existing state mappings unless overwritten.
-#' It returns a SIMMAP-style tree with updated edge mappings and supports both full and selective painting,
-#' as well as optional stem painting from the parent edge.
+#' Modifies a phylogenetic tree by painting the clade descending from a
+#' specified node with a new discrete state and returns a SIMMAP-style tree.
+#' You can either overwrite the entire subtree (\code{overwrite = TRUE}) or
+#' selectively overwrite only edges currently in a \emph{target} state
+#' (\code{overwrite = FALSE}). Optional stem painting splits the parent edge
+#' into ancestral and derived states.
+#'
+#' @param tree An object of class \code{phylo}. If no mapped states are present,
+#'   they are initialized (all edges set to \code{anc.state}).
+#' @param node Integer node number (in \code{tree}) at which painting begins
+#'   (i.e., the clade rooted at \code{node} will be painted).
+#' @param state Character (or numeric) label of the new state to paint.
+#' @param anc.state Character (or numeric) label of the ancestral (baseline)
+#'   state used when initializing mappings or when splitting the stem.
+#'   Default is \code{"1"}.
+#' @param stem Logical or numeric. If \code{FALSE} (default), the incoming edge
+#'   to \code{node} is left unchanged. If \code{TRUE}, the entire incoming edge
+#'   is assigned to \code{state}. If a numeric value in \eqn{[0,1]}, the parent
+#'   edge is split such that a fraction \code{stem} is assigned to \code{state}
+#'   and \code{1 - stem} remains \code{anc.state}. For tip nodes, \code{stem}
+#'   must be \code{TRUE} (cannot be \code{FALSE}).
+#' @param overwrite Logical. If \code{TRUE} (default), overwrite the mappings
+#'   on \emph{all} edges in the subtree with \code{state}. If \code{FALSE},
+#'   only edges whose current mapping equals the \emph{target} state are
+#'   overwritten (the target is the current state on the edge leading to
+#'   \code{node}, or \code{anc.state} for tips).
+#'
+#' @return A modified tree of class \code{c("simmap", "phylo")} with updated
+#'   \code{$maps} and \code{$mapped.edge}.
+#'
+#' @details
+#' \itemize{
+#'   \item If \code{tree$maps} is \code{NULL}, the function initializes a SIMMAP
+#'         representation by assigning each edge length to \code{anc.state}.
+#'   \item With \code{overwrite = TRUE}, every edge in the subtree is collapsed
+#'         to a single segment labeled \code{state}.
+#'   \item With \code{overwrite = FALSE}, only edges matching the target state
+#'         (the state on the edge entering \code{node}, or \code{anc.state}
+#'         for tips) are replaced; other existing states are preserved.
+#'   \item If \code{stem} is numeric in \eqn{[0,1]}, the parent edge is split
+#'         into two segments: \code{(1 - stem)} of \code{anc.state} and
+#'         \code{stem} of \code{state}.
+#' }
+#'
+#' @seealso \code{\link[phytools]{paintSubTree}}, \code{\link[phytools]{paintBranches}}
+#'
+#' @examples
+#' \donttest{
+#'   set.seed(1)
+#'   tr <- phytools::pbtree(n = 10, scale = 1)
+#'   # Initialize mappings to "0" globally
+#'   tr0 <- phytools::paintBranches(tr, edge = unique(tr$edge[,2]), state = "0", anc.state = "0")
+#'
+#'   # Paint an internal clade fully as "1"
+#'   nd <- ape::Ntip(tr0) + 2L
+#'   tr1 <- paintSubTree_mod(tr0, node = nd, state = "1", anc.state = "0", stem = TRUE, overwrite = TRUE)
+#'
+#'   # Selectively overwrite only edges already in state "0" within the subtree
+#'   tr2 <- paintSubTree_mod(tr1, node = nd, state = "2", anc.state = "0", stem = 0.25, overwrite = FALSE)
+#' }
+#'
+#' @importFrom ape compute.brlen
+#' @importFrom phytools getDescendants
+#' @export
 paintSubTree_mod <- function(tree, node, state, anc.state="1", stem=FALSE, overwrite=TRUE) {
   if (!inherits(tree, "phylo")) stop("tree should be an object of class \"phylo\".")
   if (stem == 0 && node <= length(tree$tip)) stop("stem must be TRUE for node <= N")
@@ -574,11 +634,60 @@ paintSubTree_removeShift <- function(tree, shift_node, stem=FALSE) {
   return(tree)
 }
 
-#' Add a New Shift to a Phylogenetic Tree Model
+#' Add a New Shift (Regime) to a SIMMAP Tree
 #'
-#' This function adds a new evolutionary regime (shift) to a SIMMAP-style phylogenetic tree
-#' by painting the subtree starting at a specified node with a new unique state identifier.
-#' The shift ID is incremented and returned for tracking multiple shifts in downstream modeling.
+#' Increments a shift (regime) identifier and paints the subtree starting at
+#' \code{shift_node} on a SIMMAP-style phylogenetic tree with the new state.
+#' This enables stepwise construction of multi-regime models by applying
+#' successive shifts with unique state IDs.
+#'
+#' @param tree A phylogenetic tree of class \code{phylo} or \code{simmap}.
+#'   If not yet SIMMAP-initialized, ensure edge mappings exist upstream (e.g.,
+#'   by painting a global baseline state) before calling.
+#' @param shift_node Integer node number in \code{tree} indicating where the
+#'   new regime should begin (the clade rooted at this node will be painted).
+#' @param current_shift_id Integer ID of the last regime used. The function
+#'   will assign \code{current_shift_id + 1} to the new shift.
+#'
+#' @return A \code{list} with:
+#' \describe{
+#'   \item{\code{tree}}{The updated SIMMAP tree with the new regime painted.}
+#'   \item{\code{shift_id}}{The incremented shift ID (integer).}
+#' }
+#'
+#' @details
+#' The subtree is painted using \code{paintSubTree_mod()} with
+#' \code{overwrite = FALSE} and \code{stem = FALSE}, meaning only edges
+#' matching the target state (typically the current state along that path)
+#' are selectively overwritten, and the parent (incoming) edge to
+#' \code{shift_node} is not split or repainted. If you need to force a full
+#' overwrite or paint the stem, call \code{paintSubTree_mod()} directly.
+#'
+#' @seealso \code{\link{paintSubTree_mod}}, \code{\link[phytools]{paintSubTree}},
+#'   \code{\link[phytools]{paintBranches}}
+#'
+#' @examples
+#' \donttest{
+#'   set.seed(1)
+#'   tr <- phytools::pbtree(n = 12, scale = 1)
+#'
+#'   # Initialize global mapping to state "0" (baseline)
+#'   tr0 <- phytools::paintBranches(tr, edge = unique(tr$edge[,2]),
+#'                                  state = "0", anc.state = "0")
+#'
+#'   # Add first shift on an internal node
+#'   nd <- ape::Ntip(tr0) + 2L
+#'   res1 <- addShiftToModel(tr0, shift_node = nd, current_shift_id = 0L)
+#'   res1$shift_id        # 1
+#'   tr1 <- res1$tree     # SIMMAP with regime "1" painted on that clade
+#'
+#'   # Add a second shift somewhere else
+#'   nd2 <- ape::Ntip(tr1) + 3L
+#'   res2 <- addShiftToModel(tr1, shift_node = nd2, current_shift_id = res1$shift_id)
+#'   res2$shift_id        # 2
+#' }
+#'
+#' @export
 addShiftToModel <- function(tree, shift_node, current_shift_id) {
   # Update the shift ID
   next_shift_id <- current_shift_id + 1
@@ -590,11 +699,69 @@ addShiftToModel <- function(tree, shift_node, current_shift_id) {
   return(list(tree = painted_tree, shift_id = next_shift_id))
 }
 
-#' Remove a Shift from a Phylogenetic Tree by Reverting to Parent State
+#' Remove a Painted Shift from a SIMMAP Tree
 #'
-#' This function removes a regime shift from a SIMMAP-style phylogenetic tree by repainting the subtree
-#' starting at a specified node with the state of its parent node. It uses `paintSubTree_removeShift()`
-#' to selectively revert the painted shift without affecting unrelated branches, with optional stem edge handling.
+#' Selectively removes a previously painted regime (shift) from the clade
+#' descending from \code{shift_node} in a SIMMAP-style phylogenetic tree, and
+#' restores the ancestral state inherited from the parent node. Optionally, the
+#' stem (incoming edge) to \code{shift_node} can be adjusted as well.
+#'
+#' @param tree A phylogenetic tree of class \code{phylo} or \code{simmap}.
+#'   If edge lengths are missing, they are initialized via
+#'   \code{\link[ape]{compute.brlen}}. If \code{$maps} is \code{NULL}, a simple
+#'   mapping is initialized with state \code{"1"} on all edges.
+#' @param shift_node Integer node ID in \code{tree} at which the painted shift
+#'   begins; the entire descendant clade is considered for removal.
+#' @param stem Logical or numeric. If \code{FALSE} (default), the incoming edge
+#'   to \code{shift_node} is left unchanged. If \code{TRUE}, the incoming edge
+#'   is reassigned to the parental state. If a numeric value in \eqn{[0,1]},
+#'   the parent edge is split into two segments: \code{1 - stem} and \code{stem}
+#'   both labeled with the parental state (i.e., effectively restored).
+#'
+#' @return A modified tree of class \code{c("simmap","phylo")} with updated
+#'   \code{$maps} and \code{$mapped.edge}, where edges in the target subtree
+#'   that matched the shift state are overwritten by the parental state.
+#'
+#' @details
+#' \itemize{
+#'   \item The parental state is determined using \code{\link[phytools]{getParent}}
+#'         and \code{\link[phytools]{getStates}} at the parent node of
+#'         \code{shift_node}. If unavailable (e.g., missing parent), the default
+#'         ancestral state \code{"1"} is used.
+#'   \item Edges are selectively overwritten only when their current mapping
+#'         equals the shift state found at \code{shift_node}. Existing mappings
+#'         with other states are preserved.
+#'   \item This implementation assumes edges to be represented as single-state
+#'         segments when testing equality (i.e., \code{names(maps[[i]])} of
+#'         length 1). If edges contain multiple segments, only exact single-state
+#'         matches are overwritten.
+#' }
+#'
+#' @seealso
+#' \code{\link{paintSubTree_mod}},
+#' \code{\link[phytools]{paintSubTree}},
+#' \code{\link[phytools]{paintBranches}},
+#' \code{\link[phytools]{getParent}},
+#' \code{\link[phytools]{getDescendants}},
+#' \code{\link[phytools]{getStates}},
+#' \code{\link[ape]{compute.brlen}}
+#'
+#' @examples
+#' \donttest{
+#'   set.seed(1)
+#'   tr <- phytools::pbtree(n = 10, scale = 1)
+#'   # Initialize a simple global mapping "0" on all edges
+#'   tr0 <- phytools::paintBranches(tr, edge = unique(tr$edge[,2]), state = "0", anc.state = "0")
+#'   # Paint a subtree as shift "1"
+#'   nd <- ape::Ntip(tr0) + 2L
+#'   tr1 <- paintSubTree_mod(tr0, node = nd, state = "1", anc.state = "0", stem = TRUE, overwrite = TRUE)
+#'   # Remove that shift and restore parental state
+#'   tr2 <- paintSubTree_removeShift(tr1, shift_node = nd, stem = FALSE)
+#' }
+#'
+#' @importFrom ape compute.brlen
+#' @importFrom phytools getParent getDescendants getStates
+#' @export
 removeShiftFromTree <- function(tree, shift_node, stem=F) {
   #print(paste("Removing shift from node:", shift_node))
 
