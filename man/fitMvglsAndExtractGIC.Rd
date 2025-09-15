@@ -35,7 +35,7 @@ This function always fits a multi-rates Brownian motion model
 a standard Brownian motion fit.
 }
 \examples{
-\donttest{
+\dontrun{
   set.seed(1)
   tree <- phytools::pbtree(n = 10, scale = 1)
   tree_painted <- phytools::paintSubTree(tree, node = 11, state = "A", anc.state = "A")

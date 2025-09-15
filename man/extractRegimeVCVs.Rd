@@ -2,12 +2,62 @@
 % Please edit documentation in R/utils.R
 \name{extractRegimeVCVs}
 \alias{extractRegimeVCVs}
-\title{Extract Regime-Specific Variance-Covariance Matrices from a BMM mvgls Model}
+\title{Extract Regime-Specific Variance–Covariance Matrices from a BMM mvgls Model}
 \usage{
 extractRegimeVCVs(model_output)
 }
+\arguments{
+\item{model_output}{An object returned by \code{\link[mvMORPH]{mvgls}}
+that was fitted with \code{model = "BMM"} and contains:
+\describe{
+\item{\code{param}}{A named numeric vector of regime-specific evolutionary rates.}
+\item{\code{sigma}}{A list that must contain \code{Pinv}, the precision matrix
+(inverse of the phylogenetic covariance matrix) used for model fitting.}
+}}
+}
+\value{
+A named list of variance–covariance matrices (one per regime).
+Each element is a numeric matrix with dimensions equal to the number of
+traits in the model. The first regime is returned unscaled, and subsequent
+regimes are scaled relative to the first regime's rate parameter.
+}
 \description{
-This function extracts and scales the regime-specific variance-covariance (VCV) matrices
-from a mvgls model fitted under the BMM (Brownian Motion with multiple regimes) framework.
-It returns a named list of VCV matrices, each corresponding to an evolutionary regime.
+Retrieves and scales the regime-specific variance–covariance (VCV) matrices
+from a \code{\link[mvMORPH]{mvgls}} model fitted under a
+Brownian Motion with multiple regimes (\code{"BMM"}) model.
+}
+\details{
+The first regime's covariance matrix is taken directly from
+\code{model_output$sigma$Pinv}. For each subsequent regime, the covariance
+matrix is obtained by multiplying the base covariance matrix by the ratio
+of the regime's rate parameter to the first regime's parameter.
+
+This function is particularly useful for extracting and comparing regime-specific
+evolutionary rates from BMM models fitted with \code{\link[mvMORPH]{mvgls}}.
+}
+\note{
+If \code{model_output} does not contain the required components
+(\code{param}, \code{sigma}, and \code{sigma$Pinv}), the function
+returns \code{NULL}.
+}
+\examples{
+\dontrun{
+  library(mvMORPH)
+  set.seed(123)
+  tree <- ape::rtree(5)
+  dat <- data.frame(trait = rnorm(5))
+  rownames(dat) <- tree$tip.label
+
+  # Fit a simple BMM model
+  fit <- mvgls(trait ~ 1, tree = tree, model = "BMM")
+
+  # Extract regime-specific VCVs
+  extractRegimeVCVs(fit)
+}
+
+}
+\seealso{
+\code{\link[mvMORPH]{mvgls}},
+\code{\link{fitMvglsAndExtractGIC.formula}},
+\code{\link{fitMvglsAndExtractBIC.formula}}
 }

@@ -2,12 +2,55 @@
 % Please edit documentation in R/utils.R
 \name{whichShifts}
 \alias{whichShifts}
-\title{Identify Nodes Representing Shifts in a SIMMAP Tree}
+\title{Identify Internal Nodes Corresponding to Regime Shifts}
 \usage{
 whichShifts(tree)
 }
+\arguments{
+\item{tree}{A SIMMAP-formatted phylogenetic tree (class \code{c("simmap","phylo")}).
+The tree must have discrete state mappings, accessible via
+\code{\link[phytools]{getStates}}.}
+}
+\value{
+An integer vector of unique node numbers representing the MRCAs of
+clades in which a distinct state is expressed. If no shifts are found
+(e.g., all tips share the same state), returns an empty vector.
+}
 \description{
-This function identifies internal nodes in a SIMMAP-style phylogenetic tree
-that represent regime shifts, based on the most recent common ancestors (MRCAs)
-of tips sharing the same painted state.
+Scans a SIMMAP-style phylogenetic tree and returns the set of internal nodes
+that correspond to regime shifts, as inferred from the most recent common
+ancestor (MRCA) of tips sharing the same painted state.
+}
+\details{
+For each unique state painted on the tips, the function:
+\enumerate{
+\item Identifies all tips carrying that state.
+\item Uses \code{\link[ape]{getMRCA}} to compute the MRCA node of those tips
+(if there are two or more tips).
+\item Collects all such MRCA nodes across states, ensuring uniqueness.
+}
+}
+\examples{
+\dontrun{
+  set.seed(42)
+  tr <- phytools::pbtree(n = 12, scale = 1)
+
+  # Paint global state "0"
+  tr0 <- phytools::paintBranches(tr, edge = unique(tr$edge[,2]), state = "0", anc.state = "0")
+
+  # Add a shift on a subtree as state "1"
+  nd <- ape::Ntip(tr0) + 3L
+  tr1 <- paintSubTree_mod(tr0, node = nd, state = "1", anc.state = "0", overwrite = TRUE)
+
+  # Identify shift nodes
+  whichShifts(tr1)
+}
+
+}
+\seealso{
+\code{\link[phytools]{getStates}},
+\code{\link[ape]{getMRCA}},
+\code{\link{paintSubTree_mod}},
+\code{\link{addShiftToModel}},
+\code{\link{paintSubTree_removeShift}}
 }
