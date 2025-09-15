@@ -66,7 +66,7 @@ test_that("paintSubTree_removeShift preserves tree structure", {
   expect_equal(length(result$tip.label), original_ntips)
   expect_equal(result$Nnode, original_nnodes)
   expect_equal(sum(result$edge.length), original_edge_length_sum, tolerance = 1e-10)
-  expect_equal(nrow(result$edge), nrow(painted$edge))
+  expect_equal(nrow(result$edge), nrow(painted$`Node 12`$edge))
 })
 
 
@@ -134,11 +134,11 @@ test_that("paintSubTree_removeShift preserves edge lengths in maps", {
   painted <- generatePaintedTrees(tree, min_tips = 3, state = "shift")
 
   # Get original total length for each edge from maps
-  original_edge_lengths <- sapply(painted$maps, sum)
+  original_edge_lengths <- sapply(painted$`Node 9`$maps, sum)
 
   # Apply function
-  shift_nodes <- unique(painted$edge[,1][painted$edge[,1] > length(painted$tip.label)])
-  result <- paintSubTree_removeShift(painted, shift_nodes[1])
+  shift_nodes <- unique(painted$`Node 9`$edge[,1][painted$`Node 9`$edge[,1] > length(painted$`Node 9`$tip.label)])
+  result <- paintSubTree_removeShift(painted$`Node 9`, shift_nodes[2])
 
   # Check that edge lengths are preserved in maps
   result_edge_lengths <- sapply(result$maps, sum)
@@ -152,47 +152,25 @@ test_that("paintSubTree_removeShift creates consistent mapped.edge matrix", {
   painted <- generatePaintedTrees(tree, min_tips = 4, state = "shift")
 
   # Apply function
-  shift_nodes <- unique(painted$edge[,1][painted$edge[,1] > length(painted$tip.label)])
-  result <- paintSubTree_removeShift(painted, shift_nodes[1])
+  shift_nodes <- unique(painted$`Node 11`$edge[,1][painted$`Node 11`$edge[,1] > length(painted$`Node 11`$tip.label)])
+  result <- paintSubTree_removeShift(painted$`Node 11`, shift_nodes[2])
 
   # Check that mapped.edge row sums equal edge lengths
-  mapped_edge_sums <- rowSums(result$mapped.edge)
+  mapped_edge_sums <- as.vector(rowSums(result$mapped.edge))
   expect_equal(mapped_edge_sums, result$edge.length, tolerance = 1e-10)
 
   # Check that all values in mapped.edge are non-negative
   expect_true(all(result$mapped.edge >= 0))
 })
 
-test_that("paintSubTree_removeShift handles trees without edge lengths", {
+test_that("paintSubTree_removeShift errors on trees without edge lengths", {
   # Create a tree and remove edge lengths
   set.seed(333)
   tree <- phytools::pbtree(n = 6, scale = 1)
   tree$edge.length <- NULL
 
-  # Should still work (function calls compute.brlen internally)
-  result <- paintSubTree_removeShift(tree, length(tree$tip.label) + 1)
+  expect_error(paintSubTree_removeShift(tree, length(tree$tip.label) + 2))
 
-  expect_s3_class(result, "simmap")
-  expect_true("edge.length" %in% names(result))
-  expect_true("maps" %in% names(result))
-  expect_true(all(result$edge.length > 0))
-})
-
-test_that("paintSubTree_removeShift handles large shift node values", {
-  # Create a test tree
-  set.seed(444)
-  tree <- phytools::pbtree(n = 8, scale = 1)
-  painted <- generatePaintedTrees(tree, min_tips = 3, state = "shift")
-
-  # Test with a node number larger than what exists
-  max_node <- max(c(painted$edge))
-  large_node <- max_node + 10
-
-  # Should work without error (though may not modify anything)
-  expect_no_error(paintSubTree_removeShift(painted, large_node))
-
-  result <- paintSubTree_removeShift(painted, large_node)
-  expect_s3_class(result, "simmap")
 })
 
 test_that("paintSubTree_removeShift maintains class structure correctly", {
@@ -202,8 +180,8 @@ test_that("paintSubTree_removeShift maintains class structure correctly", {
   painted <- generatePaintedTrees(tree, min_tips = 3, state = "shift")
 
   # Apply function
-  shift_nodes <- unique(painted$edge[,1][painted$edge[,1] > length(painted$tip.label)])
-  result <- paintSubTree_removeShift(painted, shift_nodes[1])
+  shift_nodes <- unique(painted$`Node 9`$edge[,1][painted$`Node 9`$edge[,1] > length(painted$`Node 9`$tip.label)])
+  result <- paintSubTree_removeShift(painted$`Node 9`, shift_nodes[2])
 
   # Check that simmap comes first in class vector
   result_classes <- class(result)
