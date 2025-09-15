@@ -6,12 +6,10 @@ library(ape)
 library(phytools)
 
 # Helper function to create a basic SIMMAP tree for testing
-create_test_simmap_tree <- function(n_tips = 6) {
+create_test_simmap_tree <- function(n_tips = 20) {
   set.seed(123)
   tree <- pbtree(n = n_tips, scale = 1)
-  # Initialize with baseline state "0"
-  simmap_tree <- paintSubTree(tree, node = Ntip(tree)+1, state = "0", anc.state = "0")
-  return(simmap_tree)
+  return(tree)
 }
 
 # Helper function to check if a tree is a valid SIMMAP tree
@@ -23,7 +21,7 @@ is_valid_simmap <- function(tree) {
 
 test_that("addShiftToModel returns correct structure", {
   tree <- create_test_simmap_tree()
-  shift_node <- Ntip(tree) + 1  # First internal node
+  shift_node <- Ntip(tree) + 2  # First internal node after root
 
   result <- addShiftToModel(tree, shift_node = shift_node, current_shift_id = 0L)
 
@@ -36,7 +34,7 @@ test_that("addShiftToModel returns correct structure", {
 
 test_that("addShiftToModel increments shift ID correctly", {
   tree <- create_test_simmap_tree()
-  shift_node <- Ntip(tree) + 1
+  shift_node <- Ntip(tree) + 2
 
   # Test with different starting shift IDs
   test_cases <- c(0L, 1L, 5L, 10L)
@@ -50,7 +48,7 @@ test_that("addShiftToModel increments shift ID correctly", {
 
 test_that("addShiftToModel preserves tree structure", {
   tree <- create_test_simmap_tree()
-  shift_node <- Ntip(tree) + 1
+  shift_node <- Ntip(tree) + 2
   original_ntip <- Ntip(tree)
   original_nnode <- Nnode(tree)
 
@@ -64,7 +62,7 @@ test_that("addShiftToModel preserves tree structure", {
 
 test_that("addShiftToModel creates valid SIMMAP tree", {
   tree <- create_test_simmap_tree()
-  shift_node <- Ntip(tree) + 1
+  shift_node <- Ntip(tree) + 2
 
   result <- addShiftToModel(tree, shift_node = shift_node, current_shift_id = 0L)
 
@@ -75,7 +73,7 @@ test_that("addShiftToModel creates valid SIMMAP tree", {
 
 test_that("addShiftToModel paints subtree with correct state", {
   tree <- create_test_simmap_tree(n_tips = 8)
-  shift_node <- Ntip(tree) + 2  # Second internal node
+  shift_node <- Ntip(tree) + 3  # Second internal node after root
   current_shift_id <- 0L
 
   result <- addShiftToModel(tree, shift_node = shift_node, current_shift_id = current_shift_id)
@@ -96,7 +94,7 @@ test_that("addShiftToModel works with different node types", {
   tree <- create_test_simmap_tree(n_tips = 10)
 
   # Test with different internal nodes
-  internal_nodes <- (Ntip(tree) + 1):(Ntip(tree) + Nnode(tree))
+  internal_nodes <- (Ntip(tree) + 2):(Ntip(tree) + Nnode(tree))
 
   for (node in internal_nodes[1:3]) {  # Test first 3 internal nodes
     result <- addShiftToModel(tree, shift_node = node, current_shift_id = 0L)
@@ -109,11 +107,11 @@ test_that("addShiftToModel handles sequential shifts", {
   tree <- create_test_simmap_tree(n_tips = 8)
 
   # Apply first shift
-  shift_node1 <- Ntip(tree) + 1
+  shift_node1 <- Ntip(tree) + 2
   result1 <- addShiftToModel(tree, shift_node = shift_node1, current_shift_id = 0L)
 
   # Apply second shift
-  shift_node2 <- Ntip(tree) + 3
+  shift_node2 <- Ntip(tree) + 4
   result2 <- addShiftToModel(result1$tree, shift_node = shift_node2,
                              current_shift_id = result1$shift_id)
 
@@ -144,7 +142,7 @@ test_that("addShiftToModel input validation", {
 test_that("addShiftToModel preserves edge lengths", {
   tree <- create_test_simmap_tree()
   original_edge_lengths <- tree$edge.length
-  shift_node <- Ntip(tree) + 1
+  shift_node <- Ntip(tree) + 2
 
   result <- addShiftToModel(tree, shift_node = shift_node, current_shift_id = 0L)
 
@@ -155,7 +153,7 @@ test_that("addShiftToModel preserves edge lengths", {
 
 test_that("addShiftToModel works with different shift_id types", {
   tree <- create_test_simmap_tree()
-  shift_node <- Ntip(tree) + 1
+  shift_node <- Ntip(tree) + 2
 
   # Test with integer
   result_int <- addShiftToModel(tree, shift_node = shift_node, current_shift_id = 0L)
@@ -169,7 +167,7 @@ test_that("addShiftToModel works with different shift_id types", {
 test_that("addShiftToModel maintains tree attributes", {
   tree <- create_test_simmap_tree()
   tree$custom_attribute <- "test_value"  # Add custom attribute
-  shift_node <- Ntip(tree) + 1
+  shift_node <- Ntip(tree) + 2
 
   result <- addShiftToModel(tree, shift_node = shift_node, current_shift_id = 0L)
 
