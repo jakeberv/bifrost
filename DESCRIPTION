@@ -6,6 +6,7 @@ Authors@R:
     person("Nathan", "Fox", role = c("aut"))
     person("Matthew", "Thorstensen", role = c("aut"))
     person("Henry", "Lloyd-Laney", role = c("aut"))
+Maintainer: Jacob Berv"<jberv@umich.edu>
 Description: Branch-level Inference Framework for Recognizing Optimal Shifts in Traits.
 License: MIT
 Encoding: UTF-8
