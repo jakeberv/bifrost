@@ -23,7 +23,6 @@ Imports:
     phytools,
     grDevices,
     stats
-
 Suggests:
     HDInterval,
     RColorBrewer,
