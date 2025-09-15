@@ -51,7 +51,7 @@ test_that("fitMvglsAndExtractGIC works with valid inputs", {
   # Check that GIC is a numeric value
   expect_type(result$GIC$GIC, "double")
   expect_length(result$GIC, 7)
-  expect_false(is.na(result$GIC))
+  expect_false(any(is.na(result$GIC)))
 })
 
 
@@ -148,7 +148,7 @@ test_that("fitMvglsAndExtractBIC works with valid inputs", {
   # Check that BIC is a numeric value
   expect_type(result$BIC$BIC, "double")
   expect_length(result$BIC, 4)
-  expect_false(is.na(result$BIC))
+  expect_false(any(is.na(result$BIC)))
 })
 
 
@@ -240,8 +240,8 @@ test_that("GIC and BIC functions produce consistent models", {
   expect_equal(logLik(result_gic$model), logLik(result_bic$model))
   
   # Check that both produce valid information criteria
-  expect_type(result_gic$GIC$GIC, "matrix")
-  expect_type(result_bic$BIC$BIC, "numeric")
+  expect_type(result_gic$GIC$GIC, "double")
+  expect_type(result_bic$BIC$BIC, "double")
 })
 
 # Edge case tests
