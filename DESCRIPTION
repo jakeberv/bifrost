@@ -35,3 +35,7 @@ Imports:
     HDInterval,
     testthat (>= 3.0.0),
     mvMORPH
+Suggests: 
+    knitr,
+    rmarkdown
+VignetteBuilder: knitr
