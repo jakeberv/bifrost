@@ -34,7 +34,7 @@ Imports:
     fitdistrplus,
     HDInterval,
     testthat (>= 3.0.0),
-    mvMORPH
+    mvMORPH (>= 1.2.1),
 Suggests: 
     knitr,
     rmarkdown
