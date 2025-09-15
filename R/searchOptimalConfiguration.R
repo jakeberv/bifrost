@@ -144,7 +144,21 @@
 #' res$optimal_ic - res$baseline_ic
 #' str(res$VCVs)
 #' }
-#'
+#' @param baseline_tree A \code{phylo} baseline tree.
+#' @param trait_data Data frame of trait values with tip rownames.
+#' @param formula Model formula, e.g. \code{cbind(y1, y2) ~ x}.
+#' @param min_descendant_tips Integer minimum tips per candidate shift.
+#' @param num_cores Integer, cores for parallel search.
+#' @param ic_uncertainty_threshold Numeric, IC change threshold.
+#' @param shift_acceptance_threshold Numeric, acceptance cutoff.
+#' @param uncertainty Character, how to treat uncertainty.
+#' @param uncertaintyweights Numeric vector of weights.
+#' @param uncertaintyweights_par List of parameters for weights.
+#' @param postorder_traversal Logical, traverse postorder.
+#' @param plot Logical, produce plots during search.
+#' @param IC Character, information criterion, e.g. \code{"BIC"}.
+#' @param store_model_fit_history Logical, keep fit history.
+#' @param ... Passed to lower-level fitting functions.
 #' @importFrom future plan multicore multisession sequential
 #' @importFrom future.apply future_lapply
 #' @importFrom mvMORPH mvgls GIC BIC aicw

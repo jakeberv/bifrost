@@ -23,50 +23,35 @@ searchOptimalConfiguration(
 )
 }
 \arguments{
-\item{baseline_tree}{A rooted SIMMAP/\code{phylo} object representing the baseline
-(single-regime) tree. If not SIMMAP-initialized, it should already be painted to a
-single baseline state and have tip order matching \code{trait_data}.}
+\item{baseline_tree}{A \code{phylo} baseline tree.}
 
-\item{trait_data}{A \code{matrix} or \code{data.frame} of trait values with row names
-matching \code{baseline_tree$tip.label} (same order).}
+\item{trait_data}{Data frame of trait values with tip rownames.}
 
-\item{formula}{Character formula passed to \code{mvgls}; defaults to \code{"trait_data ~ 1"}
-(intercept-only). Use \code{cbind()} for multivariate responses
-(e.g., \code{"cbind(t1, t2, ...) ~ 1"}).}
+\item{formula}{Model formula, e.g. \code{cbind(y1, y2) ~ x}.}
 
-\item{min_descendant_tips}{Integer (≥1). Minimum number of tips required for an internal node
-to be considered as a candidate shift (forwarded to \code{\link{generatePaintedTrees}}).}
+\item{min_descendant_tips}{Integer minimum tips per candidate shift.}
 
-\item{num_cores}{Integer. Number of workers for parallel candidate scoring. Uses
-\code{future::plan(multicore)} on Unix and \code{future::plan(multisession)} on Windows.}
+\item{num_cores}{Integer, cores for parallel search.}
 
-\item{ic_uncertainty_threshold}{Numeric (≥0). IC tolerance used in the optional post-search
-pruning step (\code{uncertainty = TRUE}). Shifts whose removal changes the current best IC
-by \eqn{\le} this value are pruned.}
+\item{ic_uncertainty_threshold}{Numeric, IC change threshold.}
 
-\item{shift_acceptance_threshold}{Numeric (≥0). Minimum IC improvement
-(baseline − new) required to accept a candidate shift during the forward search.
-Larger values yield more conservative models.}
+\item{shift_acceptance_threshold}{Numeric, acceptance cutoff.}
 
-\item{uncertaintyweights}{Logical. If \code{TRUE}, compute per-shift IC weights serially by
-refitting the optimized model with each shift removed in turn. Exactly one of
-\code{uncertaintyweights} or \code{uncertaintyweights_par} must be \code{TRUE} to trigger
-IC-weight calculations.}
+\item{uncertainty}{Character, how to treat uncertainty.}
 
-\item{uncertaintyweights_par}{Logical. As above, but compute per-shift IC weights in parallel
-using \pkg{future.apply}.}
+\item{uncertaintyweights}{Numeric vector of weights.}
 
-\item{plot}{Logical. If \code{TRUE}, draw/update a SIMMAP plot as the search proceeds
-(requires \pkg{phytools}).}
+\item{uncertaintyweights_par}{List of parameters for weights.}
 
-\item{IC}{Character. Which information criterion to use, one of \code{"GIC"} or \code{"BIC"}
-(case-sensitive).}
+\item{postorder_traversal}{Logical, traverse postorder.}
 
-\item{store_model_fit_history}{Logical. If \code{TRUE}, store a per-iteration record of fitted
-models, acceptance decisions, and IC values; warnings/errors are also kept.}
+\item{plot}{Logical, produce plots during search.}
 
-\item{...}{Additional arguments passed to \code{\link[mvMORPH]{mvgls}} (e.g., \code{method},
-\code{penalty}, \code{target}, \code{error}, etc.).}
+\item{IC}{Character, information criterion, e.g. \code{"BIC"}.}
+
+\item{store_model_fit_history}{Logical, keep fit history.}
+
+\item{...}{Passed to lower-level fitting functions.}
 }
 \value{
 A named \code{list} with (at minimum):
@@ -173,7 +158,6 @@ res$shift_nodes_no_uncertainty
 res$optimal_ic - res$baseline_ic
 str(res$VCVs)
 }
-
 }
 \seealso{
 \code{\link{generatePaintedTrees}},

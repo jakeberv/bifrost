@@ -1,11 +1,16 @@
+citHeader("To cite bifrost in publications, use:")
+
 bibentry(
-  bibtype = "Article",
-  title = bifrost package,
-  author = Jacob Berv, Nathan Fox, Matthew Thorstensen, HenryLloyd-Laney,
-  journal = ,
-  year = ,
-  volume = ,
-  number = ,
-  pages = ,
-  doi =
+  bibtype  = "Article",
+  title    = "bifrost: Branch-level Inference Framework for Recognizing Optimal Shifts in Traits",
+  author   = c(
+    person("Jacob",  "Berv"),
+    person("Nathan", "Fox"),
+    person("Matthew","Thorstensen"),
+    person("Henry",  "Lloyd-Laney")
+  ),
+  year     = "2025",
+  journal  = "Unpublished manuscript",
+  note     = "R package version 0.0.0.9000",
+  url      = "https://github.com/jakeberv/bifrost"
 )
