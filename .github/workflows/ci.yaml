@@ -1,6 +1,0 @@
-- name: Upload coverage to Codecov
-  uses: codecov/codecov-action@v4
-  with:
-    token: ${{ secrets.CODECOV_TOKEN }} # <-- use the secret
-    files: ./coverage.xml               # adjust path to your coverage report
-    fail_ci_if_error: true
