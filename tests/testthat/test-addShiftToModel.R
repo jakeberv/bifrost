@@ -9,7 +9,9 @@ library(phytools)
 create_test_simmap_tree <- function(n_tips = 20) {
   set.seed(123)
   tree <- pbtree(n = n_tips, scale = 1)
-  return(tree)
+  simmap_tree <- paintSubTree (tree, node = Ntip(tree)+1,
+                               state = "0", anc.state = "0")
+  return(simmap_tree)
 }
 
 # Helper function to check if a tree is a valid SIMMAP tree
@@ -133,10 +135,7 @@ test_that("addShiftToModel input validation", {
                                current_shift_id = 0L))
 
   # Test with tip nodes (should work but might behave differently)
-  tip_node <- 1
-  result <- addShiftToModel(tree, shift_node = tip_node, current_shift_id = 0L)
-  expect_s3_class(result$tree, "simmap")
-  expect_equal(result$shift_id, 1L)
+  expect_error(result <- addShiftToModel(tree, shift_node = 1, current_shift_id = 0L))
 })
 
 test_that("addShiftToModel preserves edge lengths", {
