@@ -2,12 +2,61 @@
 % Please edit documentation in R/utils.R
 \name{paintSubTree_removeShift}
 \alias{paintSubTree_removeShift}
-\title{Remove a Painted Shift from a Subtree in a SIMMAP-Formatted Phylogenetic Tree}
+\title{Remove a Painted Shift from a SIMMAP Tree}
 \usage{
 paintSubTree_removeShift(tree, shift_node, stem = FALSE)
 }
+\arguments{
+\item{tree}{A \code{phylo} tree.}
+
+\item{shift_node}{Integer node whose shift is removed.}
+
+\item{stem}{Logical, remove along the stem.}
+}
+\value{
+A modified tree of class \code{c("simmap","phylo")} with updated
+\code{$maps} and \code{$mapped.edge}, in which all affected edges are
+reassigned to the parent's state.
+}
 \description{
-This function removes a previously painted shift (regime change) from a specified node and its descendant branches
-in a SIMMAP-style phylogenetic tree by selectively overwriting branches painted with the shift state.
-The original ancestral state (inherited from the parent node) is restored, with optional stem painting of the edge leading to the node.
+Selectively removes a previously painted shift (regime) from a clade
+descending from \code{shift_node} in a SIMMAP-style phylogenetic tree.
+Edges in the clade that match the shift node's state are reassigned to
+the ancestral state inherited from the parent node. Optionally, the
+stem (incoming edge) can also be restored.
+}
+\details{
+\itemize{
+\item The parental state is obtained from
+\code{\link[phytools]{getStates}(tree, type = "nodes")} for the parent of
+\code{shift_node}. If unavailable, defaults to \code{"1"}.
+\item Only edges whose single-segment state matches the
+state at \code{shift_node} are overwritten. Other states are preserved.
+\item If edges have multiple mapped segments, only exact single-state
+matches are considered for replacement.
+}
+}
+\examples{
+\dontrun{
+  set.seed(1)
+  tr <- phytools::pbtree(n = 10, scale = 1)
+  # Initialize to global state "0"
+  tr0 <- phytools::paintBranches(tr, edge = unique(tr$edge[, 2]),
+                                 state = "0", anc.state = "0")
+  # Paint a shift (state "1") on an internal clade
+  nd <- ape::Ntip(tr0) + 2L
+  tr1 <- paintSubTree_mod(tr0, node = nd, state = "1",
+                          anc.state = "0", stem = TRUE, overwrite = TRUE)
+
+  # Remove the shift: descendants revert to parental state "0"
+  tr2 <- paintSubTree_removeShift(tr1, shift_node = nd, stem = FALSE)
+}
+}
+\seealso{
+\code{\link{paintSubTree_mod}},
+\code{\link[phytools]{paintSubTree}},
+\code{\link[phytools]{getParent}},
+\code{\link[phytools]{getDescendants}},
+\code{\link[phytools]{getStates}},
+\code{\link[ape]{compute.brlen}}
 }

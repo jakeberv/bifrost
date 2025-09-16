@@ -2,7 +2,7 @@
 % Please edit documentation in R/searchOptimalConfiguration.R
 \name{searchOptimalConfiguration}
 \alias{searchOptimalConfiguration}
-\title{Search for the Optimal Shift Configuration in a Phylogenetic Model}
+\title{Search for an Optimal Multi-Regime (Shift) Configuration on a Phylogeny}
 \usage{
 searchOptimalConfiguration(
   baseline_tree,
@@ -12,18 +12,151 @@ searchOptimalConfiguration(
   num_cores = 2,
   ic_uncertainty_threshold = 1,
   shift_acceptance_threshold = 1,
-  uncertainty = F,
   uncertaintyweights = F,
   uncertaintyweights_par = F,
-  postorder_traversal = F,
   plot = T,
   IC = "GIC",
   store_model_fit_history = TRUE,
   ...
 )
 }
+\arguments{
+\item{baseline_tree}{A \code{phylo} baseline tree.}
+
+\item{trait_data}{Data frame of trait values with tip rownames.}
+
+\item{formula}{Model formula, e.g. \code{cbind(y1, y2) ~ x}.}
+
+\item{min_descendant_tips}{Integer minimum tips per candidate shift.}
+
+\item{num_cores}{Integer, cores for parallel search.}
+
+\item{ic_uncertainty_threshold}{Numeric, IC change threshold.}
+
+\item{shift_acceptance_threshold}{Numeric, acceptance cutoff.}
+
+\item{uncertaintyweights}{Numeric vector of weights.}
+
+\item{uncertaintyweights_par}{List of parameters for weights.}
+
+\item{plot}{Logical, produce plots during search.}
+
+\item{IC}{Character, information criterion, e.g. \code{"BIC"}.}
+
+\item{store_model_fit_history}{Logical, keep fit history.}
+
+\item{...}{Passed to lower-level fitting functions.}
+}
+\value{
+A named \code{list} with (at minimum):
+\itemize{
+\item \code{user_input}: captured call (as a list) for reproducibility.
+\item \code{tree_no_uncertainty_transformed}: SIMMAP tree from the optimal (no-uncertainty) model
+on the transformed scale used internally by \code{mvgls}.
+\item \code{tree_no_uncertainty_untransformed}: same topology with original edge lengths restored.
+\item \code{model_no_uncertainty}: the final \code{mvgls} model object.
+\item \code{shift_nodes_no_uncertainty}: integer vector of accepted shift nodes.
+\item \code{optimal_ic}: final IC value; \code{baseline_ic}: baseline IC.
+\item \code{IC_used}: \code{"GIC"} or \code{"BIC"}; \code{num_candidates}: count of candidate one-shift models evaluated.
+\item \code{model_fit_history}: if \code{store_model_fit_history = TRUE}, a list of per-iteration fits
+and an \code{ic_acceptance_matrix} (IC value and acceptance flag per step).
+\item \code{VCVs}: named list of regime-specific VCV matrices extracted from the final model
+(penalized-likelihood estimates if PL was used).
+}
+Additional components appear conditionally:
+\itemize{
+\item \code{ic_weights}: a \code{data.frame} of per-shift IC weights and evidence ratios when
+\code{uncertaintyweights} or \code{uncertaintyweights_par} is \code{TRUE}.
+\item \code{tree_uncertainty_transformed}, \code{tree_uncertainty_untransformed},
+\item \code{warnings}: character vector of warnings/errors encountered during fitting (if any).
+}
+}
 \description{
-This function performs a stepwise search to identify the optimal configuration of evolutionary regime shifts
-on a phylogenetic tree, using information criteria (GIC or BIC) to guide model selection. It evaluates candidate
-shifts in parallel, fits models at each stage, optionally accounts for model uncertainty, and computes model weights.
+Greedy, stepwise search for evolutionary regime shifts on a SIMMAP-style phylogeny
+using multivariate \code{mvgls} fits from \pkg{mvMORPH}. The routine:
+\enumerate{
+\item builds one-shift candidate trees for all internal nodes meeting a tip-size threshold
+(via \code{\link{generatePaintedTrees}}),
+\item fits each candidate in parallel and ranks them by improvement in the chosen
+information criterion (IC; \code{GIC} or \code{BIC}),
+\item iteratively adds shifts that pass a user-defined acceptance threshold,
+\item optionally revisits accepted shifts to prune overfitting using a small IC tolerance window,
+\item optionally computes per-shift IC weights by refitting the model with each shift removed.
+}
+
+Models are fitted directly in multivariate trait space (no PCA), assuming a multi-rate
+Brownian Motion with proportional VCV scaling across regimes. Extra arguments in \code{...}
+are forwarded to \code{\link[mvMORPH]{mvgls}} (e.g., \code{method = "LL"} or
+\code{method = "PL-LOOCV"}, \code{penalty}, \code{error = TRUE}, etc.).
+}
+\details{
+\strong{Search outline.}
+\enumerate{
+\item \emph{Baseline:} Fit \code{mvgls} on the baseline tree (single regime) to obtain the baseline IC.
+\item \emph{Candidates:} Build one-shift trees for eligible internal nodes
+(\code{\link{generatePaintedTrees}}); fit each with
+\code{\link{fitMvglsAndExtractGIC.formula}} or \code{\link{fitMvglsAndExtractBIC.formula}}
+and rank by ΔIC.
+\item \emph{Greedy add:} Add the top candidate, refit, and accept if
+ΔIC \eqn{\ge} \code{shift_acceptance_threshold}; continue down the ranked list.
+\item \emph{Optional IC weights:} If \code{uncertaintyweights} (or \code{uncertaintyweights_par})
+is \code{TRUE}, compute an IC weight for each accepted shift by refitting the final model with that
+shift removed and comparing the two ICs via \code{\link[mvMORPH]{aicw}}.
+}
+
+\strong{Parallelization.} Candidate sub-model fits are distributed with \pkg{future} + \pkg{future.apply}.
+On Unix, \code{multicore} is used; on Windows, \code{multisession}. A sequential plan is restored afterward.
+
+\strong{Plotting.} If \code{plot = TRUE}, trees are rendered with
+\code{\link[phytools]{plotSimmap}()}; shift IDs are labeled with \code{\link[ape]{nodelabels}()}.
+
+\strong{Regime VCVs.} The returned \code{$VCVs} are extracted from the fitted multi-regime model via
+\code{\link{extractRegimeVCVs}} and reflect regime-specific covariance
+estimates (when \code{mvgls} is fitted under a PL/ML method).
+}
+\section{Convergence and robustness}{
+
+The search is greedy and may converge to a local optimum. Use a stricter
+\code{shift_acceptance_threshold} and/or enable \code{uncertainty = TRUE} to reduce overfitting.
+Re-run with different \code{min_descendant_tips} and IC choices (GIC vs BIC) to assess stability.
+}
+
+\examples{
+\dontrun{
+library(ape)
+library(phytools)
+set.seed(1)
+tr <- pbtree(n = 80, scale = 1)
+# Paint a single global baseline state "0"
+base <- phytools::paintBranches(tr, edge = unique(tr$edge[,2]),
+                                state = "0", anc.state = "0")
+
+# Fake multivariate data (2 traits)
+X <- cbind(trait1 = rnorm(Ntip(base)), trait2 = rnorm(Ntip(base)))
+rownames(X) <- base$tip.label
+
+res <- searchOptimalConfiguration(
+  baseline_tree = base,
+  trait_data    = as.data.frame(X),
+  formula       = "cbind(trait1, trait2) ~ 1",
+  min_descendant_tips = 10,
+  num_cores = 2,
+  shift_acceptance_threshold = 10,  # conservative
+  IC = "GIC",
+  plot = FALSE
+)
+
+res$shift_nodes_no_uncertainty
+res$optimal_ic - res$baseline_ic
+str(res$VCVs)
+}
+}
+\seealso{
+\code{\link{generatePaintedTrees}},
+\code{\link{fitMvglsAndExtractGIC.formula}},
+\code{\link{fitMvglsAndExtractBIC.formula}},
+\code{\link{addShiftToModel}},
+\code{\link{removeShiftFromTree}},
+\code{\link{extractRegimeVCVs}};
+packages: \pkg{mvMORPH}, \pkg{phytools}, \pkg{ape}, \pkg{future}, \pkg{future.apply}.
 }

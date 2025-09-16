@@ -1,6 +1,13 @@
 inst/doc
 docs
 .Rproj.user
+<<<<<<< HEAD
 .Rhistory
 .Rproj.user/
 Rprof.out
+=======
+man
+.Rhistory
+.Rproj.user/
+.gitignore
+>>>>>>> 3d5ad807360282d7148442d549cacc6cdde0d7f8
