@@ -7,17 +7,7 @@
 extractRegimeVCVs(model_output)
 }
 \arguments{
-\item{model_output}{An object returned by \code{\link[mvMORPH]{mvgls}}
-that was fitted with \code{model = "BMM"} and contains:
-\describe{
-\item{\code{param}}{A named numeric vector of regime-specific evolutionary rates.}
-\item{\code{sigma}}{A list that must contain \code{Pinv}, the precision matrix
-(inverse of the phylogenetic covariance matrix) used for model fitting.}
-}}
-
-\item{model_results}{List of fitted model results.}
-
-\item{painted_tree_list}{List of painted trees used in fitting.}
+\item{model_output}{A fitted model object containing regime-level VCVs.}
 }
 \value{
 A named list of variance–covariance matrices (one per regime).
