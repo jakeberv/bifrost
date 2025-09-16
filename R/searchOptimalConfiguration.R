@@ -328,6 +328,7 @@ searchOptimalConfiguration <-
         } else {
           cat(paste('Shift at node', shift_node_number, 'rejected. Delta', IC, ':', round(delta_ic, digits = 2), 'is less than threshold:', shift_acceptance_threshold, '\n'))
         }
+        gc(reset = TRUE, full = TRUE)
       }, error = function(e) {
         # Handle errors (unchanged)
         warning_message <- paste("Error in evaluating shift at node", shift_node_number, ":", e$message)
