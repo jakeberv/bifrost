@@ -165,6 +165,7 @@
 #' @importFrom phytools plotSimmap getStates
 #' @importFrom ape nodelabels Ntip
 #' @importFrom stats setNames BIC
+#' @importFrom grDevices rainbow
 #' @export
 searchOptimalConfiguration <-
   function(baseline_tree,
