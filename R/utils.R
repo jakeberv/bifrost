@@ -529,12 +529,19 @@ calculateAllDeltaGIC <- function(model_results, painted_tree_list) {
 #'
 #'   # Paint an internal clade fully as "1"
 #'   nd <- ape::Ntip(tr0) + 2L
-#'   tr1 <- paintSubTree_mod(tr0, node = nd, state = "1", anc.state = "0", stem = TRUE, overwrite = TRUE)
+#'   tr1 <- paintSubTree_mod(tr0, node = nd, state = "1", anc.state = "0",
+#'     stem = TRUE, overwrite = TRUE)
 #'
 #'   # Selectively overwrite only edges already in state "0" within the subtree
-#'   tr2 <- paintSubTree_mod(tr1, node = nd, state = "2", anc.state = "0", stem = 0.25, overwrite = FALSE)
+#'   tr2 <- paintSubTree_mod(tr1, node = nd, state = "2", anc.state = "0",
+#'     stem = 0.25, overwrite = FALSE)
 #' }
-#'
+#' @param tree A \code{phylo} tree.
+#' @param node Integer node to paint.
+#' @param state Character regime label.
+#' @param anc.state Character ancestral state label.
+#' @param stem Logical, paint along the stem.
+#' @param overwrite Logical, overwrite existing states.
 #' @importFrom ape compute.brlen
 #' @importFrom phytools getDescendants
 #' @export
@@ -654,7 +661,9 @@ paintSubTree_mod <- function(tree, node, state, anc.state="1", stem=FALSE, overw
 #'   # Remove the shift: descendants revert to parental state "0"
 #'   tr2 <- paintSubTree_removeShift(tr1, shift_node = nd, stem = FALSE)
 #' }
-#'
+#' @param tree A \code{phylo} tree.
+#' @param shift_node Integer node whose shift is removed.
+#' @param stem Logical, remove along the stem.
 #' @importFrom ape compute.brlen
 #' @importFrom phytools getParent getDescendants getStates
 #' @export
@@ -762,7 +771,9 @@ paintSubTree_removeShift <- function(tree, shift_node, stem=FALSE) {
 #'   res2 <- addShiftToModel(tr1, shift_node = nd2, current_shift_id = res1$shift_id)
 #'   res2$shift_id        # 2
 #' }
-#'
+#' @param tree A \code{phylo} tree.
+#' @param shift_node Integer node ID where the shift is added.
+#' @param current_shift_id Integer identifier for the shift.
 #' @export
 addShiftToModel <- function(tree, shift_node, current_shift_id) {
   # Update the shift ID
@@ -830,11 +841,14 @@ addShiftToModel <- function(tree, shift_node, current_shift_id) {
 #'   tr0 <- phytools::paintBranches(tr, edge = unique(tr$edge[,2]), state = "0", anc.state = "0")
 #'   # Paint a subtree as shift "1"
 #'   nd <- ape::Ntip(tr0) + 2L
-#'   tr1 <- paintSubTree_mod(tr0, node = nd, state = "1", anc.state = "0", stem = TRUE, overwrite = TRUE)
+#'   tr1 <- paintSubTree_mod(tr0, node = nd, state = "1", anc.state = "0",
+#'     stem = TRUE, overwrite = TRUE)
 #'   # Remove that shift and restore parental state
 #'   tr2 <- paintSubTree_removeShift(tr1, shift_node = nd, stem = FALSE)
 #' }
-#'
+#' @param tree A \code{phylo} tree.
+#' @param shift_node Integer node whose shift is removed.
+#' @param stem Logical, remove along the stem.
 #' @importFrom ape compute.brlen
 #' @importFrom phytools getParent getDescendants getStates
 #' @export
@@ -920,7 +934,7 @@ removeShiftFromTree <- function(tree, shift_node, stem=F) {
 #'   # Identify shift nodes
 #'   whichShifts(tr1)
 #' }
-#'
+#' @param tree A \code{phylo} tree
 #' @importFrom phytools getStates
 #' @importFrom ape getMRCA
 #' @export
@@ -993,7 +1007,7 @@ whichShifts <- function(tree) {
 #'   # Extract regime-specific VCVs
 #'   extractRegimeVCVs(fit)
 #' }
-#'
+#' @param model_output A fitted model object containing regime-level VCVs.
 #' @export
 extractRegimeVCVs <- function(model_output) {
   # Ensure the required components are in the model_output
@@ -1066,7 +1080,9 @@ extractRegimeVCVs <- function(model_output) {
 #'
 #' # Include the starting node itself
 #' getDescendants(tree, root_node, include.node = TRUE)
-#'
+#' @param tree A \code{phylo} tree.
+#' @param node Integer node.
+#' @param include.node Logical, include the node itself.
 #' @export
 getDescendants <- function(tree, node, include.node = FALSE) {
   # Function to recursively find all descendants of a node

@@ -6,7 +6,38 @@
 \usage{
 getDescendants(tree, node, include.node = FALSE)
 }
+\arguments{
+\item{tree}{A \code{phylo} tree.}
+
+\item{node}{Integer node.}
+
+\item{include.node}{Logical, include the node itself.}
+}
+\value{
+An integer vector of node numbers (tips and/or internal nodes)
+that descend from the specified node. The order of descendants is not guaranteed.
+}
 \description{
-Recursively retrieves all descendant nodes (internal and/or tips) from a specified node
-in a phylogenetic tree of class \code{"phylo"}. Optionally includes the starting node in the output.
+Recursively retrieves all descendant nodes (internal nodes and tips) from a specified
+node in a phylogenetic tree of class \code{"phylo"}.
+}
+\details{
+This function performs a depth-first traversal of the tree, recursively
+identifying all nodes downstream of the specified starting node.
+}
+\examples{
+library(ape)
+set.seed(123)
+tree <- rtree(5)
+
+# Get descendants of the root node
+root_node <- Ntip(tree) + 1
+getDescendants(tree, root_node)
+
+# Include the starting node itself
+getDescendants(tree, root_node, include.node = TRUE)
+}
+\seealso{
+\code{\link[ape]{Ntip}}, \code{\link[ape]{Nnode}},
+\code{\link[ape]{getMRCA}}, \code{\link[phytools]{getParent}}
 }
