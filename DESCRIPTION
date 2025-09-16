@@ -19,10 +19,12 @@ Imports:
     ape,
     future,
     future.apply,
-    mvMORPH (>= 1.2.1),
     phytools,
     grDevices,
-    stats
+    stats,
+    mvMORPH
+Remotes:
+    JClavel/mvMORPH
 Suggests:
     HDInterval,
     RColorBrewer,
