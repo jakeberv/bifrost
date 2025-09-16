@@ -119,7 +119,7 @@ generatePaintedTrees <- function(tree, min_tips, state = "shift") {
 #'
 #' @importFrom mvMORPH mvgls GIC
 #' @export
-fitMvglsAndExtractGIC <- function(painted_tree, trait_data) {
+fitMvglsAndExtractGIC <- function(painted_tree, trait_data, GPU_accel=TRUE) {
   # Ensure trait_data is a matrix
   if (!is.matrix(trait_data)) {
     stop("trait_data must be a matrix.")
@@ -131,7 +131,11 @@ fitMvglsAndExtractGIC <- function(painted_tree, trait_data) {
   }
 
   # Fit the mvgls model directly using the matrix
-  model <- mvgls(trait_data ~ 1, tree = painted_tree, model = "BMM", method='LL')
+  if (GPU_accel == TRUE){
+    model <- mvgls_torch(trait_data ~ 1, tree = painted_tree, model = "BMM", method='LL')
+  } else {
+    model <- mvgls(trait_data ~ 1, tree = painted_tree, model = "BMM", method='LL')
+  }
   gic_value <- GIC(model)
 
   # Return a list containing the model and the GIC
