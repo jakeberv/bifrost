@@ -25,8 +25,12 @@ searchOptimalConfiguration(
 Rprof(NULL)
 # Look at the results
 summaryRprof(memory = "both")
+mem_res <- summaryRprof(memory = "both")
+write.csv(x = as_tibble(x = mem_res$by.total, .name_repair = "universal"), file = "mem_profile_total.txt", row.names = FALSE, quote = FALSE)
+write.csv(x = mem_res$by.self, file = "mem_profile_self.txt", quote = FALSE)
 
-
+mem_res_self <- read_csv("mem_profile_self.txt")
+mem_res_self %>% View()
 '
 $by.self
 self.time self.pct total.time total.pct
