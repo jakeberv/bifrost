@@ -185,7 +185,7 @@ fitMvglsAndExtractGIC <- function(painted_tree, trait_data, GPU_accel=TRUE) {
 #' @importFrom mvMORPH mvgls
 #' @importFrom stats BIC
 #' @export
-fitMvglsAndExtractBIC <- function(painted_tree, trait_data) {
+fitMvglsAndExtractBIC <- function(painted_tree, trait_data, GPU_accel=TRUE) {
   # Ensure trait_data is a matrix
   if (!is.matrix(trait_data)) {
     stop("trait_data must be a matrix.")
@@ -197,7 +197,11 @@ fitMvglsAndExtractBIC <- function(painted_tree, trait_data) {
   }
 
   # Fit the mvgls model directly using the matrix
-  model <- mvgls(trait_data ~ 1, tree = painted_tree, model = "BMM", method='LL')
+  if (GPU_accel == TRUE){
+    model <- mvgls_torch(trait_data ~ 1, tree = painted_tree, model = "BMM", method='LL')
+  } else {
+    model <- mvgls(trait_data ~ 1, tree = painted_tree, model = "BMM", method='LL')
+  }
   bic_value <- BIC(model)
 
   # Return a list containing the model and the GIC
