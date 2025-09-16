@@ -1331,3 +1331,65 @@ mvgls_torch <- function(formula, data=list(), tree, model, method=c("PL-LOOCV","
   class(results) <- "mvgls"
   return(results)
 }
+
+
+# First draft of a torch-enabled pruning function instead of pruning() in mvMORPH
+pruning_torch_hybrid <- function(tree, inv=TRUE, scaled=TRUE, trans=TRUE, check=TRUE,
+                                 device="auto", use_torch_threshold=1000) {
+
+  # Tree preprocessing (keep identical to original)
+  if(check==TRUE){
+    if(!is.binary.phylo(tree)) tree <- multi2di(tree, random=FALSE)
+    if(attr(tree,"order")!="postorder") tree <- reorder.phylo(tree, "postorder")
+  }
+
+  # Original C++ call (keep this - it's already optimized)
+  invMat <- 1*inv
+  normalized <- 1*scaled
+  mode(invMat) <- "integer"
+  mode(normalized) <- "integer"
+
+  prunRes <- .Call(squareRootM, as.integer(tree$edge[,1]), as.integer(tree$edge[,2]),
+                   tree$edge.length, as.integer(Ntip(tree)), as.integer(invMat), as.integer(normalized))
+
+  # Torch acceleration for matrix operations (only if matrix is large enough)
+  n_tips <- Ntip(tree)
+  use_torch <- torch_is_installed() && (n_tips * n_tips > use_torch_threshold)
+
+  if(use_torch && device == "auto") {
+    device <- if(cuda_is_available()) "cuda" else "cpu"
+  }
+
+  if(use_torch) {
+    # Convert results to torch tensors for accelerated operations
+    contrastMatrix_tensor <- torch_tensor(prunRes[[1]], dtype=torch_float(), device=device)
+    varNode_tensor <- torch_tensor(prunRes[[2]], dtype=torch_float(), device=device)
+    varRoot_tensor <- torch_tensor(prunRes[[3]], dtype=torch_float(), device=device)
+
+    # Torch-accelerated log-determinant calculation
+    logdet <- torch_sum(torch_log(torch_cat(list(varNode_tensor, varRoot_tensor))))
+
+    # Torch-accelerated transpose (if needed)
+    if(trans) {
+      contrastMatrix_tensor <- contrastMatrix_tensor$t()
+    }
+
+    # Convert back to R matrices
+    contrastMatrix <- as_array(contrastMatrix_tensor$cpu())
+    logdet_r <- as_array(logdet$cpu())
+    varNode_r <- as_array(varNode_tensor$cpu())
+    varRoot_r <- as_array(varRoot_tensor$cpu())
+
+  } else {
+    # Original R operations for small matrices
+    logdet_r <- sum(log(c(prunRes[[2]], prunRes[[3]])))
+    contrastMatrix <- prunRes[[1]]
+    if(trans) contrastMatrix <- t(contrastMatrix)
+    varNode_r <- prunRes[[2]]
+    varRoot_r <- prunRes[[3]]
+  }
+
+  results <- list(sqrtMat=contrastMatrix, varNode=varNode_r, varRoot=varRoot_r, det=logdet_r)
+  class(results) <- c("mvmorph.var")
+  return(results)
+}

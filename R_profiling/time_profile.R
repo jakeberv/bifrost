@@ -1,6 +1,10 @@
 # Read in example simulation data
 sim_share <- readRDS(file='sim_share.RDS')
 
+original_pruning <- mvMORPH:::pruning
+assignInNamespace("pruning", pruning_torch, "mvMORPH")
+
+
 # Start the R profiler
 Rprof()
 # Run the model with simulated data
@@ -24,6 +28,9 @@ searchOptimalConfiguration(
 Rprof(NULL)
 # Look at the results
 summaryRprof()
+
+# Restore original
+assignInNamespace("pruning", original_pruning, "mvMORPH")
 
 '
 $by.self
