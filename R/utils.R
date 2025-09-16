@@ -988,7 +988,7 @@ whichShifts <- function(tree) {
 #'   # Extract regime-specific VCVs
 #'   extractRegimeVCVs(fit)
 #' }
-#' @param model_results List of fitted model results.
+#' @param model_output A fitted model object containing regime-level VCVs.
 #' @export
 extractRegimeVCVs <- function(model_output) {
   # Ensure the required components are in the model_output
