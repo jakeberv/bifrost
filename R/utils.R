@@ -326,7 +326,7 @@ fitMvglsAndExtractGIC.formula <- function(formula, painted_tree, trait_data, ...
 #'   painted <- phytools::paintSubTree(tree, node = 13, state = "A", anc.state = "A")
 #'   x <- rnorm(12)
 #'   y1 <- x + rnorm(12, sd = 0.5)
-#'   y2 <- 0.8 * x + rnorm(12, sd = 0.3)    
+#'   y2 <- 0.8 * x + rnorm(12, sd = 0.3)
 #'   dat <- data.frame(x = x, y1 = y1, y2 = y2)
 #'   rownames(dat) <- painted$tip.label
 #'   result <- fitMvglsAndExtractBIC.formula(cbind(y1, y2) ~ x, painted, dat)
@@ -513,10 +513,12 @@ calculateAllDeltaGIC <- function(model_results, painted_tree_list) {
 #'
 #'   # Paint an internal clade fully as "1"
 #'   nd <- ape::Ntip(tr0) + 2L
-#'   tr1 <- paintSubTree_mod(tr0, node = nd, state = "1", anc.state = "0", stem = TRUE, overwrite = TRUE)
+#'   tr1 <- paintSubTree_mod(tr0, node = nd, state = "1", anc.state = "0",
+#'     stem = TRUE, overwrite = TRUE)
 #'
 #'   # Selectively overwrite only edges already in state "0" within the subtree
-#'   tr2 <- paintSubTree_mod(tr1, node = nd, state = "2", anc.state = "0", stem = 0.25, overwrite = FALSE)
+#'   tr2 <- paintSubTree_mod(tr1, node = nd, state = "2", anc.state = "0",
+#'     stem = 0.25, overwrite = FALSE)
 #' }
 #' @param tree A \code{phylo} tree.
 #' @param node Integer node to paint.
@@ -823,7 +825,8 @@ addShiftToModel <- function(tree, shift_node, current_shift_id) {
 #'   tr0 <- phytools::paintBranches(tr, edge = unique(tr$edge[,2]), state = "0", anc.state = "0")
 #'   # Paint a subtree as shift "1"
 #'   nd <- ape::Ntip(tr0) + 2L
-#'   tr1 <- paintSubTree_mod(tr0, node = nd, state = "1", anc.state = "0", stem = TRUE, overwrite = TRUE)
+#'   tr1 <- paintSubTree_mod(tr0, node = nd, state = "1", anc.state = "0",
+#'     stem = TRUE, overwrite = TRUE)
 #'   # Remove that shift and restore parental state
 #'   tr2 <- paintSubTree_removeShift(tr1, shift_node = nd, stem = FALSE)
 #' }
