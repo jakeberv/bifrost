@@ -1,12 +1,9 @@
 # Read in example simulation data
 sim_share <- readRDS(file='sim_share.RDS')
 
-original_pruning <- mvMORPH:::pruning
-assignInNamespace("pruning", pruning_torch, "mvMORPH")
-
 
 # Start the R profiler
-Rprof()
+Rprof(memory.profiling = TRUE, event = "elapsed")
 # Run the model with simulated data
 searchOptimalConfiguration(
   baseline_tree = paintSubTree(
@@ -27,10 +24,8 @@ searchOptimalConfiguration(
 # Stop the profiler
 Rprof(NULL)
 # Look at the results
-summaryRprof()
+summaryRprof(memory = "both")
 
-# Restore original
-assignInNamespace("pruning", original_pruning, "mvMORPH")
 
 '
 $by.self
