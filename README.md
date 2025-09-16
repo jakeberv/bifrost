@@ -12,7 +12,7 @@ Branch-level inference of multiregime trait evolution on phylogenies
 
 ## Overview
 
-The primary function in `bifrost` is `searchOptimalConfiguration()`. It performs a greedy, stepwise search for evolutionary regime shifts on a SIMMAP-style phylogeny, using multivariate fits from `mvMORPH::mvgls`. Models are fit in trait space without PCA, assuming a multi-rate Brownian Motion with proportional VCV scaling across regimes. The function can search, score, and accept shifts by an information criterion, then optionally compute per-shift IC weights.
+The primary function in `bifrost` is `searchOptimalConfiguration()`. It performs a greedy stepwise search for evolutionary regime shifts on a SIMMAP-style phylogeny, using multivariate fits from `mvMORPH::mvgls`. Models are fit in trait space without PCA, assuming a multi-rate Brownian Motion with proportional VCV scaling across regimes. The function can search, score, and accept shifts by an information criterion, then optionally compute per-shift IC weights.
 
 This repository is under active development.
 
