@@ -131,9 +131,13 @@ fitMvglsAndExtractGIC <- function(painted_tree, trait_data, GPU_accel=TRUE) {
   }
 
   # Fit the mvgls model directly using the matrix
-  if (GPU_accel == TRUE){
+  use_torch <- GPU_accel && requireNamespace("torch", quietly = TRUE) &&
+    !inherits(try(torch::torch_tensor(1), silent = TRUE), "try-error")
+
+  if (use_torch) {
     model <- mvgls_torch(trait_data ~ 1, tree = painted_tree, model = "BMM", method='LL')
   } else {
+    if (GPU_accel) warning("Torch not available, using standard mvgls")
     model <- mvgls(trait_data ~ 1, tree = painted_tree, model = "BMM", method='LL')
   }
   gic_value <- GIC(model)
@@ -197,9 +201,13 @@ fitMvglsAndExtractBIC <- function(painted_tree, trait_data, GPU_accel=TRUE) {
   }
 
   # Fit the mvgls model directly using the matrix
-  if (GPU_accel == TRUE){
+  use_torch <- GPU_accel && requireNamespace("torch", quietly = TRUE) &&
+    !inherits(try(torch::torch_tensor(1), silent = TRUE), "try-error")
+
+  if (use_torch) {
     model <- mvgls_torch(trait_data ~ 1, tree = painted_tree, model = "BMM", method='LL')
   } else {
+    if (GPU_accel) warning("Torch not available, using standard mvgls")
     model <- mvgls(trait_data ~ 1, tree = painted_tree, model = "BMM", method='LL')
   }
   bic_value <- BIC(model)
