@@ -7,16 +7,11 @@
 getDescendants(tree, node, include.node = FALSE)
 }
 \arguments{
-\item{tree}{An object of class \code{"phylo"} (see \code{\link[ape]{phylo}}).}
+\item{tree}{A \code{phylo} tree.}
 
-\item{node}{An integer specifying the node number from which to retrieve descendants.
-Internal nodes are numbered from \code{Ntip(tree) + 1} to
-\code{Ntip(tree) + Nnode(tree)} in the \code{phylo} object.}
+\item{node}{Integer node.}
 
-\item{include.node}{Logical (default \code{FALSE}). If \code{TRUE}, the specified
-node itself is included in the returned vector.}
-
-\item{model_output}{A fitted model object containing regime-level VCVs.}
+\item{include.node}{Logical, include the node itself.}
 }
 \value{
 An integer vector of node numbers (tips and/or internal nodes)

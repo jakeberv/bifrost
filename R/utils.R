@@ -988,8 +988,7 @@ whichShifts <- function(tree) {
 #'   # Extract regime-specific VCVs
 #'   extractRegimeVCVs(fit)
 #' }
-#' @param model_results List of fitted model results.
-#' @param painted_tree_list List of painted trees used in fitting.
+#' @param model_output A fitted model object containing regime-level VCVs.
 #' @export
 extractRegimeVCVs <- function(model_output) {
   # Ensure the required components are in the model_output
@@ -1062,7 +1061,9 @@ extractRegimeVCVs <- function(model_output) {
 #'
 #' # Include the starting node itself
 #' getDescendants(tree, root_node, include.node = TRUE)
-#' @param model_output A fitted model object containing regime-level VCVs.
+#' @param tree A \code{phylo} tree.
+#' @param node Integer node.
+#' @param include.node Logical, include the node itself.
 #' @export
 getDescendants <- function(tree, node, include.node = FALSE) {
   # Function to recursively find all descendants of a node
