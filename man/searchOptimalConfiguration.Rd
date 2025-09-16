@@ -12,10 +12,8 @@ searchOptimalConfiguration(
   num_cores = 2,
   ic_uncertainty_threshold = 1,
   shift_acceptance_threshold = 1,
-  uncertainty = F,
   uncertaintyweights = F,
   uncertaintyweights_par = F,
-  postorder_traversal = F,
   plot = T,
   IC = "GIC",
   store_model_fit_history = TRUE,
@@ -37,13 +35,9 @@ searchOptimalConfiguration(
 
 \item{shift_acceptance_threshold}{Numeric, acceptance cutoff.}
 
-\item{uncertainty}{Character, how to treat uncertainty.}
-
 \item{uncertaintyweights}{Numeric vector of weights.}
 
 \item{uncertaintyweights_par}{List of parameters for weights.}
-
-\item{postorder_traversal}{Logical, traverse postorder.}
 
 \item{plot}{Logical, produce plots during search.}
 
@@ -74,8 +68,6 @@ Additional components appear conditionally:
 \item \code{ic_weights}: a \code{data.frame} of per-shift IC weights and evidence ratios when
 \code{uncertaintyweights} or \code{uncertaintyweights_par} is \code{TRUE}.
 \item \code{tree_uncertainty_transformed}, \code{tree_uncertainty_untransformed},
-\code{model_uncertainty}, \code{shift_nodes_uncertainty}: returned when
-\code{uncertainty = TRUE} and pruning removed at least one shift.
 \item \code{warnings}: character vector of warnings/errors encountered during fitting (if any).
 }
 }

@@ -161,10 +161,10 @@
 #' @param ... Passed to lower-level fitting functions.
 #' @importFrom future plan multicore multisession sequential
 #' @importFrom future.apply future_lapply
-#' @importFrom mvMORPH mvgls GIC BIC aicw
+#' @importFrom mvMORPH mvgls GIC aicw
 #' @importFrom phytools plotSimmap getStates
 #' @importFrom ape nodelabels Ntip
-#' @importFrom stats setNames
+#' @importFrom stats setNames BIC
 #' @export
 searchOptimalConfiguration <-
   function(baseline_tree,

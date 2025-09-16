@@ -140,7 +140,7 @@ test_that("searchOptimalConfiguration runs end-to-end on simulated data (BIC)", 
     shift_acceptance_threshold = 5,
     plot                       = FALSE,
     IC                         = "BIC",
-    store_model_fit_history    = FALSE,
+    store_model_fit_history    = TRUE,
     method                     = "LL",
     uncertaintyweights_par = T
   )
@@ -347,4 +347,6 @@ test_that("searchOptimalConfiguration records accepted steps with history (and c
   # Final assembly fields present (ensures we traversed to the end)
   testthat::expect_true(all(c("user_input", "optimal_ic", "baseline_ic", "IC_used", "num_candidates") %in% names(res)))
 })
+
+
 
