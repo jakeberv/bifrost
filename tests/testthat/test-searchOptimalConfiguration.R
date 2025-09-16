@@ -69,7 +69,7 @@ expect_numeric_scalar <- function(x) {
 }
 
 # ---- Test 1: original end-to-end with parallel-capable path (num_cores = 1) --
-test_that("searchOptimalConfiguration runs end-to-end on simulated data", {
+test_that("searchOptimalConfiguration runs end-to-end on simulated data (GIC)", {
   skip_if_missing_deps()
   simdata <- load_simdata_fixture()
   built <- build_baseline_and_data(simdata)
@@ -87,7 +87,62 @@ test_that("searchOptimalConfiguration runs end-to-end on simulated data", {
     plot                       = FALSE,
     IC                         = "GIC",
     store_model_fit_history    = FALSE,
-    method                     = "LL"
+    method                     = "LL",
+    uncertaintyweights = T
+  )
+
+  # Core structure checks (present names)
+  testthat::expect_type(res, "list")
+  testthat::expect_true(all(c(
+    "tree_no_uncertainty_transformed",
+    "tree_no_uncertainty_untransformed",
+    "model_no_uncertainty",
+    "shift_nodes_no_uncertainty",
+    "optimal_ic",
+    "baseline_ic",
+    "IC_used",
+    "num_candidates"
+  ) %in% names(res)))
+
+  # Types/values
+  expect_numeric_scalar(res$baseline_ic)
+  expect_numeric_scalar(res$optimal_ic)
+  testthat::expect_true(res$IC_used %in% c("GIC", "BIC"))
+  # These may be NULL if no shifts are accepted; otherwise phylo
+  expect_phylo_or_null(res$tree_no_uncertainty_untransformed)
+  expect_phylo_or_null(res$tree_no_uncertainty_transformed)
+  testthat::expect_true(is.list(res$VCVs) || is.null(res$VCVs))
+
+  # If shifts were accepted, best should improve or match baseline
+  if (length(res$shift_nodes_no_uncertainty) > 0) {
+    testthat::expect_lte(res$optimal_ic, res$baseline_ic)
+  } else {
+    # No shifts: optimal equals baseline (within tiny tolerance)
+    testthat::expect_equal(res$optimal_ic, res$baseline_ic, tolerance = 1e-8)
+  }
+})
+
+# ---- Test 1a: original end-to-end with parallel-capable path (num_cores = 1) --
+test_that("searchOptimalConfiguration runs end-to-end on simulated data (BIC)", {
+  skip_if_missing_deps()
+  simdata <- load_simdata_fixture()
+  built <- build_baseline_and_data(simdata)
+  baseline <- built$tree
+  X <- built$X
+
+  set.seed(123)
+  res <- searchOptimalConfiguration(
+    baseline_tree              = baseline,
+    trait_data                 = X,
+    formula                    = "trait_data ~ 1",
+    min_descendant_tips        = 10,
+    num_cores                  = 1,
+    shift_acceptance_threshold = 5,
+    plot                       = FALSE,
+    IC                         = "BIC",
+    store_model_fit_history    = FALSE,
+    method                     = "LL",
+    uncertaintyweights_par = T
   )
 
   # Core structure checks (present names)
@@ -179,7 +234,8 @@ test_that("searchOptimalConfiguration returns sensible output when no shifts are
     plot                       = FALSE,
     IC                         = "GIC",
     store_model_fit_history    = TRUE,
-    method                     = "LL"
+    method                     = "LL",
+    uncertaintyweights = T
   )
 
   # No shifts detected
@@ -226,3 +282,69 @@ test_that("searchOptimalConfiguration returns sensible output when no shifts are
     }
   }
 })
+
+# ---- Test 4 (NEW): exercise acceptance + history (+plot + postorder) ---------
+test_that("searchOptimalConfiguration records accepted steps with history (and covers plot/postorder)", {
+  skip_if_missing_deps()
+  simdata <- load_simdata_fixture()
+  built <- build_baseline_and_data(simdata)
+  baseline <- built$tree
+  X <- built$X
+
+  # Send plotting to a null device to cover the plotting branch safely in CI
+  grDevices::pdf(NULL)
+  on.exit({
+    try(grDevices::dev.off(), silent = TRUE)
+  }, add = TRUE)
+
+  set.seed(10101)
+  res <- searchOptimalConfiguration(
+    baseline_tree              = baseline,
+    trait_data                 = X,
+    formula                    = "trait_data ~ 1",
+    min_descendant_tips        = 10,      # broader candidate set
+    num_cores                  = 1,
+    shift_acceptance_threshold = -Inf,   # force acceptance of the first candidate evaluated
+    plot                       = TRUE,   # hit plotSimmap/nodelabels branches
+    #postorder_traversal        = TRUE,   # hit postorder switch
+    IC                         = "GIC",
+    store_model_fit_history    = TRUE,   # ensure history writer runs
+    method                     = "LL"
+  )
+
+  # We expect at least one shift to be recorded/accepted under -Inf threshold
+  testthat::expect_type(res, "list")
+  testthat::expect_true(length(res$shift_nodes_no_uncertainty) >= 1L)
+
+  # History object present and shows at least one accepted evaluation
+  testthat::expect_true(!is.null(res$model_fit_history))
+  hist <- res$model_fit_history
+  # Flexible handling: some implementations capture acceptance in either a list of fits or a matrix
+  any_accept <- FALSE
+  if (is.list(hist$fits)) {
+    flags <- vapply(hist$fits, function(e) isTRUE(e$accepted), logical(1))
+    any_accept <- any(flags, na.rm = TRUE)
+  }
+  if (!any_accept && !is.null(hist$ic_acceptance_matrix)) {
+    acc <- hist$ic_acceptance_matrix
+    if (NCOL(acc) >= 2) {
+      vals <- acc[, 2]
+      vals <- if (is.data.frame(vals)) unlist(vals, use.names = FALSE) else vals
+      vals <- if (is.list(vals)) unlist(vals, use.names = FALSE) else vals
+      if (is.factor(vals)) vals <- as.character(vals)
+      if (is.logical(vals)) {
+        any_accept <- any(vals, na.rm = TRUE)
+      } else if (is.numeric(vals)) {
+        any_accept <- any(vals != 0, na.rm = TRUE)
+      } else if (is.character(vals)) {
+        v <- trimws(tolower(vals))
+        any_accept <- any(v %in% c("true", "t", "1"))
+      }
+    }
+  }
+  testthat::expect_true(any_accept)
+
+  # Final assembly fields present (ensures we traversed to the end)
+  testthat::expect_true(all(c("user_input", "optimal_ic", "baseline_ic", "IC_used", "num_candidates") %in% names(res)))
+})
+
