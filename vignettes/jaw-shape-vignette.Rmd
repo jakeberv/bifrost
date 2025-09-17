@@ -19,6 +19,21 @@ knitr::opts_chunk$set(
 
 This vignette demonstrates the core functionality of the `bifrost` R package. `bifrost` is designed to identify and analyze cladogenic shifts in multivariate evolution. It is capable of analyzing datasets including thousands of species [without dimensionality reduction techniques like PCA](https://doi.org/10.1093/sysbio/syv019).
 
+```{r jaw_gif, echo=FALSE, results='asis'}
+gif_path <- system.file("extdata", "jaw-shape", "Gogosardina_coatesi_jaw_customcrop.gif", package = "bifrost")
+stopifnot(file.exists(gif_path))
+cat(sprintf(
+  '<p style="text-align:center">
+     <img src="%s" style="border:0; outline:0; box-shadow:none; max-width:80%%; height:auto; display:inline-block;">
+   </p>',
+  gif_path
+))
+```
+
+> **Animated jaw model of *Gogosardina coatesi* (specimen NMV P228269).**  
+> The 3D model is publicly available on [MorphoSource](https://www.morphosource.org/concern/media/000670517?locale=en).  
+> The landmark scheme used in subsequent analyses includes six fixed points (red) and five curves (blue).
+
 We will walk through an example using a fossil dataset from [Troyer et al. (2025)](https://doi.org/10.1016/j.cub.2025.08.008), which examines macroevolutionary patterns of jaw shape in the earliest radiation of bony fishes. `bifrost` assumes that the branch lengths of the input phylogeny are in units of time, but does not require ultrametric phylogenies.
 
 Troyer et al. (2025) find that early lobe-finned fishes, such as lungfishes and coelacanths, displayed surprisingly high rates of jaw evolution and morphological diversity, while ray-finned fishes—a hyper-diverse group today—showed much slower rates. This "macroevolutionary role reversal" presents an interesting scenario for applying the `bifrost` R package to infer significant shifts in the tempo and mode of evolution across the phylogenety of early vertebrates.
@@ -53,21 +68,6 @@ The dataset consists of two main components:
 
 1.  A phylogenetic tree (`mrbayes_prune_tree.RDS`) for 86 species of Silurian-Devonian bony fishes.
 2.  A 3D landmark dataset (`jaws_coords.RDS`) representing the 3D jaw shapes for each of these species.
-
-```{r jaw_gif, echo=FALSE, results='asis'}
-gif_path <- system.file("extdata", "jaw-shape", "Gogosardina_coatesi_jaw_customcrop.gif", package = "bifrost")
-stopifnot(file.exists(gif_path))
-cat(sprintf(
-  '<p style="text-align:center">
-     <img src="%s" style="border:0; outline:0; box-shadow:none; max-width:80%%; height:auto; display:inline-block;">
-   </p>',
-  gif_path
-))
-```
-
-> **Animated jaw model of *Gogosardina coatesi* (specimen NMV P228269).**  
-> The 3D model is publicly available on [MorphoSource](https://www.morphosource.org/concern/media/000670517?locale=en).  
-> The landmark scheme used in subsequent analyses includes six fixed points (red) and five curves (blue).
 
 These files are included with the package and are available at the publication's [data repository](https://datadryad.org/dataset/doi:10.5061/dryad.z08kprrqf). We can load them using `system.file()` to find the correct path within the package's installed directory.
 
@@ -208,7 +208,7 @@ print(with(jaws_search$ic_weights, {
 
 ## Inspecting the search behavior
 
-```{r interpret_results, eval=FALSE}
+```{r plot_results, eval=FALSE}
 # Since we saved the model search history 
 # We can inspect the behavior of the search with this helper function 
 plot_ic_acceptance_matrix(matrix_data = jaws_search$model_fit_history$ic_acceptance_matrix)
