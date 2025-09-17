@@ -199,7 +199,7 @@ searchOptimalConfiguration <-
         stop("IC must be GIC or BIC")
       }
       if(IC=="GIC"){
-        baseline_model <- fitMvglsAndExtractGIC.formula(formula, candidate_trees[[1]], GPU_accel=TRUE, trait_data, ...)
+        baseline_model <- fitMvglsAndExtractGIC.formula(formula, candidate_trees[[1]], trait_data, ...)
         baseline_ic <- baseline_model$GIC$GIC
       }
       if(IC=="BIC"){
