@@ -47,7 +47,7 @@ in \code{painted_tree} is detected with \code{\link[phytools]{getStates}}.
   painted <- phytools::paintSubTree(tree, node = 13, state = "A", anc.state = "A")
   x <- rnorm(12)
   y1 <- x + rnorm(12, sd = 0.5)
-  y2 <- 0.8 * x + rnorm(12, sd = 0.3)    
+  y2 <- 0.8 * x + rnorm(12, sd = 0.3)
   dat <- data.frame(x = x, y1 = y1, y2 = y2)
   rownames(dat) <- painted$tip.label
   result <- fitMvglsAndExtractBIC.formula(cbind(y1, y2) ~ x, painted, dat)

@@ -162,8 +162,8 @@
 #' @importFrom future plan multicore multisession sequential
 #' @importFrom future.apply future_lapply
 #' @importFrom mvMORPH mvgls GIC aicw
-#' @importFrom phytools plotSimmap getStates
-#' @importFrom ape nodelabels Ntip
+#' @importFrom phytools plotSimmap getStates paintSubTree
+#' @importFrom ape nodelabels Ntip as.phylo
 #' @importFrom stats setNames BIC
 #' @importFrom grDevices rainbow
 #' @export
@@ -185,6 +185,11 @@ searchOptimalConfiguration <-
 
     # Capture user input
     user_input <- as.list(match.call())
+
+    # Input tree should be painted SIMMAP tree with global state zero
+    baseline_tree <- paintSubTree(((as.phylo(baseline_tree))),
+                                  node = length(baseline_tree$tip.label) + 1,
+                                  state = 0)
 
     #generate initial set of painted candidate trees with shifts at each sub-node
     cat('Generating candidate shift models...\n')
