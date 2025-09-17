@@ -265,6 +265,20 @@ searchOptimalConfiguration <-
     best_tree_no_uncertainty<-NULL #initialize output
     # Initialize the list to collect warning messages
     warnings_list <- list()
+    if (store_model_fit_history) {
+      base_dir <- "fit_history"
+      if (!dir.exists(base_dir)) dir.create(base_dir)
+      
+      # Generate dated subdirectory
+      date_str <- format(Sys.Date(), "%d_%m_%Y")
+      sub_dir <- file.path(base_dir, date_str)
+      counter <- 1
+      while (dir.exists(sub_dir)) {
+        counter <- counter + 1
+        sub_dir <- file.path(base_dir, paste0(date_str, "_", counter))
+      }
+      dir.create(sub_dir)
+    }
     model_fit_history<-list() #new object to capture the full history of the search
 
     #Run the primary shift configuration search
@@ -313,7 +327,7 @@ searchOptimalConfiguration <-
 
         # Store model fit and acceptance status (including delta_ic)
         if (store_model_fit_history) {
-          model_fit_history[[length(model_fit_history) + 1]] <- list(
+          model_fit_history <- list(
             model = model_with_shift,
             accepted = delta_ic >= shift_acceptance_threshold,
             delta_ic = delta_ic
@@ -341,7 +355,7 @@ searchOptimalConfiguration <-
 
         # Also store the error in the model fit history
         if (store_model_fit_history) {
-          model_fit_history[[length(model_fit_history) + 1]] <- list(
+          model_fit_history<- list(
             model = NULL,
             accepted = FALSE,
             delta_ic = NA,
@@ -350,7 +364,11 @@ searchOptimalConfiguration <-
         }
 
       })
-
+      if (store_model_fit_history) {
+          iteration_num <- i+1
+          saveRDS(model_fit_history,
+                  file = file.path(sub_dir, paste0("iteration_", iteration_num, ".rds")))
+        }
       if(plot==T){
         colorvec <- setNames(object = c('black', rainbow(length(unique(getStates(shifted_tree, type = 'both')))-1)),
                              nm = sort(as.numeric(unique(getStates(shifted_tree, type = 'both')))))
@@ -553,6 +571,13 @@ searchOptimalConfiguration <-
 
       # Create the IC and acceptance matrix from the model fit history
       if (store_model_fit_history) {
+        rds_files <- list.files(
+                        sub_dir,
+                        pattern = "^iteration_\\d+\\.rds$",
+                        full.names = TRUE
+                        )
+        rds_files <- rds_files[order(as.numeric(gsub("\\D", "", basename(rds_files))))]
+        model_fit_history <- lapply(rds_files, readRDS)
         ic_acceptance_matrix <- do.call(rbind, lapply(model_fit_history, function(x) {
           if (is.null(x$model)) {
             c(NA, x$accepted)
