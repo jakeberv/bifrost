@@ -61,10 +61,12 @@ into two segments: \code{(1 - stem)} of \code{anc.state} and
 
   # Paint an internal clade fully as "1"
   nd <- ape::Ntip(tr0) + 2L
-  tr1 <- paintSubTree_mod(tr0, node = nd, state = "1", anc.state = "0", stem = TRUE, overwrite = TRUE)
+  tr1 <- paintSubTree_mod(tr0, node = nd, state = "1", anc.state = "0",
+    stem = TRUE, overwrite = TRUE)
 
   # Selectively overwrite only edges already in state "0" within the subtree
-  tr2 <- paintSubTree_mod(tr1, node = nd, state = "2", anc.state = "0", stem = 0.25, overwrite = FALSE)
+  tr2 <- paintSubTree_mod(tr1, node = nd, state = "2", anc.state = "0",
+    stem = 0.25, overwrite = FALSE)
 }
 }
 \seealso{

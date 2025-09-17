@@ -47,7 +47,8 @@ matches are overwritten.
   tr0 <- phytools::paintBranches(tr, edge = unique(tr$edge[,2]), state = "0", anc.state = "0")
   # Paint a subtree as shift "1"
   nd <- ape::Ntip(tr0) + 2L
-  tr1 <- paintSubTree_mod(tr0, node = nd, state = "1", anc.state = "0", stem = TRUE, overwrite = TRUE)
+  tr1 <- paintSubTree_mod(tr0, node = nd, state = "1", anc.state = "0",
+    stem = TRUE, overwrite = TRUE)
   # Remove that shift and restore parental state
   tr2 <- paintSubTree_removeShift(tr1, shift_node = nd, stem = FALSE)
 }

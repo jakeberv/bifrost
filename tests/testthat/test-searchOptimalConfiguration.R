@@ -42,14 +42,15 @@ build_baseline_and_data <- function(simdata) {
   tree0 <- ape::drop.tip(tree0, setdiff(tree0$tip.label, keep))
 
   # Paint a global baseline state "0" from the root
-  root <- ape::Ntip(tree0) + 1L
-  baseline <- phytools::paintSubTree(
-    tree      = tree0,
-    node      = root,
-    state     = "0",
-    anc.state = "0",
-    stem      = FALSE
-  )
+  # root <- ape::Ntip(tree0) + 1L
+  # baseline <- phytools::paintSubTree(
+  #   tree      = tree0,
+  #   node      = root,
+  #   state     = "0",
+  #   anc.state = "0",
+  #   stem      = FALSE
+  # )
+  baseline <- as.phylo(tree0)
 
   # Align trait data order to tree tips
   X <- simdata$simulatedData
