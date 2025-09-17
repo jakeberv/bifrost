@@ -2,6 +2,9 @@
 <!-- badges: start -->
 [![Codecov test coverage](https://codecov.io/gh/jakeberv/bifrost/graph/badge.svg)](https://app.codecov.io/gh/jakeberv/bifrost)
 [![R-CMD-check](https://github.com/jakeberv/bifrost/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/jakeberv/bifrost/actions/workflows/R-CMD-check.yaml)
+[![Lifecycle: maturing](https://img.shields.io/badge/lifecycle-maturing-blue.svg)](https://lifecycle.r-lib.org/articles/stages.html)
+[![GitHub version](https://img.shields.io/github/r-package/v/jakeberv/bifrost?label=dev%20version)](https://github.com/jakeberv/bifrost)
+[![pkgdown](https://github.com/jakeberv/bifrost/actions/workflows/pkgdown.yaml/badge.svg)](https://jakeberv.github.io/bifrost/)
 <!-- badges: end -->
 
 # Branch-level Inference Framework for Recognizing Optimal Shifts in Traits
