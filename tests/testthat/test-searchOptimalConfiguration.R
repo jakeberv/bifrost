@@ -284,7 +284,7 @@ test_that("searchOptimalConfiguration returns sensible output when no shifts are
   }
 })
 
-# ---- Test 4 (NEW): exercise acceptance + history (+plot + postorder) ---------
+# ---- Test 4 (NEW): exercise acceptance + history (+plot) ---------
 test_that("searchOptimalConfiguration records accepted steps with history (and covers plot/postorder)", {
   skip_if_missing_deps()
   simdata <- load_simdata_fixture()
