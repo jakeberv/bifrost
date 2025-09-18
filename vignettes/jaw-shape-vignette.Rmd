@@ -17,7 +17,7 @@ knitr::opts_chunk$set(
 
 ## Introduction 🐠
 
-This vignette demonstrates the core functionality of the `bifrost` R package. `bifrost` is designed to identify and analyze cladogenic shifts in multivariate trait evolution. It is capable of analyzing datasets including thousands of species [without dimensionality reduction techniques like PCA](https://doi.org/10.1093/sysbio/syv019).
+This vignette demonstrates the core functionality of the `bifrost` R package. `bifrost` is designed to identify and analyze cladogenic shifts in multivariate trait evolution. It is capable of analyzing morphological datasets comprising thousands of species, [without dimensionality reduction techniques like PCA](https://doi.org/10.1093/sysbio/syv019).
 
 ```{r jaw_gif, echo=FALSE, results='asis'}
 cat('
@@ -50,13 +50,6 @@ library(phytools)
 # install.packages("geomorph") 
 library(geomorph)
 ```
-
-## Loading the Data
-
-The dataset consists of two main components:
-
-1.  A phylogenetic tree (`fish.tree`) for 86 species of Silurian-Devonian bony fishes.
-2.  A 3D landmark dataset (`landmarks`) representing the jaw shape for each of these species.
 
 Let's load the data.
 
