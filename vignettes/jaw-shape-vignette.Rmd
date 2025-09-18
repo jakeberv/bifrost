@@ -1,0 +1,231 @@
+---
+title: "Detecting Evolutionary Shifts in Paleozoic Fish Jaw Shape with bifrost"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Detecting Evolutionary Shifts in Paleozoic Fish Jaw Shape with bifrost}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+## Introduction 🐠
+
+This vignette demonstrates the core functionality of the `bifrost` R package. `bifrost` is designed to identify and analyze cladogenic shifts in multivariate evolution. It is capable of analyzing datasets including thousands of species [without dimensionality reduction techniques like PCA](https://doi.org/10.1093/sysbio/syv019).
+
+```{r jaw_gif, echo=FALSE, results='asis'}
+gif_path <- system.file("extdata", "jaw-shape", "Gogosardina_coatesi_jaw_customcrop.gif", package = "bifrost")
+stopifnot(file.exists(gif_path))
+cat(sprintf(
+  '<p style="text-align:center">
+     <img src="%s" style="border:0; outline:0; box-shadow:none; max-width:80%%; height:auto; display:inline-block;">
+   </p>',
+  gif_path
+))
+```
+
+> **Animated jaw model of *Gogosardina coatesi* (specimen NMV P228269).**  
+> The 3D model is publicly available on [MorphoSource](https://www.morphosource.org/concern/media/000670517?locale=en).  
+> The landmark scheme used in subsequent analyses includes six fixed points (red) and five curves (blue).
+
+We will walk through an example using a fossil dataset from [Troyer et al. (2025)](https://doi.org/10.1016/j.cub.2025.08.008), which examines macroevolutionary patterns of jaw shape in the earliest radiation of bony fishes. `bifrost` assumes that the branch lengths of the input phylogeny are in units of time, but does not require ultrametric phylogenies.
+
+Troyer et al. (2025) find that early lobe-finned fishes, such as lungfishes and coelacanths, displayed surprisingly high rates of jaw evolution and morphological diversity, while ray-finned fishes—a hyper-diverse group today—showed much slower rates. This "macroevolutionary role reversal" presents an interesting scenario for applying the `bifrost` R package to infer significant shifts in the tempo and mode of evolution across the phylogenety of early vertebrates.
+
+We will use the primary function `searchOptimalConfiguration()` to perform a greedy, stepwise search to infer evolutionary regime shifts under multivariate Brownian motion.
+
+## Setup
+
+First, we load the `bifrost` package and other necessary libraries for data manipulation and visualization.
+
+```{r load_packages, eval=FALSE}
+library(bifrost)
+library(ape)
+library(phytools)
+# geomorph is needed for two.d.array
+# install.packages("geomorph") 
+library(geomorph)
+```
+
+## Loading the Data
+
+The dataset consists of two main components:
+
+1.  A phylogenetic tree (`fish.tree`) for 86 species of Silurian-Devonian bony fishes.
+2.  A 3D landmark dataset (`landmarks`) representing the jaw shape for each of these species.
+
+Let's load the data.
+
+## Loading the Data
+
+The dataset consists of two main components:
+
+1.  A phylogenetic tree (`mrbayes_prune_tree.RDS`) for 86 species of Silurian-Devonian bony fishes.
+2.  A 3D landmark dataset (`jaws_coords.RDS`) representing the 3D jaw shapes for each of these species.
+
+These files are included with the package and are available at the publication's [data repository](https://datadryad.org/dataset/doi:10.5061/dryad.z08kprrqf). We can load them using `system.file()` to find the correct path within the package's installed directory.
+
+```{r load_data, eval=FALSE}
+# Define paths to the data files included in the package
+tree_path <- system.file("extdata", "jaw-shape", "mrbayes_prune_tree.RDS", package = "bifrost")
+landmark_path <- system.file("extdata", "jaw-shape", "jaws_coords.RDS", package = "bifrost")
+
+# Load the phylogenetic tree and landmark data
+fish.tree <- readRDS(tree_path)
+landmarks <- readRDS(landmark_path)
+
+# Ensure the tree is in the correct format (a phylo object, here we also ladderize for downstream plotting)
+fish.tree <- ladderize(untangle(as.phylo(fish.tree)))
+
+# The raw landmark data is a 3D array (landmarks x dimensions x species) after GPA (Generalized Procrustes analysis)
+# We convert the 3D array into a 2D matrix for analysis using a function from the geomorph package.
+fish.data <- two.d.array(landmarks)
+
+# It's crucial to ensure the order of species in the trait data matrix matches the order of tip labels in the phylogenetic tree.
+tip_order <- match(fish.tree$tip.label, rownames(fish.data))
+fish.data <- fish.data[tip_order, ]
+
+# Let's inspect our data
+print(fish.tree)
+str(fish.data)
+```
+
+## Running an example workflow
+
+The core of the `bifrost` workflow is the `searchOptimalConfiguration()` function. This function automates the process of identifying the optimal placement of evolutionary regime shifts on the tree.
+
+### The Function Call
+
+Here is the function call we will use for this analysis. We'll break down each parameter choice below.
+
+```{r run_bifrost, eval=FALSE}
+# Increase memory limit for parallel processing if needed
+options(future.globals.maxSize = 10 * 1024^3)
+
+# Choose a separate device if plotting interactively
+if (interactive()) {
+  if (.Platform$OS.type == "windows") {
+    windows()
+  } else if (Sys.info()[["sysname"]] == "Darwin") {
+    quartz()
+  } else {
+    x11()
+  }
+}
+
+# Run the search
+jaws_search <- searchOptimalConfiguration(
+  baseline_tree = fish.tree,
+  trait_data = fish.data,
+  min_descendant_tips = 10,
+  num_cores = 4,
+  shift_acceptance_threshold = 20,
+  uncertaintyweights_par = TRUE,
+  IC = "GIC",
+  plot = TRUE,  #if in RStudio, plots will be sent to a new window
+  formula = 'trait_data~1',
+  method = 'H&L', # Using Penalized Likelihood for high dimensional 3D data
+  error = TRUE, 
+  store_model_fit_history = TRUE #default to store the history (heavy final object)
+)
+```
+
+### Understanding the primary input options
+
+Let's explore the choices made in this function call:
+
+  * `baseline_tree = fish.tree`: This is our starting point—a phylogenetic tree. Internally, all branches are assigned to a single, baseline regime (labeled "0"). The function will search for shifts *away* from this null model.
+  
+  * `trait_data = fish.data`: This is the matrix of our high-dimensional jaw shape data. The function will model the evolution of these traits.
+  
+  * `min_descendant_tips = 10`: This is a user defined constraint. It tells the function to only consider potential shifts on internal nodes that lead to a clade with at least 10 species. This seeks to reduce overfitting by preventing shifts on very small clades. We use 10 in this example, but the optimal choice here will depend on a given dataset.
+  
+  * `num_cores = 4`: To speed up the search, the function evaluates all candidate shift models in parallel. We've specified using 4 CPU cores for this task.
+  
+  * `shift_acceptance_threshold = 20`: This is the core of the greedy algorithm. A potential new shift is only accepted if it improves the model fit by at least 20 IC units (in this case, GIC units). This conservative threshold is chosen to ensure that only shifts with very strong support are added to the model, reducing the risk of spurious shifts.
+  
+  * `uncertaintyweights_par = TRUE`: After the greedy search identifies an optimal configuration of shifts, this option triggers a post-hoc analysis to quantify the importance of each accepted shift. It refits the final model repeatedly, each time with a focal shift removed, and calculates an Information Criterion (IC) weight for each shift. This helps assess how much evidence supports each individual shift in the context of the final model. The `_par` suffix indicates this will be done in parallel.
+  
+  * `IC = "GIC"`: We have chosen the **Generalized Information Criterion** to evaluate model fit. GIC is preferred for high-dimensional data (like our landmark data) compared to alternatives like AIC or BIC (add ref)
+  
+  * `plot = TRUE`: This is a helpful option for visualizing the search in real-time. The function will plot the tree and label the shifts as they are accepted, but this will potentially slow down the search.
+  
+  * `formula = 'trait_data~1'`: This specifies the structure of the underlying GLS model. Here, we fit a simple intercept-only model (`~1`), which corresponds to a multi-rate Brownian Motion process where each regime has its own rate matrix. Morphometric coordinates that have been GPA aligned are size and rotation adjusted, so no size adjustment is required. In a case of linear dimensions, one way to account for phylogenetic variation in size would be to use an approach like: `formula = 'trait_data[,c(-1)]~trait_data[,c(2:10)]'` where the first column in the input data (e.g., `fish.data`) is log(mass), and 2:10 are linear dimensions.
+  
+  * `method = 'H&L'`: This specifies the likelihood fitting method passed to `mvMORPH::mvgls`. 'H\&L' is a fast, approximated leave-one-out cross-validation (LOOCV) approach based on the work of Hoffbeck and Landgrebe (1996). It is particularly effective for intercept-only models with a "RidgeArch" penalty, making it a good choice for this high-dimensional dataset. Other options passed to `mvgls` will depend on the nature of the input dataset.
+  
+  * `error = TRUE`: This argument tells `mvgls` to estimate a measurement-error (intra-specific variance) term from the data and incorporate it into the model. Even if no explicit measurement-error values are provided, the function will treat this variance as an additional parameter to estimate. This is recommended for empirical datasets to account for within-species variation.
+
+## Interpreting the Output
+
+The `searchOptimalConfiguration` function returns a list containing detailed results of the search.
+
+Let's look at the key components:
+
+```{r interpret_results, eval=FALSE}
+
+# View the output of the results object
+
+# The node numbers where shifts were inferred and accepted
+print(jaws_search$shift_nodes_no_uncertainty)
+
+# The final, optimal IC score compared to the baseline
+cat("Baseline GIC:", jaws_search$baseline_ic, "\n")
+cat("Optimal GIC:", jaws_search$optimal_ic, "\n")
+cat("Improvement (Delta GIC):", jaws_search$baseline_ic - jaws_search$optimal_ic, "\n")
+
+#The model fit improvement is > 7000 GIC units
+
+# The VCV matrices for each detected regime
+# This shows the estimated rates of evolution for each regime
+# The root state is always assigned to `0`
+heatmap(jaws_search$VCVs$`0`) 
+
+# We can also visualize/extract the estimated evolutionary correlations across traits
+heatmap(cov2cor(jaws_search$VCVs$`0`))
+
+# The ic_weights sub-object stores detailed information about shift support (if uncertaintyweights_par = TRUE)
+print(jaws_search$ic_weights)
+
+# Extract the shift node numbers with corresponding IC weights
+print(cbind(node=jaws_search$ic_weights$node, weight=jaws_search$ic_weights$ic_weight_withshift))
+
+# Extract the nodes with weights > 95%
+print(with(jaws_search$ic_weights, {
+  sel <- ic_weight_withshift > 0.95
+  cbind(node = node[sel], weight = ic_weight_withshift[sel])
+}))
+
+# These nodes have very strong statistical support for shift events
+
+```
+
+## Inspecting the search behavior
+
+```{r plot_results, eval=FALSE}
+# Since we saved the model search history 
+# We can inspect the behavior of the search with this helper function 
+plot_ic_acceptance_matrix(matrix_data = jaws_search$model_fit_history$ic_acceptance_matrix)
+
+```
+
+## Other key output
+
+  * `shift_nodes_no_uncertainty`: A vector of integer node numbers on the phylogeny where significant shifts in jaw shape evolution were detected.
+  
+  * `optimal_ic` and `baseline_ic`: These values show the GIC score for the final multi-regime model and the initial single-regime model, respectively. The difference represents the total improvement in model fit achieved by adding the shifts.
+  
+  * `VCVs`: A list of variance-covariance matrices, one for each detected regime (including the baseline "0" regime). The elements of these matrices represent the evolutionary rates and covariances for the jaw shape traits. By comparing the matrices (e.g., by looking at their trace), we can quantify *how much faster* evolution was in one regime compared to another.
+  
+  * `ic_weights`: A dataframe showing the evidence supporting each individual shift. Higher weights (closer to 1.0) indicate that a given shift is essential for the overall model's explanatory power.
+
+
+## Conclusion
+
+This vignette demonstrates how to use the `bifrost` package to analyze a complex, high-dimensional dataset to find significant shifts in evolutionary dynamics. Applying `searchOptimalConfiguration` to a Paleozoic fish jaw dataset, we infer cladogenic events that correspond with significant shifts in  multivariate phenotypic evolution, similar to the hypotheses presented in Troyer et al. (2025). This workflow allows us not only to identify *where* shifts occurred but also to quantify the *magnitude* of the change in evolutionary rates through the VCV matrices (the topic of a separate vignette)
