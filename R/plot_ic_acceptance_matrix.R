@@ -33,18 +33,19 @@
 #'
 #' @return Invisibly returns \code{NULL}. Called for its plotting side effects.
 #'
-#' @section Axes and scaling:
-#' Tick marks for the primary (IC) x/y axes are computed with \code{pretty()} to give
-#' clean bounds. The secondary axis for the rate of improvement uses fixed limits
-#' (\code{c(-400, 150)}) inside the function; adjust in source if your expected
-#' \code{diff(IC)} range differs substantially.
+#' @details
+#' **Axes and scaling.** Tick marks for the primary (IC) x/y axes are computed with
+#' \code{pretty()} to give clean bounds. The secondary axis for the rate of improvement
+#' uses fixed limits (\code{c(-400, 150)}) inside the function; adjust in source if your
+#' expected \code{diff(IC)} range differs substantially.
 #'
-#' @examples
+#' #' @examples
 #' ic <- c(-1000, -1012, -1008, -1025, -1020, -1030)
 #' accepted <- c(1, 0, 1, 0, 1)  # steps 2..6 relative to baseline
 #' mat <- cbind(ic, c(1, accepted))  # mark baseline as accepted for plotting
 #' plot_ic_acceptance_matrix(mat, plot_title = "IC Path")
-#' plot_ic_acceptance_matrix(mat, plot_title = "IC + ΔIC Overlay", plot_rate_of_improvement = TRUE)
+#' # Avoid non-ASCII glyphs in titles on CRAN/CI:
+#' plot_ic_acceptance_matrix(mat, plot_rate_of_improvement = TRUE)
 #'
 #' @seealso
 #' \code{\link[graphics]{par}}, \code{\link[graphics]{plot}}, \code{\link[graphics]{axis}},
@@ -54,8 +55,9 @@
 #' @importFrom graphics axis legend lines mtext par plot points text title
 #' @importFrom grDevices rgb
 #' @export
-plot_ic_acceptance_matrix <- function(matrix_data, plot_title = "IC Acceptance Matrix Scatter Plot",
-                                      plot_rate_of_improvement = T) {
+plot_ic_acceptance_matrix <- function(matrix_data,
+                                      plot_title = "IC Acceptance Matrix Scatter Plot",
+                                      plot_rate_of_improvement = TRUE) {
   # Adjust margins for balanced spacing
   par(mar = c(5, 5.5, 4, 6), mgp = c(3, 0.6, 0))  # Adjust mgp to move tick labels closer
 
