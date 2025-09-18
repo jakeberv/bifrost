@@ -54,8 +54,9 @@
 #' @importFrom graphics axis legend lines mtext par plot points text title
 #' @importFrom grDevices rgb
 #' @export
-plot_ic_acceptance_matrix <- function(matrix_data, plot_title = "IC Acceptance Matrix Scatter Plot",
-                                      plot_rate_of_improvement = T) {
+plot_ic_acceptance_matrix <- function(matrix_data,
+                                      plot_title = "IC Acceptance Matrix Scatter Plot",
+                                      plot_rate_of_improvement = TRUE) {
   # Adjust margins for balanced spacing
   par(mar = c(5, 5.5, 4, 6), mgp = c(3, 0.6, 0))  # Adjust mgp to move tick labels closer
 
