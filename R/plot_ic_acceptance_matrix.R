@@ -79,7 +79,7 @@
 #' \code{\link[graphics]{lines}}, \code{\link[graphics]{points}}, \code{\link[graphics]{legend}},
 #' \code{\link[graphics]{mtext}}, \code{\link[graphics]{title}}
 #
-#' @importFrom graphics axis legend lines mtext par
+#' @importFrom graphics plot points title text axis legend lines mtext par
 #' @importFrom grDevices rgb
 #' @export
 plot_ic_acceptance_matrix <- function(matrix_data, plot_title = "IC Acceptance Matrix Scatter Plot",
