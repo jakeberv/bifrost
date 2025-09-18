@@ -1,4 +1,20 @@
 url: ~
 template:
   bootstrap: 5
-
+  includes:
+    in_header: |
+      <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+      <script>
+      document.addEventListener('DOMContentLoaded', function () {
+        if (!window.mermaid) return;
+        // convert fenced ```mermaid code blocks into live Mermaid on the pkgdown site
+        document.querySelectorAll('pre code.language-mermaid').forEach(function (code) {
+          var pre = code.parentElement;
+          var div = document.createElement('div');
+          div.className = 'mermaid';
+          div.textContent = code.textContent;
+          pre.replaceWith(div);
+        });
+        mermaid.initialize({ startOnLoad: true });
+      });
+      </script>
