@@ -20,13 +20,8 @@
 #' implies improvement).
 #'
 #' The function uses only base graphics. It sets plot margins and \code{mgp} via
-#' \code{par()}, and temporarily sets \code{par(new = TRUE)} to layer the IC plot over the
+#' \code{par()}, and (when overlaying) uses \code{par(new = TRUE)} to layer the IC plot over the
 #' rate-of-improvement axes. It does not restore previous graphical parameters.
-#' If you need to preserve the current graphics settings, wrap your call as:
-#' \preformatted{
-#' op <- par(no.readonly = TRUE); on.exit(par(op), add = TRUE)
-#' plot_ic_acceptance_matrix(x)
-#' }
 #'
 #' @param matrix_data A two-column \code{matrix} or \code{data.frame}. Column 1 must be
 #'   numeric IC scores in evaluation order; Column 2 must be a logical or numeric flag
@@ -36,50 +31,27 @@
 #'   first differences of the IC series on a secondary (right) y-axis along with a
 #'   horizontal reference line at zero.
 #'
-#' @return
-#' Invisibly returns \code{NULL}. Called for its plotting side effects.
+#' @return Invisibly returns \code{NULL}. Called for its plotting side effects.
 #'
 #' @section Axes and scaling:
 #' Tick marks for the primary (IC) x/y axes are computed with \code{pretty()} to give
 #' clean bounds. The secondary axis for the rate of improvement uses fixed limits
-#' (\code{c(-400, 150)}) inside the function; adjust the source if your expected
+#' (\code{c(-400, 150)}) inside the function; adjust in source if your expected
 #' \code{diff(IC)} range differs substantially.
 #'
-#' @section Interpretation:
-#' \itemize{
-#'   \item Lower IC values are better fits.
-#'   \item Negative \code{diff(IC)} values indicate improvement relative to the
-#'         previous step; positive values indicate worsening.
-#'   \item The line through accepted points shows the trajectory of the best model's IC
-#'         across accepted steps.
-#' }
-#'
 #' @examples
-#' # Simulate a toy IC trajectory: start at baseline, then a few improvements
-#' set.seed(1)
 #' ic <- c(-1000, -1012, -1008, -1025, -1020, -1030)
 #' accepted <- c(1, 0, 1, 0, 1)  # steps 2..6 relative to baseline
-#' mat <- cbind(ic, c(1, accepted))  # mark baseline as "accepted" for plotting
-#'
-#' # Basic plot (IC only)
+#' mat <- cbind(ic, c(1, accepted))  # mark baseline as accepted for plotting
 #' plot_ic_acceptance_matrix(mat, plot_title = "IC Path")
-#'
-#' # With overlaid rate-of-improvement on secondary axis
-#' plot_ic_acceptance_matrix(mat, plot_title = "IC + ΔIC Overlay",
-#'                           plot_rate_of_improvement = TRUE)
-#'
-#' # Preserve and restore graphical parameters (optional)
-#' \dontrun{
-#' op <- par(no.readonly = TRUE); on.exit(par(op), add = TRUE)
-#' plot_ic_acceptance_matrix(mat)
-#' }
+#' plot_ic_acceptance_matrix(mat, plot_title = "IC + ΔIC Overlay", plot_rate_of_improvement = TRUE)
 #'
 #' @seealso
 #' \code{\link[graphics]{par}}, \code{\link[graphics]{plot}}, \code{\link[graphics]{axis}},
 #' \code{\link[graphics]{lines}}, \code{\link[graphics]{points}}, \code{\link[graphics]{legend}},
 #' \code{\link[graphics]{mtext}}, \code{\link[graphics]{title}}
-#
-#' @importFrom graphics plot points title text axis legend lines mtext par
+#'
+#' @importFrom graphics axis legend lines mtext par plot points text title
 #' @importFrom grDevices rgb
 #' @export
 plot_ic_acceptance_matrix <- function(matrix_data, plot_title = "IC Acceptance Matrix Scatter Plot",
