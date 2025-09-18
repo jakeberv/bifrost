@@ -30,7 +30,6 @@ jobs:
       R_KEEP_PKG_SOURCE: yes
 
     steps:
-    steps:
       - uses: actions/checkout@v4
 
       # --- Sanity check that docs are present in CI checkout ---
