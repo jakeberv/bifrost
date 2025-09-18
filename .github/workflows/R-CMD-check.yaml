@@ -30,7 +30,28 @@ jobs:
       R_KEEP_PKG_SOURCE: yes
 
     steps:
+    steps:
       - uses: actions/checkout@v4
+
+      # --- Sanity check that docs are present in CI checkout ---
+      - name: Sanity check docs present (POSIX)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          echo "Listing man/ and NAMESPACE..."
+          ls -la man || true
+          test -f man/plot_ic_acceptance_matrix.Rd || { echo "::error :: man/plot_ic_acceptance_matrix.Rd is missing in CI checkout"; exit 1; }
+          grep -n '\\alias{plot_ic_acceptance_matrix}' man/plot_ic_acceptance_matrix.Rd || { echo "::error :: alias missing in Rd"; exit 1; }
+          grep -n '^export(plot_ic_acceptance_matrix)$' NAMESPACE || { echo "::error :: export missing in NAMESPACE"; exit 1; }
+
+      - name: Sanity check docs present (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Write-Host "Listing man/ and NAMESPACE..."
+          if (!(Test-Path -Path 'man/plot_ic_acceptance_matrix.Rd')) { Write-Error "man/plot_ic_acceptance_matrix.Rd is missing in CI checkout"; exit 1 }
+          if (-not (Select-String -Path 'man/plot_ic_acceptance_matrix.Rd' -Pattern '\\alias{plot_ic_acceptance_matrix}' -SimpleMatch -Quiet)) { Write-Error "alias missing in Rd"; exit 1 }
+          if (-not (Select-String -Path 'NAMESPACE' -Pattern '^export\(plot_ic_acceptance_matrix\)$' -Quiet)) { Write-Error "export missing in NAMESPACE"; exit 1 }
 
       - uses: r-lib/actions/setup-pandoc@v2
 
