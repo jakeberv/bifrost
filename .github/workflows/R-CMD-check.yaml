@@ -45,6 +45,20 @@ jobs:
           extra-packages: any::rcmdcheck
           needs: check
 
+      # Install qpdf so vignette compaction works without warnings
+      - name: Install qpdf (macOS)
+        if: runner.os == 'macOS'
+        run: brew install qpdf
+
+      - name: Install qpdf (Ubuntu)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y qpdf
+
+      - name: Install qpdf (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: choco install qpdf --no-progress
+
       - uses: r-lib/actions/check-r-package@v2
         with:
           upload-snapshots: true
