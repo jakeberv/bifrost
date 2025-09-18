@@ -98,7 +98,7 @@ K --> L{More candidates?}
 L -->|Yes| M[Next candidate]
 M --> N[Add shift]
 N --> O[Fit shifted model]
-O --> P{Improvement ≥ threshold?}
+O --> P{Improvement >= threshold?}
 P -->|Yes| Q[Accept and update]
 P -->|No| R[Reject]
 O --> S{Store history?}
