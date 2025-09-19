@@ -22,7 +22,8 @@ Imports:
     phytools,
     grDevices,
     stats,
-    mvMORPH
+    mvMORPH,
+    viridis
 Remotes:
     JClavel/mvMORPH
 Suggests:
