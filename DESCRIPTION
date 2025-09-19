@@ -2,7 +2,7 @@ Package: bifrost
 Title: Branch-level Inference Framework for Recognizing Optimal Shifts in Traits
 Version: 0.0.0.9000
 Authors@R: c(
-    person(given = "Jacob", family = "Berv", email = "jberv@umich.edu", role = c("aut", "cre")),
+    person(given = "Jacob", family = "Berv", email = "jberv@umich.edu", role = c("aut", "cre", "cph")),
     person(given = "Nathan", family = "Fox", role = "aut"),
     person(given = "Matthew", family = "Thorstensen", role = "aut"),
     person(given = "Henry", family = "Lloyd-Laney", role = "aut"))
