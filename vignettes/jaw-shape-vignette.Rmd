@@ -176,7 +176,7 @@ cat("Improvement (Delta GIC):", jaws_search$baseline_ic - jaws_search$optimal_ic
 # The VCV matrices for each detected regime
 # This shows the estimated rates of evolution for each regime
 # The root state is always assigned to `0`
-heatmap(jaws_search$VCVs$`0`) 
+heatmap(jaws_search$VCVs$`0`)
 
 # We can also visualize/extract the estimated evolutionary correlations across traits
 heatmap(cov2cor(jaws_search$VCVs$`0`))
@@ -210,15 +210,16 @@ plot_ic_acceptance_matrix(matrix_data = jaws_search$model_fit_history$ic_accepta
 
 ```{r plot_tree, eval=FALSE}
 
-#We use the provided helper function generateViridisColorScale to assign colors from the perceptually uniform viridis palette to the paramter values representing 'mean' branch-rates
+#We use the provided helper function generateViridisColorScale to assign colors from the perceptually uniform viridis palette to the parameter values representing 'mean' branch-rates. This generates 'rate' categories that go from slow to fast.
 
 plotSimmap(
-  jaws_shape$tree_no_uncertainty_untransformed,
+  jaws_search$tree_no_uncertainty_untransformed,
   ftype='off',
   direction='upwards',
-  colors = generateViridisColorScale(jaws_shape$model_no_uncertainty$param)$NamedColors
+  colors = generateViridisColorScale(jaws_search$model_no_uncertainty$param)$NamedColors
 )
-#generateLegendLabel(jaws_shape, inset_y = 0.1)
+
+#Vignette will be updated with additional plotting functions and post-hoc analyses
 
 ```
 
