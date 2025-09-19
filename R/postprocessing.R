@@ -31,6 +31,38 @@ mean_cov_diagonals <- function(object) {
   ))
 }
 
+var_cov_diagonals <- function(object) {
+  # Extract covariance matrices from object$VCV
+  vcv_matrices <- object$VCVs
+
+  # Get matrix names (use indices if no names available)
+  matrix_names <- names(vcv_matrices)
+  if (is.null(matrix_names)) {
+    matrix_names <- paste0("matrix_", seq_along(vcv_matrices))
+  }
+
+  # Extract diagonals and compute means vectorized
+  diagonal_vars <- vapply(vcv_matrices, function(mat) {
+    var(diag(mat))
+  }, numeric(1))
+
+  # Set names for the means vector
+  names(diagonal_vars) <- matrix_names
+
+  # Create pairwise difference matrix (absolute differences)
+  n_matrices <- length(diagonal_vars)
+  diff_matrix <- outer(diagonal_vars, diagonal_vars, function(x, y) abs(x - y))
+
+  # Set row and column names for the difference matrix
+  rownames(diff_matrix) <- matrix_names
+  colnames(diff_matrix) <- matrix_names
+
+  # Return results as a list
+  return(list(
+    diagonal_vars = diagonal_vars,
+    variance_differences = diff_matrix
+  ))
+}
 
 
 plot_heatmap_means <- function(analysis_result) {
@@ -308,7 +340,10 @@ plot_cov_heatmap <- function(analysis_result,
     if ("pairwise_differences" %in% names(analysis_result)) {
       plot_matrix <- analysis_result$pairwise_differences
       default_title <- "Pairwise Differences in Diagonal Means"
-    } else if ("wasserstein_distances" %in% names(analysis_result)) {
+    } else if ("variance_differences" %in% names(analysis_result)) {
+      plot_matrix <- analysis_result$variance_differences
+      default_title <- "Pairwise Variance Distances"
+    }else if ("wasserstein_distances" %in% names(analysis_result)) {
       plot_matrix <- analysis_result$wasserstein_distances
       default_title <- "Pairwise Wasserstein Distances"
     } else if ("ks_distances" %in% names(analysis_result)) {
@@ -322,7 +357,7 @@ plot_cov_heatmap <- function(analysis_result,
     }
   } else {
     # Manual selection
-    valid_metrics <- c("pairwise_differences", "wasserstein_distances",
+    valid_metrics <- c("pairwise_differences", "variance_differences", "wasserstein_distances",
                        "ks_distances", "energy_distances", "pvalues", "qvalues")
 
     if (!metric %in% valid_metrics) {
@@ -342,6 +377,7 @@ plot_cov_heatmap <- function(analysis_result,
 
     default_title <- switch(metric,
                             "pairwise_differences" = "Pairwise Differences in Diagonal Means",
+                            "variance_differences" = "Pairwise Differences in Diagonal Variances",
                             "wasserstein_distances" = "Pairwise Wasserstein Distances",
                             "ks_distances" = "Kolmogorov-Smirnov Test Statistics",
                             "energy_distances" = "Energy Distance Statistics",
