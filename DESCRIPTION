@@ -43,6 +43,8 @@ Suggests:
     scales,
     testthat (>= 3.0.0),
     univariateML,
-    viridis
+    viridis,
+    spelling
 VignetteBuilder: knitr
 Config/testthat/edition: 3
+Language: en-US
