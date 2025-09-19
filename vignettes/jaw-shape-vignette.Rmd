@@ -218,7 +218,7 @@ plotSimmap(
   direction='upwards',
   colors = generateViridisColorScale(jaws_shape$model_no_uncertainty$param)$NamedColors
 )
-generateLegendLabel(jaws_shape, inset_y = 0.1)
+#generateLegendLabel(jaws_shape, inset_y = 0.1)
 
 ```
 
