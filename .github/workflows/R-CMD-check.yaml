@@ -40,8 +40,14 @@ jobs:
 
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
-          extra-packages: any::rcmdcheck
+          extra-packages: >
+            any::rcmdcheck,
+            any::roxygen2
           needs: check
+
+      # Generate NAMESPACE + Rd files from roxygen comments
+      - name: Generate Rd + NAMESPACE via roxygen2
+        run: Rscript -e 'roxygen2::roxygenise(roclets = c("rd","namespace"))'
 
       # Install qpdf so vignette compaction works without warnings
       - name: Install qpdf (macOS)
