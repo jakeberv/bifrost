@@ -1,5 +1,37 @@
+# =============================================================================
+# Covariance Matrix Diagonal Analysis Functions
+# =============================================================================
+#
+# This file provides functions to analyze and compare the diagonal elements
+# of covariance matrices from searchOptimalConfiguration() outputs.
+#
+# OVERVIEW:
+# These functions extract diagonal values from multiple covariance matrices and
+# compare them using various distance/similarity metrics:
+#
+# DISTANCE METRICS:
+# - Mean differences: Simple arithmetic differences between diagonal means
+# - Variance differences: Differences in diagonal variance patterns
+# - Wasserstein distance: Optimal transport distance between distributions
+# - Kolmogorov-Smirnov: Non-parametric test for distribution differences
+# - Energy distance: Another distribution comparison method with bootstrap tests
+#
+# TYPICAL WORKFLOW:
+# 1. Run searchOptimalConfiguration() to get an object with $VCVs
+# 2. Apply one of the distance functions (e.g., mean_cov_diagonals())
+# 3. Visualize results with plot_cov_heatmap() or plot_pvalue_heatmap()
+#
+# DEPENDENCIES:
+# - transport package (for Wasserstein distances)
+# - energy package (for energy distances)
+# - qvalue package (for multiple testing correction)
+# - viridis package (optional, for better color schemes)
+#
+# =============================================================================
+
+# Basic mean-based comparison of diagonal elements
 mean_cov_diagonals <- function(object) {
-  # Extract covariance matrices from object$VCV
+  # Extract covariance matrices from object$VCVs
   vcv_matrices <- object$VCVs
 
   # Get matrix names (use indices if no names available)
@@ -10,13 +42,14 @@ mean_cov_diagonals <- function(object) {
 
   # Extract diagonals and compute means vectorized
   diagonal_means <- vapply(vcv_matrices, function(mat) {
-    mean(diag(mat))
+    mean(diag(mat))  # Mean of diagonal elements for each matrix
   }, numeric(1))
 
   # Set names for the means vector
   names(diagonal_means) <- matrix_names
 
   # Create pairwise difference matrix (absolute differences)
+  # This shows how different the average variances are between matrices
   n_matrices <- length(diagonal_means)
   diff_matrix <- outer(diagonal_means, diagonal_means, function(x, y) abs(x - y))
 
@@ -31,8 +64,9 @@ mean_cov_diagonals <- function(object) {
   ))
 }
 
+# Variance-based comparison of diagonal variability
 var_cov_diagonals <- function(object) {
-  # Extract covariance matrices from object$VCV
+  # Extract covariance matrices from object$VCVs
   vcv_matrices <- object$VCVs
 
   # Get matrix names (use indices if no names available)
@@ -41,15 +75,17 @@ var_cov_diagonals <- function(object) {
     matrix_names <- paste0("matrix_", seq_along(vcv_matrices))
   }
 
-  # Extract diagonals and compute means vectorized
+  # Extract diagonals and compute variance of diagonal elements
+  # This measures how variable the diagonal elements are within each matrix
   diagonal_vars <- vapply(vcv_matrices, function(mat) {
-    var(diag(mat))
+    var(diag(mat))  # Variance of diagonal elements within each matrix
   }, numeric(1))
 
-  # Set names for the means vector
+  # Set names for the variance vector
   names(diagonal_vars) <- matrix_names
 
   # Create pairwise difference matrix (absolute differences)
+  # Shows differences in diagonal variability patterns between matrices
   n_matrices <- length(diagonal_vars)
   diff_matrix <- outer(diagonal_vars, diagonal_vars, function(x, y) abs(x - y))
 
@@ -65,14 +101,7 @@ var_cov_diagonals <- function(object) {
 }
 
 
-plot_heatmap_means <- function(analysis_result) {
-  heatmap(analysis_result$pairwise_differences,
-          symm = TRUE,
-          main = "Pairwise Differences in Diagonal Means",
-          xlab = "Matrix", ylab = "Matrix")
-}
-
-
+# Wasserstein (optimal transport) distance between diagonal distributions
 wasserstein_cov_diagonals <- function(object) {
   # Check if transport package is available
   if (!requireNamespace("transport", quietly = TRUE)) {
@@ -88,7 +117,8 @@ wasserstein_cov_diagonals <- function(object) {
     matrix_names <- paste0("matrix_", seq_along(vcv_matrices))
   }
 
-  # Extract all diagonals first (vectorized)
+  # Extract all diagonal vectors first (vectorized)
+  # Wasserstein distance compares entire distributions, not just summary stats
   diagonals <- lapply(vcv_matrices, diag)
   names(diagonals) <- matrix_names
 
@@ -97,10 +127,11 @@ wasserstein_cov_diagonals <- function(object) {
   indices <- seq_len(n_matrices)
 
   # Vectorized pairwise distance computation using outer
+  # Wasserstein distance measures the "cost" of transforming one distribution to another
   wasserstein_matrix <- outer(indices, indices, function(i, j) {
     mapply(function(idx_i, idx_j) {
       if (idx_i == idx_j) {
-        return(0)
+        return(0)  # Distance from a distribution to itself is 0
       } else {
         return(transport::wasserstein1d(diagonals[[idx_i]], diagonals[[idx_j]]))
       }
@@ -118,16 +149,7 @@ wasserstein_cov_diagonals <- function(object) {
   ))
 }
 
-# Plot Wasserstein distances
-plot_heatmap_wasserstein <- function(analysis_result) {
-  heatmap(analysis_result$wasserstein_distances,
-          symm = TRUE,
-          main = "Pairwise Wasserstein Distances of Diagonal Values",
-          xlab = "Matrix", ylab = "Matrix")
-}
-
-
-# Kolmorogov-Smirnov distances with p-values and q-values
+# Kolmogorov-Smirnov test with statistical significance testing
 ks_cov_diagonals <- function(object, qval = TRUE) {
   # Check if qvalue package is available (only if qval = TRUE)
   if (qval && !requireNamespace("qvalue", quietly = TRUE)) {
@@ -143,7 +165,8 @@ ks_cov_diagonals <- function(object, qval = TRUE) {
     matrix_names <- paste0("matrix_", seq_along(vcv_matrices))
   }
 
-  # Extract all diagonals first (vectorized)
+  # Extract all diagonal vectors first (vectorized)
+  # KS test compares cumulative distribution functions
   diagonals <- lapply(vcv_matrices, diag)
   names(diagonals) <- matrix_names
 
@@ -151,15 +174,16 @@ ks_cov_diagonals <- function(object, qval = TRUE) {
   n_matrices <- length(diagonals)
   indices <- seq_len(n_matrices)
 
-  # Matrices to store results
+  # Matrices to store KS statistics and p-values
   ks_matrix <- matrix(0, nrow = n_matrices, ncol = n_matrices)
   pval_matrix <- matrix(1, nrow = n_matrices, ncol = n_matrices)  # Diagonal = 1 (no difference)
 
   # Vectorized pairwise KS test computation
+  # KS test null hypothesis: both samples come from the same distribution
   results <- outer(indices, indices, function(i, j) {
     mapply(function(idx_i, idx_j) {
       if (idx_i == idx_j) {
-        return(list(statistic = 0, p.value = 1))
+        return(list(statistic = 0, p.value = 1))  # Same distribution
       } else {
         ks_result <- ks.test(diagonals[[idx_i]], diagonals[[idx_j]])
         return(list(statistic = as.numeric(ks_result$statistic),
@@ -168,7 +192,7 @@ ks_cov_diagonals <- function(object, qval = TRUE) {
     }, i, j, SIMPLIFY = FALSE)
   })
 
-  # Extract statistics and p-values
+  # Extract statistics and p-values from nested results
   for (i in 1:n_matrices) {
     for (j in 1:n_matrices) {
       ks_matrix[i, j] <- results[[i, j]]$statistic
@@ -176,7 +200,7 @@ ks_cov_diagonals <- function(object, qval = TRUE) {
     }
   }
 
-  # Calculate q-values only if requested
+  # Calculate q-values for multiple testing correction (Benjamini-Hochberg FDR)
   if (qval) {
     # Calculate q-values from upper triangle p-values (excluding diagonal)
     upper_tri_indices <- which(upper.tri(pval_matrix), arr.ind = TRUE)
@@ -219,13 +243,13 @@ ks_cov_diagonals <- function(object, qval = TRUE) {
   # Return results as a list
   return(list(
     diagonals = diagonals,
-    ks_distances = ks_matrix,
-    pvalues = pval_matrix,
-    qvalues = qval_matrix
+    ks_distances = ks_matrix,      # KS test statistics
+    pvalues = pval_matrix,         # Raw p-values
+    qvalues = qval_matrix          # Multiple testing corrected q-values
   ))
 }
 
-# Energy distance version with p-values and q-values
+# Energy distance with bootstrap testing (slower but robust)
 energy_cov_diagonals <- function(object, R = 99, qval = TRUE) {
   # Check if energy package is available
   if (!requireNamespace("energy", quietly = TRUE)) {
@@ -237,8 +261,8 @@ energy_cov_diagonals <- function(object, R = 99, qval = TRUE) {
     stop("Package 'qvalue' is required for q-value calculations")
   }
 
-  # Extract covariance matrices from object$VCV
-  vcv_matrices <- object$VCV
+  # Extract covariance matrices from object$VCVs
+  vcv_matrices <- object$VCVs
 
   # Get matrix names (use indices if no names available)
   matrix_names <- names(vcv_matrices)
@@ -246,11 +270,12 @@ energy_cov_diagonals <- function(object, R = 99, qval = TRUE) {
     matrix_names <- paste0("matrix_", seq_along(vcv_matrices))
   }
 
-  # Extract all diagonals first (vectorized)
+  # Extract all diagonal vectors first (vectorized)
+  # Energy distance is another way to compare distributions using E-statistics
   diagonals <- lapply(vcv_matrices, diag)
   names(diagonals) <- matrix_names
 
-  # Create indices for vectorized computation
+  # Create indices for computation
   n_matrices <- length(diagonals)
 
   # Matrices to store results
@@ -260,12 +285,14 @@ energy_cov_diagonals <- function(object, R = 99, qval = TRUE) {
   # Note: This version will be slower due to bootstrap resampling
   cat("Computing energy distances with", R, "bootstrap replicates...\n")
 
+  # Compute pairwise energy distances with bootstrap p-values
   for (i in 1:n_matrices) {
     for (j in i:n_matrices) {
       if (i == j) {
-        energy_matrix[i, j] <- 0
+        energy_matrix[i, j] <- 0  # Distance from distribution to itself
         pval_matrix[i, j] <- 1
       } else {
+        # Energy test with bootstrap resampling for p-value estimation
         energy_result <- energy::eqdist.etest(rbind(matrix(diagonals[[i]]), matrix(diagonals[[j]])), sizes = c(c(length(diagonals[[i]]), length(diagonals[[j]]))), distance = FALSE, R = R)
         # When R > 0, returns a list with $statistic and $p.value
         energy_matrix[i, j] <- energy_result$statistic
@@ -276,7 +303,7 @@ energy_cov_diagonals <- function(object, R = 99, qval = TRUE) {
     }
   }
 
-  # Calculate q-values only if requested
+  # Calculate q-values for multiple testing correction (same as KS function)
   if (qval) {
     # Calculate q-values from upper triangle p-values (excluding diagonal)
     upper_tri_indices <- which(upper.tri(pval_matrix), arr.ind = TRUE)
@@ -319,23 +346,23 @@ energy_cov_diagonals <- function(object, R = 99, qval = TRUE) {
   # Return results as a list
   return(list(
     diagonals = diagonals,
-    energy_distances = energy_matrix,
-    pvalues = pval_matrix,
-    qvalues = qval_matrix
+    energy_distances = energy_matrix,  # Energy test statistics
+    pvalues = pval_matrix,            # Bootstrap p-values
+    qvalues = qval_matrix             # Multiple testing corrected q-values
   ))
 }
 
-
+# Flexible heatmap plotting function for distance/difference matrices
 plot_cov_heatmap <- function(analysis_result,
-                             metric = "auto",
-                             title = NULL,
-                             color_scheme = "default",
-                             show_values = FALSE,
-                             cex_values = 0.8,
-                             margins = c(5, 5),
-                             ...) {
+                             metric = "auto",           # Auto-detect or specify metric to plot
+                             title = NULL,              # Custom plot title
+                             color_scheme = "default",  # Color palette choice
+                             show_values = FALSE,       # Show numeric values in cells
+                             cex_values = 0.8,         # Text size for cell values
+                             margins = c(5, 5),        # Plot margins
+                             ...) {                    # Additional arguments to heatmap()
 
-  # Auto-detect the appropriate matrix to plot
+  # Auto-detect the appropriate matrix to plot based on available results
   if (metric == "auto") {
     if ("pairwise_differences" %in% names(analysis_result)) {
       plot_matrix <- analysis_result$pairwise_differences
@@ -356,7 +383,7 @@ plot_cov_heatmap <- function(analysis_result,
       stop("Cannot auto-detect matrix type. Please specify 'metric' parameter.")
     }
   } else {
-    # Manual selection
+    # Manual metric selection
     valid_metrics <- c("pairwise_differences", "variance_differences", "wasserstein_distances",
                        "ks_distances", "energy_distances", "pvalues", "qvalues")
 
@@ -375,6 +402,7 @@ plot_cov_heatmap <- function(analysis_result,
       stop("Selected metric is not a matrix: ", plot_matrix)
     }
 
+    # Set appropriate default titles for each metric type
     default_title <- switch(metric,
                             "pairwise_differences" = "Pairwise Differences in Diagonal Means",
                             "variance_differences" = "Pairwise Differences in Diagonal Variances",
@@ -389,35 +417,35 @@ plot_cov_heatmap <- function(analysis_result,
   # Use provided title or default
   plot_title <- if (is.null(title)) default_title else title
 
-  # Set up color scheme
+  # Set up color palette based on scheme choice
   if (color_scheme == "default") {
-    col_palette <- heat.colors(50)
+    col_palette <- heat.colors(50)  # Traditional heat colors (red-yellow-white)
   } else if (color_scheme == "blue_red") {
-    col_palette <- colorRampPalette(c("blue", "white", "red"))(50)
+    col_palette <- colorRampPalette(c("blue", "white", "red"))(50)  # Diverging scheme
   } else if (color_scheme == "viridis") {
     if (requireNamespace("viridis", quietly = TRUE)) {
-      col_palette <- viridis::viridis(50)
+      col_palette <- viridis::viridis(50)  # Perceptually uniform colors
     } else {
       col_palette <- heat.colors(50)
       warning("viridis package not available, using default colors")
     }
   } else if (is.character(color_scheme) && length(color_scheme) > 1) {
-    col_palette <- colorRampPalette(color_scheme)(50)
+    col_palette <- colorRampPalette(color_scheme)(50)  # Custom color vector
   } else {
-    col_palette <- heat.colors(50)
+    col_palette <- heat.colors(50)  # Fallback to default
   }
 
-  # Create the heatmap
+  # Create the heatmap with hierarchical clustering
   heatmap(plot_matrix,
-          symm = TRUE,
+          symm = TRUE,          # Matrix is symmetric
           main = plot_title,
           xlab = "Matrix",
           ylab = "Matrix",
           col = col_palette,
           margins = margins,
-          ...)
+          ...)                  # Pass additional arguments to heatmap()
 
-  # Add values to cells if requested
+  # Add numeric values to cells if requested (approximate positioning)
   if (show_values) {
     # Get the reordered matrix from heatmap (this is tricky with base heatmap)
     # For simplicity, we'll add values to the original order
@@ -425,6 +453,7 @@ plot_cov_heatmap <- function(analysis_result,
     n <- nrow(plot_matrix)
     for (i in 1:n) {
       for (j in 1:n) {
+        # Format small values in scientific notation
         if (plot_matrix[i,j] < 0.001) {
           text_val <- format(plot_matrix[i,j], scientific = TRUE, digits = 2)
         } else {
@@ -438,22 +467,22 @@ plot_cov_heatmap <- function(analysis_result,
   }
 }
 
-
+# Specialized heatmap function for p-values and q-values with significance-based coloring
 plot_pvalue_heatmap <- function(analysis_result,
-                                value_type = "pvalues",
-                                title = NULL,
-                                color_scheme = "pvalue",
-                                show_values = TRUE,
-                                cex_values = 0.8,
-                                margins = c(5, 5),
-                                ...) {
+                                value_type = "pvalues",    # "pvalues" or "qvalues"
+                                title = NULL,              # Custom plot title
+                                color_scheme = "pvalue",   # Color scheme optimized for p-values
+                                show_values = TRUE,        # Show p-values/q-values in cells
+                                cex_values = 0.8,         # Text size for cell values
+                                margins = c(5, 5),        # Plot margins
+                                ...) {                    # Additional arguments to heatmap()
 
-  # Validate value_type
+  # Validate value_type parameter
   if (!value_type %in% c("pvalues", "qvalues")) {
     stop("value_type must be either 'pvalues' or 'qvalues'")
   }
 
-  # Check if the requested values exist
+  # Check if the requested values exist in the analysis result
   if (!value_type %in% names(analysis_result)) {
     stop("'", value_type, "' not found in analysis result")
   }
@@ -469,7 +498,7 @@ plot_pvalue_heatmap <- function(analysis_result,
     }
   }
 
-  # Set default title
+  # Set appropriate default title based on value type
   if (is.null(title)) {
     if (value_type == "pvalues") {
       title <- "Statistical Test P-values"
@@ -477,7 +506,7 @@ plot_pvalue_heatmap <- function(analysis_result,
       title <- "Multiple Testing Corrected Q-values"
     }
 
-    # Add test type info if we can determine it
+    # Add test type information if we can determine it from the result
     if ("ks_distances" %in% names(analysis_result)) {
       title <- paste("Kolmogorov-Smirnov", title)
     } else if ("energy_distances" %in% names(analysis_result)) {
@@ -485,12 +514,12 @@ plot_pvalue_heatmap <- function(analysis_result,
     }
   }
 
-  # Set up color scheme for p-values/q-values
+  # Set up color schemes optimized for statistical significance visualization
   if (color_scheme == "pvalue") {
-    # Red (significant) to white (non-significant) to blue (very non-significant)
+    # Red (significant) to white (non-significant) - emphasizes low p-values
     col_palette <- colorRampPalette(c("red", "orange", "yellow", "white", "lightblue", "blue"))(100)
   } else if (color_scheme == "significance") {
-    # Simple red/white scheme based on significance
+    # Simple red/white scheme based on significance levels
     col_palette <- colorRampPalette(c("red", "white"))(100)
   } else if (color_scheme == "grayscale") {
     col_palette <- colorRampPalette(c("black", "white"))(100)
@@ -502,7 +531,7 @@ plot_pvalue_heatmap <- function(analysis_result,
       warning("viridis package not available, using default p-value colors")
     }
   } else if (is.character(color_scheme) && length(color_scheme) > 1) {
-    col_palette <- colorRampPalette(color_scheme)(100)
+    col_palette <- colorRampPalette(color_scheme)(100)  # Custom colors
   } else {
     col_palette <- colorRampPalette(c("red", "orange", "yellow", "white", "lightblue", "blue"))(100)
   }
@@ -517,7 +546,7 @@ plot_pvalue_heatmap <- function(analysis_result,
                        margins = margins,
                        ...)
 
-  # Add values if requested
+  # Add p-values/q-values to cells if requested
   if (show_values) {
     n <- nrow(plot_matrix)
 
@@ -525,14 +554,14 @@ plot_pvalue_heatmap <- function(analysis_result,
       for (j in 1:n) {
         val <- plot_matrix[i, j]
 
-        # Format the value appropriately
+        # Format the value appropriately (scientific notation for very small values)
         if (val < 0.001) {
           val_text <- format(val, scientific = TRUE, digits = 2)
         } else {
           val_text <- format(round(val, 3), nsmall = 3)
         }
 
-        # Determine text color based on background
+        # Determine text color based on background intensity (white for dark backgrounds)
         text_color <- if (val < 0.1) "white" else "black"
 
         # Add the value to the plot (approximate positioning)
@@ -541,5 +570,6 @@ plot_pvalue_heatmap <- function(analysis_result,
     }
   }
 
+  # Return heatmap result invisibly for potential further manipulation
   invisible(hm_result)
 }
