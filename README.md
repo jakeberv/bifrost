@@ -34,6 +34,8 @@
 
 ---
 
+📄 **Vignette:** [Getting Started with bifrost](https://jakeberv.com/bifrost/articles/jaw-shape-vignette.html)
+
 ## Installation
 
 ```r
