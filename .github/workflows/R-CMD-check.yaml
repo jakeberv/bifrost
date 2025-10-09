@@ -52,7 +52,7 @@ jobs:
       # Install qpdf so vignette compaction works without warnings
       - name: Install qpdf (macOS)
         if: runner.os == 'macOS'
-        run: brew install qpdf
+        run: brew reinstall qpdf
 
       - name: Install qpdf (Ubuntu)
         if: runner.os == 'Linux'
