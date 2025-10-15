@@ -1,3 +1,3 @@
-# bifrost (development version)
+# bifrost 0.1.0
 
-* Initial CRAN submission.
+* Initial CRAN release.

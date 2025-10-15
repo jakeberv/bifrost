@@ -131,6 +131,7 @@ ZH --> ZI([Return])
 ## Primary functions
 
   - `searchOptimalConfiguration()`: The main function for end-to-end greedy search: candidate generation → parallel fitting → iterative acceptance → optional pruning/IC weights.
+  - add the plotting function
   
 ## Helper functions
   
@@ -209,7 +210,7 @@ Bug reports, feature requests, and pull requests are welcome. Please open an iss
 
 ## License
 
-This project is released under the MIT License. See the `LICENSE` file for details.
+This project is released under the GPL >= 2 License. See the `LICENSE` file for details.
 
 -----
 

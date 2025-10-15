@@ -5,3 +5,6 @@
 ^docs$
 ^pkgdown$
 ^\.github$
+^CODE_OF_CONDUCT\.md$
+^cran-comments\.md$
+^LICENSE$
