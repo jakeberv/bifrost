@@ -41,7 +41,7 @@ cat('
 ')
 ```
 
-```{r jaw_media_cran, echo=FALSE, fig.align="center", out.width="80%", eval = !identical(Sys.getenv("IN_PKGDOWN"), "true")}
+```{r jaw_media_cran, echo=FALSE, fig.align="center", out.width="80%", fig.alt="Static frame of the jaw model; an animated GIF is shown on the package website.", eval = !identical(Sys.getenv("IN_PKGDOWN"), "true")}
 knitr::include_graphics("jaw-shape/Gogosardina_coatesi_jaw_customcrop.png")
 ```
 
