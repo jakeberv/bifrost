@@ -71,16 +71,13 @@ plotSimmap(res$tree_no_uncertainty)
 
 ``` 
 
-⸻
+### Data requirements
 
-Data requirements and good practice
-- Tree and data alignment. `rownames(trait_data)` must match `tree$tip.label` (same order and names).
-- Branch lengths. Interpreted in units of time; ultrametric not required.
-- SIMMAP style. Internally, regimes are stored using SIMMAP conventions.
-- High-dimensional traits. Works directly in trait space; tune penalties/methods in mvgls options for your data.
-- Thresholds. Use conservative `shift_acceptance_threshold` and `ic_uncertainty_threshold` to limit false positives; explore sensitivity.
-
-⸻
+- **Tree and data alignment.** `rownames(trait_data)` must match `tree$tip.label` (same order and names).  
+- **Branch lengths.** Interpreted in units of time; ultrametric not required.  
+- **SIMMAP style.** Internally, regimes are stored using SIMMAP conventions.  
+- **Multi-dimensional traits.** Works directly in trait space; tune penalties/methods in `mvgls` options for your data.  
+- **Thresholds.** Use conservative `shift_acceptance_threshold` and `ic_uncertainty_threshold` to limit false positives; explore sensitivity.
 
 Core workflow
 ```mermaid
@@ -128,12 +125,12 @@ ZH --> ZI([Return])
 
 -----
 
-## Primary functions
+### Primary functions
 
   - `searchOptimalConfiguration()`: The main function for end-to-end greedy search: candidate generation → parallel fitting → iterative acceptance → optional pruning/IC weights.
   - add the plotting function
   
-## Helper functions (not exported)
+### Helper functions (not exported)
   
   - **Candidate generation**: `generatePaintedTrees()`
   - **Model fitting helpers**: `fitMvglsAndExtractGIC()`, `fitMvglsAndExtractBIC()`, and formula variants.
@@ -143,7 +140,7 @@ ZH --> ZI([Return])
 
 -----
 
-## Outputs
+### Outputs
 
 The list returned by `searchOptimalConfiguration()` contains:
 
@@ -164,7 +161,7 @@ The list returned by `searchOptimalConfiguration()` contains:
 -----
 
 
-## Performance and scalability
+### Performance and scalability
 
 Enable parallel processing using the `future` package:
 
@@ -180,7 +177,7 @@ plan(multisession)   # or multicore on Linux/macOS
 
 -----
 
-## Reproducibility
+### Reproducibility
 
   - **Set a seed** with `set.seed()` before candidate generation and search.
   - **Record `sessionInfo()`** and the `mvMORPH` version.
@@ -188,7 +185,7 @@ plan(multisession)   # or multicore on Linux/macOS
 
 -----
 
-## Citation
+### Citation
 
 If you use `bifrost`, please cite:
 
@@ -202,18 +199,18 @@ citation("bifrost")
 
 -----
 
-## Contributing
+### Contributing
 
 Bug reports, feature requests, and pull requests are welcome. Please open an issue at [https://github.com/jakeberv/bifrost/issues](https://github.com/jakeberv/bifrost/issues).
 
 -----
 
-## License
+### License
 
 This project is released under the GPL >= 2 License. See the `LICENSE` file for details.
 
 -----
 
-## Acknowledgements and dependencies
+### Acknowledgements and dependencies
 
 `bifrost` builds on the work from `mvMORPH`, `phytools`, `ape`, `future`, and `future.apply`. See the `DESCRIPTION` file for complete dependency and version information.
