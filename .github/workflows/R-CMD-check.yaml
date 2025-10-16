@@ -43,6 +43,7 @@ jobs:
           extra-packages: >
             any::rcmdcheck,
             any::roxygen2
+            any::devtools
           needs: check
 
       # Generate NAMESPACE + Rd files from roxygen comments
@@ -69,9 +70,9 @@ jobs:
 
       # Upload built vignettes so we can inspect them after the run
       - name: Upload vignette artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: built-vignettes
+          name: built-vignettes-${{ matrix.config.os }}-${{ matrix.config.r }}
           path: doc/
 
       - uses: r-lib/actions/check-r-package@v2
