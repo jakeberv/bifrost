@@ -1,12 +1,12 @@
 Package: bifrost
-Title: Branch-level Inference Framework for Recognizing Optimal Shifts in Traits
-Version: 0.0.0.9000
+Title: Branch-Level Inference Framework for Recognizing Optimal Shifts in Traits
+Version: 0.1.0
 Authors@R: c(
     person(given = "Jacob", family = "Berv", email = "jberv@umich.edu", role = c("aut", "cre", "cph")),
     person(given = "Nathan", family = "Fox", role = "aut"),
     person(given = "Matthew", family = "Thorstensen", role = "aut"),
     person(given = "Henry", family = "Lloyd-Laney", role = "aut"))
-Description: Methods for detecting and visualizing branch-level shifts in trait optima on phylogenies.
+Description: Methods for detecting and visualizing cladogenic shifts in multivariate trait data on phylogenies.
     Includes tools for model fitting, uncertainty quantification, and plotting results.
 License: GPL (>= 2)
 Encoding: UTF-8
@@ -24,8 +24,6 @@ Imports:
     stats,
     mvMORPH,
     viridis
-Remotes:
-    JClavel/mvMORPH
 Suggests:
     HDInterval,
     RColorBrewer,

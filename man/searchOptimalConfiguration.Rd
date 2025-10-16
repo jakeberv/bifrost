@@ -45,7 +45,7 @@ searchOptimalConfiguration(
 
 \item{store_model_fit_history}{Logical, keep fit history.}
 
-\item{...}{Passed to lower-level fitting functions.}
+\item{...}{Passed to mvgls internally.}
 }
 \value{
 A named \code{list} with (at minimum):
@@ -76,7 +76,7 @@ Greedy, stepwise search for evolutionary regime shifts on a SIMMAP-style phyloge
 using multivariate \code{mvgls} fits from \pkg{mvMORPH}. The routine:
 \enumerate{
 \item builds one-shift candidate trees for all internal nodes meeting a tip-size threshold
-(via \code{\link{generatePaintedTrees}}),
+(via \code{generatePaintedTrees}),
 \item fits each candidate in parallel and ranks them by improvement in the chosen
 information criterion (IC; \code{GIC} or \code{BIC}),
 \item iteratively adds shifts that pass a user-defined acceptance threshold,
@@ -94,11 +94,11 @@ are forwarded to \code{\link[mvMORPH]{mvgls}} (e.g., \code{method = "LL"} or
 \enumerate{
 \item \emph{Baseline:} Fit \code{mvgls} on the baseline tree (single regime) to obtain the baseline IC.
 \item \emph{Candidates:} Build one-shift trees for eligible internal nodes
-(\code{\link{generatePaintedTrees}}); fit each with
-\code{\link{fitMvglsAndExtractGIC.formula}} or \code{\link{fitMvglsAndExtractBIC.formula}}
-and rank by ΔIC.
+(\code{generatePaintedTrees}); fit each with
+\code{fitMvglsAndExtractGIC.formula} or \code{fitMvglsAndExtractBIC.formula}
+(internal helpers; not exported) and rank by \eqn{\Delta}IC.
 \item \emph{Greedy add:} Add the top candidate, refit, and accept if
-ΔIC \eqn{\ge} \code{shift_acceptance_threshold}; continue down the ranked list.
+\eqn{\Delta}IC \eqn{\ge} \code{shift_acceptance_threshold}; continue down the ranked list.
 \item \emph{Optional IC weights:} If \code{uncertaintyweights} (or \code{uncertaintyweights_par})
 is \code{TRUE}, compute an IC weight for each accepted shift by refitting the final model with that
 shift removed and comparing the two ICs via \code{\link[mvMORPH]{aicw}}.
@@ -111,8 +111,17 @@ On Unix, \code{multicore} is used; on Windows, \code{multisession}. A sequential
 \code{\link[phytools]{plotSimmap}()}; shift IDs are labeled with \code{\link[ape]{nodelabels}()}.
 
 \strong{Regime VCVs.} The returned \code{$VCVs} are extracted from the fitted multi-regime model via
-\code{\link{extractRegimeVCVs}} and reflect regime-specific covariance
+\code{extractRegimeVCVs} and reflect regime-specific covariance
 estimates (when \code{mvgls} is fitted under a PL/ML method).
+}
+\note{
+Internally, this routine coordinates multiple unexported helper functions:
+\code{generatePaintedTrees}, \code{fitMvglsAndExtractGIC.formula},
+\code{fitMvglsAndExtractBIC.formula}, \code{addShiftToModel},
+\code{removeShiftFromTree}, and \code{extractRegimeVCVs}. Through these,
+it may also invoke lower-level utilities such as \code{paintSubTree_mod}
+and \code{paintSubTree_removeShift}. These helpers are internal
+implementation details and are not part of the public API.
 }
 \section{Convergence and robustness}{
 
@@ -138,7 +147,7 @@ rownames(X) <- base$tip.label
 res <- searchOptimalConfiguration(
   baseline_tree = base,
   trait_data    = as.data.frame(X),
-  formula       = "cbind(trait1, trait2) ~ 1",
+  formula       = "trait_data ~ 1",
   min_descendant_tips = 10,
   num_cores = 2,
   shift_acceptance_threshold = 10,  # conservative
@@ -152,11 +161,7 @@ str(res$VCVs)
 }
 }
 \seealso{
-\code{\link{generatePaintedTrees}},
-\code{\link{fitMvglsAndExtractGIC.formula}},
-\code{\link{fitMvglsAndExtractBIC.formula}},
-\code{\link{addShiftToModel}},
-\code{\link{removeShiftFromTree}},
-\code{\link{extractRegimeVCVs}};
+\code{\link[mvMORPH]{mvgls}}, \code{\link[mvMORPH]{GIC}}, \code{\link[stats]{BIC}},
+\code{\link[phytools]{plotSimmap}}, \code{\link[ape]{nodelabels}},
 packages: \pkg{mvMORPH}, \pkg{phytools}, \pkg{ape}, \pkg{future}, \pkg{future.apply}.
 }

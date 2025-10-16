@@ -5,3 +5,16 @@
 ^docs$
 ^pkgdown$
 ^\.github$
+^CODE_OF_CONDUCT\.md$
+^cran-comments\.md$
+^LICENSE$
+^vignettes/jaw-shape/.*\.gif$
+^doc$
+^Meta$
+^vignettes/fit_history$
+\.DS_Store
+.*\.log
+\.Rd2pdf
+^build\.log$
+^cran_.*\.log$
+^check\.log$

@@ -5,7 +5,7 @@
 #' using multivariate \code{mvgls} fits from \pkg{mvMORPH}. The routine:
 #' \enumerate{
 #'   \item builds one-shift candidate trees for all internal nodes meeting a tip-size threshold
-#'         (via \code{\link{generatePaintedTrees}}),
+#'         (via \code{generatePaintedTrees}),
 #'   \item fits each candidate in parallel and ranks them by improvement in the chosen
 #'         information criterion (IC; \code{GIC} or \code{BIC}),
 #'   \item iteratively adds shifts that pass a user-defined acceptance threshold,
@@ -23,17 +23,20 @@
 #'   single baseline state and have tip order matching \code{trait_data}.
 #' @param trait_data A \code{matrix} or \code{data.frame} of trait values with row names
 #'   matching \code{baseline_tree$tip.label} (same order).
-#' @param formula Character formula passed to \code{mvgls}; defaults to \code{"trait_data ~ 1"}
-#'   (intercept-only). Use \code{cbind()} for multivariate responses
-#'   (e.g., \code{"cbind(t1, t2, ...) ~ 1"}).
-#' @param min_descendant_tips Integer (≥1). Minimum number of tips required for an internal node
-#'   to be considered as a candidate shift (forwarded to \code{\link{generatePaintedTrees}}).
+#' @param formula Character formula passed to \code{mvgls}. Defaults to
+#'   \code{"trait_data ~ 1"}, which fits an intercept-only model treating the
+#'   supplied multivariate trait matrix as the response. This is the appropriate
+#'   choice for most morphometric data where there are no predictor variables.
+#'   Use \code{cbind()} to specify multiple traits explicitly if desired
+#'   (e.g., \code{"cbind(trait1, trait2, ...) ~ 1"}).
+#' @param min_descendant_tips Integer (\eqn{\ge}1). Minimum number of tips required for an internal node
+#'   to be considered as a candidate shift (forwarded to \code{generatePaintedTrees}).
 #' @param num_cores Integer. Number of workers for parallel candidate scoring. Uses
 #'   \code{future::plan(multicore)} on Unix and \code{future::plan(multisession)} on Windows.
-#' @param ic_uncertainty_threshold Numeric (≥0). IC tolerance used in the optional post-search
+#' @param ic_uncertainty_threshold Numeric (\eqn{\ge}0). IC tolerance used in the optional post-search
 #'   pruning step (\code{uncertainty = TRUE}). Shifts whose removal changes the current best IC
 #'   by \eqn{\le} this value are pruned.
-#' @param shift_acceptance_threshold Numeric (≥0). Minimum IC improvement
+#' @param shift_acceptance_threshold Numeric (\eqn{\ge}0). Minimum IC improvement
 #'   (baseline − new) required to accept a candidate shift during the forward search.
 #'   Larger values yield more conservative models.
 #' @param uncertaintyweights Logical. If \code{TRUE}, compute per-shift IC weights serially by
@@ -56,11 +59,11 @@
 #' \enumerate{
 #'   \item \emph{Baseline:} Fit \code{mvgls} on the baseline tree (single regime) to obtain the baseline IC.
 #'   \item \emph{Candidates:} Build one-shift trees for eligible internal nodes
-#'         (\code{\link{generatePaintedTrees}}); fit each with
-#'         \code{\link{fitMvglsAndExtractGIC.formula}} or \code{\link{fitMvglsAndExtractBIC.formula}}
-#'         and rank by ΔIC.
+#'         (\code{generatePaintedTrees}); fit each with
+#'         \code{fitMvglsAndExtractGIC.formula} or \code{fitMvglsAndExtractBIC.formula}
+#'         (internal helpers; not exported) and rank by \eqn{\Delta}IC.
 #'   \item \emph{Greedy add:} Add the top candidate, refit, and accept if
-#'         ΔIC \eqn{\ge} \code{shift_acceptance_threshold}; continue down the ranked list.
+#'         \eqn{\Delta}IC \eqn{\ge} \code{shift_acceptance_threshold}; continue down the ranked list.
 #'   \item \emph{Optional IC weights:} If \code{uncertaintyweights} (or \code{uncertaintyweights_par})
 #'         is \code{TRUE}, compute an IC weight for each accepted shift by refitting the final model with that
 #'         shift removed and comparing the two ICs via \code{\link[mvMORPH]{aicw}}.
@@ -73,7 +76,7 @@
 #' \code{\link[phytools]{plotSimmap}()}; shift IDs are labeled with \code{\link[ape]{nodelabels}()}.
 #'
 #' \strong{Regime VCVs.} The returned \code{$VCVs} are extracted from the fitted multi-regime model via
-#' \code{\link{extractRegimeVCVs}} and reflect regime-specific covariance
+#' \code{extractRegimeVCVs} and reflect regime-specific covariance
 #' estimates (when \code{mvgls} is fitted under a PL/ML method).
 #'
 #' @return A named \code{list} with (at minimum):
@@ -107,13 +110,18 @@
 #' Re-run with different \code{min_descendant_tips} and IC choices (GIC vs BIC) to assess stability.
 #'
 #' @seealso
-#' \code{\link{generatePaintedTrees}},
-#' \code{\link{fitMvglsAndExtractGIC.formula}},
-#' \code{\link{fitMvglsAndExtractBIC.formula}},
-#' \code{\link{addShiftToModel}},
-#' \code{\link{removeShiftFromTree}},
-#' \code{\link{extractRegimeVCVs}};
+#' \code{\link[mvMORPH]{mvgls}}, \code{\link[mvMORPH]{GIC}}, \code{\link[stats]{BIC}},
+#' \code{\link[phytools]{plotSimmap}}, \code{\link[ape]{nodelabels}},
 #' packages: \pkg{mvMORPH}, \pkg{phytools}, \pkg{ape}, \pkg{future}, \pkg{future.apply}.
+#'
+#' @note
+#' Internally, this routine coordinates multiple unexported helper functions:
+#' \code{generatePaintedTrees}, \code{fitMvglsAndExtractGIC.formula},
+#' \code{fitMvglsAndExtractBIC.formula}, \code{addShiftToModel},
+#' \code{removeShiftFromTree}, and \code{extractRegimeVCVs}. Through these,
+#' it may also invoke lower-level utilities such as \code{paintSubTree_mod}
+#' and \code{paintSubTree_removeShift}. These helpers are internal
+#' implementation details and are not part of the public API.
 #'
 #' @examples
 #' \dontrun{
@@ -132,7 +140,7 @@
 #' res <- searchOptimalConfiguration(
 #'   baseline_tree = base,
 #'   trait_data    = as.data.frame(X),
-#'   formula       = "cbind(trait1, trait2) ~ 1",
+#'   formula       = "trait_data ~ 1",
 #'   min_descendant_tips = 10,
 #'   num_cores = 2,
 #'   shift_acceptance_threshold = 10,  # conservative
@@ -158,7 +166,7 @@
 #' @param plot Logical, produce plots during search.
 #' @param IC Character, information criterion, e.g. \code{"BIC"}.
 #' @param store_model_fit_history Logical, keep fit history.
-#' @param ... Passed to lower-level fitting functions.
+#' @param ... Passed to mvgls internally.
 #' @importFrom future plan multicore multisession sequential
 #' @importFrom future.apply future_lapply
 #' @importFrom mvMORPH mvgls GIC aicw
@@ -268,7 +276,7 @@ searchOptimalConfiguration <-
     if (store_model_fit_history) {
       base_dir <- "fit_history"
       if (!dir.exists(base_dir)) dir.create(base_dir)
-      
+
       # Generate dated subdirectory
       date_str <- format(Sys.Date(), "%d_%m_%Y")
       sub_dir <- file.path(base_dir, date_str)

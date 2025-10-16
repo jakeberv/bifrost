@@ -20,12 +20,20 @@ knitr::opts_chunk$set(
 This vignette demonstrates the core functionality of the `bifrost` R package. `bifrost` is designed to identify and analyze cladogenic shifts in multivariate trait evolution. It is capable of analyzing morphological datasets comprising thousands of species, [without dimensionality reduction techniques like PCA](https://doi.org/10.1093/sysbio/syv019).
 
 ```{r jaw_gif, echo=FALSE, results='asis'}
-cat('
+is_pkgdown <- identical(Sys.getenv("IN_PKGDOWN"), "true")
+
+if (is_pkgdown) {
+  cat('
 <p style="text-align:center">
-    <img src="jaw-shape/Gogosardina_coatesi_jaw_customcrop.gif" alt="Animated jaw model of Gogosardina coatesi showing landmark layout" 
+  <img src="jaw-shape/Gogosardina_coatesi_jaw_customcrop.gif"
+       alt="Animated jaw model of *Gogosardina coatesi* showing landmark layout"
        style="border:0; outline:0; box-shadow:none; max-width:80%; height:auto; display:inline-block;">
 </p>
 ')
+} else {
+  knitr::include_graphics("jaw-shape/Gogosardina_coatesi_jaw_customcrop.png")
+  cat('\n\n*An animated version appears on the package website.*\n')
+}
 ```
 
 > **Animated jaw model of *Gogosardina coatesi* (specimen NMV P228269).**  
