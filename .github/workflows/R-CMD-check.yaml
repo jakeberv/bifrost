@@ -43,6 +43,7 @@ jobs:
           extra-packages: >
             any::rcmdcheck,
             any::roxygen2
+            any::devtools
           needs: check
 
       # Generate NAMESPACE + Rd files from roxygen comments
