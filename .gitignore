@@ -5,3 +5,5 @@ man
 .Rhistory
 .Rproj.user/
 .gitignore
+/doc/
+/Meta/

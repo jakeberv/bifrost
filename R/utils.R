@@ -9,7 +9,7 @@
 #' outgroup (`ape::root(..., resolve.root = TRUE)`).
 #'
 #' @param tree An object of class \code{phylo}. If unrooted, it is rooted internally.
-#' @param min_tips Integer (≥1). Minimum number of descendant tips required for an
+#' @param min_tips Integer (\eqn{\ge}1). Minimum number of descendant tips required for an
 #'   internal node to be considered eligible.
 #' @param state Character scalar. The regime label to paint on each eligible subtree.
 #'   Defaults to \code{"shift"}.
@@ -43,7 +43,8 @@
 #'
 #' @importFrom ape is.rooted root Ntip Nnode
 #' @importFrom phytools getDescendants paintSubTree
-#' @export
+#' @keywords internal
+#' @noRd
 generatePaintedTrees <- function(tree, min_tips, state = "shift") {
   if (!is.rooted(tree)) {
     tree <- root(tree, outgroup = tree$tip.label[1], resolve.root = TRUE)
@@ -118,7 +119,8 @@ generatePaintedTrees <- function(tree, min_tips, state = "shift") {
 #' }
 #'
 #' @importFrom mvMORPH mvgls GIC
-#' @export
+#' @keywords internal
+#' @noRd
 fitMvglsAndExtractGIC <- function(painted_tree, trait_data) {
   # Ensure trait_data is a matrix
   if (!is.matrix(trait_data)) {
@@ -180,7 +182,8 @@ fitMvglsAndExtractGIC <- function(painted_tree, trait_data) {
 #'
 #' @importFrom mvMORPH mvgls
 #' @importFrom stats BIC
-#' @export
+#' @keywords internal
+#' @noRd
 fitMvglsAndExtractBIC <- function(painted_tree, trait_data) {
   # Ensure trait_data is a matrix
   if (!is.matrix(trait_data)) {
@@ -250,7 +253,8 @@ fitMvglsAndExtractBIC <- function(painted_tree, trait_data) {
 #' @importFrom mvMORPH mvgls GIC
 #' @importFrom phytools getStates
 #' @importFrom stats as.formula
-#' @export
+#' @keywords internal
+#' @noRd
 fitMvglsAndExtractGIC.formula <- function(formula, painted_tree, trait_data, ...) {
   # Ensure trait_data is a matrix
   #if (!is.matrix(trait_data)) {
@@ -336,7 +340,8 @@ fitMvglsAndExtractGIC.formula <- function(formula, painted_tree, trait_data, ...
 #' @importFrom mvMORPH mvgls
 #' @importFrom phytools getStates
 #' @importFrom stats as.formula BIC
-#' @export
+#' @keywords internal
+#' @noRd
 fitMvglsAndExtractBIC.formula <- function(formula, painted_tree, trait_data, ...) {
   # # Ensure trait_data is a matrix
   # if (!is.matrix(trait_data)) {
@@ -372,7 +377,7 @@ fitMvglsAndExtractBIC.formula <- function(formula, painted_tree, trait_data, ...
   return(list(model = model, BIC = bic_value))
 }
 
-#' Calculate ΔGIC Scores Relative to a Baseline Model
+#' Calculate \eqn{\Delta}GIC Scores Relative to a Baseline Model
 #'
 #' Computes the difference in Generalized Information Criterion (GIC) scores
 #' between a baseline model (assumed to be the first element of `model_results`)
@@ -380,17 +385,17 @@ fitMvglsAndExtractBIC.formula <- function(formula, painted_tree, trait_data, ...
 #' This allows rapid comparison of model fit across candidate regime-paintings.
 #'
 #' @param model_results A list of model fit results, typically the output of
-#'   \code{\link{fitMvglsAndExtractGIC.formula}} or a similar function.
+#'   \code{fitMvglsAndExtractGIC.formula} or a similar internal helper.
 #'   Each element must be a list containing at least a \code{GIC} component,
 #'   where \code{GIC$GIC} is a numeric scalar.
 #'   The first element is treated as the baseline model.
 #'
 #' @param painted_tree_list A named list of painted phylogenetic trees
 #'   (objects of class \code{simmap}). The names are used as identifiers
-#'   for the output vector of ΔGIC values. Every element must have a
+#'   for the output vector of \eqn{\Delta}GIC values. Every element must have a
 #'   non-\code{NULL} name.
 #'
-#' @return A named numeric vector of ΔGIC scores, where each value is:
+#' @return A named numeric vector of \eqn{\Delta}GIC scores, where each value is:
 #'   \deqn{\Delta GIC_i = GIC_\mathrm{baseline} - GIC_i}
 #'   Positive values indicate that the candidate model improves the fit
 #'   relative to the baseline (lower GIC = better model).
@@ -401,8 +406,10 @@ fitMvglsAndExtractBIC.formula <- function(formula, painted_tree, trait_data, ...
 #' baseline GIC, the resulting values are on a common, interpretable scale.
 #'
 #' @seealso
-#' \code{\link[mvMORPH]{GIC}}, \code{\link{fitMvglsAndExtractGIC.formula}},
-#' \code{\link[phytools]{paintSubTree}}
+#' \code{\link[mvMORPH]{GIC}}, \code{\link[phytools]{paintSubTree}}
+#'
+#' @note
+#' Related internal helper: \code{fitMvglsAndExtractGIC.formula} (not exported).
 #'
 #' @examples
 #' \dontrun{
@@ -422,7 +429,8 @@ fitMvglsAndExtractBIC.formula <- function(formula, painted_tree, trait_data, ...
 #'   # Named vector: Baseline=0, ShiftA=5, ShiftB=-5
 #' }
 #'
-#' @export
+#' @keywords internal
+#' @noRd
 calculateAllDeltaGIC <- function(model_results, painted_tree_list) {
   # Check if the painted trees have names
   if (!all(sapply(painted_tree_list, function(x) !is.null(names(x))))) {
@@ -528,7 +536,8 @@ calculateAllDeltaGIC <- function(model_results, painted_tree_list) {
 #' @param overwrite Logical, overwrite existing states.
 #' @importFrom ape compute.brlen
 #' @importFrom phytools getDescendants
-#' @export
+#' @keywords internal
+#' @noRd
 paintSubTree_mod <- function(tree, node, state, anc.state="1", stem=FALSE, overwrite=TRUE) {
   if (!inherits(tree, "phylo")) stop("tree should be an object of class \"phylo\".")
   if (stem == 0 && node <= length(tree$tip)) stop("stem must be TRUE for node <= N")
@@ -623,7 +632,7 @@ paintSubTree_mod <- function(tree, node, state, anc.state="1", stem=FALSE, overw
 #'   reassigned to the parent's state.
 #'
 #' @seealso
-#' \code{\link{paintSubTree_mod}},
+#' \code{paintSubTree_mod} (internal, not exported),
 #' \code{\link[phytools]{paintSubTree}},
 #' \code{\link[phytools]{getParent}},
 #' \code{\link[phytools]{getDescendants}},
@@ -650,7 +659,8 @@ paintSubTree_mod <- function(tree, node, state, anc.state="1", stem=FALSE, overw
 #' @param stem Logical, remove along the stem.
 #' @importFrom ape compute.brlen
 #' @importFrom phytools getParent getDescendants getStates
-#' @export
+#' @keywords internal
+#' @noRd
 paintSubTree_removeShift <- function(tree, shift_node, stem=FALSE) {
   if (!inherits(tree, "phylo")) stop("tree should be an object of class 'phylo'.")
   if (is.null(tree$edge.length)) tree <- compute.brlen(tree)
@@ -732,8 +742,10 @@ paintSubTree_removeShift <- function(tree, shift_node, stem=FALSE) {
 #' \code{shift_node} is not split or repainted. If you need to force a full
 #' overwrite or paint the stem, call \code{paintSubTree_mod()} directly.
 #'
-#' @seealso \code{\link{paintSubTree_mod}}, \code{\link[phytools]{paintSubTree}},
-#'   \code{\link[phytools]{paintBranches}}
+#' @seealso
+#' \code{paintSubTree_mod} (internal, not exported),
+#' \code{\link[phytools]{paintSubTree}},
+#' \code{\link[phytools]{paintBranches}}
 #'
 #' @examples
 #' \dontrun{
@@ -755,16 +767,14 @@ paintSubTree_removeShift <- function(tree, shift_node, stem=FALSE) {
 #'   res2 <- addShiftToModel(tr1, shift_node = nd2, current_shift_id = res1$shift_id)
 #'   res2$shift_id        # 2
 #' }
-#' @param tree A \code{phylo} tree.
-#' @param shift_node Integer node ID where the shift is added.
-#' @param current_shift_id Integer identifier for the shift.
-#' @export
+#' @keywords internal
+#' @noRd
 addShiftToModel <- function(tree, shift_node, current_shift_id) {
   # Update the shift ID
   next_shift_id <- current_shift_id + 1
 
   # Paint the subtree with the new regime/shift id
-  painted_tree <- paintSubTree_mod(tree, node = shift_node, state = as.character(next_shift_id), overwrite=F, stem = F)
+  painted_tree <- paintSubTree_mod(tree, node = shift_node, state = as.character(next_shift_id), overwrite= FALSE, stem = FALSE)
 
   # Return a list with the updated tree and the new shift ID
   return(list(tree = painted_tree, shift_id = next_shift_id))
@@ -809,13 +819,13 @@ addShiftToModel <- function(tree, shift_node, current_shift_id) {
 #' }
 #'
 #' @seealso
-#' \code{\link{paintSubTree_mod}},
-#' \code{\link[phytools]{paintSubTree}},
-#' \code{\link[phytools]{paintBranches}},
-#' \code{\link[phytools]{getParent}},
-#' \code{\link[phytools]{getDescendants}},
-#' \code{\link[phytools]{getStates}},
-#' \code{\link[ape]{compute.brlen}}
+#' \code{paintSubTree_mod},  # internal helper
+#' \link[phytools]{paintSubTree},
+#' \link[phytools]{paintBranches},
+#' \link[phytools]{getParent},
+#' \link[phytools]{getDescendants},
+#' \link[phytools]{getStates},
+#' \link[ape]{compute.brlen}
 #'
 #' @examples
 #' \dontrun{
@@ -835,8 +845,9 @@ addShiftToModel <- function(tree, shift_node, current_shift_id) {
 #' @param stem Logical, remove along the stem.
 #' @importFrom ape compute.brlen
 #' @importFrom phytools getParent getDescendants getStates
-#' @export
-removeShiftFromTree <- function(tree, shift_node, stem=F) {
+#' @keywords internal
+#' @noRd
+removeShiftFromTree <- function(tree, shift_node, stem = FALSE) {
   #print(paste("Removing shift from node:", shift_node))
 
   # Retrieve node states; names of this vector are node indices
@@ -862,7 +873,7 @@ removeShiftFromTree <- function(tree, shift_node, stem=F) {
     if (!is.na(parent_state)) {
       # Paint the subtree at the shift node with the parent's state, without overwriting descendants
       #print(paste("Painting subtree at node", shift_node, "with state", parent_state, "to remove shift"))
-      tree <- paintSubTree_removeShift(tree, shift_node, stem=stem)  # Using the specialized function for shift removal
+      tree <- paintSubTree_removeShift(tree, shift_node, stem = stem)  # Using the specialized function for shift removal
     } else {
       #print(paste("State of parent node", parent_node, "is NA. Cannot remove shift."))
     }
@@ -898,10 +909,11 @@ removeShiftFromTree <- function(tree, shift_node, stem=F) {
 #'
 #' @seealso
 #' \code{\link[phytools]{getStates}},
-#' \code{\link[ape]{getMRCA}},
-#' \code{\link{paintSubTree_mod}},
-#' \code{\link{addShiftToModel}},
-#' \code{\link{paintSubTree_removeShift}}
+#' \code{\link[ape]{getMRCA}}
+#'
+#' @note
+#' Internally related helpers include \code{paintSubTree_mod}, \code{addShiftToModel},
+#' and \code{paintSubTree_removeShift}; these are not exported in the current version.
 #'
 #' @examples
 #' \dontrun{
@@ -918,10 +930,10 @@ removeShiftFromTree <- function(tree, shift_node, stem=F) {
 #'   # Identify shift nodes
 #'   whichShifts(tr1)
 #' }
-#' @param tree A \code{phylo} tree
 #' @importFrom phytools getStates
 #' @importFrom ape getMRCA
-#' @export
+#' @keywords internal
+#' @noRd
 whichShifts <- function(tree) {
   tip_states <- getStates(tree, type = "tips")
   unique_states <- unique(tip_states)
@@ -973,9 +985,12 @@ whichShifts <- function(tree) {
 #' returns \code{NULL}.
 #'
 #' @seealso
-#' \code{\link[mvMORPH]{mvgls}},
-#' \code{\link{fitMvglsAndExtractGIC.formula}},
-#' \code{\link{fitMvglsAndExtractBIC.formula}}
+#' \code{\link[mvMORPH]{mvgls}}
+#'
+#' @note
+#' This function is typically used internally by model-fitting helpers such as
+#' `fitMvglsAndExtractGIC.formula()` and `fitMvglsAndExtractBIC.formula()`.
+#' These helpers are not exported in the current version.
 #'
 #' @examples
 #' \dontrun{
@@ -991,8 +1006,8 @@ whichShifts <- function(tree) {
 #'   # Extract regime-specific VCVs
 #'   extractRegimeVCVs(fit)
 #' }
-#' @param model_output A fitted model object containing regime-level VCVs.
-#' @export
+#' @keywords internal
+#' @noRd
 extractRegimeVCVs <- function(model_output) {
   # Ensure the required components are in the model_output
   if (!"param" %in% names(model_output) || !"sigma" %in% names(model_output) || !"Pinv" %in% names(model_output$sigma)) {
@@ -1067,7 +1082,8 @@ extractRegimeVCVs <- function(model_output) {
 #' @param tree A \code{phylo} tree.
 #' @param node Integer node.
 #' @param include.node Logical, include the node itself.
-#' @export
+#' @keywords internal
+#' @noRd
 getDescendants <- function(tree, node, include.node = FALSE) {
   # Function to recursively find all descendants of a node
   descendants <- numeric(0)
