@@ -48,26 +48,22 @@ knitr::include_graphics("jaw-shape/Gogosardina_coatesi_jaw_customcrop.png")
 ```{r jaw_caption, echo=FALSE, results='asis'}
 if (identical(Sys.getenv("IN_PKGDOWN"), "true")) {
   cat("> **Animated jaw model of *Gogosardina coatesi* (specimen NMV P228269).**  \n",
-      "> The 3D model is publicly available on [MorphoSource](https://www.morphosource.org/concern/media/000670517?locale=en).  \n",
-      "> The landmark scheme used in subsequent analyses includes six fixed points (red) and five curves (blue).\n")
+      "> The 3D model is publicly available on [MorphoSource](https://www.morphosource.org/concern/media/000670517?locale=en). The landmark scheme used in subsequent analyses includes six fixed points (red) and five curves (blue).\n")
 } else {
   cat("> **Static frame shown here.** An animated version appears on the package website.  \n",
       "> 3D model of *Gogosardina coatesi* (specimen NMV P228269) is publicly available on ",
-      "[MorphoSource](https://www.morphosource.org/concern/media/000670517?locale=en).  \n",
-      "> The landmark scheme includes six fixed points (red) and five curves (blue).\n")
+      "[MorphoSource](https://www.morphosource.org/concern/media/000670517?locale=en). The landmark scheme includes six fixed points (red) and five curves (blue).\n")
 }
 ```
 
 We will walk through an example using a fossil dataset from [Troyer et al. (2025)](https://doi.org/10.1016/j.cub.2025.08.008), which examines macroevolutionary patterns of jaw shape in the earliest radiation of bony fishes. `bifrost` assumes that the branch lengths of the input phylogeny are in units of time, and does not require ultrametric phylogenies.
 
-```{r troyer_fig1, echo=FALSE, fig.align="center", out.width="80%", fig.alt="Figure 1 from Troyer et al 2025.", eval = !identical(Sys.getenv("IN_PKGDOWN"), "true")}
+```{r troyer_fig1, echo=FALSE, fig.align="center", out.width="80%", fig.alt="Figure 1 from Troyer et al. (2025)."}
 knitr::include_graphics("jaw-shape/gr1_lrg_png8.png")
 ```
 
 ```{r troyer_fig1_caption, echo=FALSE, results='asis'}
-cat("> **Figure 1 from Troyer et al. 2025: Contrasting patterns of jaw-shape space exploration among early bony fishes.**  \n",
-    "> Phylogenetic traitgram of the first principal component (PC1) of lower jaw shape in early osteichthyans (bony fishes).  \n",
-    "> Learn more about Emily's research [here](https://emilymtroyer.weebly.com/).\n")
+cat("> **Figure 1 from Troyer et al. 2025: Contrasting patterns of jaw-shape space exploration among early bony fishes.** Phylogenetic traitgram of the first principal component (PC1) of lower jaw shape in early osteichthyans (bony fishes). Learn more about Emily's research [here](https://emilymtroyer.weebly.com/).\n")
 ```
 
 [Troyer et al. (2025)](https://doi.org/10.1016/j.cub.2025.08.008) find that early lobe-finned fishes, such as lungfishes and coelacanths, displayed surprisingly high rates of jaw evolution and morphological diversity, while ray-finned fishes—a hyper-diverse group today—showed much slower rates. This "macroevolutionary role reversal" presents an interesting test-case for applying the `bifrost` R package to infer shifts in the tempo and mode of evolution across the phylogeny of early vertebrates.
