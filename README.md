@@ -10,33 +10,33 @@
 
 **Branch-level Inference Framework for Recognizing Optimal Shifts in Traits**
 
-`bifrost` performs branch-level inference of multi-regime trait evolution on a phylogeny using penalized-likelihood multivariate GLS fits. It searches for evolutionary rate shifts under a multi-rate Brownian Motion (BMM) model with proportional regime VCV scaling, operating directly in trait space (no PCA), and is designed for high-dimensional datasets and large trees.
+`bifrost` performs branch-level inference of multi-regime, multivariate trait evolution on a phylogeny using [penalized-likelihood multivariate GLS fits](https://academic.oup.com/sysbio/article/67/4/662/4827615). The current version searches for evolutionary model shifts under a multi-rate Brownian Motion (BMM) model with proportional regime VCV scaling, operating directly in trait space (e.g., no PCA), and is designed for high-dimensional datasets (p > n) and large trees (> 1000 tips). The method will work with fossil tip-dated trees, and will accept most forms of multivaraite comparative data (e.g., GPA aligned morphometric coordinates, linear dimensions, and others). The next major release will enable usage of the [multivariate scalar Ornstein–Uhlenbeck process](https://academic.oup.com/sysbio/article/67/4/662/4827615).
 
 ---
 
 ## Overview
 
-- **Goal.** Infer *where*, *when*, and *how fast* phenotypic evolution accelerates or slows across a tree using many traits simultaneously.
+- **Goal.** Infer *where*, *when*, and *how* patterns of phenotypic evolution change across a tree using many traits simultaneously.
 - **Model.** Multi-rate Brownian Motion with regime-specific VCVs estimated via penalized-likelihood (`mvMORPH::mvgls`), supporting p ≳ n.
-- **Search.** Greedy, stepwise acceptance of shifts guided by information criteria (**GIC** or **BIC**), with optional post-hoc pruning and per-shift IC weights.
+- **Search.** Greedy, step-wise acceptance of shifts guided by information criteria (**GIC** or **BIC**), with optional post-hoc pruning and per-shift IC weights.
 - **Scale.** Parallel candidate scoring using the `future` ecosystem; practical on thousands of taxa × traits.
 
 ---
 
 ## Key features
 
-- Joint multivariate modeling without PCA information loss.
-- Proportional VCV scaling across regimes for tractability at high p.
-- Candidate generation on internal nodes with minimum clade size filters.
-- Greedy acceptance using ΔIC thresholds; optional uncertainty phase with IC weights.
-- Regime VCV extraction and utilities for painting/unpainting SIMMAP shifts.
-- Parallelization via `future` / `future.apply`.
+- Joint multivariate modeling without information loss or [distortion due to PCA](https://academic.oup.com/sysbio/article/64/4/677/1649888).
+- Under BMM, [proportional VCV scaling](https://doi.org/10.1111/j.1558-5646.1999.tb05414.x) across regimes for tractability at high p.
+- Candidate shift nodes are determined by a minimum clade size specified by the user.
+- Greedy [step-wise heuristic search](https://nph.onlinelibrary.wiley.com/doi/10.1111/nph.19099) using GIC/BIC ΔIC threshold set by the user; uncertainty estimation with IC weights.
+- Output includes estimated VCV per regime, shift weights, SIMMAP style output for cross-compatibility.
+- Parallelization steps via `future` / `future.apply`.
 
 ---
 
 📄 **Vignette:** [Getting Started with bifrost](https://jakeberv.com/bifrost/articles/jaw-shape-vignette.html)
 
-## Installation
+## Installation (development version)
 
 ```r
 # install.packages("remotes")
@@ -133,7 +133,7 @@ ZH --> ZI([Return])
   - `searchOptimalConfiguration()`: The main function for end-to-end greedy search: candidate generation → parallel fitting → iterative acceptance → optional pruning/IC weights.
   - add the plotting function
   
-## Helper functions
+## Helper functions (not exported)
   
   - **Candidate generation**: `generatePaintedTrees()`
   - **Model fitting helpers**: `fitMvglsAndExtractGIC()`, `fitMvglsAndExtractBIC()`, and formula variants.
