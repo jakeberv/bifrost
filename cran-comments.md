@@ -1,26 +1,26 @@
 ## Test environments
-- macOS Sequoia 15.6.1, R 4.4.2 (local, aarch64)
-- macOS-latest (GitHub Actions CI)
-- ubuntu-latest (GitHub Actions CI)
-- windows-latest (GitHub Actions CI)
-- Windows (win-builder devel/release)
+- macOS Sequoia 15.6.1, R 4.4.2 (local, aarch64)  
+- macOS-latest (GitHub Actions CI)  
+- ubuntu-latest (GitHub Actions CI)  
+- windows-latest (GitHub Actions CI)  
+- Windows (win-builder devel/release)  
 - Linux (rhub)
 
 ## R CMD check results
-0 errors | 0 warnings | 2 notes
 
-* NOTE: New submission  
-  – This is the first CRAN submission of **bifrost**.
+0 errors | 0 warnings | 0 notes
 
-* NOTE: "checking for future file timestamps ... unable to verify current time"  
-  – This appears on some macOS/APFS installations and in CI due to filesystem
-    timestamp resolution and clock checks. No code relies on file modification
-    times, and this NOTE is not reproducible on other platforms. Nothing in the
-    package writes or modifies files during checks.
+- All checks pass cleanly on all tested platforms.
+- Vignettes build successfully and documentation renders correctly.
+- Continuous integration and test coverage are verified via GitHub Actions and Codecov.
 
 ## Downstream dependencies
+
 - None (new package).
 
 ## Additional details
-- All unit tests pass across all major platforms.
-- Continuous integration and test coverage are verified via GitHub Actions and Codecov.
+
+- This is the first CRAN submission of **bifrost**.  
+- All unit tests pass across all major platforms.  
+- The package builds and checks without NOTES on macOS, Linux, and Windows.  
+- Parallel tests and vignette builds run successfully under `--as-cran`.
