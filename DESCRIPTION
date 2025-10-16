@@ -42,7 +42,8 @@ Suggests:
     scales,
     testthat (>= 3.0.0),
     univariateML,
-    spelling
+    spelling,
+    htmltools
 VignetteBuilder: knitr
 Config/testthat/edition: 3
 Language: en-US
