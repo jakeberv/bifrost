@@ -4,7 +4,7 @@
 [![R-CMD-check](https://github.com/jakeberv/bifrost/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/jakeberv/bifrost/actions/workflows/R-CMD-check.yaml)
 [![Codecov test coverage](https://codecov.io/gh/jakeberv/bifrost/graph/badge.svg)](https://app.codecov.io/gh/jakeberv/bifrost)
 [![CRAN status](https://www.r-pkg.org/badges/version/bifrost)](https://CRAN.R-project.org/package=bifrost)
-[![License: GPL (>= 2)](https://img.shields.io/badge/License-GPL%20(%3E=%202)-blue.svg)](LICENSE.md)
+[![License: GPL (>= 2)](https://img.shields.io/badge/License-GPL%20(%3E=%202)-blue.svg)](LICENSE)
 [![Lifecycle: experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html)
 <!-- badges: end -->
 
@@ -214,3 +214,11 @@ This project is released under the GPL >= 2 License. See the `LICENSE` file for 
 ### Acknowledgements and dependencies
 
 `bifrost` builds on the work from `mvMORPH`, `phytools`, `ape`, `future`, and `future.apply`. See the `DESCRIPTION` file for complete dependency and version information.
+
+Initial development of `bifrost` was supported by the [Oxford Research Software Engineering Group](https://www.rse.ox.ac.uk/schmidt-ai-science) and support from [Schmidt Sciences, LLC](https://www.schmidtsciences.org/ai-in-science/)
+
+<p align="center">
+  <img src="https://jakeberv.com/images/SchmidtSciencesLogo.png" alt="Schmidt Sciences logo" height="100" style="margin: 0 30px;" />
+  <img src="https://www.rse.ox.ac.uk/sites/default/files/rse/site-logo/2024_oxrse_next_to_oxford.svg" alt="Oxford RSE logo" height="100" style="margin: 0 30px;" />
+</p>
+
