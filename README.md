@@ -4,13 +4,13 @@
 [![R-CMD-check](https://github.com/jakeberv/bifrost/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/jakeberv/bifrost/actions/workflows/R-CMD-check.yaml)
 [![Codecov test coverage](https://codecov.io/gh/jakeberv/bifrost/graph/badge.svg)](https://app.codecov.io/gh/jakeberv/bifrost)
 [![CRAN status](https://www.r-pkg.org/badges/version/bifrost)](https://CRAN.R-project.org/package=bifrost)
-[![License: GPL (>= 2)](https://img.shields.io/badge/License-GPL%20(%3E=%202)-blue.svg)](LICENSE.md)
+[![License: GPL (>= 2)](https://img.shields.io/badge/License-GPL%20(%3E=%202)-blue.svg)](LICENSE)
 [![Lifecycle: experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html)
 <!-- badges: end -->
 
 **Branch-level Inference Framework for Recognizing Optimal Shifts in Traits**
 
-`bifrost` performs branch-level inference of multi-regime, multivariate trait evolution on a phylogeny using [penalized-likelihood multivariate GLS fits](https://academic.oup.com/sysbio/article/67/4/662/4827615). The current version searches for evolutionary model shifts under a multi-rate Brownian Motion (BMM) model with proportional regime VCV scaling, operating directly in trait space (e.g., no PCA), and is designed for high-dimensional datasets (p > n) and large trees (> 1000 tips). The method will work with fossil tip-dated trees, and will accept most forms of multivaraite comparative data (e.g., GPA aligned morphometric coordinates, linear dimensions, and others). The next major release will enable usage of the [multivariate scalar Ornstein–Uhlenbeck process](https://academic.oup.com/sysbio/article/67/4/662/4827615).
+`bifrost` performs branch-level inference of multi-regime, multivariate trait evolution on a phylogeny using [penalized-likelihood multivariate GLS fits](https://academic.oup.com/sysbio/article/67/4/662/4827615). The current version searches for evolutionary model shifts under a multi-rate Brownian Motion (BMM) model with proportional regime VCV scaling, operating directly in trait space (e.g., no PCA), and is designed for high-dimensional datasets (p > n) and large trees (> 1000 tips). The method will work with fossil tip-dated trees, and will accept most forms of multivariate comparative data (e.g., GPA aligned morphometric coordinates, linear dimensions, and others). The next major release will enable usage of the [multivariate scalar Ornstein–Uhlenbeck process](https://academic.oup.com/sysbio/article/67/4/662/4827615).
 
 ---
 
@@ -71,16 +71,13 @@ plotSimmap(res$tree_no_uncertainty)
 
 ``` 
 
-⸻
+### Data requirements
 
-Data requirements and good practice
-- Tree and data alignment. `rownames(trait_data)` must match `tree$tip.label` (same order and names).
-- Branch lengths. Interpreted in units of time; ultrametric not required.
-- SIMMAP style. Internally, regimes are stored using SIMMAP conventions.
-- High-dimensional traits. Works directly in trait space; tune penalties/methods in mvgls options for your data.
-- Thresholds. Use conservative `shift_acceptance_threshold` and `ic_uncertainty_threshold` to limit false positives; explore sensitivity.
-
-⸻
+- **Tree and data alignment.** `rownames(trait_data)` must match `tree$tip.label` (same order and names).  
+- **Branch lengths.** Interpreted in units of time; ultrametric not required.  
+- **SIMMAP style.** Internally, regimes are stored using SIMMAP conventions.  
+- **Multi-dimensional traits.** Works directly in trait space; tune penalties/methods in `mvgls` options for your data.  
+- **Thresholds.** Use conservative `shift_acceptance_threshold` and `ic_uncertainty_threshold` to limit false positives; explore sensitivity.
 
 Core workflow
 ```mermaid
@@ -128,12 +125,12 @@ ZH --> ZI([Return])
 
 -----
 
-## Primary functions
+### Primary functions
 
   - `searchOptimalConfiguration()`: The main function for end-to-end greedy search: candidate generation → parallel fitting → iterative acceptance → optional pruning/IC weights.
   - add the plotting function
   
-## Helper functions (not exported)
+### Helper functions (not exported)
   
   - **Candidate generation**: `generatePaintedTrees()`
   - **Model fitting helpers**: `fitMvglsAndExtractGIC()`, `fitMvglsAndExtractBIC()`, and formula variants.
@@ -143,7 +140,7 @@ ZH --> ZI([Return])
 
 -----
 
-## Outputs
+### Outputs
 
 The list returned by `searchOptimalConfiguration()` contains:
 
@@ -164,7 +161,7 @@ The list returned by `searchOptimalConfiguration()` contains:
 -----
 
 
-## Performance and scalability
+### Performance and scalability
 
 Enable parallel processing using the `future` package:
 
@@ -180,7 +177,7 @@ plan(multisession)   # or multicore on Linux/macOS
 
 -----
 
-## Reproducibility
+### Reproducibility
 
   - **Set a seed** with `set.seed()` before candidate generation and search.
   - **Record `sessionInfo()`** and the `mvMORPH` version.
@@ -188,7 +185,7 @@ plan(multisession)   # or multicore on Linux/macOS
 
 -----
 
-## Citation
+### Citation
 
 If you use `bifrost`, please cite:
 
@@ -202,18 +199,26 @@ citation("bifrost")
 
 -----
 
-## Contributing
+### Contributing
 
 Bug reports, feature requests, and pull requests are welcome. Please open an issue at [https://github.com/jakeberv/bifrost/issues](https://github.com/jakeberv/bifrost/issues).
 
 -----
 
-## License
+### License
 
 This project is released under the GPL >= 2 License. See the `LICENSE` file for details.
 
 -----
 
-## Acknowledgements and dependencies
+### Acknowledgements and dependencies
 
 `bifrost` builds on the work from `mvMORPH`, `phytools`, `ape`, `future`, and `future.apply`. See the `DESCRIPTION` file for complete dependency and version information.
+
+Initial development of `bifrost` was supported by the [Oxford Research Software Engineering Group](https://www.rse.ox.ac.uk/schmidt-ai-science) and support from [Schmidt Sciences, LLC.](https://www.schmidtsciences.org/ai-in-science/)
+
+<p align="center">
+  <img src="https://jakeberv.com/images/SchmidtSciencesLogo.png" alt="Schmidt Sciences logo" height="100" style="margin: 0 30px;" />
+  <img src="https://www.rse.ox.ac.uk/sites/default/files/rse/site-logo/2024_oxrse_next_to_oxford.svg" alt="Oxford RSE logo" height="100" style="margin: 0 30px;" />
+</p>
+
