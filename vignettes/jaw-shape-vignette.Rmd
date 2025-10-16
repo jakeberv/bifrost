@@ -14,35 +14,53 @@ knitr::opts_chunk$set(
   comment = "#>"
 )
 ```
+```{r, echo=FALSE, results='asis'}
+cat("
+<style>
+/* Remove any default borders/shadows around vignette/pkgdown images */
+img, .figure img, .figure > p > img {
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+</style>
+")
+```
 
 ## Introduction 🐠
 
 This vignette demonstrates the core functionality of the `bifrost` R package. `bifrost` is designed to identify and analyze cladogenic shifts in multivariate trait evolution. It is capable of analyzing morphological datasets comprising thousands of species, [without dimensionality reduction techniques like PCA](https://doi.org/10.1093/sysbio/syv019).
 
-```{r jaw_gif, echo=FALSE, results='asis'}
-is_pkgdown <- identical(Sys.getenv("IN_PKGDOWN"), "true")
-
-if (is_pkgdown) {
-  cat('
+```{r jaw_gif_pkgdown, echo=FALSE, results='asis', eval=identical(Sys.getenv("IN_PKGDOWN"), "true")}
+cat('
 <p style="text-align:center">
-  <img src="jaw-shape/Gogosardina_coatesi_jaw_customcrop.gif"
+  <img src="./jaw-shape/Gogosardina_coatesi_jaw_customcrop.gif"
        alt="Animated jaw model of *Gogosardina coatesi* showing landmark layout"
        style="border:0; outline:0; box-shadow:none; max-width:80%; height:auto; display:inline-block;">
 </p>
 ')
+```
+
+```{r jaw_media_cran, echo=FALSE, fig.align="center", out.width="80%", eval = !identical(Sys.getenv("IN_PKGDOWN"), "true")}
+knitr::include_graphics("jaw-shape/Gogosardina_coatesi_jaw_customcrop.png")
+```
+
+```{r jaw_caption, echo=FALSE, results='asis'}
+if (identical(Sys.getenv("IN_PKGDOWN"), "true")) {
+  cat("> **Animated jaw model of *Gogosardina coatesi* (specimen NMV P228269).**  \n",
+      "> The 3D model is publicly available on [MorphoSource](https://www.morphosource.org/concern/media/000670517?locale=en).  \n",
+      "> The landmark scheme used in subsequent analyses includes six fixed points (red) and five curves (blue).\n")
 } else {
-  knitr::include_graphics("jaw-shape/Gogosardina_coatesi_jaw_customcrop.png")
-  cat('\n\n*An animated version appears on the package website.*\n')
+  cat("> **Static frame shown here.** An animated version appears on the package website.  \n",
+      "> 3D model of *Gogosardina coatesi* (specimen NMV P228269) is publicly available on ",
+      "[MorphoSource](https://www.morphosource.org/concern/media/000670517?locale=en).  \n",
+      "> The landmark scheme includes six fixed points (red) and five curves (blue).\n")
 }
 ```
 
-> **Animated jaw model of *Gogosardina coatesi* (specimen NMV P228269).**  
-> The 3D model is publicly available on [MorphoSource](https://www.morphosource.org/concern/media/000670517?locale=en).  
-> The landmark scheme used in subsequent analyses includes six fixed points (red) and five curves (blue).
-
 We will walk through an example using a fossil dataset from [Troyer et al. (2025)](https://doi.org/10.1016/j.cub.2025.08.008), which examines macroevolutionary patterns of jaw shape in the earliest radiation of bony fishes. `bifrost` assumes that the branch lengths of the input phylogeny are in units of time, but does not require ultrametric phylogenies.
 
-Troyer et al. (2025) find that early lobe-finned fishes, such as lungfishes and coelacanths, displayed surprisingly high rates of jaw evolution and morphological diversity, while ray-finned fishes—a hyper-diverse group today—showed much slower rates. This "macroevolutionary role reversal" presents an interesting scenario for applying the `bifrost` R package to infer significant shifts in the tempo and mode of evolution across the phylogenety of early vertebrates.
+Troyer et al. (2025) find that early lobe-finned fishes, such as lungfishes and coelacanths, displayed surprisingly high rates of jaw evolution and morphological diversity, while ray-finned fishes—a hyper-diverse group today—showed much slower rates. This "macroevolutionary role reversal" presents an interesting scenario for applying the `bifrost` R package to infer significant shifts in the tempo and mode of evolution across the phylogeny of early vertebrates.
 
 We will use the primary function `searchOptimalConfiguration()` to perform a greedy, stepwise search to infer evolutionary regime shifts under multivariate Brownian motion.
 
