@@ -63,6 +63,17 @@ jobs:
         shell: powershell
         run: choco install qpdf --no-progress
 
+      # Build vignettes to doc/ so we can inspect the HTML/PNG in artifacts
+      - name: Build vignettes (to doc/)
+        run: Rscript -e 'dir.create("doc", showWarnings = FALSE); devtools::build_vignettes()'
+
+      # Upload built vignettes so we can inspect them after the run
+      - name: Upload vignette artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: built-vignettes
+          path: doc/
+
       - uses: r-lib/actions/check-r-package@v2
         with:
           upload-snapshots: true
