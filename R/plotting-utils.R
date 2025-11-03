@@ -41,8 +41,7 @@
 #' @seealso [viridis::viridis()] for details on the color palette.
 #'
 #' @importFrom viridis viridis
-#' @keywords internal
-#' @noRd
+#' @export
 generateViridisColorScale <- function(params) {
   # Sort parameters and keep their names
   sorted_indices <- order(params)
