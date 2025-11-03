@@ -66,8 +66,10 @@ res <- searchOptimalConfiguration(
   plot = FALSE
 )
 
-res$shift_nodes
-plotSimmap(res$tree_no_uncertainty)
+#This example doesn't actually detect any shift nodes, so the next two lines have no output
+
+res$shift_nodes #no output
+plotSimmap(res$tree_no_uncertainty) #no output in this example
 
 ``` 
 
