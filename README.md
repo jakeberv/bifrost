@@ -44,6 +44,8 @@ remotes::install_github("jakeberv/bifrost")
 
 Windows users: install Rtools for your R version and ensure it is on the PATH.
 
+Mac users: You may need XQuartz for some of the package's dependencies to install/compile correctly (https://www.xquartz.org/)
+
 ⸻
 
 Quick start
