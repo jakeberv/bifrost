@@ -4,7 +4,7 @@
 [![R-CMD-check](https://github.com/jakeberv/bifrost/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/jakeberv/bifrost/actions/workflows/R-CMD-check.yaml)
 [![Codecov test coverage](https://codecov.io/gh/jakeberv/bifrost/graph/badge.svg)](https://app.codecov.io/gh/jakeberv/bifrost)
 [![CRAN status](https://www.r-pkg.org/badges/version/bifrost)](https://CRAN.R-project.org/package=bifrost)
-[![License: GPL (>= 2)](https://img.shields.io/badge/License-GPL%20(%3E=%202)-blue.svg)](LICENSE)
+[![License: GPL (≥ 2)](https://img.shields.io/badge/license-GPL%20(%E2%89%A5%202)-blue.svg)](LICENSE)
 [![Lifecycle: experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html)
 <!-- badges: end -->
 
@@ -29,7 +29,7 @@
 - Under BMM, [proportional VCV scaling](https://doi.org/10.1111/j.1558-5646.1999.tb05414.x) across regimes for tractability at high p.
 - Candidate shift nodes are determined by a minimum clade size specified by the user.
 - Greedy [step-wise heuristic search](https://nph.onlinelibrary.wiley.com/doi/10.1111/nph.19099) using GIC/BIC ΔIC threshold set by the user; uncertainty estimation with IC weights.
-- Output includes estimated VCV per regime, shift weights, SIMMAP style output for cross-compatibility.
+- Output includes estimated VCV per regime, shift weights, SIMMAP-style output for cross-compatibility.
 - Parallelization steps via `future` / `future.apply`.
 
 ---
@@ -41,15 +41,19 @@
 ```r
 # install.packages("remotes")
 remotes::install_github("jakeberv/bifrost")
+```
 
-Windows users: install Rtools for your R version and ensure it is on the PATH.
+**Windows users:**  
+Install [Rtools](https://cran.r-project.org/bin/windows/Rtools/) for your R version and ensure it is added to your system PATH.
 
-Mac users: You may need XQuartz for some of the package's dependencies to install/compile correctly (https://www.xquartz.org/)
+**macOS users:**  
+You may need to install [XQuartz](https://www.xquartz.org/) to build or run packages that depend on certain graphical or system libraries.
 
-⸻
+---
 
-Quick start
+### Quick start
 
+```r
 library(bifrost)
 library(ape)
 
@@ -68,12 +72,11 @@ res <- searchOptimalConfiguration(
   plot = FALSE
 )
 
-#This example doesn't actually detect any shift nodes, so the next two lines have no output
+# This example doesn’t detect any shift nodes, so the next two lines will have no visible output.
 
-res$shift_nodes #no output
-plotSimmap(res$tree_no_uncertainty) #no output in this example
-
-``` 
+res$shift_nodes           # no detected shifts in this toy dataset
+plotSimmap(res$tree_no_uncertainty)  # no output produced here
+```
 
 ### Data requirements
 
@@ -83,7 +86,8 @@ plotSimmap(res$tree_no_uncertainty) #no output in this example
 - **Multi-dimensional traits.** Works directly in trait space; tune penalties/methods in `mvgls` options for your data.  
 - **Thresholds.** Use conservative `shift_acceptance_threshold` and `ic_uncertainty_threshold` to limit false positives; explore sensitivity.
 
-Core workflow
+### Core workflow
+
 ```mermaid
 flowchart TD
 A([Start])
@@ -132,7 +136,7 @@ ZH --> ZI([Return])
 ### Primary functions
 
   - `searchOptimalConfiguration()`: The main function for end-to-end greedy search: candidate generation → parallel fitting → iterative acceptance → optional pruning/IC weights.
-  - add the plotting function
+  - `plot_ic_acceptance_matrix()`: Visualize shift acceptance and information-criterion (IC) differences across search iterations.
   
 ### Helper functions (not exported)
   
@@ -146,21 +150,20 @@ ZH --> ZI([Return])
 
 ### Outputs
 
-The list returned by `searchOptimalConfiguration()` contains:
+`searchOptimalConfiguration()` returns a comprehensive list containing:
 
-- **`user_input`**: A record of all arguments passed to `searchOptimalConfiguration()`, storing tree, trait data, IC choice, thresholds, and other run parameters for reproducibility.
-- **`tree_no_uncertainty_transformed`**: Optimal SIMMAP tree with accepted shifts, using transformed branch lengths (if branch-length transformation was applied).
-- **`tree_no_uncertainty_untransformed`**: The same optimal SIMMAP tree but retaining original, untransformed branch lengths.
-- **`model_no_uncertainty`**: Final fitted `mvgls` model object (BM or multi-rate BMM), containing estimated parameters, log-likelihood, and variance-covariance matrices.
-- **`shift_nodes_no_uncertainty`**: Integer node numbers corresponding to accepted shifts on the phylogeny.
-- **`optimal_ic`**: Final model’s information criterion (IC) value, used to quantify model fit.
-- **`baseline_ic`**: IC value of the null (single-rate) baseline model.
-- **`IC_used`**: Character string indicating which IC was used (e.g. `"GIC"` or `"BIC"`).
-- **`num_candidates`**: Total number of candidate models evaluated during the search process.
-- **`model_fit_history`**: Detailed per-iteration record of candidate fits, IC values, and acceptance decisions. Useful for plotting search behavior or debugging.
-- **`VCVs`**: List of regime-specific penalized-likelihood variance-covariance matrices, one per regime.
-- **`ic_weights`**: Data frame of per-shift IC weights and evidence ratios (if `uncertaintyweights_par = TRUE` was used), allowing assessment of support for individual shifts.
-
+- **`user_input`** — All arguments passed to `searchOptimalConfiguration()`, including the tree, trait data, IC choice, thresholds, and other parameters for reproducibility.
+- **`tree_no_uncertainty_transformed`** — Optimal SIMMAP tree with accepted shifts, using transformed branch lengths (if a branch-length transformation was applied).
+- **`tree_no_uncertainty_untransformed`** — Same optimal SIMMAP tree but with original, untransformed branch lengths.
+- **`model_no_uncertainty`** — Final fitted `mvgls` model object (BM or multi-rate BMM), including estimated parameters, log-likelihood, and variance–covariance matrices.
+- **`shift_nodes_no_uncertainty`** — Node numbers corresponding to accepted evolutionary shifts.
+- **`optimal_ic`** — Information criterion (IC) value for the optimal model.
+- **`baseline_ic`** — IC value for the null (single-rate) baseline model.
+- **`IC_used`** — The information criterion applied (`"GIC"` or `"BIC"`).
+- **`num_candidates`** — Total number of candidate models evaluated during the search.
+- **`model_fit_history`** — Per-iteration log of model fits, IC values, and acceptance decisions; useful for visualizing or debugging search behavior.
+- **`VCVs`** — Regime-specific penalized-likelihood variance–covariance matrices.
+- **`ic_weights`** — Data frame of per-shift IC weights and evidence ratios (if `uncertaintyweights_par = TRUE`), providing support values for individual shifts.
 
 -----
 
@@ -183,7 +186,6 @@ plan(multisession)   # or multicore on Linux/macOS
 
 ### Reproducibility
 
-  - **Set a seed** with `set.seed()` before candidate generation and search.
   - **Record `sessionInfo()`** and the `mvMORPH` version.
   - For projects, consider using `renv` to lock package versions.
 
