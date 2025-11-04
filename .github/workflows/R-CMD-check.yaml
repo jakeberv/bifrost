@@ -42,13 +42,23 @@ jobs:
         with:
           extra-packages: >
             any::rcmdcheck,
-            any::roxygen2
+            any::roxygen2,
             any::devtools
           needs: check
 
       # Generate NAMESPACE + Rd files from roxygen comments
       - name: Generate Rd + NAMESPACE via roxygen2
         run: Rscript -e 'roxygen2::roxygenise(roclets = c("rd","namespace"))'
+
+      - name: Verify roxygen outputs are committed
+        shell: bash
+        run: |
+          # If roxygenise modified man/ or NAMESPACE, the docs in Git are stale.
+          git diff --name-only -- man NAMESPACE
+          git diff --exit-code -- man NAMESPACE || {
+            echo "::error::Roxygen output differs from repo. Run devtools::document() and commit man/ and NAMESPACE.";
+            exit 1;
+          }
 
       # Install qpdf so vignette compaction works without warnings
       - name: Install qpdf (macOS)
