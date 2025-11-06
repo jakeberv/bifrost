@@ -219,9 +219,9 @@ This project is released under the GPL >= 2 License. See the `LICENSE` file for 
 
 ### Acknowledgements and dependencies
 
-`bifrost` builds on the work from `mvMORPH`, `phytools`, `ape`, `future`, and `future.apply`. See the `DESCRIPTION` file for complete dependency and version information.
+`bifrost` builds on substantial work from `mvMORPH`, `phytools`, `ape`, `future`, and `future.apply`. The greedy search algorithim is adapted from [Mitov et al 2019](https://www.pnas.org/doi/10.1073/pnas.1813823116) and [Smith et al 2023](https://nph.onlinelibrary.wiley.com/doi/10.1111/nph.19099). See the `DESCRIPTION` file for complete dependency and version information.
 
-Initial development of `bifrost` was supported by the [Oxford Research Software Engineering Group](https://www.rse.ox.ac.uk/schmidt-ai-science) with support from [Schmidt Sciences, LLC.](https://www.schmidtsciences.org/ai-in-science/)
+Development of the `bifrost` R package was supported by the [Oxford Research Software Engineering Group](https://www.rse.ox.ac.uk/schmidt-ai-science), with support from [Schmidt Sciences, LLC.](https://www.schmidtsciences.org/ai-in-science/) and the [Michigan Institute for Data Science and AI in Society](https://midas.umich.edu/).
 
 <p align="center" style="display:flex; justify-content:center; align-items:center; gap:50px; padding:30px 0;">
   <img src="https://jakeberv.com/images/SchmidtSciencesLogo.png"
