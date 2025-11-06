@@ -8,7 +8,15 @@
 [![Lifecycle: experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html)
 <!-- badges: end -->
 
-**Branch-level Inference Framework for Recognizing Optimal Shifts in Traits**
+<span style="font-weight:bold;">
+  <span style="color:#c40000; font-size:1.25em;">B</span><span style="color:#000;">ranch-level</span>
+  <span style="color:#c40000; font-size:1.25em;">I</span><span style="color:#000;">nference</span>
+  <span style="color:#c40000; font-size:1.25em;">F</span><span style="color:#000;">ramework</span> for
+  <span style="color:#c40000; font-size:1.25em;">R</span><span style="color:#000;">ecognizing</span>
+  <span style="color:#c40000; font-size:1.25em;">O</span><span style="color:#000;">ptimal</span>
+  <span style="color:#c40000; font-size:1.25em;">S</span><span style="color:#000;">hifts</span> in
+  <span style="color:#c40000; font-size:1.25em;">T</span><span style="color:#000;">raits</span>
+</span>
 
 `bifrost` performs branch-level inference of multi-regime, multivariate trait evolution on a phylogeny using [penalized-likelihood multivariate GLS fits](https://academic.oup.com/sysbio/article/67/4/662/4827615). The current version searches for evolutionary model shifts under a multi-rate Brownian Motion (BMM) model with proportional regime VCV scaling, operating directly in trait space (e.g., no PCA), and is designed for high-dimensional datasets (p > n) and large trees (> 1000 tips). The method will work with fossil tip-dated trees, and will accept most forms of multivariate comparative data (e.g., GPA aligned morphometric coordinates, linear dimensions, and others). The next major release will enable usage of the [multivariate scalar Ornstein–Uhlenbeck process](https://academic.oup.com/sysbio/article/67/4/662/4827615).
 
