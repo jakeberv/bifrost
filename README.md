@@ -16,7 +16,7 @@
 
 ## Overview
 
-- **Goal.** Infer *where*, *when*, and *how* patterns of phenotypic evolution change across a tree using many traits simultaneously.
+- **Primary goal.** Infer *where*, *when*, and *how* patterns of phenotypic evolution change across a tree using many traits simultaneously.
 - **Model.** Multi-rate Brownian Motion with regime-specific VCVs estimated via penalized-likelihood (`mvMORPH::mvgls`), supporting p ≳ n.
 - **Search.** Greedy, step-wise acceptance of shifts guided by information criteria (**GIC** or **BIC**), with optional post-hoc pruning and per-shift IC weights.
 - **Scale.** Parallel candidate scoring using the `future` ecosystem; practical on thousands of taxa × traits.
@@ -32,9 +32,10 @@
 - Output includes estimated VCV per regime, shift weights, SIMMAP-style output for cross-compatibility.
 - Parallelization steps via `future` / `future.apply`.
 
+
 ---
 
-📄 **Vignette:** [Getting Started with bifrost](https://jakeberv.com/bifrost/articles/jaw-shape-vignette.html)
+📄 **Vignette 1:** [Getting Started with bifrost](https://jakeberv.com/bifrost/articles/jaw-shape-vignette.html)
 
 ## Installation (development version)
 
@@ -190,6 +191,10 @@ plan(multisession)   # or multicore on Linux/macOS
   - For projects, consider using `renv` to lock package versions.
 
 -----
+
+## Additional note
+
+Though `bifrost` was initially developed as a framework for inferring macroevolutionary regime shifts in multivariate trait data, it can also be applied to perform multivariate phylogenetic generalized least squares (pGLS) analyses with factors or continuous predictors (e.g., `Y ~ trophic_niche`). In this context, `bifrost` identifies branch-specific rate variation under a multi-rate Brownian Motion model and fits the pGLS conditional on that residual (phylogenetic) covariance, so estimated effect sizes and uncertainties account for “hidden” rate variation not explained by the predictors. This is conceptually similar to hidden-state approaches (e.g., [Boyko et al. 2023](https://doi.org/10.1093/evolut/qpad002)), except that here the regimes influence variance and evolutionary rate rather than introducing regime-specific means. This use case has not yet been explored in detail.
 
 ### Citation
 
