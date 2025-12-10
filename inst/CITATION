@@ -1,14 +1,21 @@
 citHeader("To cite bifrost in publications, please use the following references, as appropriate:")
 
-meta <- utils::packageDescription("bifrost")
-
 ## 1. Software / package manual citation
 bibentry(
   bibtype = "Manual",
-  title   = meta$Title,
-  author  = utils::as.person(meta$Author),
-  year    = if (!is.null(meta$Year)) meta$Year else format(Sys.Date(), "%Y"),
-  note    = sprintf("R package version %s", meta$Version),
+  title   = "Branch-Level Inference Framework for Recognizing Optimal Shifts in Traits",
+  author  = c(
+    person(c("Jacob",  "S."), "Berv"),
+    person("Nathan",          "Fox"),
+    person(c("Matthew","J."), "Thorstensen"),
+    person("Henry",           "Lloyd-Laney"),
+    person(c("Stephen","A."), "Smith"),
+    person("Matthew",         "Friedman"),
+    person(c("David","F."),   "Fouhey"),
+    person(c("Brian","C."),   "Weeks")
+  ),
+  year    = "2025",
+  note    = "R package version 0.1.0",
   url     = "https://jakeberv.com/bifrost/"
 )
 
@@ -17,16 +24,16 @@ bibentry(
   bibtype = "Unpublished",
   title   = "Branch-level inference framework for recognizing optimal shifts in traits (bifrost R package)",
   author  = c(
-    person(c("Jacob",   "S."), "Berv"),
-    person("Nathan",           "Fox"),
-    person(c("Matthew","J."),  "Thorstensen"),
-    person("Henry",            "Lloyd-Laney"),
-    person(c("Stephen","A."),  "Smith"),
-    person("Matthew",          "Friedman"),
-    person(c("David",  "F."),  "Fouhey"),
-    person(c("Brian",  "C."),  "Weeks")
+    person(c("Jacob",  "S."), "Berv"),
+    person("Nathan",          "Fox"),
+    person(c("Matthew","J."), "Thorstensen"),
+    person("Henry",           "Lloyd-Laney"),
+    person(c("Stephen","A."), "Smith"),
+    person("Matthew",         "Friedman"),
+    person(c("David","F."),   "Fouhey"),
+    person(c("Brian","C."),   "Weeks")
   ),
-  year    = format(Sys.Date(), "%Y"),
+  year    = "2025",
   note    = "Forthcoming manuscript describing the bifrost R package."
 )
 
@@ -35,15 +42,15 @@ bibentry(
   bibtype = "Unpublished",
   title   = "Rates of avian body plan evolution in space and time",
   author  = c(
-    person(c("Jacob",    "S."), "Berv"),
-    person(c("Charlotte","M."), "Probst"),
-    person("Santiago",          "Claramunt"),
-    person(c("J.", "Ryan"),     "Shipley"),
-    person("Matt",              "Friedman"),
-    person(c("Stephen","A."),   "Smith"),
-    person(c("David",  "F."),   "Fouhey"),
-    person(c("Brian",  "C."),   "Weeks")
+    person(c("Jacob",   "S."), "Berv"),
+    person(c("Charlotte","M."),"Probst"),
+    person("Santiago",         "Claramunt"),
+    person(c("J.", "Ryan"),    "Shipley"),
+    person("Matt",             "Friedman"),
+    person(c("Stephen","A."),  "Smith"),
+    person(c("David",  "F."),  "Fouhey"),
+    person(c("Brian",  "C."),  "Weeks")
   ),
-  year    = format(Sys.Date(), "%Y"),
+  year    = "2025",
   note    = "Manuscript in review."
 )
