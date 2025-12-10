@@ -12,6 +12,8 @@
 
 - All checks pass cleanly on all tested platforms.
 - Vignettes build successfully and documentation renders correctly.
+- No invalid URLs; external links checked with `urlchecker::url_check()`.
+- Parallel code paths have been verified locally; examples and tests do not require parallel execution.
 - Continuous integration and test coverage are verified via GitHub Actions and Codecov.
 
 ## Downstream dependencies
