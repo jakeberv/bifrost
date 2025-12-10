@@ -39,7 +39,7 @@
 #' uses fixed limits (\code{c(-400, 150)}) inside the function; adjust in source if your
 #' expected \code{diff(IC)} range differs substantially.
 #'
-#' #' @examples
+#' @examples
 #' ic <- c(-1000, -1012, -1008, -1025, -1020, -1030)
 #' accepted <- c(1, 0, 1, 0, 1)  # steps 2..6 relative to baseline
 #' mat <- cbind(ic, c(1, accepted))  # mark baseline as accepted for plotting
