@@ -2,17 +2,20 @@ Package: bifrost
 Title: Branch-Level Inference Framework for Recognizing Optimal Shifts in Traits
 Version: 0.1.0
 Authors@R: c(
-    person(given = "Jacob", family = "Berv", email = "jberv@umich.edu", role = c("aut", "cre", "cph")),
-    person(given = "Nathan", family = "Fox", role = "aut"),
-    person(given = "Matthew", family = "Thorstensen", role = "aut"),
-    person(given = "Henry", family = "Lloyd-Laney", role = "aut"))
-Description: Methods for detecting and visualizing cladogenic shifts in multivariate trait data on phylogenies.
-    Includes tools for model fitting, uncertainty quantification, and plotting results.
+    person(given = c("Jacob", "S."), family = "Berv", email = "jacob.berv@gmail.com", role = c("aut", "cre", "cph", "fnd"), comment = c(ORCID = "0000-0002-5962-0621")),
+    person(given = "Nathan", family = "Fox", role = "aut", comment = c(ORCID = "0000-0002-2816-9751")),
+    person(given = c("Matthew", "J."), family = "Thorstensen", role = "aut", comment = c(ORCID = "0000-0002-7870-3369")),
+    person(given = "Henry", family = "Lloyd-Laney", role = "aut", comment = c(ORCID = "0000-0003-4650-8937")),
+    person(given = c("Stephen", "A."), family = "Smith", role = "aut", comment = c(ORCID = "0000-0003-2035-9531")),
+    person(given = "Matthew", family = "Friedman", role = c("aut", "fnd"), comment = c(ORCID = "0000-0002-0114-7384")),
+    person(given = c("David", "F."), family = "Fouhey", role = c("aut", "fnd"), comment = c(ORCID = "0000-0001-5028-5161")),
+    person(given = c("Brian", "C."), family = "Weeks", role = c("aut", "fnd"), comment = c(ORCID = "0000-0003-2967-2970")))
+Description: Methods for detecting and visualizing cladogenic shifts in multivariate trait data on phylogenies. Implements penalized-likelihood multivariate generalized least squares models, enabling analyses of high-dimensional trait datasets and large trees via searchOptimalConfiguration(). Includes a greedy step-wise shift-search algorithm following approaches developed in Smith et al. (2023) <doi:10.1111/nph.19099> and Berv et al. (2024) <doi:10.1126/sciadv.adp0114>. Methods build on multivariate GLS approaches described in Clavel et al. (2019) <doi:10.1093/sysbio/syy045> and implemented in the mvgls() function from the 'mvMORPH' package. Documentation and vignettes are available at <https://jakeberv.com/bifrost/>, including the introductory vignette at <https://jakeberv.com/bifrost/articles/jaw-shape-vignette.html>.
 License: GPL (>= 2)
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
-URL: https://github.com/jakeberv/bifrost
+URL: https://jakeberv.com/bifrost/, https://github.com/jakeberv/bifrost
 BugReports: https://github.com/jakeberv/bifrost/issues
 Depends: R (>= 4.1)
 Imports:

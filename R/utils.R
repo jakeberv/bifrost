@@ -333,7 +333,7 @@ fitMvglsAndExtractGIC.formula <- function(formula, painted_tree, trait_data, ...
 #'   y2 <- 0.8 * x + rnorm(12, sd = 0.3)
 #'   dat <- data.frame(x = x, y1 = y1, y2 = y2)
 #'   rownames(dat) <- painted$tip.label
-#'   result <- fitMvglsAndExtractBIC.formula(cbind(y1, y2) ~ x, painted, dat)
+#'   result <- fitMvglsAndExtractBIC.formula("cbind(y1, y2) ~ x", painted, dat)
 #'   result$BIC
 #' }
 #'
@@ -528,12 +528,6 @@ calculateAllDeltaGIC <- function(model_results, painted_tree_list) {
 #'   tr2 <- paintSubTree_mod(tr1, node = nd, state = "2", anc.state = "0",
 #'     stem = 0.25, overwrite = FALSE)
 #' }
-#' @param tree A \code{phylo} tree.
-#' @param node Integer node to paint.
-#' @param state Character regime label.
-#' @param anc.state Character ancestral state label.
-#' @param stem Logical, paint along the stem.
-#' @param overwrite Logical, overwrite existing states.
 #' @importFrom ape compute.brlen
 #' @importFrom phytools getDescendants
 #' @keywords internal
@@ -654,9 +648,6 @@ paintSubTree_mod <- function(tree, node, state, anc.state="1", stem=FALSE, overw
 #'   # Remove the shift: descendants revert to parental state "0"
 #'   tr2 <- paintSubTree_removeShift(tr1, shift_node = nd, stem = FALSE)
 #' }
-#' @param tree A \code{phylo} tree.
-#' @param shift_node Integer node whose shift is removed.
-#' @param stem Logical, remove along the stem.
 #' @importFrom ape compute.brlen
 #' @importFrom phytools getParent getDescendants getStates
 #' @keywords internal
@@ -840,9 +831,6 @@ addShiftToModel <- function(tree, shift_node, current_shift_id) {
 #'   # Remove that shift and restore parental state
 #'   tr2 <- paintSubTree_removeShift(tr1, shift_node = nd, stem = FALSE)
 #' }
-#' @param tree A \code{phylo} tree.
-#' @param shift_node Integer node whose shift is removed.
-#' @param stem Logical, remove along the stem.
 #' @importFrom ape compute.brlen
 #' @importFrom phytools getParent getDescendants getStates
 #' @keywords internal
@@ -1079,9 +1067,6 @@ extractRegimeVCVs <- function(model_output) {
 #'
 #' # Include the starting node itself
 #' getDescendants(tree, root_node, include.node = TRUE)
-#' @param tree A \code{phylo} tree.
-#' @param node Integer node.
-#' @param include.node Logical, include the node itself.
 #' @keywords internal
 #' @noRd
 getDescendants <- function(tree, node, include.node = FALSE) {

@@ -21,30 +21,45 @@
 #' @param baseline_tree A rooted SIMMAP/\code{phylo} object representing the baseline
 #'   (single-regime) tree. If not SIMMAP-initialized, it should already be painted to a
 #'   single baseline state and have tip order matching \code{trait_data}.
-#' @param trait_data A \code{matrix} or \code{data.frame} of trait values with row names
-#'   matching \code{baseline_tree$tip.label} (same order).
+#' @param trait_data A \code{matrix} or \code{data.frame} of continuous trait values with row
+#'   names matching \code{baseline_tree$tip.label} (same order). For the default
+#'   \code{formula = "trait_data ~ 1"}, \code{trait_data} is typically supplied as a numeric
+#'   matrix so that the multivariate response is interpreted correctly by \code{mvgls()}.
+#'   When using more general formulas (e.g., pGLS-style models), a \code{data.frame} with
+#'   named columns can be used instead.
 #' @param formula Character formula passed to \code{mvgls}. Defaults to
-#'   \code{"trait_data ~ 1"}, which fits an intercept-only model treating the
-#'   supplied multivariate trait matrix as the response. This is the appropriate
-#'   choice for most morphometric data where there are no predictor variables.
-#'   Use \code{cbind()} to specify multiple traits explicitly if desired
-#'   (e.g., \code{"cbind(trait1, trait2, ...) ~ 1"}).
+#'   \code{"trait_data ~ 1"}, which fits an intercept-only model treating the supplied
+#'   multivariate trait matrix as the response. This is the appropriate choice for most
+#'   morphometric data where there are no predictor variables. For more general models,
+#'   \code{formula} can reference subsets of \code{trait_data} explicitly, for example
+#'   \code{"trait_data[, 1:5] ~ 1"} to treat columns 1–5 as a multivariate response, or
+#'   \code{"trait_data[, 1:5] ~ trait_data[, 6]"} to fit a multivariate pGLS with column 6
+#'   as a predictor.
 #' @param min_descendant_tips Integer (\eqn{\ge}1). Minimum number of tips required for an internal node
-#'   to be considered as a candidate shift (forwarded to \code{generatePaintedTrees}).
+#'   to be considered as a candidate shift (forwarded to \code{generatePaintedTrees}). Larger values
+#'   reduce the number of candidate shifts by excluding very small clades. For empirical datasets,
+#'   values around \code{10} are a reasonable starting choice and can be tuned in sensitivity analyses.
 #' @param num_cores Integer. Number of workers for parallel candidate scoring. Uses
 #'   \code{future::plan(multicore)} on Unix and \code{future::plan(multisession)} on Windows.
-#' @param ic_uncertainty_threshold Numeric (\eqn{\ge}0). IC tolerance used in the optional post-search
-#'   pruning step (\code{uncertainty = TRUE}). Shifts whose removal changes the current best IC
-#'   by \eqn{\le} this value are pruned.
+#' @param ic_uncertainty_threshold Numeric (\eqn{\ge}0). Reserved for future development
+#'   in post-search pruning and uncertainty analysis; currently not used by
+#'   \code{searchOptimalConfiguration()}.
 #' @param shift_acceptance_threshold Numeric (\eqn{\ge}0). Minimum IC improvement
 #'   (baseline − new) required to accept a candidate shift during the forward search.
-#'   Larger values yield more conservative models.
+#'   Larger values yield more conservative models. For analyses based on the Generalized
+#'   Information Criterion (\code{"GIC"}), a threshold on the order of \code{20} units is a
+#'   conservative choice that tends to admit only strongly supported shifts. Simulation
+#'   studies (Berv et al., in preparation) suggest that this choice yields good balanced
+#'   accuracy between detecting true shifts and avoiding false positives, but users should
+#'   explore alternative thresholds in sensitivity analyses for their own datasets.
 #' @param uncertaintyweights Logical. If \code{TRUE}, compute per-shift IC weights serially by
 #'   refitting the optimized model with each shift removed in turn. Exactly one of
 #'   \code{uncertaintyweights} or \code{uncertaintyweights_par} must be \code{TRUE} to trigger
-#'   IC-weight calculations.
+#'   IC-weight calculations; setting both to \code{TRUE} will result in an error. When enabled,
+#'   the per-shift weights are returned in the \code{$ic_weights} component of the result.
 #' @param uncertaintyweights_par Logical. As above, but compute per-shift IC weights in parallel
-#'   using \pkg{future.apply}.
+#'   using \pkg{future.apply}. Exactly one of \code{uncertaintyweights} or
+#'   \code{uncertaintyweights_par} must be \code{TRUE} to trigger IC-weight calculations.
 #' @param plot Logical. If \code{TRUE}, draw/update a SIMMAP plot as the search proceeds
 #'   (requires \pkg{phytools}).
 #' @param IC Character. Which information criterion to use, one of \code{"GIC"} or \code{"BIC"}
@@ -55,6 +70,18 @@
 #'   \code{penalty}, \code{target}, \code{error}, etc.).
 #'
 #' @details
+#' \strong{Input requirements.}
+#' \itemize{
+#'   \item \emph{Tree:} \code{baseline_tree} should be a rooted \code{phylo} (or SIMMAP-style) tree
+#'         with branch lengths interpreted in units of time. An ultrametric tree is not required.
+#'   \item \emph{Trait data alignment:} \code{rownames(trait_data)} must match
+#'         \code{baseline_tree$tip.label} in both names and order; any tips without data should be
+#'         pruned beforehand.
+#'   \item \emph{Data type:} \code{trait_data} is typically a numeric matrix of continuous traits;
+#'         high-dimensional settings (p \eqn{\ge} n) are supported via penalized-likelihood
+#'         \code{mvgls()} fits.
+#' }
+#'
 #' \strong{Search outline.}
 #' \enumerate{
 #'   \item \emph{Baseline:} Fit \code{mvgls} on the baseline tree (single regime) to obtain the baseline IC.
@@ -79,6 +106,14 @@
 #' \code{extractRegimeVCVs} and reflect regime-specific covariance
 #' estimates (when \code{mvgls} is fitted under a PL/ML method).
 #'
+#' For high-dimensional trait datasets (p \eqn{\ge} n), penalized-likelihood settings in
+#' \code{mvgls()} are often required for stable estimation. In practice, methods such as
+#' \code{method = "LL"} or \code{method = "H&L"} combined with appropriate penalties (e.g.,
+#' ridge-type penalties) have proven effective for intercept-only multivariate Brownian
+#' motion models, as illustrated in the package vignettes. Users should consult the
+#' \pkg{mvMORPH} documentation for details on available methods and penalties and
+#' tune these choices to the structure of their data.
+#'
 #' @return A named \code{list} with (at minimum):
 #' \itemize{
 #'   \item \code{user_input}: captured call (as a list) for reproducibility.
@@ -98,21 +133,25 @@
 #' \itemize{
 #'   \item \code{ic_weights}: a \code{data.frame} of per-shift IC weights and evidence ratios when
 #'         \code{uncertaintyweights} or \code{uncertaintyweights_par} is \code{TRUE}.
-#'   \item \code{tree_uncertainty_transformed}, \code{tree_uncertainty_untransformed},
-# #'         \code{model_uncertainty}, \code{shift_nodes_uncertainty}: returned when
-# #'         \code{uncertainty = TRUE} and pruning removed at least one shift.
 #'   \item \code{warnings}: character vector of warnings/errors encountered during fitting (if any).
 #' }
 #'
 #' @section Convergence and robustness:
 #' The search is greedy and may converge to a local optimum. Use a stricter
-#' \code{shift_acceptance_threshold} and/or enable \code{uncertainty = TRUE} to reduce overfitting.
-#' Re-run with different \code{min_descendant_tips} and IC choices (GIC vs BIC) to assess stability.
+#' \code{shift_acceptance_threshold} to reduce overfitting, and re-run the search
+#' with different \code{min_descendant_tips} and IC choices (\code{"GIC"} vs \code{"BIC"})
+#' to assess stability of the inferred shifts. For a given run, the optional IC-weight
+#' calculations (\code{uncertaintyweights} or \code{uncertaintyweights_par}) can be used
+#' to quantify support for individual shifts. It is often helpful to repeat the analysis
+#' under slightly different settings (e.g., thresholds or candidate-size constraints) and
+#' compare the resulting sets of inferred shifts.
 #'
 #' @seealso
 #' \code{\link[mvMORPH]{mvgls}}, \code{\link[mvMORPH]{GIC}}, \code{\link[stats]{BIC}},
-#' \code{\link[phytools]{plotSimmap}}, \code{\link[ape]{nodelabels}},
-#' packages: \pkg{mvMORPH}, \pkg{phytools}, \pkg{ape}, \pkg{future}, \pkg{future.apply}.
+#' \code{\link{plot_ic_acceptance_matrix}} for visualizing IC trajectories and shift
+#' acceptance decisions, and \code{\link{generateViridisColorScale}} for mapping
+#' regime-specific rates or parameters to a viridis color scale when plotting trees;
+#' packages: \pkg{mvMORPH}, \pkg{future}, \pkg{future.apply}, \pkg{phytools}, \pkg{ape}.
 #'
 #' @note
 #' Internally, this routine coordinates multiple unexported helper functions:
@@ -124,49 +163,60 @@
 #' implementation details and are not part of the public API.
 #'
 #' @examples
-#' \dontrun{
 #' library(ape)
 #' library(phytools)
+#' library(mvMORPH)
 #' set.seed(1)
-#' tr <- pbtree(n = 80, scale = 1)
-#' # Paint a single global baseline state "0"
-#' base <- phytools::paintBranches(tr, edge = unique(tr$edge[,2]),
-#'                                 state = "0", anc.state = "0")
 #'
-#' # Fake multivariate data (2 traits)
-#' X <- cbind(trait1 = rnorm(Ntip(base)), trait2 = rnorm(Ntip(base)))
-#' rownames(X) <- base$tip.label
+#' # Simulate a tree
+#' tr <- pbtree(n = 50, scale = 1)
 #'
+#' # Define two regimes: "0" (baseline) and "1" (high-rate) on a subset of tips
+#' states <- setNames(rep("0", Ntip(tr)), tr$tip.label)
+#' high_clade_tips <- tr$tip.label[1:20]
+#' states[high_clade_tips] <- "1"
+#'
+#' # Make a SIMMAP tree for the BMM simulation
+#' simmap <- phytools::make.simmap(tr, states, model = "ER", nsim = 1)
+#'
+#' # Simulate traits under a BMM model with ~10x higher rate in regime "1"
+#' sigma <- list(
+#'   "0" = diag(0.1, 2),
+#'   "1" = diag(1.0, 2)
+#' )
+#' theta <- c(0, 0)
+#'
+#' sim <- mvMORPH::mvSIM(
+#'   tree  = simmap,
+#'   nsim  = 1,
+#'   model = "BMM",
+#'   param = list(
+#'     ntraits = 2,
+#'     sigma   = sigma,
+#'     theta   = theta
+#'   )
+#' )
+#'
+#' # mvSIM returns either a matrix or a list of matrices depending on mvMORPH version
+#' X <- if (is.list(sim)) sim[[1]] else sim
+#' rownames(X) <- simmap$tip.label
+#'
+#' # Run the search on the unpainted tree (single baseline regime)
 #' res <- searchOptimalConfiguration(
-#'   baseline_tree = base,
-#'   trait_data    = as.data.frame(X),
-#'   formula       = "trait_data ~ 1",
-#'   min_descendant_tips = 10,
-#'   num_cores = 2,
-#'   shift_acceptance_threshold = 10,  # conservative
-#'   IC = "GIC",
-#'   plot = FALSE
+#'   baseline_tree              = as.phylo(simmap),
+#'   trait_data                 = X,
+#'   formula                    = "trait_data ~ 1",
+#'   min_descendant_tips        = 10,
+#'   num_cores                  = 1,   # keep it simple / CRAN-safe
+#'   shift_acceptance_threshold = 20,  # conservative GIC threshold
+#'   IC                         = "GIC",
+#'   plot                       = FALSE,
+#'   store_model_fit_history    = FALSE
 #' )
 #'
 #' res$shift_nodes_no_uncertainty
 #' res$optimal_ic - res$baseline_ic
 #' str(res$VCVs)
-#' }
-#' @param baseline_tree A \code{phylo} baseline tree.
-#' @param trait_data Data frame of trait values with tip rownames.
-#' @param formula Model formula, e.g. \code{cbind(y1, y2) ~ x}.
-#' @param min_descendant_tips Integer minimum tips per candidate shift.
-#' @param num_cores Integer, cores for parallel search.
-#' @param ic_uncertainty_threshold Numeric, IC change threshold.
-#' @param shift_acceptance_threshold Numeric, acceptance cutoff.
-# #' @param uncertainty Character, how to treat uncertainty. #commented out for now
-#' @param uncertaintyweights Numeric vector of weights.
-#' @param uncertaintyweights_par List of parameters for weights.
-# #' @param postorder_traversal Logical, traverse postorder. commented out for now
-#' @param plot Logical, produce plots during search.
-#' @param IC Character, information criterion, e.g. \code{"BIC"}.
-#' @param store_model_fit_history Logical, keep fit history.
-#' @param ... Passed to mvgls internally.
 #' @importFrom future plan multicore multisession sequential
 #' @importFrom future.apply future_lapply
 #' @importFrom mvMORPH mvgls GIC aicw
@@ -178,7 +228,7 @@
 searchOptimalConfiguration <-
   function(baseline_tree,
            trait_data,
-           formula = 'trait_data~1',
+           formula = "trait_data ~ 1",
            min_descendant_tips,
            num_cores = 2,
            ic_uncertainty_threshold = 1.0,

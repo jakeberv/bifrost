@@ -152,7 +152,7 @@ jaws_search <- searchOptimalConfiguration(
   uncertaintyweights_par = TRUE,
   IC = "GIC",
   plot = TRUE,  #if in RStudio, plots will be sent to a new window
-  formula = 'trait_data~1',
+  formula = "trait_data ~ 1",
   method = 'H&L', # Using Penalized Likelihood for high dimensional 3D data
   error = TRUE, 
   store_model_fit_history = TRUE #default to store the history (heavy final object)
@@ -175,11 +175,11 @@ Let's explore the choices made in this function call:
   
   * `uncertaintyweights_par = TRUE`: After the greedy search identifies an optimal configuration of shifts, this option triggers a post-hoc analysis to quantify the importance of each accepted shift. It refits the final model repeatedly, each time with a focal shift removed, and calculates an Information Criterion (IC) weight for each shift. This helps assess how much evidence supports each individual shift in the context of the final model. The `_par` suffix indicates this will be done in parallel.
   
-  * `IC = "GIC"`: We have chosen the **Generalized Information Criterion** to evaluate model fit. GIC is preferred for high-dimensional data (like our landmark data) compared to alternatives like AIC or BIC (add ref)
-  
+  * `IC = "GIC"`: We have chosen the **Generalized Information Criterion** to evaluate model fit. GIC is generally preferred for high-dimensional data (like our landmark data) compared to alternatives like AIC or BIC.
+    
   * `plot = TRUE`: This is a helpful option for visualizing the search in real-time. The function will plot the tree and label the shifts as they are accepted, but this will potentially slow down the search.
   
-  * `formula = 'trait_data~1'`: This specifies the structure of the underlying GLS model. Here, we fit a simple intercept-only model (`~1`), which corresponds to a multi-rate Brownian Motion process where each regime has its own rate matrix. Morphometric coordinates that have been GPA aligned are size and rotation adjusted, so no size adjustment is required. In a case of linear dimensions, one way to account for phylogenetic variation in size would be to use an approach like: `formula = 'trait_data[,c(-1)]~trait_data[,c(1)]'` where the first column in the input data (e.g., `fish.data`) is log(mass), and the other columns are logged linear dimensions.
+  * `formula = "trait_data ~ 1"`: This specifies the structure of the underlying GLS model. Here, we fit a simple intercept-only model (`~ 1`), which corresponds to a multi-rate Brownian Motion process where each regime has its own rate matrix. Morphometric coordinates that have been GPA aligned are size and rotation adjusted, so no size adjustment is required. For linear dimensions or other predictors, you can use more general formulas that reference subsets of `trait_data`, for example `"trait_data[, 1:5] ~ 1"` to treat columns 1–5 as the multivariate response, or `"trait_data[, 2:ncol(trait_data)] ~ trait_data[, 1]"` if the first column is log-mass and the remaining columns are logged linear dimensions.
   
   * `method = 'H&L'`: This specifies the likelihood fitting method passed to `mvMORPH::mvgls`. 'H\&L' is a fast, approximated leave-one-out cross-validation (LOOCV) approach based on the work of Hoffbeck and Landgrebe (1996). It is particularly effective for intercept-only models with a "RidgeArch" penalty, making it a good choice for this high-dimensional dataset. Other options passed to `mvgls` will depend on the nature of the input dataset.
   

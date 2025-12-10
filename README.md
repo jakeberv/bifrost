@@ -5,16 +5,20 @@
 [![Codecov test coverage](https://codecov.io/gh/jakeberv/bifrost/graph/badge.svg)](https://app.codecov.io/gh/jakeberv/bifrost)
 [![CRAN status](https://www.r-pkg.org/badges/version/bifrost)](https://CRAN.R-project.org/package=bifrost)
 [![License: GPL (≥ 2)](https://img.shields.io/badge/license-GPL%20(%E2%89%A5%202)-blue.svg)](LICENSE)
-[![Lifecycle: experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html)
+[![Lifecycle: maturing](https://img.shields.io/badge/lifecycle-maturing-blue.svg)](https://lifecycle.r-lib.org/articles/stages.html)
 <!-- badges: end -->
 
-**<span style="color:#c40000; font-size:1.2em;">B</span>ranch-level 
-<span style="color:#c40000; font-size:1.2em;">I</span>nference 
-<span style="color:#c40000; font-size:1.2em;">F</span>ramework for 
-<span style="color:#c40000; font-size:1.2em;">R</span>ecognizing 
-<span style="color:#c40000; font-size:1.2em;">O</span>ptimal 
-<span style="color:#c40000; font-size:1.2em;">S</span>hifts in 
-<span style="color:#c40000; font-size:1.2em;">T</span>raits**
+<span style="font-size:1.1em;">
+  <strong>
+    <span style="color:#c40000;">B</span>ranch-level
+    <span style="color:#c40000;">I</span>nference
+    <span style="color:#c40000;">F</span>ramework for
+    <span style="color:#c40000;">R</span>ecognizing
+    <span style="color:#c40000;">O</span>ptimal
+    <span style="color:#c40000;">S</span>hifts in
+    <span style="color:#c40000;">T</span>raits
+  </strong>
+</span>
 
 `bifrost` performs branch-level inference of multi-regime, multivariate trait evolution on a phylogeny using [penalized-likelihood multivariate GLS fits](https://academic.oup.com/sysbio/article/67/4/662/4827615). The current version searches for evolutionary model shifts under a multi-rate Brownian Motion (BMM) model with proportional regime VCV scaling, operating directly in trait space (e.g., no PCA), and is designed for high-dimensional datasets (p > n) and large trees (> 1000 tips). The method will work with fossil tip-dated trees, and will accept most forms of multivariate comparative data (e.g., GPA aligned morphometric coordinates, linear dimensions, and others). The next major release will enable usage of the [multivariate scalar Ornstein–Uhlenbeck process](https://academic.oup.com/sysbio/article/67/4/662/4827615).
 
@@ -33,11 +37,11 @@
 
 - Joint multivariate modeling without information loss or [distortion due to PCA](https://academic.oup.com/sysbio/article/64/4/677/1649888).
 - Under BMM, [proportional VCV scaling](https://doi.org/10.1111/j.1558-5646.1999.tb05414.x) across regimes for tractability at high p.
+- Provides a multivariate phylogenetic GLS (mvPGLS)-like framework in which hidden branch-specific rate regimes are inferred and incorporated when estimating predictor effects.
 - Candidate shift nodes are determined by a minimum clade size specified by the user.
-- Greedy [step-wise heuristic search](https://nph.onlinelibrary.wiley.com/doi/10.1111/nph.19099) using GIC/BIC ΔIC threshold set by the user; uncertainty estimation with IC weights.
-- Output includes estimated VCV per regime, shift weights, SIMMAP-style output for cross-compatibility.
-- Parallelization steps via `future` / `future.apply`.
-
+- Greedy [step-wise heuristic search](https://nph.onlinelibrary.wiley.com/doi/10.1111/nph.19099) using GIC/BIC ΔIC thresholds; optional IC-weight support for inferred shifts.
+- Output includes estimated VCV per regime, shift weights, and SIMMAP-style mappings for downstream visualization.
+- Parallelization via `future` / `future.apply`.
 
 ---
 
@@ -63,26 +67,59 @@ You may need to install [XQuartz](https://www.xquartz.org/) to build or run pack
 ```r
 library(bifrost)
 library(ape)
+library(phytools)
+library(mvMORPH)
 
 set.seed(1)
-tree   <- rtree(50)
-traits <- matrix(rnorm(50 * 5), ncol = 5)
-rownames(traits) <- tree$tip.label   # critical: rownames must match tip labels
 
-res <- searchOptimalConfiguration(
-  baseline_tree = tree,
-  trait_data = traits,
-  IC = "GIC",
-  min_descendant_tips = 5,
-  num_cores = 2,
-  shift_acceptance_threshold = 10,
-  plot = FALSE
+# Simulate a tree
+tr <- pbtree(n = 50, scale = 1)
+
+# Paint a single global baseline state "0" (single regime)
+base <- phytools::paintBranches(
+  tr,
+  edge      = unique(tr$edge[, 2]),
+  state     = "0",
+  anc.state = "0"
 )
 
-# This example doesn’t detect any shift nodes, so the next two lines will have no visible output.
+# Simulate multivariate traits under a single-regime BM1 model (no shifts)
+sigma <- diag(0.1, 2)  # 2×2 variance–covariance matrix for two traits
+theta <- c(0, 0)       # ancestral means for the two traits
 
-res$shift_nodes           # no detected shifts in this toy dataset
-plotSimmap(res$tree_no_uncertainty)  # no output produced here
+sim <- mvSIM(
+  tree  = base,
+  nsim  = 1,
+  model = "BM1",
+  param = list(
+    ntraits = 2,
+    sigma   = sigma,
+    theta   = theta
+  )
+)
+
+# mvSIM returns either a matrix or a list of matrices depending on mvMORPH version
+X <- if (is.list(sim)) sim[[1]] else sim
+rownames(X) <- base$tip.label
+
+# Run bifrost's greedy search for shifts
+res <- searchOptimalConfiguration(
+  baseline_tree              = base,
+  trait_data                 = X,
+  formula                    = "trait_data ~ 1",
+  min_descendant_tips        = 10,
+  num_cores                  = 1,
+  shift_acceptance_threshold = 20,  # conservative GIC threshold
+  IC                         = "GIC",
+  plot                       = FALSE,
+  store_model_fit_history    = FALSE
+)
+
+# For this single-regime BM1 simulation, we typically expect no inferred shifts:
+res$shift_nodes_no_uncertainty     # typically integer(0)
+res$optimal_ic - res$baseline_ic   # typically close to 0
+
+str(res$VCVs)  # regime-specific VCVs (here just the baseline regime "0")
 ```
 
 ### Data requirements
@@ -200,15 +237,11 @@ plan(multisession)   # or multicore on Linux/macOS
 
 ### Additional note
 
-Though `bifrost` was initially developed as a framework for inferring macroevolutionary regime shifts in multivariate trait data, it can also be applied to perform multivariate phylogenetic generalized least squares (pGLS) analyses with factors or continuous predictors (e.g., `Y ~ trophic_niche`). In this context, `bifrost` identifies branch-specific rate variation under a multi-rate Brownian Motion model and fits the pGLS conditional on that residual (phylogenetic) covariance, so estimated effect sizes and uncertainties account for “hidden” rate variation not explained by the predictors. This is conceptually similar to hidden-state approaches (e.g., [Boyko et al. 2023](https://doi.org/10.1093/evolut/qpad002)), except that here the regimes influence variance and evolutionary rate rather than introducing regime-specific means. This use case has not yet been explored in detail.
+Though `bifrost` was initially developed as a framework for inferring macroevolutionary regime shifts in multivariate trait data, it can also be applied to perform multivariate phylogenetic generalized least squares (pGLS) analyses with factors or continuous predictors (e.g., `cbind(trait1, trait2, ...) ~ predictor`, or `"trait_data[, 1:5] ~ trait_data[, 6]"` when working directly with a matrix). In this context, `bifrost` identifies branch-specific rate variation under a multi-rate Brownian Motion model and fits the pGLS conditional on the resulting residual (phylogenetic) covariance structure, so estimated effect sizes and uncertainties account for “hidden” rate variation not explained by the predictors. This is conceptually similar to hidden-state approaches (e.g., [Boyko et al. 2023](https://doi.org/10.1093/evolut/qpad002)), except that here the regimes influence variance and evolutionary rate rather than introducing regime-specific means. This use case is an active area of ongoing methodological development.
 
 ### Citation
 
-If you use `bifrost`, please cite:
-
-> TBD
-
-Also, run the following to obtain a BibTeX entry when available:
+If you use `bifrost`, please cite the references returned by:
 
 ```r
 citation("bifrost")
@@ -230,7 +263,7 @@ This project is released under the GPL >= 2 License. See the `LICENSE` file for 
 
 ### Acknowledgements and dependencies
 
-`bifrost` builds on substantial work from `mvMORPH`, `phytools`, `ape`, `future`, and `future.apply`. The greedy search algorithim is adapted from [Mitov et al 2019](https://www.pnas.org/doi/10.1073/pnas.1813823116) and [Smith et al 2023](https://nph.onlinelibrary.wiley.com/doi/10.1111/nph.19099). See the `DESCRIPTION` file for complete dependency and version information.
+`bifrost` builds on substantial work from `mvMORPH`, `phytools`, `ape`, `future`, and `future.apply`. The greedy search algorithm is adapted from [Mitov et al 2019](https://www.pnas.org/doi/10.1073/pnas.1813823116) and [Smith et al 2023](https://nph.onlinelibrary.wiley.com/doi/10.1111/nph.19099). See the `DESCRIPTION` file for complete dependency and version information.
 
 The name of our R package is inspired by the Bifröst, the rainbow bridge of Norse mythology that connects Earth (Midgard) and Asgard within the cosmic structure of Yggdrasil, the Tree of Life, echoing how our framework links observable data to hidden evolutionary shifts across the history of life.
 

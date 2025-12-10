@@ -51,17 +51,16 @@ rate-of-improvement axes. It does not restore previous graphical parameters.
 \code{pretty()} to give clean bounds. The secondary axis for the rate of improvement
 uses fixed limits (\code{c(-400, 150)}) inside the function; adjust in source if your
 expected \code{diff(IC)} range differs substantially.
-
-#' @examples
+}
+\examples{
 ic <- c(-1000, -1012, -1008, -1025, -1020, -1030)
 accepted <- c(1, 0, 1, 0, 1)  # steps 2..6 relative to baseline
 mat <- cbind(ic, c(1, accepted))  # mark baseline as accepted for plotting
 plot_ic_acceptance_matrix(mat, plot_title = "IC Path")
-}
-\section{Avoid non-ASCII glyphs in titles on CRAN/CI:}{
+# Avoid non-ASCII glyphs in titles on CRAN/CI:
 plot_ic_acceptance_matrix(mat, plot_rate_of_improvement = TRUE)
-}
 
+}
 \seealso{
 \code{\link[graphics]{par}}, \code{\link[graphics]{plot}}, \code{\link[graphics]{axis}},
 \code{\link[graphics]{lines}}, \code{\link[graphics]{points}}, \code{\link[graphics]{legend}},
