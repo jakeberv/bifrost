@@ -45,7 +45,7 @@
 #'   in post-search pruning and uncertainty analysis; currently not used by
 #'   \code{searchOptimalConfiguration()}.
 #' @param shift_acceptance_threshold Numeric (\eqn{\ge}0). Minimum IC improvement
-#'   (baseline − new) required to accept a candidate shift during the forward search.
+#'   (baseline - new) required to accept a candidate shift during the forward search.
 #'   Larger values yield more conservative models. For analyses based on the Generalized
 #'   Information Criterion (\code{"GIC"}), a threshold on the order of \code{20} units is a
 #'   conservative choice that tends to admit only strongly supported shifts. Simulation
