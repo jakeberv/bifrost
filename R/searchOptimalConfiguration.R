@@ -275,7 +275,7 @@ searchOptimalConfiguration <-
     # Capture additional arguments into a list
     args_list <- list(...)
 
-    if (.Platform$OS.type == "unix") {
+    if (.Platform$OS.type == "unix" && !identical(Sys.info()[["sysname"]], "SunOS")) {
       plan(multicore, workers = num_cores)
     } else {
       plan(multisession, workers = num_cores)
@@ -540,7 +540,7 @@ searchOptimalConfiguration <-
           })
 
           # Enable parallel processing
-          if (.Platform$OS.type == "unix") {
+          if (.Platform$OS.type == "unix" && !identical(Sys.info()[["sysname"]], "SunOS")) {
             plan(multicore, workers = num_cores)
           } else {
             plan(multisession, workers = num_cores)
