@@ -18,3 +18,4 @@
 ^build\.log$
 ^cran_.*\.log$
 ^check\.log$
+^CRAN-SUBMISSION$
