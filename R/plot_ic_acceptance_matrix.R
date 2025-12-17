@@ -214,6 +214,6 @@ plot_ic_acceptance_matrix <- function(matrix_data,
     pch = c(3, 21, ifelse(plot_rate_of_improvement, NA, 19), 19), # Cross (3), Dot with line (21), "Baseline IC" (19)
     pt.bg = c(NA, "blue", NA, NA),  # Background for "Accepted shift"
     pt.lwd = c(NA, 0.5, NA, 0),     # Fine outline for "Accepted shift"
-    cex = 0.65, bty = "n", xpd = T  # Slightly smaller legend text and allow margin overlap
+    cex = 0.65, bty = "n", xpd = TRUE  # Slightly smaller legend text and allow margin overlap
   )
 }

@@ -64,7 +64,9 @@ generatePaintedTrees <- function(tree, min_tips, state = "shift") {
   }
 
   eligible_nodes <- getEligibleNodes(tree, min_tips)
-  cat(paste(length(eligible_nodes), "eligible nodes are detected", '\n'))
+  if (isTRUE(getOption("bifrost.verbose"))) {
+    message(sprintf("%d eligible nodes are detected", length(eligible_nodes)))
+  }
 
   painted_trees <- list()
 
@@ -74,7 +76,9 @@ generatePaintedTrees <- function(tree, min_tips, state = "shift") {
     painted_trees[[paste("Node", node)]] <- tree_copy
   }
 
-  cat(paste(length(painted_trees), "sub-models generated", '\n'))
+  if (isTRUE(getOption("bifrost.verbose"))) {
+    message(sprintf("%d sub-models generated", length(painted_trees)))
+  }
   return(painted_trees)
 }
 

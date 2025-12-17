@@ -66,6 +66,11 @@
 #'   (case-sensitive).
 #' @param store_model_fit_history Logical. If \code{TRUE}, store a per-iteration record of fitted
 #'   models, acceptance decisions, and IC values; warnings/errors are also kept.
+#' @param verbose Logical. If \code{TRUE}, report progress during candidate generation and model
+#'   fitting. By default, progress is emitted via \code{message()}. When \code{plot = TRUE} in an
+#'   interactive RStudio session, some progress output may be written via \code{cat()} so it remains
+#'   visible while plots are updating. Set to \code{FALSE} to run quietly (default). Use
+#'   \code{suppressMessages()} (and \code{capture.output()} if needed) to silence or capture output.
 #' @param ... Additional arguments passed to \code{\link[mvMORPH]{mvgls}} (e.g., \code{method},
 #'   \code{penalty}, \code{target}, \code{error}, etc.).
 #'
@@ -211,7 +216,8 @@
 #'   shift_acceptance_threshold = 20,  # conservative GIC threshold
 #'   IC                         = "GIC",
 #'   plot                       = FALSE,
-#'   store_model_fit_history    = FALSE
+#'   store_model_fit_history    = FALSE,
+#'   verbose                    = FALSE
 #' )
 #'
 #' res$shift_nodes_no_uncertainty
@@ -233,13 +239,37 @@ searchOptimalConfiguration <-
            num_cores = 2,
            ic_uncertainty_threshold = 1.0,
            shift_acceptance_threshold = 1.0,
-           #uncertainty = F,
-           uncertaintyweights = F,
-           uncertaintyweights_par = F,
-           #postorder_traversal = F,
-           plot = T,
+           #uncertainty = FALSE,
+           uncertaintyweights = FALSE,
+           uncertaintyweights_par = FALSE,
+           #postorder_traversal = FALSE,
+           plot = FALSE,
            IC = 'GIC',
-           store_model_fit_history = TRUE, ...) {
+           store_model_fit_history = TRUE,
+           verbose = FALSE,
+           ...) {
+
+    #capturing global option for verbose to pass to internal helpers
+    old_verbose_opt <- getOption("bifrost.verbose")
+    on.exit(options(bifrost.verbose = old_verbose_opt), add = TRUE)
+    options(bifrost.verbose = isTRUE(verbose))
+
+    #internal helper for capturing verbose output
+    .progress <- function(...) {
+      if (!isTRUE(verbose)) return(invisible(NULL))
+
+      txt <- sprintf(...)
+
+      # In RStudio interactive plotting, use stdout (cat) because messages can get swallowed.
+      if (isTRUE(plot) && interactive() && identical(Sys.getenv("RSTUDIO"), "1")) {
+        cat(txt, "\n", sep = "")
+        if (sink.number(type = "output") == 0) utils::flush.console()
+      } else {
+        message(txt)
+      }
+
+      invisible(NULL)
+    }
 
     # Capture user input
     user_input <- as.list(match.call())
@@ -250,12 +280,12 @@ searchOptimalConfiguration <-
                                   state = 0)
 
     #generate initial set of painted candidate trees with shifts at each sub-node
-    cat('Generating candidate shift models...\n')
+    .progress("%s", "Generating candidate shift models...")
     candidate_trees <- generatePaintedTrees(baseline_tree, min_descendant_tips)
     candidate_trees_shifts <- candidate_trees[-1]
 
     #fit the initial baseline model to the baseline tree with a global regime (state=0)
-    cat('Fitting baseline model...\n')
+    .progress("%s", "Fitting baseline model...")
 
     #select which information criterion to use
     if (IC != "GIC" && IC != "BIC") {
@@ -269,27 +299,82 @@ searchOptimalConfiguration <-
       baseline_model <- fitMvglsAndExtractBIC.formula(formula, candidate_trees[[1]], trait_data, ...)
       baseline_ic <- baseline_model$BIC$BIC
     }
-    cat(paste('Baseline ', IC, ':', round(baseline_ic, digits = 2), '\n'))
+    .progress("Baseline %s: %.2f", IC, baseline_ic)
 
     #evaluate all of the candidate trees under GIC or BIC
     # Capture additional arguments into a list
     args_list <- list(...)
 
-    if (.Platform$OS.type == "unix" && !identical(Sys.info()[["sysname"]], "SunOS")) {
-      plan(multicore, workers = num_cores)
-    } else {
-      plan(multisession, workers = num_cores)
+    is_rstudio <- identical(Sys.getenv("RSTUDIO"), "1")
+
+    # --- local helper: run a future_lapply with safe plan + capped BLAS/OpenMP threads ---
+    .run_future_lapply_safe <- function(X, FUN, workers, is_rstudio_flag) {
+      .thread_vars <- c(
+        "OMP_NUM_THREADS",
+        "OPENBLAS_NUM_THREADS",
+        "MKL_NUM_THREADS",
+        "VECLIB_MAXIMUM_THREADS",
+        "NUMEXPR_NUM_THREADS"
+      )
+      .old_threads <- Sys.getenv(.thread_vars, unset = NA_character_)
+
+      Sys.setenv(
+        OMP_NUM_THREADS = "1",
+        OPENBLAS_NUM_THREADS = "1",
+        MKL_NUM_THREADS = "1",
+        VECLIB_MAXIMUM_THREADS = "1",
+        NUMEXPR_NUM_THREADS = "1"
+      )
+
+      .restore_threads <- function() {
+        for (nm in .thread_vars) {
+          val <- .old_threads[[nm]]
+          if (is.na(val)) {
+            Sys.unsetenv(nm)
+          } else {
+            do.call(Sys.setenv, setNames(list(val), nm))
+          }
+        }
+      }
+
+      tryCatch(
+        {
+          if (.Platform$OS.type == "unix" &&
+              !identical(Sys.info()[["sysname"]], "SunOS") &&
+              !is_rstudio_flag) {
+            plan(multicore, workers = workers)
+          } else {
+            plan(multisession, workers = workers)
+          }
+
+          future.apply::future_lapply(
+            X,
+            FUN,
+            future.seed = TRUE,
+            future.scheduling = TRUE
+          )
+        },
+        finally = {
+          plan(sequential)
+          .restore_threads()
+        }
+      )
     }
-    cat('Fitting sub-models in parallel...\n')
-    candidate_results <-
-      future.apply::future_lapply(candidate_trees_shifts, function(tree) {
+
+    .progress("%s", "Fitting sub-models in parallel...")
+
+    candidate_results <- .run_future_lapply_safe(
+      candidate_trees_shifts,
+      function(tree) {
         if (IC == "GIC") {
           do.call(fitMvglsAndExtractGIC.formula, c(list(formula, tree, trait_data), args_list))
         } else if (IC == "BIC") {
           do.call(fitMvglsAndExtractBIC.formula, c(list(formula, tree, trait_data), args_list))
         }
-      }, future.seed = TRUE, future.scheduling = TRUE)
-    plan(sequential)
+      },
+      workers = num_cores,
+      is_rstudio_flag = is_rstudio
+    )
 
     #generate the delta IC lists
     if (IC == "GIC"){
@@ -298,15 +383,16 @@ searchOptimalConfiguration <-
       delta_ic_list <- sapply(candidate_results, function(res) baseline_ic - res$BIC$BIC)
     }
 
-    cat('Sorting and evaluating shifts...\n')
-    sorted_candidates <- candidate_trees_shifts[order(delta_ic_list, decreasing=T)]
+    .progress("%s", "Sorting and evaluating shifts...")
+    sorted_candidates <- candidate_trees_shifts[order(delta_ic_list, decreasing = TRUE)]
     current_best_tree <- baseline_tree
     current_best_ic <- baseline_ic
     shift_id <- 0
 
     #plot current shift tree
-    if(plot==T){
-      plotSimmap(current_best_tree, ftype='off')
+    if (isTRUE(plot)) {
+      .progress("%s", "Plotting initial tree...")
+      plotSimmap(current_best_tree, ftype = "off")
     }
 
     #in case the user wants postorder traversal for shift searching (default off)
@@ -345,13 +431,13 @@ searchOptimalConfiguration <-
       shift_node_name <- names(sorted_candidates)[i]
       shift_node_number <- as.integer(sub("Node ", "", shift_node_name))
       percent_complete <- round((i / length(sorted_candidates)) * 100, 2)
-      cat(paste('Evaluating shift at node:', shift_node_number, '-', percent_complete, '% complete', '\n'))
+      .progress("Evaluating shift at node %d (%.2f%% complete)", shift_node_number, percent_complete)
 
       add_shift_result <- addShiftToModel(current_best_tree, shift_node_number, shift_id)
       shifted_tree <- add_shift_result$tree
       shift_id <- add_shift_result$shift_id
 
-      if(plot==T){
+      if(plot == TRUE){
         nodelabels(text = shift_id, node=shift_node_number)
       }
 
@@ -396,14 +482,20 @@ searchOptimalConfiguration <-
         if (delta_ic >= shift_acceptance_threshold) {
           current_best_tree <- shifted_tree
           current_best_ic <- new_ic
-          cat(paste('Shift at node', shift_node_number, 'accepted. Updated', IC, ':', round(current_best_ic, digits = 2), 'Delta', IC, ':', round(delta_ic, digits = 2), '\n'))
+          .progress(
+            "Shift at node %d accepted. Updated %s: %.2f; Delta %s: %.2f",
+            shift_node_number, IC, current_best_ic, IC, delta_ic
+          )
 
           shift_vec[[length(shift_vec) + 1]] <- shift_node_number
 
           best_tree_no_uncertainty <- current_best_tree
           model_with_shift_no_uncertainty <- model_with_shift
         } else {
-          cat(paste('Shift at node', shift_node_number, 'rejected. Delta', IC, ':', round(delta_ic, digits = 2), 'is less than threshold:', shift_acceptance_threshold, '\n'))
+          .progress(
+            "Shift at node %d rejected. Delta %s: %.2f < threshold: %.2f",
+            shift_node_number, IC, delta_ic, shift_acceptance_threshold
+          )
         }
       }, error = function(e) {
         # Handle errors (unchanged)
@@ -427,7 +519,7 @@ searchOptimalConfiguration <-
           saveRDS(model_fit_history,
                   file = file.path(sub_dir, paste0("iteration_", iteration_num, ".rds")))
         }
-      if(plot==T){
+      if(plot == TRUE){
         colorvec <- setNames(object = c('black', rainbow(length(unique(getStates(shifted_tree, type = 'both')))-1)),
                              nm = sort(as.numeric(unique(getStates(shifted_tree, type = 'both')))))
         plotSimmap(current_best_tree, colors=colorvec, ftype='off')
@@ -436,7 +528,7 @@ searchOptimalConfiguration <-
 
     #print(paste(shift_vec))
     shifts_no_uncertainty<-unlist(shift_vec)
-    cat(paste("Shifts detected at nodes:", paste(shift_vec, collapse = ", "), '\n'))
+    .progress("Shifts detected at nodes: %s", paste(shift_vec, collapse = ", "))
 
     # If activated, this section removes shifts after re-evaluating
     model_without_shift <- NULL # Initialize as NULL
@@ -483,17 +575,20 @@ searchOptimalConfiguration <-
     if (xor(uncertaintyweights, uncertaintyweights_par)) {
       if (uncertaintyweights) {
         if (length(unlist(shift_vec)) > 0) {
-          cat('Calculating IC weights for initially identified shifts...\n')
+          .progress("%s", "Calculating IC weights for initially identified shifts...")
           ic_weights_df <- data.frame(node = integer(), ic_with_shift = numeric(), ic_without_shift = numeric(), delta_ic = numeric(), ic_weight = numeric())
 
           # Retrieve the IC of the optimized model before uncertainty analysis
           original_ic <- if (IC == "GIC") model_with_shift_no_uncertainty$GIC$GIC else model_with_shift_no_uncertainty$BIC$BIC
 
-          cat(paste("Considering", length(shift_vec), "shifts in the candidate set",'\n'))
-          cat(paste("There are", length(unique(getStates(best_tree_no_uncertainty, type = 'both'))) - 1, "shifts in the mapped tree",'\n'))
+          .progress("Considering %d shifts in the candidate set", length(shift_vec))
+          .progress(
+            "There are %d shifts in the mapped tree",
+            length(unique(getStates(best_tree_no_uncertainty, type = "both"))) - 1
+          )
 
           for (shift_node_number in unlist(shift_vec)) {
-            cat(paste('Re-estimating model without shift at node:', shift_node_number, '\n'))
+            .progress("Re-estimating model without shift at node %d", shift_node_number)
 
             # Remove the shift temporarily from best_tree_no_uncertainty and re-estimate the IC
             tree_without_current_shift <- removeShiftFromTree(best_tree_no_uncertainty, shift_node_number)
@@ -508,7 +603,7 @@ searchOptimalConfiguration <-
             ic_weights <- aicw(c(original_ic, ic_without_current_shift))$aicweights
             ic_weight <- ic_weights[1]  # First element is the weight for the model with the shift
 
-            cat(paste("IC weight for the shift is", round(ic_weight, digits=2)))
+            .progress("IC weight for the shift is %.2f", ic_weight)
             ic_weights_df <- rbind(
               ic_weights_df,
               data.frame(
@@ -521,14 +616,14 @@ searchOptimalConfiguration <-
             )
           }
         } else {
-          cat("No shifts were detected in the initial search, skipping IC weights calculation.\n")
+          .progress("%s", "No shifts were detected in the initial search; skipping IC weights calculation.")
           ic_weights_df <- NA
         }
       }
 
       if (uncertaintyweights_par) {
         if (length(unlist(shift_vec)) > 0) {
-          cat('Calculating IC weights for initially identified shifts in parallel...\n')
+          .progress("%s", "Calculating IC weights for initially identified shifts in parallel...")
           ic_weights_df <- data.frame(node = integer(), ic_with_shift = numeric(), ic_without_shift = numeric(), delta_ic = numeric(), ic_weight = numeric())
 
           # Retrieve the IC of the optimized model before uncertainty analysis
@@ -539,26 +634,19 @@ searchOptimalConfiguration <-
             return(removeShiftFromTree(best_tree_no_uncertainty, shift_node_number))
           })
 
-          # Enable parallel processing
-          if (.Platform$OS.type == "unix" && !identical(Sys.info()[["sysname"]], "SunOS")) {
-            plan(multicore, workers = num_cores)
-          } else {
-            plan(multisession, workers = num_cores)
-          }
-          # Capture additional arguments into a list
-          args_list <- list(...)
-          # Calculate IC weights in parallel
-          ic_results <- future.apply::future_lapply(shift_removed_trees, function(tree) {
-            model_function <- if (IC == "GIC") fitMvglsAndExtractGIC.formula else fitMvglsAndExtractBIC.formula
-            model_without_shift <- do.call(model_function, c(list(formula, tree, trait_data), args_list))
-            ic_without_shift <- if (IC == "GIC") model_without_shift$GIC$GIC else model_without_shift$BIC$BIC
-            delta_ic <- original_ic - ic_without_shift
-            ic_weights <- aicw(c(original_ic, ic_without_shift))$aicweights
-            return(c(ic_weight_withshift = ic_weights[1], ic_weight_withoutshift = ic_weights[2], delta_ic = delta_ic))
-          }, future.seed = TRUE, future.scheduling = T)
-
-          # Reset to sequential plan
-          future::plan(future::sequential)
+          ic_results <- .run_future_lapply_safe(
+            shift_removed_trees,
+            function(tree) {
+              model_function <- if (IC == "GIC") fitMvglsAndExtractGIC.formula else fitMvglsAndExtractBIC.formula
+              model_without_shift <- do.call(model_function, c(list(formula, tree, trait_data), args_list))
+              ic_without_shift <- if (IC == "GIC") model_without_shift$GIC$GIC else model_without_shift$BIC$BIC
+              delta_ic <- original_ic - ic_without_shift
+              ic_weights <- aicw(c(original_ic, ic_without_shift))$aicweights
+              c(ic_weight_withshift = ic_weights[1], ic_weight_withoutshift = ic_weights[2], delta_ic = delta_ic)
+            },
+            workers = num_cores,
+            is_rstudio_flag = is_rstudio
+          )
 
           # Add results to the dataframe
           for (i in seq_along(shift_removed_trees)) {
@@ -575,21 +663,24 @@ searchOptimalConfiguration <-
             ))
           }
         } else {
-          cat("No shifts were detected in the initial search, skipping IC weights calculation.\n")
+          .progress("%s", "No shifts were detected in the initial search; skipping IC weights calculation.")
           ic_weights_df <- NA
         }
       }
     } else {
-      print("Only one of uncertaintyweights or uncertaintyweights_par can be set to TRUE")
+      if (isTRUE(uncertaintyweights) && isTRUE(uncertaintyweights_par)) {
+        stop("Exactly one of uncertaintyweights or uncertaintyweights_par must be TRUE.")
+      }
+      # If both are FALSE, do nothing (IC weights not requested).
     }
 
     # Print statements for the optimal configuration and delta GIC/BIC
     if (IC == "GIC") {
-      cat(paste('Optimal configuration found with GIC:', round(current_best_ic, digits=2), '\n'))
-      cat(paste('Global Delta GIC:', round(baseline_ic, digits=2) - round(current_best_ic, digits=2), '\n'))
+      .progress("Optimal configuration found with GIC: %.2f", current_best_ic)
+      .progress("Global Delta GIC: %.2f", baseline_ic - current_best_ic)
     } else if (IC == "BIC") {
-      cat(paste('Optimal configuration found with BIC:', round(current_best_ic, digits=2), '\n'))
-      cat(paste('Global Delta BIC:', round(baseline_ic, digits=2) - round(current_best_ic, digits=2), '\n'))
+      .progress("Optimal configuration found with BIC: %.2f", current_best_ic)
+      .progress("Global Delta BIC: %.2f", baseline_ic - current_best_ic)
     }
 
     # Assembling the results
