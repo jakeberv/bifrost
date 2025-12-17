@@ -127,11 +127,12 @@ The core of the `bifrost` workflow is the `searchOptimalConfiguration()` functio
 
 Here is the function call we will use for this analysis. We'll break down each parameter choice below.
 
-```{r run_bifrost, eval=FALSE}
-# Increase memory limit for parallel processing if needed
+```{r run_bifrost, eval=FALSE, message = TRUE}
+# ---- Optional: increase future globals limit (needed for large objects) ----
 options(future.globals.maxSize = 10 * 1024^3)
 
-# Choose a separate device if plotting interactively
+# ---- Optional: open a dedicated plotting device when running interactively ----
+# (You can skip this entirely if plot = FALSE)
 if (interactive()) {
   if (.Platform$OS.type == "windows") {
     windows()
@@ -142,20 +143,46 @@ if (interactive()) {
   }
 }
 
-# Run the search
+# ---- Optional: speed up SEQUENTIAL linear algebra via BLAS/OpenMP threads ----
+# NOTE: bifrost caps BLAS/OpenMP threads to 1 *inside* its PARALLEL blocks to avoid oversubscription.
+thread_vars <- c("OMP_NUM_THREADS","OPENBLAS_NUM_THREADS","MKL_NUM_THREADS","VECLIB_MAXIMUM_THREADS")
+old_threads <- Sys.getenv(thread_vars, unset = NA_character_)
+
+n_threads <- "4"  # must be a character string
+Sys.setenv(
+  OMP_NUM_THREADS        = n_threads,
+  OPENBLAS_NUM_THREADS   = n_threads,
+  MKL_NUM_THREADS        = n_threads,
+  VECLIB_MAXIMUM_THREADS = n_threads
+)
+
+# Restore environment variables when this chunk exits
+on.exit({
+  for (nm in names(old_threads)) {
+    val <- old_threads[[nm]]
+    if (is.na(val) || val == "") {
+      Sys.unsetenv(nm)
+    } else {
+      do.call(Sys.setenv, setNames(list(val), nm))
+    }
+  }
+}, add = TRUE)
+
+# ---- Run the search ----
 jaws_search <- searchOptimalConfiguration(
-  baseline_tree = fish.tree,
-  trait_data = fish.data,
-  min_descendant_tips = 10,
-  num_cores = 4,
+  baseline_tree              = fish.tree,
+  trait_data                 = fish.data,
+  min_descendant_tips        = 10,
+  num_cores                  = 4,
   shift_acceptance_threshold = 20,
-  uncertaintyweights_par = TRUE,
-  IC = "GIC",
-  plot = TRUE,  #if in RStudio, plots will be sent to a new window
-  formula = "trait_data ~ 1",
-  method = 'H&L', # Using Penalized Likelihood for high dimensional 3D data
-  error = TRUE, 
-  store_model_fit_history = TRUE #default to store the history (heavy final object)
+  uncertaintyweights_par     = TRUE,
+  IC                         = "GIC",
+  plot                       = FALSE,
+  formula                    = "trait_data ~ 1",
+  method                     = "H&L",   # penalized likelihood for high-dimensional data
+  error                      = TRUE,
+  store_model_fit_history    = TRUE,
+  verbose                    = TRUE
 )
 ```
 
@@ -184,6 +211,8 @@ Let's explore the choices made in this function call:
   * `method = 'H&L'`: This specifies the likelihood fitting method passed to `mvMORPH::mvgls`. 'H\&L' is a fast, approximated leave-one-out cross-validation (LOOCV) approach based on the work of Hoffbeck and Landgrebe (1996). It is particularly effective for intercept-only models with a "RidgeArch" penalty, making it a good choice for this high-dimensional dataset. Other options passed to `mvgls` will depend on the nature of the input dataset.
   
   * `error = TRUE`: This argument tells `mvgls` to estimate a measurement-error (intra-specific variance) term from the data and incorporate it into the model. Even if no explicit measurement-error values are provided, the function will treat this variance as an additional parameter to estimate. This is recommended for empirical datasets to account for within-species variation.
+
+  * `verbose = TRUE`: Print progress messages (via `message()`) as candidate models are generated and evaluated.
 
 ## Interpreting the Output
 

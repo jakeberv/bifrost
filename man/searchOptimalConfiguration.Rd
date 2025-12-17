@@ -12,11 +12,12 @@ searchOptimalConfiguration(
   num_cores = 2,
   ic_uncertainty_threshold = 1,
   shift_acceptance_threshold = 1,
-  uncertaintyweights = F,
-  uncertaintyweights_par = F,
-  plot = T,
+  uncertaintyweights = FALSE,
+  uncertaintyweights_par = FALSE,
+  plot = FALSE,
   IC = "GIC",
   store_model_fit_history = TRUE,
+  verbose = FALSE,
   ...
 )
 }
@@ -80,6 +81,12 @@ using \pkg{future.apply}. Exactly one of \code{uncertaintyweights} or
 
 \item{store_model_fit_history}{Logical. If \code{TRUE}, store a per-iteration record of fitted
 models, acceptance decisions, and IC values; warnings/errors are also kept.}
+
+\item{verbose}{Logical. If \code{TRUE}, report progress during candidate generation and model
+fitting. By default, progress is emitted via \code{message()}. When \code{plot = TRUE} in an
+interactive RStudio session, some progress output may be written via \code{cat()} so it remains
+visible while plots are updating. Set to \code{FALSE} to run quietly (default). Use
+\code{suppressMessages()} (and \code{capture.output()} if needed) to silence or capture output.}
 
 \item{...}{Additional arguments passed to \code{\link[mvMORPH]{mvgls}} (e.g., \code{method},
 \code{penalty}, \code{target}, \code{error}, etc.).}
@@ -240,7 +247,8 @@ res <- searchOptimalConfiguration(
   shift_acceptance_threshold = 20,  # conservative GIC threshold
   IC                         = "GIC",
   plot                       = FALSE,
-  store_model_fit_history    = FALSE
+  store_model_fit_history    = FALSE,
+  verbose                    = FALSE
 )
 
 res$shift_nodes_no_uncertainty
