@@ -7,3 +7,5 @@ man/figures
 .gitignore
 /doc/
 /Meta/
+CRAN-SUBMISSION
+vignettes/jaw-shape/gr1_lrg.jpg

@@ -23,9 +23,17 @@ test_that("Basic functionality works correctly", {
   tree <- ape::rcoal(100)
   min_tips <- 10
 
-  # Capture stdout produced by cat()
-  out <- testthat::capture_output(
-    painted_trees <- generatePaintedTrees(tree, min_tips)
+  # Enable verbose messages for this test, then restore previous option
+  old_verbose <- getOption("bifrost.verbose")
+  options(bifrost.verbose = TRUE)
+  on.exit(options(bifrost.verbose = old_verbose), add = TRUE)
+
+  # Capture message() output
+  out <- paste(
+    testthat::capture_messages(
+      painted_trees <- generatePaintedTrees(tree, min_tips)
+    ),
+    collapse = "\n"
   )
 
   # Structure checks
@@ -183,8 +191,15 @@ test_that("Console output reports matching counts", {
   tree <- ape::rcoal(40)
   min_tips <- 6
 
-  out <- testthat::capture_output(
-    painted_trees <- generatePaintedTrees(tree, min_tips)
+  old_verbose <- getOption("bifrost.verbose")
+  options(bifrost.verbose = TRUE)
+  on.exit(options(bifrost.verbose = old_verbose), add = TRUE)
+
+  out <- paste(
+    testthat::capture_messages(
+      painted_trees <- generatePaintedTrees(tree, min_tips)
+    ),
+    collapse = "\n"
   )
 
   eligible_match  <- regmatches(out, regexpr("\\d+(?= eligible nodes)", out, perl = TRUE))

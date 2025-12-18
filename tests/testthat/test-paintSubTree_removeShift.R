@@ -123,7 +123,9 @@ test_that("paintSubTree_removeShift should error on root node", {
   root_node <- length(painted$`Node 11`$tip.label) + 1
 
   # Should work with error
-  expect_error(paintSubTree_removeShift(painted$`Node 11`, root_node))
+  testthat::capture_output({
+    expect_error(paintSubTree_removeShift(painted$`Node 11`, root_node))
+  })
 
 })
 

@@ -115,7 +115,8 @@ res <- searchOptimalConfiguration(
   shift_acceptance_threshold = 20,  # conservative GIC threshold
   IC                         = "GIC",
   plot                       = FALSE,
-  store_model_fit_history    = FALSE
+  store_model_fit_history    = FALSE,
+  verbose                    = FALSE # set TRUE for progress messages 
 )
 
 # For this single-regime BM1 simulation, we typically expect no inferred shifts:

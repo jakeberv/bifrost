@@ -89,7 +89,7 @@ test_that("searchOptimalConfiguration runs end-to-end on simulated data (GIC)", 
     IC                         = "GIC",
     store_model_fit_history    = FALSE,
     method                     = "LL",
-    uncertaintyweights = T
+    uncertaintyweights = TRUE
   )
 
   # Core structure checks (present names)
@@ -143,7 +143,7 @@ test_that("searchOptimalConfiguration runs end-to-end on simulated data (BIC)", 
     IC                         = "BIC",
     store_model_fit_history    = TRUE,
     method                     = "LL",
-    uncertaintyweights_par = T
+    uncertaintyweights_par = TRUE
   )
 
   # Core structure checks (present names)
@@ -236,7 +236,7 @@ test_that("searchOptimalConfiguration returns sensible output when no shifts are
     IC                         = "GIC",
     store_model_fit_history    = TRUE,
     method                     = "LL",
-    uncertaintyweights = T
+    uncertaintyweights = TRUE
   )
 
   # No shifts detected
@@ -349,5 +349,127 @@ test_that("searchOptimalConfiguration records accepted steps with history (and c
   testthat::expect_true(all(c("user_input", "optimal_ic", "baseline_ic", "IC_used", "num_candidates") %in% names(res)))
 })
 
+# ---- Test 5 (NEW): testing verbose output --------
+test_that("searchOptimalConfiguration emits progress output when verbose = TRUE", {
+  skip_if_missing_deps()
+
+  # Prevent helper-level verbosity (getOption("bifrost.verbose")) from interfering
+  old_opt <- getOption("bifrost.verbose")
+  options(bifrost.verbose = FALSE)
+  on.exit(options(bifrost.verbose = old_opt), add = TRUE)
+
+  set.seed(999)
+  tr <- ape::rtree(25)
+  X <- matrix(rnorm(25 * 2), ncol = 2)
+  rownames(X) <- tr$tip.label
+
+  # Helper: capture BOTH message() and stdout, then search across both
+  capture_both <- function(expr) {
+    out <- character()
+    msgs <- testthat::capture_messages({
+      out <<- testthat::capture_output(expr)
+    })
+    paste(c(out, msgs), collapse = "\n")
+  }
+
+  # Case A: plot = FALSE
+  combined_a <- capture_both(
+    searchOptimalConfiguration(
+      baseline_tree              = tr,
+      trait_data                 = X,
+      formula                    = "trait_data ~ 1",
+      min_descendant_tips        = 20,
+      num_cores                  = 1,
+      shift_acceptance_threshold = 1e9,
+      plot                       = FALSE,
+      store_model_fit_history    = FALSE,
+      method                     = "LL",
+      verbose                    = TRUE
+    )
+  )
+  testthat::expect_true(grepl("Generating candidate shift models", combined_a))
+
+  # Case B: plot = TRUE (use null device so plotting doesn’t pop windows)
+  grDevices::pdf(NULL)
+  on.exit(try(grDevices::dev.off(), silent = TRUE), add = TRUE)
+
+  combined_b <- capture_both(
+    searchOptimalConfiguration(
+      baseline_tree              = tr,
+      trait_data                 = X,
+      formula                    = "trait_data ~ 1",
+      min_descendant_tips        = 20,
+      num_cores                  = 1,
+      shift_acceptance_threshold = 1e9,
+      plot                       = TRUE,
+      store_model_fit_history    = FALSE,
+      method                     = "LL",
+      verbose                    = TRUE
+    )
+  )
+  testthat::expect_true(grepl("Generating candidate shift models", combined_b))
+})
+
+# ---- Test 6 (NEW):  testing verbose output --------
+test_that("searchOptimalConfiguration is quiet when verbose = FALSE", {
+  skip_if_missing_deps()
+
+  # Prevent helper-level verbosity (getOption("bifrost.verbose")) from interfering
+  old_opt <- getOption("bifrost.verbose")
+  options(bifrost.verbose = FALSE)
+  on.exit(options(bifrost.verbose = old_opt), add = TRUE)
+
+  set.seed(1000)
+  tr <- ape::rtree(25)
+  X <- matrix(rnorm(25 * 2), ncol = 2)
+  rownames(X) <- tr$tip.label
+
+  capture_both <- function(expr) {
+    out <- character()
+    msgs <- testthat::capture_messages({
+      out <<- testthat::capture_output(expr)
+    })
+    list(out = paste(out, collapse = "\n"), msgs = paste(msgs, collapse = "\n"))
+  }
+
+  # plot = FALSE
+  cap_a <- capture_both(
+    searchOptimalConfiguration(
+      baseline_tree              = tr,
+      trait_data                 = X,
+      formula                    = "trait_data ~ 1",
+      min_descendant_tips        = 20,
+      num_cores                  = 1,
+      shift_acceptance_threshold = 1e9,
+      plot                       = FALSE,
+      store_model_fit_history    = FALSE,
+      method                     = "LL",
+      verbose                    = FALSE
+    )
+  )
+  testthat::expect_equal(nchar(cap_a$msgs), 0)
+  testthat::expect_equal(nchar(cap_a$out), 0)
+
+  # plot = TRUE
+  grDevices::pdf(NULL)
+  on.exit(try(grDevices::dev.off(), silent = TRUE), add = TRUE)
+
+  cap_b <- capture_both(
+    searchOptimalConfiguration(
+      baseline_tree              = tr,
+      trait_data                 = X,
+      formula                    = "trait_data ~ 1",
+      min_descendant_tips        = 20,
+      num_cores                  = 1,
+      shift_acceptance_threshold = 1e9,
+      plot                       = TRUE,
+      store_model_fit_history    = FALSE,
+      method                     = "LL",
+      verbose                    = FALSE
+    )
+  )
+  testthat::expect_equal(nchar(cap_b$msgs), 0)
+  testthat::expect_equal(nchar(cap_b$out), 0)
+})
 
 
