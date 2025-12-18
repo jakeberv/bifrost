@@ -17,9 +17,9 @@ Lifecycle
 Midgard
 Mitov
 Morphometric
+OpenMP
 Ornstein
 Parallelization
-RStudio
 Reproducibility
 RidgeArch
 Rtools
@@ -37,6 +37,7 @@ clades
 cladogenic
 coelacanths
 doi
+env
 et
 intra
 iteratively
@@ -46,6 +47,7 @@ mvMORPH
 mvPGLS
 mvgls
 nph
+oversubscription
 pGLS
 phylogenies
 reproducibility

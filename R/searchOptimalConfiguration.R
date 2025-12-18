@@ -40,7 +40,9 @@
 #'   reduce the number of candidate shifts by excluding very small clades. For empirical datasets,
 #'   values around \code{10} are a reasonable starting choice and can be tuned in sensitivity analyses.
 #' @param num_cores Integer. Number of workers for parallel candidate scoring. Uses
-#'   \code{future::plan(multicore)} on Unix and \code{future::plan(multisession)} on Windows.
+#'   \code{future::plan(multicore)} on Unix outside \code{RStudio}; otherwise uses
+#'   \code{future::plan(multisession)}. During the parallel candidate-scoring blocks, BLAS/OpenMP
+#'   threads are capped to 1 (per worker) to avoid CPU oversubscription.
 #' @param ic_uncertainty_threshold Numeric (\eqn{\ge}0). Reserved for future development
 #'   in post-search pruning and uncertainty analysis; currently not used by
 #'   \code{searchOptimalConfiguration()}.
@@ -65,11 +67,13 @@
 #' @param IC Character. Which information criterion to use, one of \code{"GIC"} or \code{"BIC"}
 #'   (case-sensitive).
 #' @param store_model_fit_history Logical. If \code{TRUE}, store a per-iteration record of fitted
-#'   models, acceptance decisions, and IC values; warnings/errors are also kept.
+#'   models, acceptance decisions, and IC values. To keep memory usage low during the search,
+#'   per-iteration results are written to a temporary directory (\code{tempdir()}) and read back
+#'   into memory at the end of the run.
 #' @param verbose Logical. If \code{TRUE}, report progress during candidate generation and model
 #'   fitting. By default, progress is emitted via \code{message()}. When \code{plot = TRUE} in an
-#'   interactive RStudio session, some progress output may be written via \code{cat()} so it remains
-#'   visible while plots are updating. Set to \code{FALSE} to run quietly (default). Use
+#'   interactive \code{RStudio} session, progress is written via \code{cat()} so it remains visible
+#'   while plots are updating. Set to \code{FALSE} to run quietly (default). Use
 #'   \code{suppressMessages()} (and \code{capture.output()} if needed) to silence or capture output.
 #' @param ... Additional arguments passed to \code{\link[mvMORPH]{mvgls}} (e.g., \code{method},
 #'   \code{penalty}, \code{target}, \code{error}, etc.).
@@ -130,7 +134,8 @@
 #'   \item \code{optimal_ic}: final IC value; \code{baseline_ic}: baseline IC.
 #'   \item \code{IC_used}: \code{"GIC"} or \code{"BIC"}; \code{num_candidates}: count of candidate one-shift models evaluated.
 #'   \item \code{model_fit_history}: if \code{store_model_fit_history = TRUE}, a list of per-iteration fits
-#'         and an \code{ic_acceptance_matrix} (IC value and acceptance flag per step).
+#'         (loaded from temporary files written during the run) and an \code{ic_acceptance_matrix}
+#'         (IC value and acceptance flag per step).
 #'   \item \code{VCVs}: named list of regime-specific VCV matrices extracted from the final model
 #'         (penalized-likelihood estimates if PL was used).
 #' }

@@ -127,7 +127,9 @@ The core of the `bifrost` workflow is the `searchOptimalConfiguration()` functio
 
 Here is the function call we will use for this analysis. We'll break down each parameter choice below.
 
-```{r run_bifrost, eval=FALSE, message = TRUE}
+  * Optional setup: this chunk only tweaks runtime/performance/plotting behavior (memory limit, interactive plotting device, BLAS/OpenMP thread env vars) and doesn’t change the model/search logic itself—so you can omit it if your defaults are fine or you’re running non-interactively / on a managed environment.
+
+```{r run_bifrost_setup, eval=FALSE, message = TRUE}
 # ---- Optional: increase future globals limit (needed for large objects) ----
 options(future.globals.maxSize = 10 * 1024^3)
 
@@ -145,7 +147,7 @@ if (interactive()) {
 
 # ---- Optional: speed up SEQUENTIAL linear algebra via BLAS/OpenMP threads ----
 # NOTE: bifrost caps BLAS/OpenMP threads to 1 *inside* its PARALLEL blocks to avoid oversubscription.
-thread_vars <- c("OMP_NUM_THREADS","OPENBLAS_NUM_THREADS","MKL_NUM_THREADS","VECLIB_MAXIMUM_THREADS")
+{thread_vars <- c("OMP_NUM_THREADS","OPENBLAS_NUM_THREADS","MKL_NUM_THREADS","VECLIB_MAXIMUM_THREADS")
 old_threads <- Sys.getenv(thread_vars, unset = NA_character_)
 
 n_threads <- "4"  # must be a character string
@@ -155,6 +157,7 @@ Sys.setenv(
   MKL_NUM_THREADS        = n_threads,
   VECLIB_MAXIMUM_THREADS = n_threads
 )
+}
 
 # Restore environment variables when this chunk exits
 on.exit({
@@ -167,7 +170,11 @@ on.exit({
     }
   }
 }, add = TRUE)
+```
 
+Run the analysis
+
+```{r run_bifrost, eval=FALSE, message = TRUE}
 # ---- Run the search ----
 jaws_search <- searchOptimalConfiguration(
   baseline_tree              = fish.tree,
@@ -185,6 +192,7 @@ jaws_search <- searchOptimalConfiguration(
   verbose                    = TRUE
 )
 ```
+
 
 ### Understanding the primary input options
 
@@ -211,6 +219,8 @@ Let's explore the choices made in this function call:
   * `method = 'H&L'`: This specifies the likelihood fitting method passed to `mvMORPH::mvgls`. 'H\&L' is a fast, approximated leave-one-out cross-validation (LOOCV) approach based on the work of Hoffbeck and Landgrebe (1996). It is particularly effective for intercept-only models with a "RidgeArch" penalty, making it a good choice for this high-dimensional dataset. Other options passed to `mvgls` will depend on the nature of the input dataset.
   
   * `error = TRUE`: This argument tells `mvgls` to estimate a measurement-error (intra-specific variance) term from the data and incorporate it into the model. Even if no explicit measurement-error values are provided, the function will treat this variance as an additional parameter to estimate. This is recommended for empirical datasets to account for within-species variation.
+
+  * `store_model_fit_history = TRUE`: Write per-iteration model fits to a temporary directory (`tempdir()`) during the search to avoid inflating memory usage while computation is ongoing; the full model-fit history is read back into memory at the end of the search.
 
   * `verbose = TRUE`: Print progress messages (via `message()`) as candidate models are generated and evaluated.
 
