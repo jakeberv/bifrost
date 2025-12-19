@@ -381,6 +381,7 @@ fitMvglsAndExtractBIC.formula <- function(formula, painted_tree, trait_data, ...
   return(list(model = model, BIC = bic_value))
 }
 
+if (FALSE) {
 #' Calculate \eqn{\Delta}GIC Scores Relative to a Baseline Model
 #'
 #' Computes the difference in Generalized Information Criterion (GIC) scores
@@ -466,6 +467,7 @@ calculateAllDeltaGIC <- function(model_results, painted_tree_list) {
   delta_gic <- setNames(unlist(delta_gic), tree_list_names)
 
   return(delta_gic)
+}
 }
 
 #' Paint a Subtree in a Phylogenetic Tree with Optional Selective Overwriting
