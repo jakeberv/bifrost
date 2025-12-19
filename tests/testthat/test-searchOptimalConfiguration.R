@@ -499,7 +499,6 @@ test_that("searchOptimalConfiguration errors on invalid IC", {
   )
 })
 
-
 # ---- Test 8 (NEW): both IC-weight flags TRUE should error --------------------
 test_that("searchOptimalConfiguration errors if both uncertaintyweights flags are TRUE", {
   skip_if_missing_deps()
