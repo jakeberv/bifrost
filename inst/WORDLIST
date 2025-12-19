@@ -20,6 +20,7 @@ Morphometric
 OpenMP
 Ornstein
 Parallelization
+RStudio
 Reproducibility
 RidgeArch
 Rtools
@@ -49,6 +50,7 @@ mvgls
 nph
 oversubscription
 pGLS
+parallelization
 phylogenies
 reproducibility
 scalability
