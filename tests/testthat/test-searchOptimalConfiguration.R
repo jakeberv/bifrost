@@ -472,4 +472,255 @@ test_that("searchOptimalConfiguration is quiet when verbose = FALSE", {
   testthat::expect_equal(nchar(cap_b$out), 0)
 })
 
+# ---- Test 7 (NEW): invalid IC guard (covers stop("IC must be GIC or BIC")) ----
+test_that("searchOptimalConfiguration errors on invalid IC", {
+  skip_if_missing_deps()
+
+  set.seed(1)
+  tr <- ape::rtree(25)
+  X <- matrix(rnorm(25 * 2), ncol = 2)
+  rownames(X) <- tr$tip.label
+
+  testthat::expect_error(
+    searchOptimalConfiguration(
+      baseline_tree              = tr,
+      trait_data                 = X,
+      formula                    = "trait_data ~ 1",
+      min_descendant_tips        = 10,
+      num_cores                  = 1,
+      shift_acceptance_threshold = 1e9,
+      plot                       = FALSE,
+      store_model_fit_history    = FALSE,
+      method                     = "LL",
+      verbose                    = FALSE,
+      IC                         = "AIC"
+    ),
+    "IC must be GIC or BIC"
+  )
+})
+
+
+# ---- Test 8 (NEW): both IC-weight flags TRUE should error --------------------
+test_that("searchOptimalConfiguration errors if both uncertaintyweights flags are TRUE", {
+  skip_if_missing_deps()
+
+  set.seed(2)
+  tr <- ape::rtree(25)
+  X <- matrix(rnorm(25 * 2), ncol = 2)
+  rownames(X) <- tr$tip.label
+
+  testthat::expect_error(
+    searchOptimalConfiguration(
+      baseline_tree              = tr,
+      trait_data                 = X,
+      formula                    = "trait_data ~ 1",
+      min_descendant_tips        = 20,
+      num_cores                  = 1,
+      shift_acceptance_threshold = 1e9,
+      plot                       = FALSE,
+      store_model_fit_history    = FALSE,
+      method                     = "LL",
+      verbose                    = FALSE,
+      IC                         = "GIC",
+      uncertaintyweights         = TRUE,
+      uncertaintyweights_par     = TRUE
+    ),
+    "Exactly one of uncertaintyweights or uncertaintyweights_par must be TRUE"
+  )
+})
+
+
+# ---- Test 9 (NEW): no-shifts path for uncertaintyweights_par (ic_weights = NA) ----
+test_that("searchOptimalConfiguration skips IC weights (parallel) when no shifts are detected", {
+  skip_if_missing_deps()
+
+  set.seed(3)
+  tr <- ape::rtree(25)
+  X <- matrix(rnorm(25 * 2), ncol = 2)
+  rownames(X) <- tr$tip.label
+
+  res <- searchOptimalConfiguration(
+    baseline_tree              = tr,
+    trait_data                 = X,
+    formula                    = "trait_data ~ 1",
+    min_descendant_tips        = 10,
+    num_cores                  = 1,
+    shift_acceptance_threshold = 1e9,
+    plot                       = FALSE,
+    store_model_fit_history    = FALSE,
+    method                     = "LL",
+    verbose                    = FALSE,
+    IC                         = "GIC",
+    uncertaintyweights_par     = TRUE
+  )
+
+  testthat::expect_true("ic_weights" %in% names(res))
+  testthat::expect_true(is.na(res$ic_weights)[1])
+})
+
+
+# ---- Test 10 (NEW): force multisession branch (RSTUDIO=1) --------------------
+test_that("searchOptimalConfiguration takes multisession path when RSTUDIO=1", {
+  skip_if_missing_deps()
+
+  old_rstudio <- Sys.getenv("RSTUDIO", unset = NA_character_)
+  Sys.setenv(RSTUDIO = "1")
+  on.exit({
+    if (is.na(old_rstudio)) Sys.unsetenv("RSTUDIO") else Sys.setenv(RSTUDIO = old_rstudio)
+  }, add = TRUE)
+
+  set.seed(4)
+  tr <- ape::rtree(25)
+  X <- matrix(rnorm(25 * 2), ncol = 2)
+  rownames(X) <- tr$tip.label
+
+  res <- searchOptimalConfiguration(
+    baseline_tree              = tr,
+    trait_data                 = X,
+    formula                    = "trait_data ~ 1",
+    min_descendant_tips        = 20,
+    num_cores                  = 1,
+    shift_acceptance_threshold = 1e9,
+    plot                       = FALSE,
+    store_model_fit_history    = FALSE,
+    method                     = "LL",
+    verbose                    = FALSE,
+    IC                         = "GIC"
+  )
+
+  testthat::expect_type(res, "list")
+})
+
+
+# ---- Test 11 (NEW): restore_threads else-branch (pre-set env var restored) ----
+test_that("searchOptimalConfiguration restores BLAS/OpenMP env vars after candidate scoring", {
+  skip_if_missing_deps()
+
+  thread_vars <- c(
+    "OMP_NUM_THREADS","OPENBLAS_NUM_THREADS","MKL_NUM_THREADS",
+    "VECLIB_MAXIMUM_THREADS","NUMEXPR_NUM_THREADS"
+  )
+  old <- Sys.getenv(thread_vars, unset = NA_character_)
+
+  # Pre-set at least one var so restore hits the else branch
+  Sys.setenv(OMP_NUM_THREADS = "3")
+  on.exit({
+    for (nm in names(old)) {
+      val <- old[[nm]]
+      if (is.na(val) || val == "") {
+        Sys.unsetenv(nm)
+      } else {
+        do.call(Sys.setenv, setNames(list(val), nm))
+      }
+    }
+  }, add = TRUE)
+
+  set.seed(5)
+  tr <- ape::rtree(25)
+  X <- matrix(rnorm(25 * 2), ncol = 2)
+  rownames(X) <- tr$tip.label
+
+  searchOptimalConfiguration(
+    baseline_tree              = tr,
+    trait_data                 = X,
+    formula                    = "trait_data ~ 1",
+    min_descendant_tips        = 20,
+    num_cores                  = 1,
+    shift_acceptance_threshold = 1e9,
+    plot                       = FALSE,
+    store_model_fit_history    = FALSE,
+    method                     = "LL",
+    verbose                    = FALSE,
+    IC                         = "GIC"
+  )
+
+  testthat::expect_identical(Sys.getenv("OMP_NUM_THREADS"), "3")
+})
+
+
+# ---- Test 12 (NEW): warning handler path during shift evaluation --------------
+test_that("searchOptimalConfiguration captures warnings from shift evaluation", {
+  skip_if_missing_deps()
+
+  ns <- asNamespace("bifrost")
+  orig_fit <- get("fitMvglsAndExtractGIC.formula", envir = ns)
+
+  testthat::local_mocked_bindings(
+    fitMvglsAndExtractGIC.formula = function(formula, tree, trait_data, ...) {
+      in_withCallingHandlers <- any(vapply(sys.calls(), function(cl) {
+        is.call(cl) && is.name(cl[[1]]) && identical(as.character(cl[[1]]), "withCallingHandlers")
+      }, logical(1)))
+
+      if (in_withCallingHandlers) warning("forced warning from test")
+
+      orig_fit(formula, tree, trait_data, ...)
+    },
+    .env = ns
+  )
+
+  set.seed(6)
+  tr <- ape::rtree(25)
+  X <- matrix(rnorm(25 * 2), ncol = 2)
+  rownames(X) <- tr$tip.label
+
+  res <- suppressWarnings(searchOptimalConfiguration(
+    baseline_tree              = tr,
+    trait_data                 = X,
+    formula                    = "trait_data ~ 1",
+    min_descendant_tips        = 5,
+    num_cores                  = 1,
+    shift_acceptance_threshold = 1e9,
+    plot                       = FALSE,
+    store_model_fit_history    = FALSE,
+    method                     = "LL",
+    verbose                    = FALSE,
+    IC                         = "GIC"
+  ))
+
+  testthat::expect_true(!is.null(res$warnings))
+  testthat::expect_true(any(grepl("Warning in evaluating shift at node", unlist(res$warnings))))
+})
+
+
+# ---- Test 13 (NEW): error handler + NA_real_ row in ic_acceptance_matrix ------
+test_that("searchOptimalConfiguration records error entries in history and yields NA_real_ row", {
+  skip_if_missing_deps()
+
+  ns <- asNamespace("bifrost")
+
+  testthat::local_mocked_bindings(
+    addShiftToModel = function(tree, shift_node, shift_id) {
+      list(tree = NULL, shift_id = shift_id + 1L)  # shifted_tree becomes NULL => fit errors
+    },
+    .env = ns
+  )
+
+  set.seed(7)
+  tr <- ape::rtree(25)
+  X <- matrix(rnorm(25 * 2), ncol = 2)
+  rownames(X) <- tr$tip.label
+
+  res <- suppressWarnings(searchOptimalConfiguration(
+    baseline_tree              = tr,
+    trait_data                 = X,
+    formula                    = "trait_data ~ 1",
+    min_descendant_tips        = 5,
+    num_cores                  = 1,
+    shift_acceptance_threshold = 1e9,
+    plot                       = FALSE,
+    store_model_fit_history    = TRUE,
+    method                     = "LL",
+    verbose                    = FALSE,
+    IC                         = "GIC"
+  ))
+
+  testthat::expect_true(!is.null(res$model_fit_history$ic_acceptance_matrix))
+  mat <- res$model_fit_history$ic_acceptance_matrix
+  testthat::expect_true(any(is.na(mat[, 1]), na.rm = TRUE))
+
+  testthat::expect_true(!is.null(res$warnings))
+  testthat::expect_true(any(grepl("Error in evaluating shift at node", unlist(res$warnings))))
+})
+
+
 
