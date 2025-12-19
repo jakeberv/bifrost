@@ -381,92 +381,94 @@ fitMvglsAndExtractBIC.formula <- function(formula, painted_tree, trait_data, ...
   return(list(model = model, BIC = bic_value))
 }
 
-#' #' Calculate \eqn{\Delta}GIC Scores Relative to a Baseline Model
-#' #'
-#' #' Computes the difference in Generalized Information Criterion (GIC) scores
-#' #' between a baseline model (assumed to be the first element of `model_results`)
-#' #' and one or more alternative models fitted to painted phylogenetic trees.
-#' #' This allows rapid comparison of model fit across candidate regime-paintings.
-#' #'
-#' #' @param model_results A list of model fit results, typically the output of
-#' #'   \code{fitMvglsAndExtractGIC.formula} or a similar internal helper.
-#' #'   Each element must be a list containing at least a \code{GIC} component,
-#' #'   where \code{GIC$GIC} is a numeric scalar.
-#' #'   The first element is treated as the baseline model.
-#' #'
-#' #' @param painted_tree_list A named list of painted phylogenetic trees
-#' #'   (objects of class \code{simmap}). The names are used as identifiers
-#' #'   for the output vector of \eqn{\Delta}GIC values. Every element must have a
-#' #'   non-\code{NULL} name.
-#' #'
-#' #' @return A named numeric vector of \eqn{\Delta}GIC scores, where each value is:
-#' #'   \deqn{\Delta GIC_i = GIC_\mathrm{baseline} - GIC_i}
-#' #'   Positive values indicate that the candidate model improves the fit
-#' #'   relative to the baseline (lower GIC = better model).
-#' #'
-#' #' @details
-#' #' This function is a convenience wrapper for comparing multiple models
-#' #' on the same dataset. By subtracting each candidate model's GIC from the
-#' #' baseline GIC, the resulting values are on a common, interpretable scale.
-#' #'
-#' #' @seealso
-#' #' \code{\link[mvMORPH]{GIC}}, \code{\link[phytools]{paintSubTree}}
-#' #'
-#' #' @note
-#' #' Related internal helper: \code{fitMvglsAndExtractGIC.formula} (not exported).
-#' #'
-#' #' @examples
-#' #' \dontrun{
-#' #'   # Assume we have a baseline and two alternative models
-#' #'   baseline <- list(GIC = list(GIC = 100))
-#' #'   alt1     <- list(GIC = list(GIC = 95))
-#' #'   alt2     <- list(GIC = list(GIC = 105))
-#' #'
-#' #'   model_results <- list(baseline, alt1, alt2)
-#' #'   painted_tree_list <- list(
-#' #'     Baseline = "tree1",
-#' #'     ShiftA   = "tree2",
-#' #'     ShiftB   = "tree3"
-#' #'   )
-#' #'
-#' #'   calculateAllDeltaGIC(model_results, painted_tree_list)
-#' #'   # Named vector: Baseline=0, ShiftA=5, ShiftB=-5
-#' #' }
-#' #'
-#' #' @keywords internal
-#' #' @noRd
-#' calculateAllDeltaGIC <- function(model_results, painted_tree_list) {
-#'   # Check if the painted trees have names
-#'   if (!all(sapply(painted_tree_list, function(x) !is.null(names(x))))) {
-#'     stop("All trees in 'painted_tree_list' must have names.")
-#'   }
+if (FALSE) {
+#' Calculate \eqn{\Delta}GIC Scores Relative to a Baseline Model
 #'
-#'   # Extract the names from the painted_tree_list
-#'   tree_list_names <- names(painted_tree_list)
+#' Computes the difference in Generalized Information Criterion (GIC) scores
+#' between a baseline model (assumed to be the first element of `model_results`)
+#' and one or more alternative models fitted to painted phylogenetic trees.
+#' This allows rapid comparison of model fit across candidate regime-paintings.
 #'
-#'   # Retrieve the baseline GIC from the first model result
-#'   # Ensure we are accessing the numeric GIC value correctly
-#'   baseline_gic <- model_results[[1]]$GIC$GIC
-#'   if (!is.numeric(baseline_gic)) {
-#'     stop("The baseline GIC value must be numeric.")
-#'   }
+#' @param model_results A list of model fit results, typically the output of
+#'   \code{fitMvglsAndExtractGIC.formula} or a similar internal helper.
+#'   Each element must be a list containing at least a \code{GIC} component,
+#'   where \code{GIC$GIC} is a numeric scalar.
+#'   The first element is treated as the baseline model.
 #'
-#'   # Use lapply to iterate over the list of model_results and calculate the delta GIC
-#'   delta_gic <- lapply(seq_along(model_results), function(i) {
-#'     # Ensure we are accessing the numeric GIC value correctly
-#'     current_gic <- model_results[[i]]$GIC$GIC
-#'     if (!is.numeric(current_gic)) {
-#'       stop(paste("The GIC value for model", i, "must be numeric."))
-#'     }
-#'     # Calculate the difference in GIC between the baseline and the shift model
-#'     return(baseline_gic - current_gic)
-#'   })
+#' @param painted_tree_list A named list of painted phylogenetic trees
+#'   (objects of class \code{simmap}). The names are used as identifiers
+#'   for the output vector of \eqn{\Delta}GIC values. Every element must have a
+#'   non-\code{NULL} name.
 #'
-#'   # Assign names to the delta GIC values and convert it to a named vector
-#'   delta_gic <- setNames(unlist(delta_gic), tree_list_names)
+#' @return A named numeric vector of \eqn{\Delta}GIC scores, where each value is:
+#'   \deqn{\Delta GIC_i = GIC_\mathrm{baseline} - GIC_i}
+#'   Positive values indicate that the candidate model improves the fit
+#'   relative to the baseline (lower GIC = better model).
 #'
-#'   return(delta_gic)
+#' @details
+#' This function is a convenience wrapper for comparing multiple models
+#' on the same dataset. By subtracting each candidate model's GIC from the
+#' baseline GIC, the resulting values are on a common, interpretable scale.
+#'
+#' @seealso
+#' \code{\link[mvMORPH]{GIC}}, \code{\link[phytools]{paintSubTree}}
+#'
+#' @note
+#' Related internal helper: \code{fitMvglsAndExtractGIC.formula} (not exported).
+#'
+#' @examples
+#' \dontrun{
+#'   # Assume we have a baseline and two alternative models
+#'   baseline <- list(GIC = list(GIC = 100))
+#'   alt1     <- list(GIC = list(GIC = 95))
+#'   alt2     <- list(GIC = list(GIC = 105))
+#'
+#'   model_results <- list(baseline, alt1, alt2)
+#'   painted_tree_list <- list(
+#'     Baseline = "tree1",
+#'     ShiftA   = "tree2",
+#'     ShiftB   = "tree3"
+#'   )
+#'
+#'   calculateAllDeltaGIC(model_results, painted_tree_list)
+#'   # Named vector: Baseline=0, ShiftA=5, ShiftB=-5
 #' }
+#'
+#' @keywords internal
+#' @noRd
+calculateAllDeltaGIC <- function(model_results, painted_tree_list) {
+  # Check if the painted trees have names
+  if (!all(sapply(painted_tree_list, function(x) !is.null(names(x))))) {
+    stop("All trees in 'painted_tree_list' must have names.")
+  }
+
+  # Extract the names from the painted_tree_list
+  tree_list_names <- names(painted_tree_list)
+
+  # Retrieve the baseline GIC from the first model result
+  # Ensure we are accessing the numeric GIC value correctly
+  baseline_gic <- model_results[[1]]$GIC$GIC
+  if (!is.numeric(baseline_gic)) {
+    stop("The baseline GIC value must be numeric.")
+  }
+
+  # Use lapply to iterate over the list of model_results and calculate the delta GIC
+  delta_gic <- lapply(seq_along(model_results), function(i) {
+    # Ensure we are accessing the numeric GIC value correctly
+    current_gic <- model_results[[i]]$GIC$GIC
+    if (!is.numeric(current_gic)) {
+      stop(paste("The GIC value for model", i, "must be numeric."))
+    }
+    # Calculate the difference in GIC between the baseline and the shift model
+    return(baseline_gic - current_gic)
+  })
+
+  # Assign names to the delta GIC values and convert it to a named vector
+  delta_gic <- setNames(unlist(delta_gic), tree_list_names)
+
+  return(delta_gic)
+}
+}
 
 #' Paint a Subtree in a Phylogenetic Tree with Optional Selective Overwriting
 #'
