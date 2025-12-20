@@ -1006,7 +1006,7 @@ extractRegimeVCVs <- function(model_output) {
   # Ensure the required components are in the model_output
   if (!"param" %in% names(model_output) || !"sigma" %in% names(model_output) || !"Pinv" %in% names(model_output$sigma)) {
     return(NULL)
-    stop("model_output does not contain the required components.")
+    #stop("model_output does not contain the required components.")
   }
 
   # Extract the covariance matrix (Pinv) for the first regime (base VCV)
