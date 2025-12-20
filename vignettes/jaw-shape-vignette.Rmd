@@ -176,13 +176,14 @@ Run the analysis
 
 ```{r run_bifrost, eval=FALSE, message = TRUE}
 # ---- Run the search ----
+set.seed(1)
 jaws_search <- searchOptimalConfiguration(
   baseline_tree              = fish.tree,
   trait_data                 = fish.data,
-  min_descendant_tips        = 10,
+  min_descendant_tips        = 15,
   num_cores                  = 4,
   shift_acceptance_threshold = 20,
-  uncertaintyweights_par     = TRUE,
+  uncertaintyweights     = TRUE,
   IC                         = "GIC",
   plot                       = FALSE,
   formula                    = "trait_data ~ 1",

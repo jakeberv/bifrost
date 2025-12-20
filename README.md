@@ -31,7 +31,7 @@
 
 - **Primary goal.** Infer *where*, *when*, and *how* patterns of phenotypic evolution change across a tree using many traits simultaneously.
 - **Model.** Multi-rate Brownian Motion with regime-specific VCVs estimated via penalized-likelihood (`mvMORPH::mvgls`), supporting p ≳ n.
-- **Search.** Greedy, step-wise acceptance of shifts guided by information criteria (**GIC** or **BIC**), with optional post-hoc pruning and per-shift IC weights.
+- **Search.** Greedy, step-wise acceptance of shifts guided by information criteria (**GIC** or **BIC**), with optional per-shift IC weights.
 - **Scale.** Parallel candidate scoring using the `future` ecosystem; practical on thousands of taxa × traits.
 
 ---
@@ -43,7 +43,7 @@
 - Provides a multivariate phylogenetic GLS (mvPGLS)-like framework in which hidden branch-specific rate regimes are inferred and incorporated when estimating predictor effects.
 - Candidate shift nodes are determined by a minimum clade size specified by the user.
 - Greedy [step-wise heuristic search](https://nph.onlinelibrary.wiley.com/doi/10.1111/nph.19099) using GIC/BIC ΔIC thresholds; optional IC-weight support for inferred shifts.
-- Output includes estimated VCV per regime, shift weights, and SIMMAP-style mappings for downstream visualization.
+- Output includes estimated VCV per regime, shift weights, and SIMMAP-style mappings for downstream visualization and analysis.
 - Parallelization via `future` / `future.apply`.
 
 ---
@@ -130,8 +130,8 @@ str(res$VCVs)  # regime-specific VCVs (here just the baseline regime "0")
 
 - **Tree and data alignment.** `rownames(trait_data)` must match `tree$tip.label` (same order and names).  
 - **Branch lengths.** Interpreted in units of time; ultrametric not required.  
-- **SIMMAP style.** Internally, regimes are stored using SIMMAP conventions.  
-- **Multi-dimensional traits.** Works directly in trait space; tune penalties/methods in `mvgls` options for your data.  
+- **SIMMAP style.** Internally, regimes are stored using SIMMAP conventions (e.g., `phytools` class `simmap`) 
+- **Multi-dimensional traits.** Works directly in trait space; tune penalties/methods using `mvgls` (mvMORPH) options for your data.  
 - **Thresholds.** Use conservative `shift_acceptance_threshold` and `ic_uncertainty_threshold` to limit false positives; explore sensitivity.
 
 ### Core workflow

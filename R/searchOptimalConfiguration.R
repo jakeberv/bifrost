@@ -584,39 +584,67 @@ searchOptimalConfiguration <-
     # }
 
     # New Section for Calculating Information Criterion Weights Post Optimization
-    ic_weights_df <- NA  # Initialize the results vector
+    .empty_ic_weights_df <- data.frame(
+      node = integer(),
+      ic_with_shift = numeric(),
+      ic_without_shift = numeric(),
+      delta_ic = numeric(),
+      ic_weight_withshift = numeric(),
+      ic_weight_withoutshift = numeric(),
+      evidence_ratio = numeric()
+    )
+
+    ic_weights_df <- .empty_ic_weights_df  # default empty
+
     if (xor(uncertaintyweights, uncertaintyweights_par)) {
-      if (uncertaintyweights) {
-        if (length(unlist(shift_vec)) > 0) {
+
+      # If no shifts, return empty df (consistent in both modes)
+      if (length(unlist(shift_vec)) == 0) {
+        .progress("%s", "No shifts were detected in the initial search; skipping IC weights calculation.")
+        ic_weights_df <- .empty_ic_weights_df
+
+      } else {
+
+        # Retrieve the IC of the optimized model before uncertainty analysis
+        original_ic <- if (IC == "GIC") {
+          model_with_shift_no_uncertainty$GIC$GIC
+        } else {
+          model_with_shift_no_uncertainty$BIC$BIC
+        }
+
+        .progress("Considering %d shifts in the candidate set", length(shift_vec))
+        .progress(
+          "There are %d shifts in the mapped tree",
+          length(unique(getStates(best_tree_no_uncertainty, type = "both"))) - 1
+        )
+
+        if (uncertaintyweights) {
           .progress("%s", "Calculating IC weights for initially identified shifts...")
-          ic_weights_df <- data.frame(node = integer(), ic_with_shift = numeric(), ic_without_shift = numeric(), delta_ic = numeric(), ic_weight = numeric())
 
-          # Retrieve the IC of the optimized model before uncertainty analysis
-          original_ic <- if (IC == "GIC") model_with_shift_no_uncertainty$GIC$GIC else model_with_shift_no_uncertainty$BIC$BIC
-
-          .progress("Considering %d shifts in the candidate set", length(shift_vec))
-          .progress(
-            "There are %d shifts in the mapped tree",
-            length(unique(getStates(best_tree_no_uncertainty, type = "both"))) - 1
-          )
+          ic_weights_df <- .empty_ic_weights_df
 
           for (shift_node_number in unlist(shift_vec)) {
             .progress("Re-estimating model without shift at node %d", shift_node_number)
 
-            # Remove the shift temporarily from best_tree_no_uncertainty and re-estimate the IC
             tree_without_current_shift <- removeShiftFromTree(best_tree_no_uncertainty, shift_node_number)
-            model_without_current_shift_function <- if (IC == "GIC") fitMvglsAndExtractGIC.formula else fitMvglsAndExtractBIC.formula
-            model_without_current_shift <- model_without_current_shift_function(formula, tree_without_current_shift, trait_data, ...)
-            ic_without_current_shift <- if (IC == "GIC") model_without_current_shift$GIC$GIC else model_without_current_shift$BIC$BIC
+            model_fun <- if (IC == "GIC") fitMvglsAndExtractGIC.formula else fitMvglsAndExtractBIC.formula
+            model_without_current_shift <- model_fun(formula, tree_without_current_shift, trait_data, ...)
 
-            # Calculate the difference in IC
+            ic_without_current_shift <- if (IC == "GIC") {
+              model_without_current_shift$GIC$GIC
+            } else {
+              model_without_current_shift$BIC$BIC
+            }
+
             delta_ic <- original_ic - ic_without_current_shift
 
-            # Use aicw function to calculate the IC weight
-            ic_weights <- aicw(c(original_ic, ic_without_current_shift))$aicweights
-            ic_weight <- ic_weights[1]  # First element is the weight for the model with the shift
+            icw <- aicw(c(original_ic, ic_without_current_shift))$aicweights
+            w_with <- icw[1]
+            w_without <- icw[2]
+            er <- w_with / w_without
 
-            .progress("IC weight for the shift is %.2f", ic_weight)
+            .progress("IC weight for the shift is %.2f", w_with)
+
             ic_weights_df <- rbind(
               ic_weights_df,
               data.frame(
@@ -624,62 +652,72 @@ searchOptimalConfiguration <-
                 ic_with_shift = original_ic,
                 ic_without_shift = ic_without_current_shift,
                 delta_ic = delta_ic,
-                ic_weight = ic_weight
+                ic_weight_withshift = w_with,
+                ic_weight_withoutshift = w_without,
+                evidence_ratio = er
               )
             )
           }
-        } else {
-          .progress("%s", "No shifts were detected in the initial search; skipping IC weights calculation.")
-          ic_weights_df <- NA
         }
-      }
 
-      if (uncertaintyweights_par) {
-        if (length(unlist(shift_vec)) > 0) {
+        if (uncertaintyweights_par) {
           .progress("%s", "Calculating IC weights for initially identified shifts in parallel...")
-          ic_weights_df <- data.frame(node = integer(), ic_with_shift = numeric(), ic_without_shift = numeric(), delta_ic = numeric(), ic_weight = numeric())
 
-          # Retrieve the IC of the optimized model before uncertainty analysis
-          original_ic <- if (IC == "GIC") model_with_shift_no_uncertainty$GIC$GIC else model_with_shift_no_uncertainty$BIC$BIC
+          ic_weights_df <- .empty_ic_weights_df
 
-          # Prepare a list of trees with shifts removed
           shift_removed_trees <- lapply(unlist(shift_vec), function(shift_node_number) {
-            return(removeShiftFromTree(best_tree_no_uncertainty, shift_node_number))
+            removeShiftFromTree(best_tree_no_uncertainty, shift_node_number)
           })
 
           ic_results <- .run_future_lapply_safe(
             shift_removed_trees,
             function(tree) {
-              model_function <- if (IC == "GIC") fitMvglsAndExtractGIC.formula else fitMvglsAndExtractBIC.formula
-              model_without_shift <- do.call(model_function, c(list(formula, tree, trait_data), args_list))
+              model_fun <- if (IC == "GIC") fitMvglsAndExtractGIC.formula else fitMvglsAndExtractBIC.formula
+              model_without_shift <- do.call(model_fun, c(list(formula, tree, trait_data), args_list))
+
               ic_without_shift <- if (IC == "GIC") model_without_shift$GIC$GIC else model_without_shift$BIC$BIC
               delta_ic <- original_ic - ic_without_shift
-              ic_weights <- aicw(c(original_ic, ic_without_shift))$aicweights
-              c(ic_weight_withshift = ic_weights[1], ic_weight_withoutshift = ic_weights[2], delta_ic = delta_ic)
+
+              icw <- aicw(c(original_ic, ic_without_shift))$aicweights
+
+              c(
+                ic_without_shift = ic_without_shift,
+                delta_ic = delta_ic,
+                ic_weight_withshift = icw[1],
+                ic_weight_withoutshift = icw[2]
+              )
             },
             workers = num_cores,
             is_rstudio_flag = is_rstudio
           )
 
-          # Add results to the dataframe
           for (i in seq_along(shift_removed_trees)) {
             shift_node_number <- unlist(shift_vec)[i]
             ic_res <- ic_results[[i]]
-            ic_weights_df <- rbind(ic_weights_df, data.frame(
-              node = shift_node_number,
-              ic_with_shift = original_ic,
-              ic_without_shift = original_ic - ic_res['delta_ic'],
-              delta_ic = ic_res['delta_ic'],
-              ic_weight_withshift = ic_res['ic_weight_withshift'],
-              ic_weight_withoutshift = ic_res['ic_weight_withoutshift'],
-              evidence_ratio = ic_res['ic_weight_withshift'] / ic_res['ic_weight_withoutshift']
-            ))
+
+            # scalar extraction (avoids named-vector quirks)
+            ic_without <- as.numeric(ic_res[["ic_without_shift"]])
+            d_ic <- as.numeric(ic_res[["delta_ic"]])
+            w_with <- as.numeric(ic_res[["ic_weight_withshift"]])
+            w_without <- as.numeric(ic_res[["ic_weight_withoutshift"]])
+            er <- w_with / w_without
+
+            ic_weights_df <- rbind(
+              ic_weights_df,
+              data.frame(
+                node = shift_node_number,
+                ic_with_shift = original_ic,
+                ic_without_shift = ic_without,
+                delta_ic = d_ic,
+                ic_weight_withshift = w_with,
+                ic_weight_withoutshift = w_without,
+                evidence_ratio = er
+              )
+            )
           }
-        } else {
-          .progress("%s", "No shifts were detected in the initial search; skipping IC weights calculation.")
-          ic_weights_df <- NA
         }
       }
+
     } else {
       if (isTRUE(uncertaintyweights) && isTRUE(uncertaintyweights_par)) {
         stop("Exactly one of uncertaintyweights or uncertaintyweights_par must be TRUE.")
@@ -722,7 +760,11 @@ searchOptimalConfiguration <-
         user_input = user_input,
         tree_no_uncertainty_transformed = opt_nouncertainty_transformed,
         tree_no_uncertainty_untransformed = opt_nouncertainty_untransformed,
-        model_no_uncertainty = model_with_shift_no_uncertainty$model,
+        model_no_uncertainty = if (length(shifts_no_uncertainty) > 0L) {
+          model_with_shift_no_uncertainty$model
+        } else {
+          baseline_model$model
+        },
         shift_nodes_no_uncertainty = shifts_no_uncertainty,
         optimal_ic = current_best_ic,
         baseline_ic = baseline_ic,
