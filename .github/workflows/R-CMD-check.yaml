@@ -17,7 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         config:
-          - {os: macos-latest,   r: 'release'}
+          - {os: macos-latest,   r: 'oldrel-1'}
           - {os: windows-latest, r: 'release'}
           # Uncomment for R-devel checks
           # - {os: ubuntu-latest, r: 'devel', http-user-agent: 'release'}
@@ -36,14 +36,15 @@ jobs:
         with:
           r-version: ${{ matrix.config.r }}
           http-user-agent: ${{ matrix.config.http-user-agent }}
-          use-public-rspm: true
+          # Public RSPM is great on Linux; macOS binaries there can be flaky/lag behind.
+          use-public-rspm: ${{ runner.os == 'Linux' }}
 
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
           cache-version: 2
-          extra-packages: >
-            any::rcmdcheck,
-            any::roxygen2,
+          extra-packages: |
+            any::rcmdcheck
+            any::roxygen2
             any::devtools
           needs: check
 
