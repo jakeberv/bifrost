@@ -1018,6 +1018,136 @@ test_that("searchOptimalConfiguration records error entries in history and yield
   testthat::expect_true(any(grepl("Error in evaluating shift at node", unlist(res$warnings))))
 })
 
+# ---- Test XX (NEW): cover .progress cat()/flush.console() branch (interactive only) ----
+test_that("searchOptimalConfiguration uses cat() progress path in interactive RStudio plotting", {
+  skip_if_missing_deps()
+  testthat::skip_if_not(interactive())
 
+  old_rstudio <- Sys.getenv("RSTUDIO", unset = NA_character_)
+  Sys.setenv(RSTUDIO = "1")
+  on.exit({
+    if (is.na(old_rstudio)) Sys.unsetenv("RSTUDIO") else Sys.setenv(RSTUDIO = old_rstudio)
+  }, add = TRUE)
 
+  # Null device so plot=TRUE doesn't pop windows
+  grDevices::pdf(NULL)
+  on.exit(try(grDevices::dev.off(), silent = TRUE), add = TRUE)
+
+  set.seed(123)
+  tr <- ape::rtree(20)
+  X <- matrix(rnorm(20 * 2), ncol = 2)
+  rownames(X) <- tr$tip.label
+
+  # Critical trick:
+  # Set min_descendant_tips to Ntip so ONLY the root is eligible.
+  # That makes candidate_trees_shifts empty => the main loop never runs,
+  # so the plot code never calls getStates(shifted_tree,...).
+  out <- testthat::capture_output({
+    suppressWarnings(suppressMessages(searchOptimalConfiguration(
+      baseline_tree              = tr,
+      trait_data                 = X,
+      formula                    = "trait_data ~ 1",
+      min_descendant_tips        = ape::Ntip(tr),
+      num_cores                  = 1,
+      shift_acceptance_threshold = 1e9,
+      plot                       = TRUE,
+      IC                         = "GIC",
+      store_model_fit_history    = FALSE,
+      method                     = "LL",
+      verbose                    = TRUE
+    )))
+  })
+
+  txt <- paste(out, collapse = "\n")
+  testthat::expect_true(grepl("Generating candidate shift models", txt))
+})
+
+# ---- Test XX (NEW): serial IC weights path executes BIC branch (mocked deterministic) ----
+test_that("searchOptimalConfiguration serial ic_weights executes BIC branch", {
+  skip_if_missing_deps()
+
+  ns <- asNamespace("bifrost")
+
+  # Deterministic decreasing BIC so shifts are accepted and weights run
+  k <- 0L
+  testthat::local_mocked_bindings(
+    fitMvglsAndExtractBIC.formula = function(formula, tree, trait_data, ...) {
+      k <<- k + 1L
+      bic_val <- 1000 - 10 * k
+      list(
+        model = list(corrSt = list(phy = tree)),
+        BIC = list(BIC = bic_val)
+      )
+    },
+    # Make shift-removal safe & deterministic for weights loop
+    removeShiftFromTree = function(tree, shift_node, stem = FALSE) tree,
+    .env = ns
+  )
+
+  set.seed(999)
+  tr <- ape::rtree(40)
+  X <- matrix(rnorm(40 * 2), ncol = 2)
+  rownames(X) <- tr$tip.label
+
+  res <- suppressWarnings(searchOptimalConfiguration(
+    baseline_tree              = tr,
+    trait_data                 = X,
+    formula                    = "trait_data ~ 1",
+    min_descendant_tips        = 2,
+    num_cores                  = 1,
+    shift_acceptance_threshold = -Inf,   # accept shifts
+    plot                       = FALSE,
+    store_model_fit_history    = FALSE,
+    verbose                    = FALSE,
+    IC                         = "BIC",
+    uncertaintyweights         = TRUE    # SERIAL weights path
+  ))
+
+  testthat::expect_true("ic_weights" %in% names(res))
+  testthat::expect_true(is.data.frame(res$ic_weights))
+  testthat::expect_true(nrow(res$ic_weights) >= 1L)
+})
+
+# ---- Test XX (NEW): warning handler path during shift evaluation (BIC) ----
+test_that("searchOptimalConfiguration captures warnings from shift evaluation (BIC)", {
+  skip_if_missing_deps()
+
+  ns <- asNamespace("bifrost")
+  orig_fit <- get("fitMvglsAndExtractBIC.formula", envir = ns)
+
+  testthat::local_mocked_bindings(
+    fitMvglsAndExtractBIC.formula = function(formula, tree, trait_data, ...) {
+      in_withCallingHandlers <- any(vapply(sys.calls(), function(cl) {
+        is.call(cl) && is.name(cl[[1]]) && identical(as.character(cl[[1]]), "withCallingHandlers")
+      }, logical(1)))
+
+      if (in_withCallingHandlers) warning("forced warning from test (BIC)")
+
+      orig_fit(formula, tree, trait_data, ...)
+    },
+    .env = ns
+  )
+
+  set.seed(456)
+  tr <- ape::rtree(25)
+  X <- matrix(rnorm(25 * 2), ncol = 2)
+  rownames(X) <- tr$tip.label
+
+  res <- suppressWarnings(searchOptimalConfiguration(
+    baseline_tree              = tr,
+    trait_data                 = X,
+    formula                    = "trait_data ~ 1",
+    min_descendant_tips        = 5,
+    num_cores                  = 1,
+    shift_acceptance_threshold = 1e9,  # reject; still evaluates candidates and triggers handler
+    plot                       = FALSE,
+    store_model_fit_history    = FALSE,
+    method                     = "LL",
+    verbose                    = FALSE,
+    IC                         = "BIC"
+  ))
+
+  testthat::expect_true(!is.null(res$warnings))
+  testthat::expect_true(any(grepl("Warning in evaluating shift at node", unlist(res$warnings))))
+})
 

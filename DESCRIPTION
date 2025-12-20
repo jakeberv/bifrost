@@ -26,7 +26,8 @@ Imports:
     grDevices,
     stats,
     mvMORPH,
-    viridis
+    viridis,
+    txtplot
 Suggests:
     HDInterval,
     RColorBrewer,
@@ -49,4 +50,5 @@ Suggests:
     htmltools
 VignetteBuilder: knitr
 Config/testthat/edition: 3
+Config/testthat/parallel: false
 Language: en-US
