@@ -95,3 +95,40 @@ test_that("Handles tiny floating ratios without precision blow-ups", {
   expect_equal(vcv_list$baseline, Pinv)
   expect_equal(vcv_list$slow, Pinv * 1e-12, tolerance = 1e-18)
 })
+
+# ---- Test XX (NEW): returns NULL when required components are missing ----------
+test_that("extractRegimeVCVs returns NULL when required components are missing", {
+  testthat::expect_null(extractRegimeVCVs(list()))
+
+  # has param but missing sigma$Pinv
+  testthat::expect_null(extractRegimeVCVs(list(
+    param = c(r1 = 1),
+    sigma = list()
+  )))
+
+  # has sigma$Pinv but missing param
+  testthat::expect_null(extractRegimeVCVs(list(
+    sigma = list(Pinv = diag(2))
+  )))
+})
+
+# ---- Test XX (NEW): returns scaled list of matrices when components exist -----
+test_that("extractRegimeVCVs returns per-regime matrices and scales by param ratio", {
+  model_output <- list(
+    param = c(r1 = 1, r2 = 3),
+    sigma = list(Pinv = matrix(c(1, 2,
+                                 3, 4), nrow = 2))
+  )
+
+  out <- extractRegimeVCVs(model_output)
+
+  testthat::expect_true(is.list(out))
+  testthat::expect_true(all(c("r1", "r2") %in% names(out)))
+  testthat::expect_true(is.matrix(out[["r1"]]) && is.matrix(out[["r2"]]))
+
+  # First regime is base matrix
+  testthat::expect_equal(out[["r1"]], model_output$sigma$Pinv)
+
+  # Second regime scaled by param ratio (r2/r1 = 3)
+  testthat::expect_equal(out[["r2"]], model_output$sigma$Pinv * 3)
+})

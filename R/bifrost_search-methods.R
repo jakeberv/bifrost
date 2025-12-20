@@ -205,9 +205,7 @@ print.bifrost_search <- function(x, ...) {
   if (!is.null(formula)) {
     cat("  Formula: ", formula, "\n", sep = "")
   }
-  if (!is.null(penalty) || !is.null(target)) {
-    .pack_line(2, .kv("Penalty", penalty), .kv("Target", target), sep = "   ")
-  }
+  .pack_line(2, .kv("Penalty", penalty), .kv("Target", target), sep = "   ")
   cat("\n")
 
   cat("Shift Nodes\n")

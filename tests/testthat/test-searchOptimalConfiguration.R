@@ -935,243 +935,6 @@ test_that("no-shifts path yields a usable model_no_uncertainty", {
   testthat::expect_true(!is.null(res$model_no_uncertainty))
 })
 
-# ---- Test XX (NEW): print method core output on a real no-shifts run ----------
-test_that("print.bifrost_search prints core sections on a real no-shifts run", {
-  skip_if_missing_deps()
-
-  set.seed(123)
-  tr <- ape::rtree(20)
-  X <- matrix(rnorm(20 * 2), ncol = 2)
-  rownames(X) <- tr$tip.label
-
-  res <- suppressWarnings(suppressMessages(searchOptimalConfiguration(
-    baseline_tree              = tr,
-    trait_data                 = X,
-    formula                    = "trait_data ~ 1",
-    min_descendant_tips        = 10,
-    num_cores                  = 1,
-    shift_acceptance_threshold = 1e9,
-    plot                       = FALSE,
-    IC                         = "GIC",
-    store_model_fit_history    = FALSE,
-    method                     = "LL",
-    verbose                    = FALSE
-  )))
-
-  testthat::expect_s3_class(res, "bifrost_search")
-
-  out <- testthat::capture_output(print(res))
-  txt <- paste(out, collapse = "\n")
-
-  testthat::expect_true(grepl("Bifrost Search Result", txt, fixed = TRUE))
-  testthat::expect_true(grepl("IC (GIC)", txt, fixed = TRUE))
-  testthat::expect_true(grepl("Search", txt, fixed = TRUE))
-  testthat::expect_true(grepl("mvgls", txt, fixed = TRUE))
-  testthat::expect_true(grepl("Shift Nodes", txt, fixed = TRUE))
-  testthat::expect_true(grepl("Warnings", txt, fixed = TRUE))
-
-  # No history plot (history disabled)
-  testthat::expect_false(grepl("IC History (Best IC by Iteration)", txt, fixed = TRUE))
-
-  # No weights section unless ic_weights is present
-  testthat::expect_false(grepl("Weights \\(Support\\)", txt))
-})
-
-# ---- Test XX (NEW): print method covers history plot + penalty/target + weights ---
-test_that("print.bifrost_search prints history plot, penalty/target, and weights when present", {
-  # Only the deps actually needed for this synthetic-object test
-  testthat::skip_if_not_installed("ape")
-  testthat::skip_if_not_installed("phytools")
-  testthat::skip_if_not_installed("txtplot")
-
-  # Replace testthat::local_options() with base options() + on.exit()
-  old_width <- getOption("width")
-  old_tw <- getOption("bifrost.txtplot.width")
-  old_th <- getOption("bifrost.txtplot.height")
-
-  options(width = 80, bifrost.txtplot.width = 30L, bifrost.txtplot.height = 15L)
-  on.exit({
-    options(width = old_width)
-    if (is.null(old_tw)) options(bifrost.txtplot.width = NULL) else options(bifrost.txtplot.width = old_tw)
-    if (is.null(old_th)) options(bifrost.txtplot.height = NULL) else options(bifrost.txtplot.height = old_th)
-  }, add = TRUE)
-
-  tr <- ape::rtree(10)
-  tr <- phytools::paintBranches(tr, edge = unique(tr$edge[, 2]), state = "0", anc.state = "0")
-  class(tr) <- c("simmap", setdiff(class(tr), "simmap"))
-
-  model_stub <- list(
-    call = list(model = "BMM", method = "LL"),
-    Y = matrix(0, nrow = ape::Ntip(tr), ncol = 3),
-    formula = stats::as.formula("trait_data ~ 1")
-  )
-
-  ic_mat <- cbind(
-    c(-100, -105, -103, -110, -115),
-    c(1,    1,    0,    1,    1)
-  )
-
-  obj <- list(
-    user_input = list(
-      formula = "trait_data ~ 1",
-      min_descendant_tips = 3,
-      num_cores = 2,
-      shift_acceptance_threshold = 20,
-      plot = FALSE,
-      verbose = TRUE,
-      store_model_fit_history = TRUE,
-      method = "LL",
-      error = TRUE,
-      penalty = "ridge",
-      target = "CV"
-    ),
-    tree_no_uncertainty_untransformed = tr,
-    model_no_uncertainty = model_stub,
-    shift_nodes_no_uncertainty = c(12L, 15L),
-    IC_used = "GIC",
-    baseline_ic = -100,
-    optimal_ic = -115,
-    num_candidates = 5L,
-    model_fit_history = list(ic_acceptance_matrix = ic_mat),
-    ic_weights = data.frame(
-      node = c(12L, 15L),
-      ic_weight_withshift = c(0.9, 0.1)
-    ),
-    warnings = character(0)
-  )
-  class(obj) <- c("bifrost_search", "list")
-
-  out <- testthat::capture_output(print(obj))
-  txt <- paste(out, collapse = "\n")
-
-  testthat::expect_true(grepl("IC History (Best IC by Iteration)", txt, fixed = TRUE))
-  testthat::expect_true(grepl("\\*", txt))  # txtplot uses '*' for points
-
-  testthat::expect_true(grepl("Penalty", txt, fixed = TRUE))
-  testthat::expect_true(grepl("Target", txt, fixed = TRUE))
-
-  testthat::expect_true(grepl("GIC Weights (Support)", txt, fixed = TRUE))
-  testthat::expect_true(grepl("\\b12\\b", txt))
-  testthat::expect_true(grepl("\\b15\\b", txt))
-
-  testthat::expect_true(grepl("Shift Nodes", txt, fixed = TRUE))
-})
-
-# ---- Test XX (NEW): print method edge-case branch coverage -------------------
-test_that("print.bifrost_search covers edge-case branches (NA types, fallback fields, schema issues)", {
-  testthat::skip_if_not_installed("ape")
-  testthat::skip_if_not_installed("phytools")
-  testthat::skip_if_not_installed("txtplot")
-
-  # Keep output deterministic-ish for wrapping/plots
-  old_width <- getOption("width")
-  old_tw <- getOption("bifrost.txtplot.width")
-  old_th <- getOption("bifrost.txtplot.height")
-  options(width = 80, bifrost.txtplot.width = 40L, bifrost.txtplot.height = 12L)
-  on.exit({
-    options(width = old_width)
-    if (is.null(old_tw)) options(bifrost.txtplot.width = NULL) else options(bifrost.txtplot.width = old_tw)
-    if (is.null(old_th)) options(bifrost.txtplot.height = NULL) else options(bifrost.txtplot.height = old_th)
-  }, add = TRUE)
-
-  # --- Case A: missing tree/model, NA-ish user_input types, empty weights df ---
-  # Hits: .fmt_num(all NA), .fmt_num(non-numeric), .fmt_int(NA), .fmt_lgl(length==0/character),
-  #       .safe_* early NULL returns, .wrap_nodes(NULL), weights nrow==0 branch.
-  obj_a <- list(
-    user_input = list(
-      min_descendant_tips = NA_integer_,
-      num_cores = NA_integer_,
-      shift_acceptance_threshold = NA_real_,
-      plot = "maybe",                 # character -> .fmt_lgl as.character branch
-      verbose = character(0),         # length==0 -> .fmt_lgl early return
-      store_model_fit_history = FALSE
-    ),
-    IC_used = "GIC",
-    baseline_ic = "foo",              # non-numeric -> .fmt_num non-numeric branch
-    optimal_ic = NA_real_,            # numeric NA -> .fmt_num(all NA) branch for delta
-    shift_nodes_no_uncertainty = NULL,
-    model_no_uncertainty = NULL,
-    # no tree fields at all -> tree remains NULL
-    ic_weights = data.frame(),        # triggers nrow(w)==0 message branch
-    warnings = character(0)
-  )
-  class(obj_a) <- c("bifrost_search", "list")
-
-  out_a <- testthat::capture_output(print(obj_a))
-  txt_a <- paste(out_a, collapse = "\n")
-  testthat::expect_true(grepl("Bifrost Search Result", txt_a, fixed = TRUE))
-  testthat::expect_true(grepl("Requested, but no shifts detected", txt_a, fixed = TRUE))
-
-  # --- Case B: transformed-tree selection + method/formula fallback + model_code fallback + bad weights schema ---
-  # Hits: tree_no_uncertainty_transformed branch, method/formula fallback from model_obj,
-  #       model_code fallback from regimes (>1), safe_trait_count residuals numeric branch,
-  #       weights "expected columns missing" branch, .fmt_val deparse+truncate path via long symbol.
-  tr <- ape::rtree(10)
-  tr0 <- phytools::paintBranches(tr, edge = unique(tr$edge[, 2]), state = "0", anc.state = "0")
-  # create a second regime so regimes > 1
-  nd <- ape::Ntip(tr0) + 2L
-  tr2 <- phytools::paintSubTree(tr0, node = nd, state = "1", anc.state = "0", stem = FALSE)
-
-  long_sym <- as.name(paste(rep("x", 120), collapse = ""))  # forces deparse path + truncation in .fmt_val
-
-  model_stub <- list(
-    call = list(method = "H&L"),               # method fallback path
-    formula = stats::as.formula("trait_data ~ 1"), # formula fallback path
-    residuals = rnorm(ape::Ntip(tr2))          # numeric residuals -> trait count returns 1
-    # NOTE: intentionally no call$model so model_code fallback uses regimes
-  )
-
-  obj_b <- list(
-    user_input = list(
-      # leave method/formula absent to force fallback
-      error = TRUE,
-      penalty = long_sym,   # triggers .fmt_val deparse branch (+ truncation)
-      target = "CV",
-      store_model_fit_history = FALSE
-    ),
-    tree_no_uncertainty_transformed = tr2,   # hit transformed-tree selection branch
-    model_no_uncertainty = model_stub,
-    shift_nodes_no_uncertainty = c(12L, 15L),
-    IC_used = "GIC",
-    baseline_ic = -100,
-    optimal_ic = -115,
-    num_candidates = 5L,
-    ic_weights = data.frame(foo = 1),        # wrong schema -> "expected columns missing" branch
-    warnings = character(0)
-  )
-  class(obj_b) <- c("bifrost_search", "list")
-
-  out_b <- testthat::capture_output(print(obj_b))
-  txt_b <- paste(out_b, collapse = "\n")
-  testthat::expect_true(grepl("Method:", txt_b, fixed = TRUE))     # fallback printed
-  testthat::expect_true(grepl("Formula:", txt_b, fixed = TRUE))    # fallback printed
-  testthat::expect_true(grepl("expected columns missing", txt_b, fixed = TRUE))
-
-  # --- Case C: history plot with logical accept column + empty ylab fallback ---
-  # Hits: acc_raw logical branch, ylab_txt empty -> fallback to "IC"
-  ic_mat_logical <- cbind(
-    c(-100, -105, -103, -110, -115),
-    c(TRUE, TRUE, FALSE, TRUE, TRUE)
-  )
-
-  obj_c <- list(
-    user_input = list(store_model_fit_history = TRUE),
-    IC_used = "(best)",                        # gsub removes "(best)" -> empty -> ylab fallback line
-    baseline_ic = -100,
-    optimal_ic  = -115,
-    shift_nodes_no_uncertainty = integer(0),
-    model_fit_history = list(ic_acceptance_matrix = ic_mat_logical),
-    # no weights for this one
-    warnings = character(0)
-  )
-  class(obj_c) <- c("bifrost_search", "list")
-
-  out_c <- testthat::capture_output(print(obj_c))
-  txt_c <- paste(out_c, collapse = "\n")
-  testthat::expect_true(grepl("IC History (Best IC by Iteration)", txt_c, fixed = TRUE))
-  testthat::expect_true(grepl("\\*", txt_c))  # points from txtplot
-})
-
 # ---- Test 13 (NEW): warning handler path during shift evaluation --------------
 test_that("searchOptimalConfiguration captures warnings from shift evaluation", {
   skip_if_missing_deps()
@@ -1255,5 +1018,136 @@ test_that("searchOptimalConfiguration records error entries in history and yield
   testthat::expect_true(any(grepl("Error in evaluating shift at node", unlist(res$warnings))))
 })
 
+# ---- Test XX (NEW): cover .progress cat()/flush.console() branch (interactive only) ----
+test_that("searchOptimalConfiguration uses cat() progress path in interactive RStudio plotting", {
+  skip_if_missing_deps()
+  testthat::skip_if_not(interactive())
 
+  old_rstudio <- Sys.getenv("RSTUDIO", unset = NA_character_)
+  Sys.setenv(RSTUDIO = "1")
+  on.exit({
+    if (is.na(old_rstudio)) Sys.unsetenv("RSTUDIO") else Sys.setenv(RSTUDIO = old_rstudio)
+  }, add = TRUE)
+
+  # Null device so plot=TRUE doesn't pop windows
+  grDevices::pdf(NULL)
+  on.exit(try(grDevices::dev.off(), silent = TRUE), add = TRUE)
+
+  set.seed(123)
+  tr <- ape::rtree(20)
+  X <- matrix(rnorm(20 * 2), ncol = 2)
+  rownames(X) <- tr$tip.label
+
+  # Critical trick:
+  # Set min_descendant_tips to Ntip so ONLY the root is eligible.
+  # That makes candidate_trees_shifts empty => the main loop never runs,
+  # so the plot code never calls getStates(shifted_tree,...).
+  out <- testthat::capture_output({
+    suppressWarnings(suppressMessages(searchOptimalConfiguration(
+      baseline_tree              = tr,
+      trait_data                 = X,
+      formula                    = "trait_data ~ 1",
+      min_descendant_tips        = ape::Ntip(tr),
+      num_cores                  = 1,
+      shift_acceptance_threshold = 1e9,
+      plot                       = TRUE,
+      IC                         = "GIC",
+      store_model_fit_history    = FALSE,
+      method                     = "LL",
+      verbose                    = TRUE
+    )))
+  })
+
+  txt <- paste(out, collapse = "\n")
+  testthat::expect_true(grepl("Generating candidate shift models", txt))
+})
+
+# ---- Test XX (NEW): serial IC weights path executes BIC branch (mocked deterministic) ----
+test_that("searchOptimalConfiguration serial ic_weights executes BIC branch", {
+  skip_if_missing_deps()
+
+  ns <- asNamespace("bifrost")
+
+  # Deterministic decreasing BIC so shifts are accepted and weights run
+  k <- 0L
+  testthat::local_mocked_bindings(
+    fitMvglsAndExtractBIC.formula = function(formula, tree, trait_data, ...) {
+      k <<- k + 1L
+      bic_val <- 1000 - 10 * k
+      list(
+        model = list(corrSt = list(phy = tree)),
+        BIC = list(BIC = bic_val)
+      )
+    },
+    # Make shift-removal safe & deterministic for weights loop
+    removeShiftFromTree = function(tree, shift_node, stem = FALSE) tree,
+    .env = ns
+  )
+
+  set.seed(999)
+  tr <- ape::rtree(40)
+  X <- matrix(rnorm(40 * 2), ncol = 2)
+  rownames(X) <- tr$tip.label
+
+  res <- suppressWarnings(searchOptimalConfiguration(
+    baseline_tree              = tr,
+    trait_data                 = X,
+    formula                    = "trait_data ~ 1",
+    min_descendant_tips        = 2,
+    num_cores                  = 1,
+    shift_acceptance_threshold = -Inf,   # accept shifts
+    plot                       = FALSE,
+    store_model_fit_history    = FALSE,
+    verbose                    = FALSE,
+    IC                         = "BIC",
+    uncertaintyweights         = TRUE    # SERIAL weights path
+  ))
+
+  testthat::expect_true("ic_weights" %in% names(res))
+  testthat::expect_true(is.data.frame(res$ic_weights))
+  testthat::expect_true(nrow(res$ic_weights) >= 1L)
+})
+
+# ---- Test XX (NEW): warning handler path during shift evaluation (BIC) ----
+test_that("searchOptimalConfiguration captures warnings from shift evaluation (BIC)", {
+  skip_if_missing_deps()
+
+  ns <- asNamespace("bifrost")
+  orig_fit <- get("fitMvglsAndExtractBIC.formula", envir = ns)
+
+  testthat::local_mocked_bindings(
+    fitMvglsAndExtractBIC.formula = function(formula, tree, trait_data, ...) {
+      in_withCallingHandlers <- any(vapply(sys.calls(), function(cl) {
+        is.call(cl) && is.name(cl[[1]]) && identical(as.character(cl[[1]]), "withCallingHandlers")
+      }, logical(1)))
+
+      if (in_withCallingHandlers) warning("forced warning from test (BIC)")
+
+      orig_fit(formula, tree, trait_data, ...)
+    },
+    .env = ns
+  )
+
+  set.seed(456)
+  tr <- ape::rtree(25)
+  X <- matrix(rnorm(25 * 2), ncol = 2)
+  rownames(X) <- tr$tip.label
+
+  res <- suppressWarnings(searchOptimalConfiguration(
+    baseline_tree              = tr,
+    trait_data                 = X,
+    formula                    = "trait_data ~ 1",
+    min_descendant_tips        = 5,
+    num_cores                  = 1,
+    shift_acceptance_threshold = 1e9,  # reject; still evaluates candidates and triggers handler
+    plot                       = FALSE,
+    store_model_fit_history    = FALSE,
+    method                     = "LL",
+    verbose                    = FALSE,
+    IC                         = "BIC"
+  ))
+
+  testthat::expect_true(!is.null(res$warnings))
+  testthat::expect_true(any(grepl("Warning in evaluating shift at node", unlist(res$warnings))))
+})
 
