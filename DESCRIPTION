@@ -26,7 +26,8 @@ Imports:
     grDevices,
     stats,
     mvMORPH,
-    viridis
+    viridis,
+    txtplot
 Suggests:
     HDInterval,
     RColorBrewer,

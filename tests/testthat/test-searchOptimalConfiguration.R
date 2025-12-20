@@ -935,6 +935,128 @@ test_that("no-shifts path yields a usable model_no_uncertainty", {
   testthat::expect_true(!is.null(res$model_no_uncertainty))
 })
 
+# ---- Test XX (NEW): print method core output on a real no-shifts run ----------
+test_that("print.bifrost_search prints core sections on a real no-shifts run", {
+  skip_if_missing_deps()
+
+  set.seed(123)
+  tr <- ape::rtree(20)
+  X <- matrix(rnorm(20 * 2), ncol = 2)
+  rownames(X) <- tr$tip.label
+
+  res <- suppressWarnings(suppressMessages(searchOptimalConfiguration(
+    baseline_tree              = tr,
+    trait_data                 = X,
+    formula                    = "trait_data ~ 1",
+    min_descendant_tips        = 10,
+    num_cores                  = 1,
+    shift_acceptance_threshold = 1e9,
+    plot                       = FALSE,
+    IC                         = "GIC",
+    store_model_fit_history    = FALSE,
+    method                     = "LL",
+    verbose                    = FALSE
+  )))
+
+  testthat::expect_s3_class(res, "bifrost_search")
+
+  out <- testthat::capture_output(print(res))
+  txt <- paste(out, collapse = "\n")
+
+  testthat::expect_true(grepl("Bifrost Search Result", txt, fixed = TRUE))
+  testthat::expect_true(grepl("IC (GIC)", txt, fixed = TRUE))
+  testthat::expect_true(grepl("Search", txt, fixed = TRUE))
+  testthat::expect_true(grepl("mvgls", txt, fixed = TRUE))
+  testthat::expect_true(grepl("Shift Nodes", txt, fixed = TRUE))
+  testthat::expect_true(grepl("Warnings", txt, fixed = TRUE))
+
+  # No history plot (history disabled)
+  testthat::expect_false(grepl("IC History (Best IC by Iteration)", txt, fixed = TRUE))
+
+  # No weights section unless ic_weights is present
+  testthat::expect_false(grepl("Weights \\(Support\\)", txt))
+})
+
+# ---- Test XX (NEW): print method covers history plot + penalty/target + weights ---
+test_that("print.bifrost_search prints history plot, penalty/target, and weights when present", {
+  # Only the deps actually needed for this synthetic-object test
+  testthat::skip_if_not_installed("ape")
+  testthat::skip_if_not_installed("phytools")
+  testthat::skip_if_not_installed("txtplot")
+
+  # Replace testthat::local_options() with base options() + on.exit()
+  old_width <- getOption("width")
+  old_tw <- getOption("bifrost.txtplot.width")
+  old_th <- getOption("bifrost.txtplot.height")
+
+  options(width = 80, bifrost.txtplot.width = 30L, bifrost.txtplot.height = 15L)
+  on.exit({
+    options(width = old_width)
+    if (is.null(old_tw)) options(bifrost.txtplot.width = NULL) else options(bifrost.txtplot.width = old_tw)
+    if (is.null(old_th)) options(bifrost.txtplot.height = NULL) else options(bifrost.txtplot.height = old_th)
+  }, add = TRUE)
+
+  tr <- ape::rtree(10)
+  tr <- phytools::paintBranches(tr, edge = unique(tr$edge[, 2]), state = "0", anc.state = "0")
+  class(tr) <- c("simmap", setdiff(class(tr), "simmap"))
+
+  model_stub <- list(
+    call = list(model = "BMM", method = "LL"),
+    Y = matrix(0, nrow = ape::Ntip(tr), ncol = 3),
+    formula = stats::as.formula("trait_data ~ 1")
+  )
+
+  ic_mat <- cbind(
+    c(-100, -105, -103, -110, -115),
+    c(1,    1,    0,    1,    1)
+  )
+
+  obj <- list(
+    user_input = list(
+      formula = "trait_data ~ 1",
+      min_descendant_tips = 3,
+      num_cores = 2,
+      shift_acceptance_threshold = 20,
+      plot = FALSE,
+      verbose = TRUE,
+      store_model_fit_history = TRUE,
+      method = "LL",
+      error = TRUE,
+      penalty = "ridge",
+      target = "CV"
+    ),
+    tree_no_uncertainty_untransformed = tr,
+    model_no_uncertainty = model_stub,
+    shift_nodes_no_uncertainty = c(12L, 15L),
+    IC_used = "GIC",
+    baseline_ic = -100,
+    optimal_ic = -115,
+    num_candidates = 5L,
+    model_fit_history = list(ic_acceptance_matrix = ic_mat),
+    ic_weights = data.frame(
+      node = c(12L, 15L),
+      ic_weight_withshift = c(0.9, 0.1)
+    ),
+    warnings = character(0)
+  )
+  class(obj) <- c("bifrost_search", "list")
+
+  out <- testthat::capture_output(print(obj))
+  txt <- paste(out, collapse = "\n")
+
+  testthat::expect_true(grepl("IC History (Best IC by Iteration)", txt, fixed = TRUE))
+  testthat::expect_true(grepl("\\*", txt))  # txtplot uses '*' for points
+
+  testthat::expect_true(grepl("Penalty", txt, fixed = TRUE))
+  testthat::expect_true(grepl("Target", txt, fixed = TRUE))
+
+  testthat::expect_true(grepl("GIC Weights (Support)", txt, fixed = TRUE))
+  testthat::expect_true(grepl("\\b12\\b", txt))
+  testthat::expect_true(grepl("\\b15\\b", txt))
+
+  testthat::expect_true(grepl("Shift Nodes", txt, fixed = TRUE))
+})
+
 # ---- Test 13 (NEW): warning handler path during shift evaluation --------------
 test_that("searchOptimalConfiguration captures warnings from shift evaluation", {
   skip_if_missing_deps()
@@ -1017,7 +1139,6 @@ test_that("searchOptimalConfiguration records error entries in history and yield
   testthat::expect_true(!is.null(res$warnings))
   testthat::expect_true(any(grepl("Error in evaluating shift at node", unlist(res$warnings))))
 })
-
 
 
 

@@ -822,6 +822,7 @@ searchOptimalConfiguration <-
 
     }
 
+    class(result_list) <- c("bifrost_search", class(result_list))
     return(result_list)
 
   }
