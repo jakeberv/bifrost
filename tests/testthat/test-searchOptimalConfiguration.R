@@ -177,6 +177,50 @@ test_that("searchOptimalConfiguration runs end-to-end on simulated data (BIC)", 
   }
 })
 
+# ---- Test 1b: IC-weights invariants (non-brittle consistency check) ----------
+test_that("ic_weights are internally consistent when present", {
+  skip_if_missing_deps()
+
+  set.seed(123)
+  tr <- ape::rtree(40)
+  X <- matrix(rnorm(40 * 2), ncol = 2)
+  rownames(X) <- tr$tip.label
+
+  res <- searchOptimalConfiguration(
+    baseline_tree              = tr,
+    trait_data                 = X,
+    formula                    = "trait_data ~ 1",
+    min_descendant_tips        = 5,
+    num_cores                  = 1,
+    shift_acceptance_threshold = -Inf,   # encourage accepting shifts
+    plot                       = FALSE,
+    store_model_fit_history    = FALSE,
+    method                     = "LL",
+    verbose                    = FALSE,
+    IC                         = "GIC",
+    uncertaintyweights_par     = TRUE
+  )
+
+  testthat::expect_true("ic_weights" %in% names(res))
+  testthat::expect_true(is.data.frame(res$ic_weights))
+
+  if (nrow(res$ic_weights) > 0) {
+    # delta_ic should equal ic_with_shift - ic_without_shift
+    testthat::expect_equal(
+      res$ic_weights$delta_ic,
+      res$ic_weights$ic_with_shift - res$ic_weights$ic_without_shift,
+      tolerance = 1e-10
+    )
+
+    # evidence_ratio should equal weight_with / weight_without
+    testthat::expect_equal(
+      res$ic_weights$evidence_ratio,
+      res$ic_weights$ic_weight_withshift / res$ic_weights$ic_weight_withoutshift,
+      tolerance = 1e-10
+    )
+  }
+})
+
 # ---- Test 2: explicitly non-parallel (force sequential plan) -----------------
 test_that("searchOptimalConfiguration also runs in purely sequential mode", {
   skip_if_missing_deps()
@@ -528,7 +572,6 @@ test_that("searchOptimalConfiguration errors if both uncertaintyweights flags ar
   )
 })
 
-
 # ---- Test 9 (NEW): no-shifts path for uncertaintyweights_par (ic_weights = NA) ----
 test_that("searchOptimalConfiguration skips IC weights (parallel) when no shifts are detected", {
   skip_if_missing_deps()
@@ -554,9 +597,15 @@ test_that("searchOptimalConfiguration skips IC weights (parallel) when no shifts
   )
 
   testthat::expect_true("ic_weights" %in% names(res))
-  testthat::expect_true(is.na(res$ic_weights)[1])
-})
+  testthat::expect_true(is.data.frame(res$ic_weights))
+  testthat::expect_equal(nrow(res$ic_weights), 0L)
 
+  # Optional: check schema stays stable
+  testthat::expect_true(all(c(
+    "node","ic_with_shift","ic_without_shift","delta_ic",
+    "ic_weight_withshift","ic_weight_withoutshift","evidence_ratio"
+  ) %in% names(res$ic_weights)))
+})
 
 # ---- Test 10 (NEW): force multisession branch (RSTUDIO=1) --------------------
 test_that("searchOptimalConfiguration takes multisession path when RSTUDIO=1", {
@@ -589,7 +638,6 @@ test_that("searchOptimalConfiguration takes multisession path when RSTUDIO=1", {
 
   testthat::expect_type(res, "list")
 })
-
 
 # ---- Test 11 (NEW): restore_threads else-branch (pre-set env var restored) ----
 test_that("searchOptimalConfiguration restores BLAS/OpenMP env vars after candidate scoring", {
@@ -636,8 +684,258 @@ test_that("searchOptimalConfiguration restores BLAS/OpenMP env vars after candid
   testthat::expect_identical(Sys.getenv("OMP_NUM_THREADS"), "3")
 })
 
+# ---- Test 12 (NEW): serial vs parallel IC-weights agree (num_cores = 1) ------
+test_that("searchOptimalConfiguration returns consistent ic_weights for serial vs parallel modes", {
+  skip_if_missing_deps()
 
-# ---- Test 12 (NEW): warning handler path during shift evaluation --------------
+  set.seed(1414)
+
+  # Build a tree and pre-paint it (matches what searchOptimalConfiguration does internally)
+  tr0 <- ape::rtree(40)
+  tr  <- phytools::paintSubTree(ape::as.phylo(tr0), node = ape::Ntip(tr0) + 1L, state = 0)
+
+  # Build trait matrix aligned to the painted tree tip order
+  X <- matrix(rnorm(40 * 2), ncol = 2)
+  rownames(X) <- tr$tip.label
+
+  # Run 1: serial IC weights
+  set.seed(1414)
+  res_ser <- suppressWarnings(searchOptimalConfiguration(
+    baseline_tree              = tr,
+    trait_data                 = X,
+    formula                    = "trait_data ~ 1",
+    min_descendant_tips        = 5,
+    num_cores                  = 1,
+    shift_acceptance_threshold = -Inf,
+    plot                       = FALSE,
+    store_model_fit_history    = FALSE,
+    method                     = "LL",
+    verbose                    = FALSE,
+    IC                         = "GIC",
+    uncertaintyweights         = TRUE
+  ))
+
+  # Run 2: parallel IC weights (deterministic when num_cores = 1)
+  set.seed(1414)
+  res_par <- suppressWarnings(searchOptimalConfiguration(
+    baseline_tree              = tr,
+    trait_data                 = X,
+    formula                    = "trait_data ~ 1",
+    min_descendant_tips        = 5,
+    num_cores                  = 1,
+    shift_acceptance_threshold = -Inf,
+    plot                       = FALSE,
+    store_model_fit_history    = FALSE,
+    method                     = "LL",
+    verbose                    = FALSE,
+    IC                         = "GIC",
+    uncertaintyweights_par     = TRUE
+  ))
+
+  testthat::expect_true("ic_weights" %in% names(res_ser))
+  testthat::expect_true("ic_weights" %in% names(res_par))
+  testthat::expect_true(is.data.frame(res_ser$ic_weights))
+  testthat::expect_true(is.data.frame(res_par$ic_weights))
+
+  # If either is empty, both should be empty under fixed seed + num_cores=1
+  if (nrow(res_ser$ic_weights) == 0L || nrow(res_par$ic_weights) == 0L) {
+    testthat::expect_equal(nrow(res_ser$ic_weights), 0L)
+    testthat::expect_equal(nrow(res_par$ic_weights), 0L)
+    return(invisible(NULL))
+  }
+
+  cols <- c(
+    "node", "ic_with_shift", "ic_without_shift", "delta_ic",
+    "ic_weight_withshift", "ic_weight_withoutshift", "evidence_ratio"
+  )
+
+  testthat::expect_true(all(cols %in% names(res_ser$ic_weights)))
+  testthat::expect_true(all(cols %in% names(res_par$ic_weights)))
+
+  ser <- res_ser$ic_weights[, cols, drop = FALSE]
+  par <- res_par$ic_weights[, cols, drop = FALSE]
+
+  # order-independent compare
+  ser <- ser[order(ser$node), , drop = FALSE]; rownames(ser) <- NULL
+  par <- par[order(par$node), , drop = FALSE]; rownames(par) <- NULL
+
+  testthat::expect_equal(ser$node, par$node)
+
+  num_cols <- setdiff(cols, "node")
+  for (nm in num_cols) {
+    testthat::expect_equal(ser[[nm]], par[[nm]], tolerance = 1e-10)
+  }
+})
+
+# ---- Test 15: CRAN-safety: do not write files to the working directory --------
+test_that("searchOptimalConfiguration does not write files to the working directory", {
+  skip_if_missing_deps()
+
+  # Isolated working directory (base R only)
+  wd <- tempfile("bifrost-wd-")
+  dir.create(wd, recursive = TRUE)
+  oldwd <- getwd()
+  on.exit(setwd(oldwd), add = TRUE)
+  setwd(wd)
+
+  before <- list.files(".", recursive = TRUE, all.files = TRUE)
+
+  set.seed(123)
+  tr <- ape::rtree(30)
+  X <- matrix(rnorm(30 * 2), ncol = 2)
+  rownames(X) <- tr$tip.label
+
+  res <- searchOptimalConfiguration(
+    baseline_tree              = tr,
+    trait_data                 = X,
+    formula                    = "trait_data ~ 1",
+    min_descendant_tips        = 10,
+    num_cores                  = 1,
+    shift_acceptance_threshold = 1e9,
+    plot                       = FALSE,
+    IC                         = "GIC",
+    store_model_fit_history    = TRUE,  # key path we care about
+    method                     = "LL",
+    verbose                    = FALSE
+  )
+
+  after <- list.files(".", recursive = TRUE, all.files = TRUE)
+
+  # Nothing new should appear in working directory
+  testthat::expect_identical(after, before)
+
+  # Optional sanity: if history is requested, it should be under tempdir(), not getwd()
+  testthat::expect_true(
+    !dir.exists(file.path(getwd(), "bifrost_fit_history"))
+  )
+})
+
+# ---- Test 16: does not leak global bifrost.verbose option --------------------
+test_that("searchOptimalConfiguration restores options(bifrost.verbose)", {
+  skip_if_missing_deps()
+
+  old_opt <- getOption("bifrost.verbose")
+  options(bifrost.verbose = FALSE)
+  on.exit(options(bifrost.verbose = old_opt), add = TRUE)
+
+  set.seed(123)
+  tr <- ape::rtree(25)
+  X <- matrix(rnorm(25 * 2), ncol = 2)
+  rownames(X) <- tr$tip.label
+
+  res <- suppressMessages(searchOptimalConfiguration(
+    baseline_tree              = tr,
+    trait_data                 = X,
+    formula                    = "trait_data ~ 1",
+    min_descendant_tips        = 10,
+    num_cores                  = 1,
+    shift_acceptance_threshold = 1e9,
+    plot                       = FALSE,
+    IC                         = "GIC",
+    store_model_fit_history    = FALSE,
+    method                     = "LL",
+    verbose                    = TRUE   # triggers internal options() change
+  ))
+
+  testthat::expect_identical(getOption("bifrost.verbose"), FALSE)
+})
+
+# ---- Test 17: ic_weights schema is stable when requested ---------------------
+test_that("ic_weights has stable schema when requested", {
+  skip_if_missing_deps()
+
+  set.seed(3)
+  tr <- ape::rtree(25)
+  X <- matrix(rnorm(25 * 2), ncol = 2)
+  rownames(X) <- tr$tip.label
+
+  res <- searchOptimalConfiguration(
+    baseline_tree              = tr,
+    trait_data                 = X,
+    formula                    = "trait_data ~ 1",
+    min_descendant_tips        = 10,
+    num_cores                  = 1,
+    shift_acceptance_threshold = 1e9, # likely no shifts
+    plot                       = FALSE,
+    store_model_fit_history    = FALSE,
+    method                     = "LL",
+    verbose                    = FALSE,
+    IC                         = "GIC",
+    uncertaintyweights_par     = TRUE
+  )
+
+  testthat::expect_true("ic_weights" %in% names(res))
+  testthat::expect_true(is.data.frame(res$ic_weights))
+  testthat::expect_true(all(c(
+    "node","ic_with_shift","ic_without_shift","delta_ic",
+    "ic_weight_withshift","ic_weight_withoutshift","evidence_ratio"
+  ) %in% names(res$ic_weights)))
+})
+
+# ---- Test 18: model_fit_history ic_acceptance_matrix is well-formed ----------
+test_that("model_fit_history ic_acceptance_matrix is well-formed", {
+  skip_if_missing_deps()
+
+  simdata <- load_simdata_fixture()
+  built <- build_baseline_and_data(simdata)
+
+  set.seed(123)
+  res <- searchOptimalConfiguration(
+    baseline_tree           = built$tree,
+    trait_data              = built$X,
+    formula                 = "trait_data ~ 1",
+    min_descendant_tips     = 10,
+    num_cores               = 1,
+    shift_acceptance_threshold = 1e9,
+    plot                    = FALSE,
+    IC                      = "GIC",
+    store_model_fit_history = TRUE,
+    method                  = "LL",
+    verbose                 = FALSE
+  )
+
+  testthat::expect_true(is.list(res$model_fit_history))
+  testthat::expect_true("ic_acceptance_matrix" %in% names(res$model_fit_history))
+
+  mat <- res$model_fit_history$ic_acceptance_matrix
+  testthat::expect_true(is.matrix(mat))
+  testthat::expect_equal(ncol(mat), 2L)
+
+  # acceptance column should be coercible to logical without producing all NA
+  acc <- mat[, 2]
+  acc_lgl <- suppressWarnings(as.logical(acc))
+  testthat::expect_false(all(is.na(acc_lgl)))
+})
+
+# ---- Test 19: no-shifts path yields a usable model_no_uncertainty -------------
+test_that("no-shifts path yields a usable model_no_uncertainty", {
+  skip_if_missing_deps()
+
+  set.seed(999)
+  tr <- ape::rtree(25)
+  X <- matrix(rnorm(25 * 2), ncol = 2)
+  rownames(X) <- tr$tip.label
+
+  res <- searchOptimalConfiguration(
+    baseline_tree              = tr,
+    trait_data                 = X,
+    formula                    = "trait_data ~ 1",
+    min_descendant_tips        = 20,
+    num_cores                  = 1,
+    shift_acceptance_threshold = 1e9, # no shifts
+    plot                       = FALSE,
+    IC                         = "GIC",
+    store_model_fit_history    = FALSE,
+    method                     = "LL",
+    verbose                    = FALSE
+  )
+
+  testthat::expect_equal(length(res$shift_nodes_no_uncertainty), 0L)
+  # should not be NULL in a "nice" API; if it is today, this test will flag it.
+  testthat::expect_true(!is.null(res$model_no_uncertainty))
+})
+
+# ---- Test 13 (NEW): warning handler path during shift evaluation --------------
 test_that("searchOptimalConfiguration captures warnings from shift evaluation", {
   skip_if_missing_deps()
 
@@ -680,8 +978,7 @@ test_that("searchOptimalConfiguration captures warnings from shift evaluation", 
   testthat::expect_true(any(grepl("Warning in evaluating shift at node", unlist(res$warnings))))
 })
 
-
-# ---- Test 13 (NEW): error handler + NA_real_ row in ic_acceptance_matrix ------
+# ---- Test 14 (NEW): error handler + NA_real_ row in ic_acceptance_matrix ------
 test_that("searchOptimalConfiguration records error entries in history and yields NA_real_ row", {
   skip_if_missing_deps()
 
@@ -720,6 +1017,7 @@ test_that("searchOptimalConfiguration records error entries in history and yield
   testthat::expect_true(!is.null(res$warnings))
   testthat::expect_true(any(grepl("Error in evaluating shift at node", unlist(res$warnings))))
 })
+
 
 
 
