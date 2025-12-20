@@ -1057,6 +1057,121 @@ test_that("print.bifrost_search prints history plot, penalty/target, and weights
   testthat::expect_true(grepl("Shift Nodes", txt, fixed = TRUE))
 })
 
+# ---- Test XX (NEW): print method edge-case branch coverage -------------------
+test_that("print.bifrost_search covers edge-case branches (NA types, fallback fields, schema issues)", {
+  testthat::skip_if_not_installed("ape")
+  testthat::skip_if_not_installed("phytools")
+  testthat::skip_if_not_installed("txtplot")
+
+  # Keep output deterministic-ish for wrapping/plots
+  old_width <- getOption("width")
+  old_tw <- getOption("bifrost.txtplot.width")
+  old_th <- getOption("bifrost.txtplot.height")
+  options(width = 80, bifrost.txtplot.width = 40L, bifrost.txtplot.height = 12L)
+  on.exit({
+    options(width = old_width)
+    if (is.null(old_tw)) options(bifrost.txtplot.width = NULL) else options(bifrost.txtplot.width = old_tw)
+    if (is.null(old_th)) options(bifrost.txtplot.height = NULL) else options(bifrost.txtplot.height = old_th)
+  }, add = TRUE)
+
+  # --- Case A: missing tree/model, NA-ish user_input types, empty weights df ---
+  # Hits: .fmt_num(all NA), .fmt_num(non-numeric), .fmt_int(NA), .fmt_lgl(length==0/character),
+  #       .safe_* early NULL returns, .wrap_nodes(NULL), weights nrow==0 branch.
+  obj_a <- list(
+    user_input = list(
+      min_descendant_tips = NA_integer_,
+      num_cores = NA_integer_,
+      shift_acceptance_threshold = NA_real_,
+      plot = "maybe",                 # character -> .fmt_lgl as.character branch
+      verbose = character(0),         # length==0 -> .fmt_lgl early return
+      store_model_fit_history = FALSE
+    ),
+    IC_used = "GIC",
+    baseline_ic = "foo",              # non-numeric -> .fmt_num non-numeric branch
+    optimal_ic = NA_real_,            # numeric NA -> .fmt_num(all NA) branch for delta
+    shift_nodes_no_uncertainty = NULL,
+    model_no_uncertainty = NULL,
+    # no tree fields at all -> tree remains NULL
+    ic_weights = data.frame(),        # triggers nrow(w)==0 message branch
+    warnings = character(0)
+  )
+  class(obj_a) <- c("bifrost_search", "list")
+
+  out_a <- testthat::capture_output(print(obj_a))
+  txt_a <- paste(out_a, collapse = "\n")
+  testthat::expect_true(grepl("Bifrost Search Result", txt_a, fixed = TRUE))
+  testthat::expect_true(grepl("Requested, but no shifts detected", txt_a, fixed = TRUE))
+
+  # --- Case B: transformed-tree selection + method/formula fallback + model_code fallback + bad weights schema ---
+  # Hits: tree_no_uncertainty_transformed branch, method/formula fallback from model_obj,
+  #       model_code fallback from regimes (>1), safe_trait_count residuals numeric branch,
+  #       weights "expected columns missing" branch, .fmt_val deparse+truncate path via long symbol.
+  tr <- ape::rtree(10)
+  tr0 <- phytools::paintBranches(tr, edge = unique(tr$edge[, 2]), state = "0", anc.state = "0")
+  # create a second regime so regimes > 1
+  nd <- ape::Ntip(tr0) + 2L
+  tr2 <- phytools::paintSubTree(tr0, node = nd, state = "1", anc.state = "0", stem = FALSE)
+
+  long_sym <- as.name(paste(rep("x", 120), collapse = ""))  # forces deparse path + truncation in .fmt_val
+
+  model_stub <- list(
+    call = list(method = "H&L"),               # method fallback path
+    formula = stats::as.formula("trait_data ~ 1"), # formula fallback path
+    residuals = rnorm(ape::Ntip(tr2))          # numeric residuals -> trait count returns 1
+    # NOTE: intentionally no call$model so model_code fallback uses regimes
+  )
+
+  obj_b <- list(
+    user_input = list(
+      # leave method/formula absent to force fallback
+      error = TRUE,
+      penalty = long_sym,   # triggers .fmt_val deparse branch (+ truncation)
+      target = "CV",
+      store_model_fit_history = FALSE
+    ),
+    tree_no_uncertainty_transformed = tr2,   # hit transformed-tree selection branch
+    model_no_uncertainty = model_stub,
+    shift_nodes_no_uncertainty = c(12L, 15L),
+    IC_used = "GIC",
+    baseline_ic = -100,
+    optimal_ic = -115,
+    num_candidates = 5L,
+    ic_weights = data.frame(foo = 1),        # wrong schema -> "expected columns missing" branch
+    warnings = character(0)
+  )
+  class(obj_b) <- c("bifrost_search", "list")
+
+  out_b <- testthat::capture_output(print(obj_b))
+  txt_b <- paste(out_b, collapse = "\n")
+  testthat::expect_true(grepl("Method:", txt_b, fixed = TRUE))     # fallback printed
+  testthat::expect_true(grepl("Formula:", txt_b, fixed = TRUE))    # fallback printed
+  testthat::expect_true(grepl("expected columns missing", txt_b, fixed = TRUE))
+
+  # --- Case C: history plot with logical accept column + empty ylab fallback ---
+  # Hits: acc_raw logical branch, ylab_txt empty -> fallback to "IC"
+  ic_mat_logical <- cbind(
+    c(-100, -105, -103, -110, -115),
+    c(TRUE, TRUE, FALSE, TRUE, TRUE)
+  )
+
+  obj_c <- list(
+    user_input = list(store_model_fit_history = TRUE),
+    IC_used = "(best)",                        # gsub removes "(best)" -> empty -> ylab fallback line
+    baseline_ic = -100,
+    optimal_ic  = -115,
+    shift_nodes_no_uncertainty = integer(0),
+    model_fit_history = list(ic_acceptance_matrix = ic_mat_logical),
+    # no weights for this one
+    warnings = character(0)
+  )
+  class(obj_c) <- c("bifrost_search", "list")
+
+  out_c <- testthat::capture_output(print(obj_c))
+  txt_c <- paste(out_c, collapse = "\n")
+  testthat::expect_true(grepl("IC History (Best IC by Iteration)", txt_c, fixed = TRUE))
+  testthat::expect_true(grepl("\\*", txt_c))  # points from txtplot
+})
+
 # ---- Test 13 (NEW): warning handler path during shift evaluation --------------
 test_that("searchOptimalConfiguration captures warnings from shift evaluation", {
   skip_if_missing_deps()
