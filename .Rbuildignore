@@ -19,4 +19,4 @@
 ^cran_.*\.log$
 ^check\.log$
 ^CRAN-SUBMISSION$
-dev-notes\.md
+^dev-notes\.md$
