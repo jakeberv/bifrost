@@ -21,3 +21,4 @@
 ^CRAN-SUBMISSION$
 ^dev-notes\.md$
 ^CI-notes\.txt$
+^lint\.txt$
