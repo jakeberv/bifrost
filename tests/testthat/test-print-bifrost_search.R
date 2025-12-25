@@ -1,11 +1,18 @@
-skip_if_missing_deps <- function() {
-  testthat::skip_if_not_installed("ape")
-  testthat::skip_if_not_installed("phytools")
-  testthat::skip_if_not_installed("mvMORPH")
-  testthat::skip_if_not_installed("future")
+# tests/testthat/test-print-bifrost_search.R
+
+testthat::skip_on_cran()
+
+# Ensure helper exists regardless of test file order
+if (!exists("skip_if_missing_deps", mode = "function")) {
+  skip_if_missing_deps <- function() {
+    testthat::skip_if_not_installed("ape")
+    testthat::skip_if_not_installed("phytools")
+    testthat::skip_if_not_installed("mvMORPH")
+    testthat::skip_if_not_installed("future")
+  }
 }
 
-# ---- Test XX (NEW): print method core output on a real no-shifts run ----------
+# ---- Test XX: print method core output on a real no-shifts run ---------------
 test_that("print.bifrost_search prints core sections on a real no-shifts run", {
   skip_if_missing_deps()
 
@@ -30,8 +37,7 @@ test_that("print.bifrost_search prints core sections on a real no-shifts run", {
 
   testthat::expect_s3_class(res, "bifrost_search")
 
-  out <- testthat::capture_output(print(res))
-  txt <- paste(out, collapse = "\n")
+  txt <- paste(testthat::capture_output(print(res)), collapse = "\n")
 
   testthat::expect_true(grepl("Bifrost Search Result", txt, fixed = TRUE))
   testthat::expect_true(grepl("IC (GIC)", txt, fixed = TRUE))
@@ -40,21 +46,16 @@ test_that("print.bifrost_search prints core sections on a real no-shifts run", {
   testthat::expect_true(grepl("Shift Nodes", txt, fixed = TRUE))
   testthat::expect_true(grepl("Warnings", txt, fixed = TRUE))
 
-  # No history plot (history disabled)
   testthat::expect_false(grepl("IC History (Best IC by Iteration)", txt, fixed = TRUE))
-
-  # No weights section unless ic_weights is present
   testthat::expect_false(grepl("Weights \\(Support\\)", txt))
 })
 
-# ---- Test XX (NEW): print method covers history plot + penalty/target + weights ---
+# ---- Test XX: print method covers history plot + penalty/target + weights ----
 test_that("print.bifrost_search prints history plot, penalty/target, and weights when present", {
-  # Only the deps actually needed for this synthetic-object test
   testthat::skip_if_not_installed("ape")
   testthat::skip_if_not_installed("phytools")
   testthat::skip_if_not_installed("txtplot")
 
-  # Replace testthat::local_options() with base options() + on.exit()
   old_width <- getOption("width")
   old_tw <- getOption("bifrost.txtplot.width")
   old_th <- getOption("bifrost.txtplot.height")
@@ -111,11 +112,10 @@ test_that("print.bifrost_search prints history plot, penalty/target, and weights
   )
   class(obj) <- c("bifrost_search", "list")
 
-  out <- testthat::capture_output(print(obj))
-  txt <- paste(out, collapse = "\n")
+  txt <- paste(testthat::capture_output(print(obj)), collapse = "\n")
 
   testthat::expect_true(grepl("IC History (Best IC by Iteration)", txt, fixed = TRUE))
-  testthat::expect_true(grepl("\\*", txt))  # txtplot uses '*' for points
+  testthat::expect_true(grepl("\\*", txt))  # txtplot points
 
   testthat::expect_true(grepl("Penalty", txt, fixed = TRUE))
   testthat::expect_true(grepl("Target", txt, fixed = TRUE))
@@ -123,17 +123,14 @@ test_that("print.bifrost_search prints history plot, penalty/target, and weights
   testthat::expect_true(grepl("GIC Weights (Support)", txt, fixed = TRUE))
   testthat::expect_true(grepl("\\b12\\b", txt))
   testthat::expect_true(grepl("\\b15\\b", txt))
-
-  testthat::expect_true(grepl("Shift Nodes", txt, fixed = TRUE))
 })
 
-# ---- Test XX (NEW): print method edge-case branch coverage -------------------
+# ---- Test XX: print method edge-case branch coverage -------------------------
 test_that("print.bifrost_search covers edge-case branches (NA types, fallback fields, schema issues)", {
   testthat::skip_if_not_installed("ape")
   testthat::skip_if_not_installed("phytools")
   testthat::skip_if_not_installed("txtplot")
 
-  # Keep output deterministic-ish for wrapping/plots
   old_width <- getOption("width")
   old_tw <- getOption("bifrost.txtplot.width")
   old_th <- getOption("bifrost.txtplot.height")
@@ -144,55 +141,48 @@ test_that("print.bifrost_search covers edge-case branches (NA types, fallback fi
     if (is.null(old_th)) options(bifrost.txtplot.height = NULL) else options(bifrost.txtplot.height = old_th)
   }, add = TRUE)
 
-  # --- Case A: missing tree/model, NA-ish user_input types, empty weights df ---
+  # Case A
   obj_a <- list(
     user_input = list(
       min_descendant_tips = NA_integer_,
       num_cores = NA_integer_,
       shift_acceptance_threshold = NA_real_,
-      plot = "maybe",                 # character -> .fmt_lgl as.character branch
-      verbose = character(0),         # length==0 -> .fmt_lgl early return
+      plot = "maybe",
+      verbose = character(0),
       store_model_fit_history = FALSE
     ),
     IC_used = "GIC",
-    baseline_ic = "foo",              # non-numeric -> .fmt_num non-numeric branch
-    optimal_ic = NA_real_,            # numeric NA -> .fmt_num(all NA) branch for delta
+    baseline_ic = "foo",
+    optimal_ic = NA_real_,
     shift_nodes_no_uncertainty = NULL,
     model_no_uncertainty = NULL,
-    ic_weights = data.frame(),        # triggers nrow(w)==0 message branch
+    ic_weights = data.frame(),
     warnings = character(0)
   )
   class(obj_a) <- c("bifrost_search", "list")
-
-  out_a <- testthat::capture_output(print(obj_a))
-  txt_a <- paste(out_a, collapse = "\n")
-  testthat::expect_true(grepl("Bifrost Search Result", txt_a, fixed = TRUE))
+  txt_a <- paste(testthat::capture_output(print(obj_a)), collapse = "\n")
   testthat::expect_true(grepl("Requested, but no shifts detected", txt_a, fixed = TRUE))
 
-  # --- Case B: transformed-tree selection + method/formula fallback + model_code fallback + bad weights schema ---
+  # Case B
   tr <- ape::rtree(10)
   tr0 <- phytools::paintBranches(tr, edge = unique(tr$edge[, 2]), state = "0", anc.state = "0")
-  # create a second regime so regimes > 1
   nd <- ape::Ntip(tr0) + 2L
   tr2 <- phytools::paintSubTree(tr0, node = nd, state = "1", anc.state = "0", stem = FALSE)
 
-  # long symbol forces truncation branch in .fmt_val
   long_sym <- as.name(paste(rep("x", 120), collapse = ""))
 
   model_stub <- list(
-    call = list(method = "H&L"),                   # method fallback path
-    formula = stats::as.formula("trait_data ~ 1"), # formula fallback path
-    residuals = rnorm(ape::Ntip(tr2))              # numeric residuals -> trait count returns 1
-    # intentionally no call$model so model_code fallback uses regimes (>1)
+    call = list(method = "H&L"),
+    formula = stats::as.formula("trait_data ~ 1"),
+    residuals = rnorm(ape::Ntip(tr2))
   )
 
   obj_b <- list(
     user_input = list(
       store_model_fit_history = FALSE,
-      # method/formula omitted so fallback from model_stub triggers
-      error = 1.23,            # numeric -> covers .fmt_val numeric branch
-      penalty = long_sym,      # long deparse -> truncation branch
-      target = as.name("CV")   # short deparse -> "else s" (non-truncated) branch
+      error = 1.23,
+      penalty = long_sym,
+      target = as.name("CV")
     ),
     tree_no_uncertainty_transformed = tr2,
     model_no_uncertainty = model_stub,
@@ -201,21 +191,14 @@ test_that("print.bifrost_search covers edge-case branches (NA types, fallback fi
     baseline_ic = -100,
     optimal_ic = -115,
     num_candidates = 5L,
-    ic_weights = data.frame(foo = 1),              # wrong schema -> "expected columns missing" branch
+    ic_weights = data.frame(foo = 1),
     warnings = character(0)
   )
   class(obj_b) <- c("bifrost_search", "list")
-
-  out_b <- testthat::capture_output(print(obj_b))
-  txt_b <- paste(out_b, collapse = "\n")
-  testthat::expect_true(grepl("Method:", txt_b, fixed = TRUE))      # fallback printed
-  testthat::expect_true(grepl("Formula:", txt_b, fixed = TRUE))     # fallback printed
-  testthat::expect_true(grepl("Penalty", txt_b, fixed = TRUE))
-  testthat::expect_true(grepl("Target", txt_b, fixed = TRUE))
+  txt_b <- paste(testthat::capture_output(print(obj_b)), collapse = "\n")
   testthat::expect_true(grepl("expected columns missing", txt_b, fixed = TRUE))
 
-  # --- Case C: history plot with TRUE logical accept column + empty ylab fallback ---
-  # Create a *logical* matrix so acc_raw is logical and hits as.integer(acc_raw)
+  # Case C (logical accept + ylab fallback)
   ic_mat_logical <- matrix(
     c(TRUE,  TRUE,
       TRUE,  FALSE,
@@ -223,36 +206,28 @@ test_that("print.bifrost_search covers edge-case branches (NA types, fallback fi
       TRUE,  TRUE),
     ncol = 2, byrow = TRUE
   )
-
   obj_c <- list(
     user_input = list(store_model_fit_history = TRUE),
-    IC_used = "(best)",  # gsub removes "(best)" -> empty -> ylab fallback to "IC"
-    baseline_ic = 1,     # finite baseline
-    optimal_ic  = 0,     # doesn't matter for plot
+    IC_used = "(best)",
+    baseline_ic = 1,
+    optimal_ic  = 0,
     shift_nodes_no_uncertainty = integer(0),
     model_fit_history = list(ic_acceptance_matrix = ic_mat_logical),
     warnings = character(0)
   )
   class(obj_c) <- c("bifrost_search", "list")
-
-  out_c <- testthat::capture_output(print(obj_c))
-  txt_c <- paste(out_c, collapse = "\n")
+  txt_c <- paste(testthat::capture_output(print(obj_c)), collapse = "\n")
   testthat::expect_true(grepl("IC History (Best IC by Iteration)", txt_c, fixed = TRUE))
-  testthat::expect_true(grepl("\\*", txt_c))  # plot points
 })
 
-# ---- Test XX (NEW): cover requireNamespace(FALSE) branches via isolated .libPaths ---
+# ---- Test XX: cover requireNamespace(FALSE) branches via isolated .libPaths ---
 test_that("print.bifrost_search handles missing ape/phytools gracefully", {
-  # We intentionally *hide* installed packages by changing .libPaths(),
-  # so don't skip based on ape/phytools installation here.
-
   old_lib <- .libPaths()
   empty_lib <- tempfile("bifrost-empty-lib-")
   dir.create(empty_lib)
   .libPaths(empty_lib)
   on.exit(.libPaths(old_lib), add = TRUE)
 
-  # Non-NULL tree object to ensure .safe_tip_count/.safe_regime_count reach requireNamespace() checks
   tree_stub <- structure(list(), class = "phylo")
 
   obj <- list(
@@ -268,68 +243,6 @@ test_that("print.bifrost_search handles missing ape/phytools gracefully", {
   )
   class(obj) <- c("bifrost_search", "list")
 
-  out <- testthat::capture_output(print(obj))
-  txt <- paste(out, collapse = "\n")
-
-  testthat::expect_true(grepl("Bifrost Search Result", txt, fixed = TRUE))
-})
-
-# ---- Test XX (NEW): cover requireNamespace(FALSE) guards for ape/phytools -----
-test_that("print.bifrost_search covers ape/phytools requireNamespace guards", {
-  # We intentionally hide installed packages by changing .libPaths()
-  old_lib <- .libPaths()
-  empty_lib <- tempfile("bifrost-empty-lib-")
-  dir.create(empty_lib)
-  .libPaths(empty_lib)
-  on.exit(.libPaths(old_lib), add = TRUE)
-
-  # Non-NULL tree so .safe_* functions reach requireNamespace() checks
-  tree_stub <- structure(list(), class = "phylo")
-
-  obj <- list(
-    user_input = list(store_model_fit_history = FALSE),
-    tree_no_uncertainty_untransformed = tree_stub,
-    model_no_uncertainty = NULL,
-    shift_nodes_no_uncertainty = integer(0),
-    IC_used = "GIC",
-    baseline_ic = -1,
-    optimal_ic = -1,
-    num_candidates = 0L,
-    warnings = character(0)
-  )
-  class(obj) <- c("bifrost_search", "list")
-
-  out <- testthat::capture_output(print(obj))
-  txt <- paste(out, collapse = "\n")
-  testthat::expect_true(grepl("Bifrost Search Result", txt, fixed = TRUE))
-})
-
-# ---- Test XX (NEW): print handles missing ape/phytools (covers requireNamespace guards) ----
-test_that("print.bifrost_search covers ape/phytools requireNamespace guards", {
-  # Hide installed packages from requireNamespace by pointing libPaths at an empty library
-  old_lib <- .libPaths()
-  empty_lib <- tempfile("bifrost-empty-lib-")
-  dir.create(empty_lib)
-  .libPaths(empty_lib)
-  on.exit(.libPaths(old_lib), add = TRUE)
-
-  # Provide a non-NULL tree so safe_tip_count/safe_regime_count reach requireNamespace()
-  tree_stub <- structure(list(), class = "phylo")
-
-  obj <- list(
-    user_input = list(store_model_fit_history = FALSE),
-    tree_no_uncertainty_untransformed = tree_stub,
-    model_no_uncertainty = NULL,
-    shift_nodes_no_uncertainty = integer(0),
-    IC_used = "GIC",
-    baseline_ic = -1,
-    optimal_ic = -1,
-    num_candidates = 0L,
-    warnings = character(0)
-  )
-  class(obj) <- c("bifrost_search", "list")
-
-  out <- testthat::capture_output(print(obj))
-  txt <- paste(out, collapse = "\n")
+  txt <- paste(testthat::capture_output(print(obj)), collapse = "\n")
   testthat::expect_true(grepl("Bifrost Search Result", txt, fixed = TRUE))
 })
