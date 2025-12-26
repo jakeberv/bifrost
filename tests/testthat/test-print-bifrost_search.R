@@ -246,3 +246,42 @@ test_that("print.bifrost_search handles missing ape/phytools gracefully", {
   txt <- paste(testthat::capture_output(print(obj)), collapse = "\n")
   testthat::expect_true(grepl("Bifrost Search Result", txt, fixed = TRUE))
 })
+
+# ---- Test XX: penalty/target line is a no-op when both absent -----------------
+test_that("print.bifrost_search does not print Penalty/Target when absent", {
+  testthat::skip_if_not_installed("ape")
+  testthat::skip_if_not_installed("phytools")
+
+  tr <- ape::rtree(10)
+  tr <- phytools::paintBranches(tr, edge = unique(tr$edge[, 2]), state = "0", anc.state = "0")
+  class(tr) <- c("simmap", setdiff(class(tr), "simmap"))
+
+  model_stub <- list(
+    call = list(model = "BMM", method = "LL"),
+    Y = matrix(0, nrow = ape::Ntip(tr), ncol = 2),
+    formula = stats::as.formula("trait_data ~ 1")
+  )
+
+  obj <- list(
+    user_input = list(
+      formula = "trait_data ~ 1",
+      method = "LL",
+      store_model_fit_history = FALSE
+      # no penalty, no target
+    ),
+    tree_no_uncertainty_untransformed = tr,
+    model_no_uncertainty = model_stub,
+    shift_nodes_no_uncertainty = integer(0),
+    IC_used = "GIC",
+    baseline_ic = -1,
+    optimal_ic = -1,
+    num_candidates = 0L,
+    warnings = character(0)
+  )
+  class(obj) <- c("bifrost_search", "list")
+
+  txt <- paste(testthat::capture_output(print(obj)), collapse = "\n")
+  testthat::expect_false(grepl("Penalty:", txt, fixed = TRUE))
+  testthat::expect_false(grepl("Target:", txt, fixed = TRUE))
+})
+

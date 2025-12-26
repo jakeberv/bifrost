@@ -166,6 +166,21 @@ test_that("plot_ic_acceptance_matrix handles zero accepted steps beyond baseline
   )
 })
 
+test_that("plot_ic_acceptance_matrix handles logical acceptance flags", {
+  mat <- cbind(ic = c(-1000, -990, -995), acc = c(TRUE, FALSE, TRUE))
+
+  open_null_device(); on.exit(close_device_quietly(), add = TRUE)
+  expect_invisible(
+    with_par_safely(
+      plot_ic_acceptance_matrix(
+        matrix_data = mat,
+        plot_title = "Logical acceptance",
+        plot_rate_of_improvement = TRUE
+      )
+    )
+  )
+})
+
 test_that("plot_ic_acceptance_matrix works with minimal length (n = 2)", {
   # Two points: baseline + one step; mark second as rejected
   mat <- cbind(ic = c(-1000, -995), acc = c(1L, 0L))
