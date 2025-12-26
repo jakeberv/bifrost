@@ -21,6 +21,7 @@ is_valid_simmap <- function(tree) {
            !is.null(tree$mapped.edge))
 }
 
+# Test: addShiftToModel returns correct structure (checks return value)
 test_that("addShiftToModel returns correct structure", {
   tree <- create_test_simmap_tree()
   shift_node <- Ntip(tree) + 2  # First internal node after root
@@ -34,6 +35,7 @@ test_that("addShiftToModel returns correct structure", {
   expect_type(result$shift_id, "double")
 })
 
+# Test: addShiftToModel increments shift ID correctly
 test_that("addShiftToModel increments shift ID correctly", {
   tree <- create_test_simmap_tree()
   shift_node <- Ntip(tree) + 2
@@ -48,6 +50,7 @@ test_that("addShiftToModel increments shift ID correctly", {
   }
 })
 
+# Test: addShiftToModel preserves tree structure
 test_that("addShiftToModel preserves tree structure", {
   tree <- create_test_simmap_tree()
   shift_node <- Ntip(tree) + 2
@@ -62,6 +65,7 @@ test_that("addShiftToModel preserves tree structure", {
   expect_equal(nrow(result$tree$edge), nrow(tree$edge))
 })
 
+# Test: addShiftToModel creates valid SIMMAP tree
 test_that("addShiftToModel creates valid SIMMAP tree", {
   tree <- create_test_simmap_tree()
   shift_node <- Ntip(tree) + 2
@@ -73,6 +77,7 @@ test_that("addShiftToModel creates valid SIMMAP tree", {
   expect_true(!is.null(result$tree$mapped.edge))
 })
 
+# Test: addShiftToModel paints subtree with correct state
 test_that("addShiftToModel paints subtree with correct state", {
   tree <- create_test_simmap_tree(n_tips = 8)
   shift_node <- Ntip(tree) + 3  # Second internal node after root
@@ -92,6 +97,7 @@ test_that("addShiftToModel paints subtree with correct state", {
   expect_true(any(new_state_edges))
 })
 
+# Test: addShiftToModel works with different node types (smoke test with valid inputs)
 test_that("addShiftToModel works with different node types", {
   tree <- create_test_simmap_tree(n_tips = 10)
 
@@ -105,6 +111,7 @@ test_that("addShiftToModel works with different node types", {
   }
 })
 
+# Test: addShiftToModel handles sequential shifts (edge-case input)
 test_that("addShiftToModel handles sequential shifts", {
   tree <- create_test_simmap_tree(n_tips = 8)
 
@@ -126,6 +133,7 @@ test_that("addShiftToModel handles sequential shifts", {
   expect_true("2" %in% colnames(result2$tree$mapped.edge))
 })
 
+# Test: addShiftToModel input validation
 test_that("addShiftToModel input validation", {
   tree <- create_test_simmap_tree()
 
@@ -138,6 +146,7 @@ test_that("addShiftToModel input validation", {
   expect_error(result <- addShiftToModel(tree, shift_node = 1, current_shift_id = 0L))
 })
 
+# Test: addShiftToModel preserves edge lengths
 test_that("addShiftToModel preserves edge lengths", {
   tree <- create_test_simmap_tree()
   original_edge_lengths <- tree$edge.length
@@ -150,6 +159,7 @@ test_that("addShiftToModel preserves edge lengths", {
                tolerance = 1e-10)
 })
 
+# Test: addShiftToModel works with different shift_id types (smoke test with valid inputs)
 test_that("addShiftToModel works with different shift_id types", {
   tree <- create_test_simmap_tree()
   shift_node <- Ntip(tree) + 2
@@ -163,6 +173,7 @@ test_that("addShiftToModel works with different shift_id types", {
   expect_equal(result_num$shift_id, 1)
 })
 
+# Test: addShiftToModel maintains tree attributes
 test_that("addShiftToModel maintains tree attributes", {
   tree <- create_test_simmap_tree()
   tree$custom_attribute <- "test_value"  # Add custom attribute
@@ -175,6 +186,7 @@ test_that("addShiftToModel maintains tree attributes", {
   expect_equal(result$tree$Nnode, tree$Nnode)
 })
 
+# Test: addShiftToModel error handling for missing paintSubTree_mod (expects error)
 test_that("addShiftToModel error handling for missing paintSubTree_mod", {
   # This test assumes paintSubTree_mod might not be available
   # Skip if the function is available, otherwise expect an error
@@ -192,6 +204,7 @@ test_that("addShiftToModel error handling for missing paintSubTree_mod", {
   }
 })
 
+# Test: addShiftToModel handles root node error correctly (expects error)
 test_that("addShiftToModel handles root node error correctly", {
   tree <- create_test_simmap_tree()
   root_node <- Ntip(tree) + 1
@@ -201,6 +214,7 @@ test_that("addShiftToModel handles root node error correctly", {
                "attempt to select less than one element")
 })
 
+# Test: addShiftToModel works with all valid internal nodes (smoke test with valid inputs)
 test_that("addShiftToModel works with all valid internal nodes", {
   tree <- create_test_simmap_tree(n_tips = 6)
   valid_nodes <- (Ntip(tree) + 2):(Ntip(tree) + Nnode(tree))

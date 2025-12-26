@@ -4,6 +4,7 @@ library(testthat)
 library(phytools)
 
 # Test paintSubTree_removeShift function
+# Test: paintSubTree_removeShift handles invalid inputs correctly (edge-case input)
 test_that("paintSubTree_removeShift handles invalid inputs correctly", {
   # Test non-phylo object
   expect_error(
@@ -18,6 +19,7 @@ test_that("paintSubTree_removeShift handles invalid inputs correctly", {
   )
 })
 
+# Test: paintSubTree_removeShift works with basic painted tree (smoke test with valid inputs)
 test_that("paintSubTree_removeShift works with basic painted tree", {
   # Create a test tree
   set.seed(123)
@@ -47,6 +49,7 @@ test_that("paintSubTree_removeShift works with basic painted tree", {
   expect_true(ncol(result$mapped.edge) >= 1)
 })
 
+# Test: paintSubTree_removeShift preserves tree structure
 test_that("paintSubTree_removeShift preserves tree structure", {
   # Create a test tree
   set.seed(456)
@@ -70,6 +73,7 @@ test_that("paintSubTree_removeShift preserves tree structure", {
 })
 
 
+# Test: paintSubTree_removeShift handles stem parameter correctly (edge-case input)
 test_that("paintSubTree_removeShift handles stem parameter correctly", {
   # Create a test tree
   set.seed(321)
@@ -96,6 +100,7 @@ test_that("paintSubTree_removeShift handles stem parameter correctly", {
   expect_true("maps" %in% names(result_with_stem))
 })
 
+# Test: paintSubTree_removeShift handles tip nodes (edge-case input)
 test_that("paintSubTree_removeShift handles tip nodes", {
   # Create a test tree
   set.seed(654)
@@ -113,6 +118,7 @@ test_that("paintSubTree_removeShift handles tip nodes", {
   expect_equal(length(result$maps), nrow(result$edge))
 })
 
+# Test: paintSubTree_removeShift should error on root node (expects error)
 test_that("paintSubTree_removeShift should error on root node", {
   # Create a test tree
   set.seed(987)
@@ -129,6 +135,7 @@ test_that("paintSubTree_removeShift should error on root node", {
 
 })
 
+# Test: paintSubTree_removeShift preserves edge lengths in maps
 test_that("paintSubTree_removeShift preserves edge lengths in maps", {
   # Create a test tree
   set.seed(111)
@@ -147,6 +154,7 @@ test_that("paintSubTree_removeShift preserves edge lengths in maps", {
   expect_equal(result_edge_lengths, original_edge_lengths, tolerance = 1e-10)
 })
 
+# Test: paintSubTree_removeShift creates consistent mapped.edge matrix
 test_that("paintSubTree_removeShift creates consistent mapped.edge matrix", {
   # Create a test tree
   set.seed(222)
@@ -165,6 +173,7 @@ test_that("paintSubTree_removeShift creates consistent mapped.edge matrix", {
   expect_true(all(result$mapped.edge >= 0))
 })
 
+# Test: paintSubTree_removeShift errors on trees without edge lengths (expects error)
 test_that("paintSubTree_removeShift errors on trees without edge lengths", {
   # Create a tree and remove edge lengths
   set.seed(333)
@@ -175,6 +184,7 @@ test_that("paintSubTree_removeShift errors on trees without edge lengths", {
 
 })
 
+# Test: paintSubTree_removeShift maintains class structure correctly
 test_that("paintSubTree_removeShift maintains class structure correctly", {
   # Create a test tree
   set.seed(555)

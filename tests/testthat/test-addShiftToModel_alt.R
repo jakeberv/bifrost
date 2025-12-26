@@ -16,7 +16,7 @@ make_simmap_tree <- function(n_tip = 12, seed = 101, baseline = "0") {
   phytools::paintSubTree(tr, node = root, state = baseline, anc.state = baseline, stem = FALSE)
 }
 
-# ---- Test: adding a shift increments ID and paints the correct clade ---------
+# Test: addShiftToModel increments shift_id and paints a new regime
 test_that("addShiftToModel increments shift_id and paints a new regime", {
   skip_if_missing_deps()
 
@@ -49,7 +49,7 @@ test_that("addShiftToModel increments shift_id and paints a new regime", {
   expect_true(all_state_1)
 })
 
-# ---- Test: calling twice produces sequential shift_ids ----------------------
+# Test: addShiftToModel produces sequential shift_ids when called twice
 test_that("addShiftToModel produces sequential shift_ids when called twice", {
   skip_if_missing_deps()
 

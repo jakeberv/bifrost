@@ -17,7 +17,7 @@ make_simmap_tree <- function(n_tip = 16, seed = 123, baseline = "0") {
   phytools::paintSubTree(tr, node = root, state = baseline, anc.state = baseline, stem = FALSE)
 }
 
-# ---- Test 1: single global state -> MRCA for baseline state -----------------
+# Test: whichShifts returns MRCA for the baseline state when it covers all tips (checks return value)
 test_that("whichShifts returns MRCA for the baseline state when it covers all tips", {
   skip_if_missing_deps()
 
@@ -33,7 +33,7 @@ test_that("whichShifts returns MRCA for the baseline state when it covers all ti
   expect_identical(out, mrca0)
 })
 
-# ---- Test 2: two disjoint painted clades -> returns both + baseline MRCA ----
+# Test: whichShifts returns MRCA nodes for all states with >=2 tips (including baseline) (checks return value)
 test_that("whichShifts returns MRCA nodes for all states with >=2 tips (including baseline)", {
   skip_if_missing_deps()
 
@@ -67,7 +67,7 @@ test_that("whichShifts returns MRCA nodes for all states with >=2 tips (includin
   expect_setequal(shifts, exp_nodes)
 })
 
-# ---- Test 3: singleton state (one tip only) is ignored; baseline MRCA present
+# Test: whichShifts ignores singleton states but still returns baseline MRCA (checks return value)
 test_that("whichShifts ignores singleton states but still returns baseline MRCA", {
   skip_if_missing_deps()
 

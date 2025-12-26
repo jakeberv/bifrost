@@ -69,7 +69,8 @@ expect_numeric_scalar <- function(x) {
   testthat::expect_true(is.numeric(x) && length(x) == 1L && is.finite(x))
 }
 
-# ---- Test 1: original end-to-end with parallel-capable path (num_cores = 1) --
+# Group: end-to-end runs and core outputs
+# Test: searchOptimalConfiguration runs end-to-end on simulated data (GIC) (fixture simdata.RDS; 100-tip subsample; GIC path)
 test_that("searchOptimalConfiguration runs end-to-end on simulated data (GIC)", {
   skip_if_missing_deps()
   simdata <- load_simdata_fixture()
@@ -123,7 +124,7 @@ test_that("searchOptimalConfiguration runs end-to-end on simulated data (GIC)", 
   }
 })
 
-# ---- Test 1a: original end-to-end with parallel-capable path (num_cores = 1) --
+# Test: searchOptimalConfiguration runs end-to-end on simulated data (BIC) (fixture simdata.RDS; 100-tip subsample; BIC path)
 test_that("searchOptimalConfiguration runs end-to-end on simulated data (BIC)", {
   skip_if_missing_deps()
   simdata <- load_simdata_fixture()
@@ -177,7 +178,8 @@ test_that("searchOptimalConfiguration runs end-to-end on simulated data (BIC)", 
   }
 })
 
-# ---- Test 1b: IC-weights invariants (non-brittle consistency check) ----------
+# Group: ic_weights correctness
+# Test: ic_weights are internally consistent when present (rtree(40) with threshold=-Inf; checks delta/evidence_ratio)
 test_that("ic_weights are internally consistent when present", {
   skip_if_missing_deps()
 
@@ -221,7 +223,8 @@ test_that("ic_weights are internally consistent when present", {
   }
 })
 
-# ---- Test 2: explicitly non-parallel (force sequential plan) -----------------
+# Group: execution modes and verbosity
+# Test: searchOptimalConfiguration also runs in purely sequential mode (forces future::sequential plan)
 test_that("searchOptimalConfiguration also runs in purely sequential mode", {
   skip_if_missing_deps()
   simdata <- load_simdata_fixture()
@@ -260,7 +263,7 @@ test_that("searchOptimalConfiguration also runs in purely sequential mode", {
   expect_phylo_or_null(res$tree_no_uncertainty_untransformed)
 })
 
-# ---- Test 3: forced no-shift scenario (very high acceptance threshold) -------
+# Test: searchOptimalConfiguration returns sensible output when no shifts are accepted (shift_acceptance_threshold=1e9 to forbid shifts)
 test_that("searchOptimalConfiguration returns sensible output when no shifts are accepted", {
   skip_if_missing_deps()
   simdata <- load_simdata_fixture()
@@ -328,7 +331,7 @@ test_that("searchOptimalConfiguration returns sensible output when no shifts are
   }
 })
 
-# ---- Test 4 (NEW): exercise acceptance + history (+plot) ---------
+# Test: searchOptimalConfiguration records accepted steps with history (and covers plot/postorder) (threshold=-Inf; plot=TRUE; store_model_fit_history=TRUE)
 test_that("searchOptimalConfiguration records accepted steps with history (and covers plot/postorder)", {
   skip_if_missing_deps()
   simdata <- load_simdata_fixture()
@@ -393,7 +396,7 @@ test_that("searchOptimalConfiguration records accepted steps with history (and c
   testthat::expect_true(all(c("user_input", "optimal_ic", "baseline_ic", "IC_used", "num_candidates") %in% names(res)))
 })
 
-# ---- Test 5 (NEW): testing verbose output --------
+# Test: searchOptimalConfiguration emits progress output when verbose = TRUE (captures stdout+messages and matches progress text)
 test_that("searchOptimalConfiguration emits progress output when verbose = TRUE", {
   skip_if_missing_deps()
 
@@ -454,7 +457,7 @@ test_that("searchOptimalConfiguration emits progress output when verbose = TRUE"
   testthat::expect_true(grepl("Generating candidate shift models", combined_b))
 })
 
-# ---- Test 6 (NEW):  testing verbose output --------
+# Test: searchOptimalConfiguration is quiet when verbose = FALSE (captures stdout+messages; expects empty output)
 test_that("searchOptimalConfiguration is quiet when verbose = FALSE", {
   skip_if_missing_deps()
 
@@ -516,7 +519,8 @@ test_that("searchOptimalConfiguration is quiet when verbose = FALSE", {
   testthat::expect_equal(nchar(cap_b$out), 0)
 })
 
-# ---- Test 7 (NEW): invalid IC guard (covers stop("IC must be GIC or BIC")) ----
+# Group: validation and error handling
+# Test: searchOptimalConfiguration errors on invalid IC (IC='AIC' should error)
 test_that("searchOptimalConfiguration errors on invalid IC", {
   skip_if_missing_deps()
 
@@ -543,7 +547,7 @@ test_that("searchOptimalConfiguration errors on invalid IC", {
   )
 })
 
-# ---- Test 8 (NEW): both IC-weight flags TRUE should error --------------------
+# Test: searchOptimalConfiguration errors if both uncertaintyweights flags are TRUE (sets uncertaintyweights and uncertaintyweights_par TRUE)
 test_that("searchOptimalConfiguration errors if both uncertaintyweights flags are TRUE", {
   skip_if_missing_deps()
 
@@ -572,7 +576,8 @@ test_that("searchOptimalConfiguration errors if both uncertaintyweights flags ar
   )
 })
 
-# ---- Test 9 (NEW): no-shifts path for uncertaintyweights_par (ic_weights = NA) ----
+# Group: branch coverage and environment handling
+# Test: searchOptimalConfiguration skips IC weights (parallel) when no shifts are detected (uncertaintyweights_par=TRUE with no shifts; empty ic_weights)
 test_that("searchOptimalConfiguration skips IC weights (parallel) when no shifts are detected", {
   skip_if_missing_deps()
 
@@ -607,7 +612,7 @@ test_that("searchOptimalConfiguration skips IC weights (parallel) when no shifts
   ) %in% names(res$ic_weights)))
 })
 
-# ---- Test 10 (NEW): force multisession branch (RSTUDIO=1) --------------------
+# Test: searchOptimalConfiguration takes multisession path when RSTUDIO=1 (sets RSTUDIO env var before call)
 test_that("searchOptimalConfiguration takes multisession path when RSTUDIO=1", {
   skip_if_missing_deps()
 
@@ -639,7 +644,7 @@ test_that("searchOptimalConfiguration takes multisession path when RSTUDIO=1", {
   testthat::expect_type(res, "list")
 })
 
-# ---- Test 11 (NEW): restore_threads else-branch (pre-set env var restored) ----
+# Test: searchOptimalConfiguration restores BLAS/OpenMP env vars after candidate scoring (pre-sets OMP_NUM_THREADS and checks restoration)
 test_that("searchOptimalConfiguration restores BLAS/OpenMP env vars after candidate scoring", {
   skip_if_missing_deps()
 
@@ -684,7 +689,7 @@ test_that("searchOptimalConfiguration restores BLAS/OpenMP env vars after candid
   testthat::expect_identical(Sys.getenv("OMP_NUM_THREADS"), "3")
 })
 
-# ---- Test 12 (NEW): serial vs parallel IC-weights agree (num_cores = 1) ------
+# Test: searchOptimalConfiguration returns consistent ic_weights for serial vs parallel modes (same seed; compares serial vs parallel weights)
 test_that("searchOptimalConfiguration returns consistent ic_weights for serial vs parallel modes", {
   skip_if_missing_deps()
 
@@ -767,7 +772,8 @@ test_that("searchOptimalConfiguration returns consistent ic_weights for serial v
   }
 })
 
-# ---- Test 15: CRAN-safety: do not write files to the working directory --------
+# Group: side effects and state restoration
+# Test: searchOptimalConfiguration does not write files to the working directory (runs in temp wd; compares file list)
 test_that("searchOptimalConfiguration does not write files to the working directory", {
   skip_if_missing_deps()
 
@@ -810,7 +816,7 @@ test_that("searchOptimalConfiguration does not write files to the working direct
   )
 })
 
-# ---- Test 16: does not leak global bifrost.verbose option --------------------
+# Test: searchOptimalConfiguration restores options(bifrost.verbose) (sets option FALSE; verbose=TRUE toggles internally)
 test_that("searchOptimalConfiguration restores options(bifrost.verbose)", {
   skip_if_missing_deps()
 
@@ -840,7 +846,7 @@ test_that("searchOptimalConfiguration restores options(bifrost.verbose)", {
   testthat::expect_identical(getOption("bifrost.verbose"), FALSE)
 })
 
-# ---- Test 17: ic_weights schema is stable when requested ---------------------
+# Test: ic_weights has stable schema when requested (uncertaintyweights_par=TRUE; validates columns)
 test_that("ic_weights has stable schema when requested", {
   skip_if_missing_deps()
 
@@ -872,7 +878,7 @@ test_that("ic_weights has stable schema when requested", {
   ) %in% names(res$ic_weights)))
 })
 
-# ---- Test 18: model_fit_history ic_acceptance_matrix is well-formed ----------
+# Test: model_fit_history ic_acceptance_matrix is well-formed (store_model_fit_history=TRUE; checks 2-column matrix)
 test_that("model_fit_history ic_acceptance_matrix is well-formed", {
   skip_if_missing_deps()
 
@@ -907,7 +913,7 @@ test_that("model_fit_history ic_acceptance_matrix is well-formed", {
   testthat::expect_false(all(is.na(acc_lgl)))
 })
 
-# ---- Test 19: no-shifts path yields a usable model_no_uncertainty -------------
+# Test: no-shifts path yields a usable model_no_uncertainty (shift_acceptance_threshold=1e9 ensures no shifts)
 test_that("no-shifts path yields a usable model_no_uncertainty", {
   skip_if_missing_deps()
 
@@ -935,7 +941,7 @@ test_that("no-shifts path yields a usable model_no_uncertainty", {
   testthat::expect_true(!is.null(res$model_no_uncertainty))
 })
 
-# ---- Test 13 (NEW): warning handler path during shift evaluation --------------
+# Test: searchOptimalConfiguration captures warnings from shift evaluation (mocks fitMvglsAndExtractGIC.formula to warn)
 test_that("searchOptimalConfiguration captures warnings from shift evaluation", {
   skip_if_missing_deps()
 
@@ -978,7 +984,7 @@ test_that("searchOptimalConfiguration captures warnings from shift evaluation", 
   testthat::expect_true(any(grepl("Warning in evaluating shift at node", unlist(res$warnings))))
 })
 
-# ---- Test 14 (NEW): error handler + NA_real_ row in ic_acceptance_matrix ------
+# Test: searchOptimalConfiguration records error entries in history and yields NA_real_ row (mocks addShiftToModel to return NULL tree)
 test_that("searchOptimalConfiguration records error entries in history and yields NA_real_ row", {
   skip_if_missing_deps()
 
@@ -1018,7 +1024,7 @@ test_that("searchOptimalConfiguration records error entries in history and yield
   testthat::expect_true(any(grepl("Error in evaluating shift at node", unlist(res$warnings))))
 })
 
-# ---- Test XX (NEW): cover .progress cat()/flush.console() branch (interactive only) ----
+# Test: searchOptimalConfiguration uses cat() progress path in interactive RStudio plotting (interactive+RSTUDIO=1; plot=TRUE with min_descendant_tips=Ntip)
 test_that("searchOptimalConfiguration uses cat() progress path in interactive RStudio plotting", {
   skip_if_missing_deps()
   testthat::skip_if_not(interactive())
@@ -1062,7 +1068,7 @@ test_that("searchOptimalConfiguration uses cat() progress path in interactive RS
   testthat::expect_true(grepl("Generating candidate shift models", txt))
 })
 
-# ---- Test XX (NEW): serial IC weights path executes BIC branch (mocked deterministic) ----
+# Test: searchOptimalConfiguration serial ic_weights executes BIC branch (mocks fitMvglsAndExtractBIC.formula; uncertaintyweights=TRUE)
 test_that("searchOptimalConfiguration serial ic_weights executes BIC branch", {
   skip_if_missing_deps()
 
@@ -1108,7 +1114,7 @@ test_that("searchOptimalConfiguration serial ic_weights executes BIC branch", {
   testthat::expect_true(nrow(res$ic_weights) >= 1L)
 })
 
-# ---- Test XX (NEW): warning handler path during shift evaluation (BIC) ----
+# Test: searchOptimalConfiguration captures warnings from shift evaluation (BIC) (mocks fitMvglsAndExtractBIC.formula to warn)
 test_that("searchOptimalConfiguration captures warnings from shift evaluation (BIC)", {
   skip_if_missing_deps()
 
@@ -1150,4 +1156,3 @@ test_that("searchOptimalConfiguration captures warnings from shift evaluation (B
   testthat::expect_true(!is.null(res$warnings))
   testthat::expect_true(any(grepl("Warning in evaluating shift at node", unlist(res$warnings))))
 })
-

@@ -39,7 +39,7 @@ pick_internal_node <- function(tree, offsets = c(2L, 3L, 4L)) {
   NA_integer_
 }
 
-# ---- Test: core functionality -----------------------------------------------
+# Test: removeShiftFromTree restores parental state for a painted clade (non-root) (verifies state restoration)
 test_that("removeShiftFromTree restores parental state for a painted clade (non-root)", {
   skip_if_missing_deps()
 
@@ -97,7 +97,7 @@ test_that("removeShiftFromTree restores parental state for a painted clade (non-
   expect_true("mapped.edge" %in% names(out))
 })
 
-# ---- Test: no-op when shift node not painted --------------------------------
+# Test: removeShiftFromTree is a no-op when the node is not a shift
 test_that("removeShiftFromTree is a no-op when the node is not a shift", {
   skip_if_missing_deps()
 

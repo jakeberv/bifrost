@@ -12,7 +12,7 @@ if (!exists("skip_if_missing_deps", mode = "function")) {
   }
 }
 
-# ---- Test XX: print method core output on a real no-shifts run ---------------
+# Test: print.bifrost_search prints core sections on a real no-shifts run (runs searchOptimalConfiguration with high threshold; capture_output())
 test_that("print.bifrost_search prints core sections on a real no-shifts run", {
   skip_if_missing_deps()
 
@@ -50,7 +50,7 @@ test_that("print.bifrost_search prints core sections on a real no-shifts run", {
   testthat::expect_false(grepl("Weights \\(Support\\)", txt))
 })
 
-# ---- Test XX: print method covers history plot + penalty/target + weights ----
+# Test: print.bifrost_search prints history plot, penalty/target, and weights when present (prints stub object with ic_acceptance_matrix + ic_weights)
 test_that("print.bifrost_search prints history plot, penalty/target, and weights when present", {
   testthat::skip_if_not_installed("ape")
   testthat::skip_if_not_installed("phytools")
@@ -125,7 +125,7 @@ test_that("print.bifrost_search prints history plot, penalty/target, and weights
   testthat::expect_true(grepl("\\b15\\b", txt))
 })
 
-# ---- Test XX: print method edge-case branch coverage -------------------------
+# Test: print.bifrost_search covers edge-case branches (NA types, fallback fields, schema issues) (constructs multiple stub objects for NA/schema fallbacks)
 test_that("print.bifrost_search covers edge-case branches (NA types, fallback fields, schema issues)", {
   testthat::skip_if_not_installed("ape")
   testthat::skip_if_not_installed("phytools")
@@ -220,7 +220,7 @@ test_that("print.bifrost_search covers edge-case branches (NA types, fallback fi
   testthat::expect_true(grepl("IC History (Best IC by Iteration)", txt_c, fixed = TRUE))
 })
 
-# ---- Test XX: cover requireNamespace(FALSE) branches via isolated .libPaths ---
+# Test: print.bifrost_search handles missing ape/phytools gracefully (uses isolated .libPaths() to simulate missing packages)
 test_that("print.bifrost_search handles missing ape/phytools gracefully", {
   old_lib <- .libPaths()
   empty_lib <- tempfile("bifrost-empty-lib-")
@@ -247,7 +247,7 @@ test_that("print.bifrost_search handles missing ape/phytools gracefully", {
   testthat::expect_true(grepl("Bifrost Search Result", txt, fixed = TRUE))
 })
 
-# ---- Test XX: penalty/target line is a no-op when both absent -----------------
+# Test: print.bifrost_search does not print Penalty/Target when absent (prints stub object without penalty/target fields)
 test_that("print.bifrost_search does not print Penalty/Target when absent", {
   testthat::skip_if_not_installed("ape")
   testthat::skip_if_not_installed("phytools")

@@ -28,7 +28,8 @@ create_test_data <- function(n_tips = 20, n_traits = 2, min_tips_high = 5) {
   return(list(painted_tree = painted_tree, trait_data = trait_data))
 }
 
-# Test suite for fitMvglsAndExtractGIC
+# Group: fitMvglsAndExtractGIC behavior
+# Test: fitMvglsAndExtractGIC works with valid inputs (smoke test with valid inputs)
 test_that("fitMvglsAndExtractGIC works with valid inputs", {
   skip_if_not_installed("mvMORPH")
   skip_if_not_installed("ape")
@@ -55,6 +56,7 @@ test_that("fitMvglsAndExtractGIC works with valid inputs", {
 })
 
 
+# Test: fitMvglsAndExtractGIC handles multiple traits (edge-case input)
 test_that("fitMvglsAndExtractGIC handles multiple traits", {
   skip_if_not_installed("mvMORPH")
   skip_if_not_installed("ape")
@@ -74,6 +76,7 @@ test_that("fitMvglsAndExtractGIC handles multiple traits", {
   expect_type(result$GIC$GIC, "double")
 })
 
+# Test: fitMvglsAndExtractGIC throws error for non-matrix trait_data (expects error)
 test_that("fitMvglsAndExtractGIC throws error for non-matrix trait_data", {
   skip_if_not_installed("mvMORPH")
   skip_if_not_installed("ape")
@@ -90,6 +93,7 @@ test_that("fitMvglsAndExtractGIC throws error for non-matrix trait_data", {
   )
 })
 
+# Test: fitMvglsAndExtractGIC does not work on univariate data
 test_that("fitMvglsAndExtractGIC does not work on univariate data", {
   skip_if_not_installed("mvMORPH")
   skip_if_not_installed("ape")
@@ -106,6 +110,7 @@ test_that("fitMvglsAndExtractGIC does not work on univariate data", {
   )
 })
 
+# Test: fitMvglsAndExtractGIC throws error for mismatched row names (expects error)
 test_that("fitMvglsAndExtractGIC throws error for mismatched row names", {
   skip_if_not_installed("mvMORPH")
   skip_if_not_installed("ape")
@@ -125,7 +130,8 @@ test_that("fitMvglsAndExtractGIC throws error for mismatched row names", {
   )
 })
 
-# Test suite for fitMvglsAndExtractBIC
+# Group: fitMvglsAndExtractBIC behavior
+# Test: fitMvglsAndExtractBIC works with valid inputs (smoke test with valid inputs)
 test_that("fitMvglsAndExtractBIC works with valid inputs", {
   skip_if_not_installed("mvMORPH")
   skip_if_not_installed("ape")
@@ -152,6 +158,7 @@ test_that("fitMvglsAndExtractBIC works with valid inputs", {
 })
 
 
+# Test: fitMvglsAndExtractBIC handles multiple traits (edge-case input)
 test_that("fitMvglsAndExtractBIC handles multiple traits", {
   skip_if_not_installed("mvMORPH")
   skip_if_not_installed("ape")
@@ -171,6 +178,7 @@ test_that("fitMvglsAndExtractBIC handles multiple traits", {
   expect_type(result$BIC$BIC, "double")
 })
 
+# Test: fitMvglsAndExtractBIC throws error for non-matrix trait_data (expects error)
 test_that("fitMvglsAndExtractBIC throws error for non-matrix trait_data", {
   skip_if_not_installed("mvMORPH")
   skip_if_not_installed("ape")
@@ -187,6 +195,7 @@ test_that("fitMvglsAndExtractBIC throws error for non-matrix trait_data", {
   )
 })
 
+# Test: fitMvglsAndExtractBIC throws error for univariate trait_data (expects error)
 test_that("fitMvglsAndExtractBIC throws error for univariate trait_data", {
   skip_if_not_installed("mvMORPH")
   skip_if_not_installed("ape")
@@ -203,6 +212,7 @@ test_that("fitMvglsAndExtractBIC throws error for univariate trait_data", {
   )
 })
 
+# Test: fitMvglsAndExtractBIC throws error for mismatched row names (expects error)
 test_that("fitMvglsAndExtractBIC throws error for mismatched row names", {
   skip_if_not_installed("mvMORPH")
   skip_if_not_installed("ape")
@@ -222,7 +232,8 @@ test_that("fitMvglsAndExtractBIC throws error for mismatched row names", {
   )
 })
 
-# Comparative tests between GIC and BIC functions
+# Group: cross-function consistency
+# Test: GIC and BIC functions produce consistent models
 test_that("GIC and BIC functions produce consistent models", {
   skip_if_not_installed("mvMORPH")
   skip_if_not_installed("ape")
@@ -244,7 +255,8 @@ test_that("GIC and BIC functions produce consistent models", {
   expect_type(result_bic$BIC$BIC, "double")
 })
 
-# Edge case tests
+# Group: edge cases
+# Test: functions handle small trees
 test_that("functions handle small trees", {
   skip_if_not_installed("mvMORPH")
   skip_if_not_installed("ape")
@@ -265,6 +277,7 @@ test_that("functions handle small trees", {
   expect_s3_class(result_bic$model, "mvgls")
 })
 
+# Test: functions handle trait data with missing row names
 test_that("functions handle trait data with missing row names", {
   skip_if_not_installed("mvMORPH")
   skip_if_not_installed("ape")

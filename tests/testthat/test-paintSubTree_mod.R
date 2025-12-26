@@ -46,7 +46,7 @@ pick_up_and_down_by_offset <- function(tree, X_candidates = c(2L, 3L, 4L, 5L)) {
   NULL
 }
 
-# ---- Test 1: overwrite = TRUE (full repaint) --------------------------------
+# Test: paintSubTree_mod overwrite=TRUE repaints the subtree to the new state
 test_that("paintSubTree_mod overwrite=TRUE repaints the subtree to the new state", {
   skip_if_missing_deps()
 
@@ -71,7 +71,7 @@ test_that("paintSubTree_mod overwrite=TRUE repaints the subtree to the new state
   expect_true(all_single_1)
 })
 
-# ---- Test 2: overwrite = FALSE (nested clade preserved under upstream repaint)
+# Test: paintSubTree_mod overwrite=FALSE preserves a prepainted nested clade
 test_that("paintSubTree_mod overwrite=FALSE preserves a prepainted nested clade", {
   skip_if_missing_deps()
 
@@ -115,7 +115,7 @@ test_that("paintSubTree_mod overwrite=FALSE preserves a prepainted nested clade"
 
 
 
-# ---- Test 4: stem = numeric (partial stem painting) -------------------------
+# Test: paintSubTree_mod with numeric stem splits parent edge correctly
 test_that("paintSubTree_mod with numeric stem splits parent edge correctly", {
   skip_if_missing_deps()
 
@@ -142,7 +142,7 @@ test_that("paintSubTree_mod with numeric stem splits parent edge correctly", {
   expect_equal(state_prop, stem_fraction, tolerance = 1e-10)
 })
 
-# ---- Test 6: Error handling for invalid stem with tips ---------------------
+# Test: paintSubTree_mod throws error when stem=FALSE for tip nodes (expects error)
 test_that("paintSubTree_mod throws error when stem=FALSE for tip nodes", {
   skip_if_missing_deps()
 
@@ -156,7 +156,7 @@ test_that("paintSubTree_mod throws error when stem=FALSE for tip nodes", {
   )
 })
 
-# ---- Test 7: Tree without edge lengths (should be computed) ----------------
+# Test: paintSubTree_mod handles trees without edge.length (edge-case input)
 test_that("paintSubTree_mod handles trees without edge.length", {
   skip_if_missing_deps()
 
@@ -175,7 +175,7 @@ test_that("paintSubTree_mod handles trees without edge.length", {
   expect_true(all(out$edge.length > 0))
 })
 
-# ---- Test 8: Non-phylo object error ----------------------------------------
+# Test: paintSubTree_mod throws error for non-phylo objects (expects error)
 test_that("paintSubTree_mod throws error for non-phylo objects", {
   skip_if_missing_deps()
 
@@ -187,7 +187,7 @@ test_that("paintSubTree_mod throws error for non-phylo objects", {
   )
 })
 
-# ---- Test 9: Complex multi-state preservation ------------------------------
+# Test: paintSubTree_mod preserves complex multi-state mappings with overwrite=FALSE
 test_that("paintSubTree_mod preserves complex multi-state mappings with overwrite=FALSE", {
   skip_if_missing_deps()
 
@@ -221,7 +221,7 @@ test_that("paintSubTree_mod preserves complex multi-state mappings with overwrit
   expect_true("0" %in% all_states)  # Should remain in unmodified parts
 })
 
-# ---- Test 10: mapped.edge consistency --------------------------------------
+# Test: paintSubTree_mod maintains consistency between maps and mapped.edge
 test_that("paintSubTree_mod maintains consistency between maps and mapped.edge", {
   skip_if_missing_deps()
 
@@ -243,7 +243,7 @@ test_that("paintSubTree_mod maintains consistency between maps and mapped.edge",
   }
 })
 
-# ---- Test 11: Root node painting -------------------------------------------
+# Test: paintSubTree_mod can paint from root node
 test_that("paintSubTree_mod can paint from root node", {
   skip_if_missing_deps()
 
@@ -262,7 +262,7 @@ test_that("paintSubTree_mod can paint from root node", {
   expect_true(all_single_1)
 })
 
-# ---- Test 13: Numeric vs character states ----------------------------------
+# Test: paintSubTree_mod works with numeric states (smoke test with valid inputs)
 test_that("paintSubTree_mod works with numeric states", {
   skip_if_missing_deps()
 

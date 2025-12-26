@@ -2,9 +2,7 @@
 
 # testthat::local_edition(3)
 
-# -------------------------------------------------------------------
 # Helpers
-# -------------------------------------------------------------------
 mock_model_output <- function(Pinv, params_named) {
   stopifnot(is.matrix(Pinv), is.numeric(params_named), !is.null(names(params_named)))
   list(
@@ -13,10 +11,9 @@ mock_model_output <- function(Pinv, params_named) {
   )
 }
 
-# -------------------------------------------------------------------
-# Tests
-# -------------------------------------------------------------------
+# Group: missing-component handling
 
+# Test: Returns NULL when required components are missing (checks return value)
 test_that("Returns NULL when required components are missing", {
   # Missing 'param'
   m1 <- list(sigma = list(Pinv = diag(2)))
@@ -31,6 +28,8 @@ test_that("Returns NULL when required components are missing", {
   expect_null(extractRegimeVCVs(m3))
 })
 
+# Group: scaling behavior
+# Test: Single-regime: returns list of one matrix equal to base Pinv (checks return value)
 test_that("Single-regime: returns list of one matrix equal to base Pinv", {
   Pinv <- matrix(c(2, 0.3,
                    0.3, 1), nrow = 2, byrow = TRUE)
@@ -46,6 +45,7 @@ test_that("Single-regime: returns list of one matrix equal to base Pinv", {
   expect_equal(vcv_list[[1]], Pinv)
 })
 
+# Test: Multi-regime: later regimes are scaled by param/base_param ratio
 test_that("Multi-regime: later regimes are scaled by param/base_param ratio", {
   Pinv <- matrix(c(1, 0.2,
                    0.2, 0.5), nrow = 2, byrow = TRUE)
@@ -69,6 +69,8 @@ test_that("Multi-regime: later regimes are scaled by param/base_param ratio", {
   expect_equal(vcv_list$r3, Pinv * 0.25)
 })
 
+# Group: numeric edge cases
+# Test: Works with non-identity, non-diagonal base matrix and preserves numeric type (smoke test with valid inputs)
 test_that("Works with non-identity, non-diagonal base matrix and preserves numeric type", {
   Pinv <- matrix(c(4, 1, 0.5,
                    1, 3, 0.2,
@@ -85,6 +87,7 @@ test_that("Works with non-identity, non-diagonal base matrix and preserves numer
   expect_true(is.numeric(vcv_list$B[1, 1]))
 })
 
+# Test: Handles tiny floating ratios without precision blow-ups (edge-case input)
 test_that("Handles tiny floating ratios without precision blow-ups", {
   Pinv <- diag(2)
   params <- c(baseline = 1e6, slow = 1e-6)  # ratio = 1e-12
@@ -96,7 +99,8 @@ test_that("Handles tiny floating ratios without precision blow-ups", {
   expect_equal(vcv_list$slow, Pinv * 1e-12, tolerance = 1e-18)
 })
 
-# ---- Test XX (NEW): returns NULL when required components are missing ----------
+# Group: alternate entry points
+# Test: extractRegimeVCVs returns NULL when required components are missing (checks return value)
 test_that("extractRegimeVCVs returns NULL when required components are missing", {
   testthat::expect_null(extractRegimeVCVs(list()))
 
@@ -112,7 +116,7 @@ test_that("extractRegimeVCVs returns NULL when required components are missing",
   )))
 })
 
-# ---- Test XX (NEW): returns scaled list of matrices when components exist -----
+# Test: extractRegimeVCVs returns per-regime matrices and scales by param ratio (checks return value)
 test_that("extractRegimeVCVs returns per-regime matrices and scales by param ratio", {
   model_output <- list(
     param = c(r1 = 1, r2 = 3),
