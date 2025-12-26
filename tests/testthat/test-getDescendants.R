@@ -16,7 +16,7 @@ make_known_tree <- function() {
   ape::reorder.phylo(tr, order = "postorder")
 }
 
-# ---- Test 1: tips have no descendants unless include.node = TRUE -------------
+# Test: Tip node: no descendants; include.node=TRUE returns the tip (checks return value)
 test_that("Tip node: no descendants; include.node=TRUE returns the tip", {
   skip_if_missing_deps()
   tr <- make_known_tree()
@@ -29,7 +29,7 @@ test_that("Tip node: no descendants; include.node=TRUE returns the tip", {
   expect_setequal(out2, tip1)
 })
 
-# ---- Test 2: descendants of the MRCA of (t4, t5) are exactly those two tips --
+# Test: MRCA(t4,t5) descendants are exactly {t4, t5}
 test_that("MRCA(t4,t5) descendants are exactly {t4, t5}", {
   skip_if_missing_deps()
   tr <- make_known_tree()
@@ -43,7 +43,7 @@ test_that("MRCA(t4,t5) descendants are exactly {t4, t5}", {
   expect_setequal(out, c(t4, t5))
 })
 
-# ---- Test 3: descendants of MRCA(t3, MRCA(t4,t5)) include t3,t4,t5 and n45 ---
+# Test: MRCA(t3, MRCA(t4,t5)) descendants include {t3, t4, t5, n45}
 test_that("MRCA(t3, MRCA(t4,t5)) descendants include {t3, t4, t5, n45}", {
   skip_if_missing_deps()
   tr <- make_known_tree()
@@ -61,7 +61,7 @@ test_that("MRCA(t3, MRCA(t4,t5)) descendants include {t3, t4, t5, n45}", {
   expect_true(all(c(t3, t4, t5, n45) %in% out))
 })
 
-# ---- Test 4: root descendants are all nodes except the root itself -----------
+# Test: Root descendants are all nodes except the root itself
 test_that("Root descendants are all nodes except the root itself", {
   skip_if_missing_deps()
   tr <- make_known_tree()
@@ -75,7 +75,7 @@ test_that("Root descendants are all nodes except the root itself", {
   expect_setequal(out, setdiff(all_nodes, root))
 })
 
-# ---- Test 5: non-existent node (out of range) yields empty unless included ---
+# Test: Out-of-range node returns empty unless include.node=TRUE (checks return value)
 test_that("Out-of-range node returns empty unless include.node=TRUE", {
   skip_if_missing_deps()
   tr <- make_known_tree()

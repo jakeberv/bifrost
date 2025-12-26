@@ -2,18 +2,14 @@
 
 # testthat::local_edition(3)
 
-# -------------------------------------------------------------------
 # Dependency guard
-# -------------------------------------------------------------------
 skip_if_missing_deps <- function() {
   testthat::skip_if_not_installed("ape")
   testthat::skip_if_not_installed("phytools")
   testthat::skip_if_not_installed("mvMORPH")
 }
 
-# -------------------------------------------------------------------
 # Inline helpers (scoped to this test file)
-# -------------------------------------------------------------------
 
 # Build a simple dataset with 1 predictor and p responses; rownames=tip labels
 make_data_for_tree <- function(tree, p = 2, beta = 0.5, sd = 0.5, seed = NULL) {
@@ -68,10 +64,9 @@ get_gic_scalar <- function(gic_obj) {
   as.numeric(gic_obj)
 }
 
-# -------------------------------------------------------------------
-# Tests (minimal, robust)
-# -------------------------------------------------------------------
+# Group: core fit behavior
 
+# Test: Single-regime tree fits and returns a scalar GIC (checks return value)
 test_that("Single-regime tree fits and returns a scalar GIC", {
   skip_if_missing_deps()
 
@@ -100,6 +95,7 @@ test_that("Single-regime tree fits and returns a scalar GIC", {
   expect_length(gic, 1)
 })
 
+# Test: Multi-regime tree fits and returns a scalar GIC (BMM path) (checks return value)
 test_that("Multi-regime tree fits and returns a scalar GIC (BMM path)", {
   skip_if_missing_deps()
 
@@ -125,6 +121,8 @@ test_that("Multi-regime tree fits and returns a scalar GIC (BMM path)", {
   expect_length(gic, 1)
 })
 
+# Group: input validation errors
+# Test: Row names mismatch triggers informative error (expects error)
 test_that("Row names mismatch triggers informative error", {
   skip_if_missing_deps()
 
@@ -148,6 +146,7 @@ test_that("Row names mismatch triggers informative error", {
   )
 })
 
+# Test: Formula must be provided as a character string
 test_that("Formula must be provided as a character string", {
   skip_if_missing_deps()
 
@@ -178,10 +177,9 @@ test_that("Formula must be provided as a character string", {
 })
 
 
-# -------------------------------------------------------------------
-# Add-on tests: determinism, BM/BMM selection, ... passthrough, rowname order
-# -------------------------------------------------------------------
+# Group: determinism, branch selection, and option passthrough
 
+# Test: Determinism: same inputs yield identical GIC (re-runs with same inputs)
 test_that("Determinism: same inputs yield identical GIC", {
   skip_if_missing_deps()
   painted_tree <- make_two_regime_tree(25)
@@ -200,6 +198,7 @@ test_that("Determinism: same inputs yield identical GIC", {
   expect_equal(g1, g2, tolerance = 1e-10)
 })
 
+# Test: BM/BMM branch selection aligns with regime count
 test_that("BM/BMM branch selection aligns with regime count", {
   skip_if_missing_deps()
   tr_one <- make_single_regime_tree(20)
@@ -221,6 +220,7 @@ test_that("BM/BMM branch selection aligns with regime count", {
   expect_true(is.finite(get_gic_scalar(r2$GIC)))
 })
 
+# Test: mvgls options via ... are honoured (LL and PL-LOOCV)
 test_that("mvgls options via ... are honoured (LL and PL-LOOCV)", {
   skip_if_missing_deps()
   painted_tree <- make_two_regime_tree(20)
@@ -238,6 +238,7 @@ test_that("mvgls options via ... are honoured (LL and PL-LOOCV)", {
   expect_true(is.finite(get_gic_scalar(r_pl$GIC)))
 })
 
+# Test: Rownames must match in name and order (not just set)
 test_that("Rownames must match in name and order (not just set)", {
   skip_if_missing_deps()
   painted_tree <- make_single_regime_tree(15)

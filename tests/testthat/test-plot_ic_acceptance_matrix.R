@@ -37,8 +37,9 @@ with_par_safely <- function(expr) {
   force(expr)
 }
 
-# ---- Tests -------------------------------------------------------------------
 
+# Group: plotting scenarios and acceptance patterns
+# Test: plot_ic_acceptance_matrix runs with default settings (overlay on) (uses make_ic_matrix and null device plotting)
 test_that("plot_ic_acceptance_matrix runs with default settings (overlay on)", {
   mat <- make_ic_matrix(n = 10, seed = 42, accept_every = 2)
 
@@ -56,6 +57,7 @@ test_that("plot_ic_acceptance_matrix runs with default settings (overlay on)", {
   )
 })
 
+# Test: plot_ic_acceptance_matrix runs with overlay off without warnings (calls graphics::plot.new() to avoid par(new=TRUE) warnings)
 test_that("plot_ic_acceptance_matrix runs with overlay off without warnings", {
   mat <- make_ic_matrix(n = 12, seed = 7, accept_every = 3)
 
@@ -76,6 +78,7 @@ test_that("plot_ic_acceptance_matrix runs with overlay off without warnings", {
   )
 })
 
+# Test: plot_ic_acceptance_matrix tolerates many accepted steps (accept_every=1 so nearly all steps accepted)
 test_that("plot_ic_acceptance_matrix tolerates many accepted steps", {
   # Nearly all steps accepted (besides baseline already marked 1)
   mat <- make_ic_matrix(n = 9, seed = 9, accept_every = 1)
@@ -94,6 +97,7 @@ test_that("plot_ic_acceptance_matrix tolerates many accepted steps", {
   )
 })
 
+# Test: plot_ic_acceptance_matrix tolerates few accepted steps (accept_every=100 with one manual accept flag)
 test_that("plot_ic_acceptance_matrix tolerates few accepted steps", {
   # Only baseline and one later acceptance
   mat <- make_ic_matrix(n = 8, seed = 11, accept_every = 100)
@@ -113,6 +117,8 @@ test_that("plot_ic_acceptance_matrix tolerates few accepted steps", {
   )
 })
 
+# Group: input validation and type handling
+# Test: plot_ic_acceptance_matrix errors with malformed input (non-numeric ic column triggers error)
 test_that("plot_ic_acceptance_matrix errors with malformed input", {
   # Non-numeric IC column should produce an error during diff/pretty/plot usage
   bad <- cbind(ic = as.character(letters[1:5]), acc = c(1, 0, 1, 0, 1))
@@ -130,6 +136,7 @@ test_that("plot_ic_acceptance_matrix errors with malformed input", {
   )
 })
 
+# Test: plot_ic_acceptance_matrix accepts data.frame input as well as matrix (matrix coerced to data.frame with named columns)
 test_that("plot_ic_acceptance_matrix accepts data.frame input as well as matrix", {
   mat <- make_ic_matrix(n = 10, seed = 21, accept_every = 2)
   df <- as.data.frame(mat)
@@ -148,6 +155,7 @@ test_that("plot_ic_acceptance_matrix accepts data.frame input as well as matrix"
   )
 })
 
+# Test: plot_ic_acceptance_matrix handles zero accepted steps beyond baseline (forces all accept flags to 0 after baseline)
 test_that("plot_ic_acceptance_matrix handles zero accepted steps beyond baseline", {
   # Baseline is 1; force all others to 0
   mat <- make_ic_matrix(n = 8, seed = 123, accept_every = 100)
@@ -166,6 +174,7 @@ test_that("plot_ic_acceptance_matrix handles zero accepted steps beyond baseline
   )
 })
 
+# Test: plot_ic_acceptance_matrix handles logical acceptance flags (acceptance column supplied as logical)
 test_that("plot_ic_acceptance_matrix handles logical acceptance flags", {
   mat <- cbind(ic = c(-1000, -990, -995), acc = c(TRUE, FALSE, TRUE))
 
@@ -181,6 +190,7 @@ test_that("plot_ic_acceptance_matrix handles logical acceptance flags", {
   )
 })
 
+# Test: plot_ic_acceptance_matrix works with minimal length (n = 2) (n=2 matrix exercises overlay on/off)
 test_that("plot_ic_acceptance_matrix works with minimal length (n = 2)", {
   # Two points: baseline + one step; mark second as rejected
   mat <- cbind(ic = c(-1000, -995), acc = c(1L, 0L))

@@ -13,9 +13,8 @@ skip_if_missing_deps <- function() {
 # library(ape)
 # library(phytools)
 
-# -------------------------------------------------------------------
-# Test 1: Basic functionality with a standard tree
-# -------------------------------------------------------------------
+# Group: core generation and logging
+# Test: Basic functionality works correctly
 test_that("Basic functionality works correctly", {
   skip_if_missing_deps()
 
@@ -46,9 +45,8 @@ test_that("Basic functionality works correctly", {
   expect_true(grepl("sub-models generated", out))
 })
 
-# -------------------------------------------------------------------
-# Test 2: Tree rooting functionality
-# -------------------------------------------------------------------
+# Group: tree preprocessing and parameter handling
+# Test: Unrooted trees are properly rooted
 test_that("Unrooted trees are properly rooted", {
   skip_if_missing_deps()
 
@@ -63,9 +61,7 @@ test_that("Unrooted trees are properly rooted", {
   expect_true(all(vapply(painted_trees, ape::is.rooted, logical(1))))
 })
 
-# -------------------------------------------------------------------
-# Test 3: Minimum tips threshold
-# -------------------------------------------------------------------
+# Test: Minimum tips threshold is respected
 test_that("Minimum tips threshold is respected", {
   skip_if_missing_deps()
 
@@ -89,9 +85,7 @@ test_that("Minimum tips threshold is respected", {
   }
 })
 
-# -------------------------------------------------------------------
-# Test 4: Edge cases
-# -------------------------------------------------------------------
+# Test: Edge cases are handled properly
 test_that("Edge cases are handled properly", {
   skip_if_missing_deps()
 
@@ -108,9 +102,7 @@ test_that("Edge cases are handled properly", {
   expect_type(result_single, "list")
 })
 
-# -------------------------------------------------------------------
-# Test 5: Custom state parameter
-# -------------------------------------------------------------------
+# Test: Custom state parameter works
 test_that("Custom state parameter works", {
   skip_if_missing_deps()
 
@@ -124,9 +116,7 @@ test_that("Custom state parameter works", {
   # which depends on paintSubTree's implementation.
 })
 
-# -------------------------------------------------------------------
-# Test 6a: Painted state is present in maps/mapped.edge
-# -------------------------------------------------------------------
+# Test: Painted trees include the requested state in maps and mapped.edge
 test_that("Painted trees include the requested state in maps and mapped.edge", {
   skip_if_missing_deps()
 
@@ -144,9 +134,8 @@ test_that("Painted trees include the requested state in maps and mapped.edge", {
   }
 })
 
-# -------------------------------------------------------------------
-# Test 6: Consistency across runs with same input
-# -------------------------------------------------------------------
+# Group: stability and structure invariants
+# Test: Results are consistent across runs with same input (smoke test with constructed inputs)
 test_that("Results are consistent across runs with same input", {
   skip_if_missing_deps()
 
@@ -160,9 +149,7 @@ test_that("Results are consistent across runs with same input", {
   expect_equal(names(result1), names(result2))
 })
 
-# -------------------------------------------------------------------
-# Test 7: Tree structure preservation
-# -------------------------------------------------------------------
+# Test: Original tree structure is preserved in painted trees
 test_that("Original tree structure is preserved in painted trees", {
   skip_if_missing_deps()
 
@@ -181,9 +168,8 @@ test_that("Original tree structure is preserved in painted trees", {
   }
 })
 
-# -------------------------------------------------------------------
-# Test 8: Indirect check of eligible node helper logic
-# -------------------------------------------------------------------
+# Group: eligibility and reporting checks
+# Test: Eligible nodes have at least min_tips descendants
 test_that("Eligible nodes have at least min_tips descendants", {
   skip_if_missing_deps()
 
@@ -201,9 +187,7 @@ test_that("Eligible nodes have at least min_tips descendants", {
   }
 })
 
-# -------------------------------------------------------------------
-# Test 9: Console output verification (counts)
-# -------------------------------------------------------------------
+# Test: Console output reports matching counts
 test_that("Console output reports matching counts", {
   skip_if_missing_deps()
 

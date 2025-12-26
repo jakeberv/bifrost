@@ -17,7 +17,8 @@ make_named_params <- function() {
   grepl("^#(?:[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$", x)
 }
 
-# ---- Test 1: basic structure and lengths ------------------------------------
+# Group: basic mapping and ordering
+# Test: Returns expected list structure with correct lengths (checks return value)
 test_that("Returns expected list structure with correct lengths", {
   skip_if_missing_deps()
 
@@ -31,7 +32,7 @@ test_that("Returns expected list structure with correct lengths", {
   expect_length(out$ParamColorMapping, length(params))
 })
 
-# ---- Test 2: names are preserved and aligned with sorted order --------------
+# Test: Names are preserved and correspond to increasing parameter values
 test_that("Names are preserved and correspond to increasing parameter values", {
   skip_if_missing_deps()
 
@@ -50,7 +51,7 @@ test_that("Names are preserved and correspond to increasing parameter values", {
   expect_equal(names(out$NamedColors), expected_names_sorted)
 })
 
-# ---- Test 3: colors look like valid hex strings and count matches -----------
+# Test: Colors are valid hex codes and count matches input
 test_that("Colors are valid hex codes and count matches input", {
   skip_if_missing_deps()
 
@@ -61,7 +62,7 @@ test_that("Colors are valid hex codes and count matches input", {
   expect_length(unique(out$NamedColors), length(params))
 })
 
-# ---- Test 4: order invariance (permuted input yields same sorted mapping) ---
+# Test: Permutation of input still yields a correctly sorted mapping
 test_that("Permutation of input still yields a correctly sorted mapping", {
   skip_if_missing_deps()
 
@@ -75,7 +76,8 @@ test_that("Permutation of input still yields a correctly sorted mapping", {
   expect_equal(names(out_perm$ParamColorMapping), names(params)[order(params)])
 })
 
-# ---- Test 5: duplicate/tied values are handled (non-decreasing order) -------
+# Group: edge cases and input variants
+# Test: Duplicate values are allowed; mapping is non-decreasing and names are a permutation
 test_that("Duplicate values are allowed; mapping is non-decreasing and names are a permutation", {
   skip_if_missing_deps()
 
@@ -90,7 +92,7 @@ test_that("Duplicate values are allowed; mapping is non-decreasing and names are
   expect_setequal(names(out$NamedColors), names(params))
 })
 
-# ---- Test 6: unnamed input still returns colors (names may be NULL) ---------
+# Test: Unnamed input returns colors; output names may be NULL (checks return value)
 test_that("Unnamed input returns colors; output names may be NULL", {
   skip_if_missing_deps()
 
@@ -105,7 +107,7 @@ test_that("Unnamed input returns colors; output names may be NULL", {
   expect_true(is.null(names(out$ParamColorMapping)) || all(nchar(names(out$ParamColorMapping)) > 0))
 })
 
-# ---- Test 7: constant vector does not error and returns colors --------------
+# Test: Constant-valued input does not error and returns valid colors (expect_silent on constant params)
 test_that("Constant-valued input does not error and returns valid colors", {
   skip_if_missing_deps()
 
@@ -123,7 +125,7 @@ test_that("Constant-valued input does not error and returns valid colors", {
   expect_true(all(.is_hex_color(out$NamedColors)))
 })
 
-# ---- Test 8: deterministic palette length and endpoints ---------------------
+# Test: Color vector matches viridis(n) for endpoints
 test_that("Color vector matches viridis(n) for endpoints", {
   skip_if_missing_deps()
 
