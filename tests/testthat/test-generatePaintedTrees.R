@@ -125,6 +125,26 @@ test_that("Custom state parameter works", {
 })
 
 # -------------------------------------------------------------------
+# Test 6a: Painted state is present in maps/mapped.edge
+# -------------------------------------------------------------------
+test_that("Painted trees include the requested state in maps and mapped.edge", {
+  skip_if_missing_deps()
+
+  set.seed(123)
+  tree <- ape::rcoal(20)
+  custom_state <- "shift_state"
+
+  painted_trees <- generatePaintedTrees(tree, min_tips = 3, state = custom_state)
+  expect_true(length(painted_trees) > 0)
+
+  for (pt in painted_trees) {
+    map_states <- unique(unlist(lapply(pt$maps, names)))
+    expect_true(custom_state %in% map_states)
+    expect_true(custom_state %in% colnames(pt$mapped.edge))
+  }
+})
+
+# -------------------------------------------------------------------
 # Test 6: Consistency across runs with same input
 # -------------------------------------------------------------------
 test_that("Results are consistent across runs with same input", {

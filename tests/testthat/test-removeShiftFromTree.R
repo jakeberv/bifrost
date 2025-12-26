@@ -96,3 +96,17 @@ test_that("removeShiftFromTree restores parental state for a painted clade (non-
   expect_true("maps" %in% names(out))
   expect_true("mapped.edge" %in% names(out))
 })
+
+# ---- Test: no-op when shift node not painted --------------------------------
+test_that("removeShiftFromTree is a no-op when the node is not a shift", {
+  skip_if_missing_deps()
+
+  sim0 <- make_simmap_tree(n_tip = 10, seed = 99, baseline = "0")
+  nd <- pick_internal_node(sim0, offsets = c(2L, 3L))
+  if (is.na(nd)) testthat::skip("No suitable internal node found (non-root).")
+
+  out <- removeShiftFromTree(sim0, shift_node = nd, stem = FALSE)
+
+  expect_equal(out$maps, sim0$maps)
+  expect_equal(out$mapped.edge, sim0$mapped.edge)
+})

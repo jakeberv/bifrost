@@ -39,13 +39,13 @@
 
 .bifrost_safe_tip_count <- function(tree) {
   if (is.null(tree)) return(NA_integer_)
-  if (!requireNamespace("ape", quietly = TRUE)) return(NA_integer_)
+  #if (!requireNamespace("ape", quietly = TRUE)) return(NA_integer_)
   tryCatch(ape::Ntip(tree), error = function(e) NA_integer_)
 }
 
 .bifrost_safe_regime_count <- function(tree) {
   if (is.null(tree)) return(NA_integer_)
-  if (!requireNamespace("phytools", quietly = TRUE)) return(NA_integer_)
+  #if (!requireNamespace("phytools", quietly = TRUE)) return(NA_integer_)
   tryCatch({
     st <- phytools::getStates(tree, type = "both")
     length(unique(st))
