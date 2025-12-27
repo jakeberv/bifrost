@@ -15,7 +15,7 @@ bibentry(
     person(c("Brian","C."),   "Weeks")
   ),
   year    = "2025",
-  note    = "R package version 0.1.0",
+  note    = "R package version 0.1.1",
   url     = "https://jakeberv.com/bifrost/"
 )
 

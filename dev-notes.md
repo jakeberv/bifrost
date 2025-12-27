@@ -2,6 +2,41 @@
 
 ## Unreleased
 
+### 2025-12-26 — Commit 96c9941: Refactor print helpers; expand/clean test suite; minor CI + vignette updates
+**Files touched**
+- .Rbuildignore
+- .gitignore
+- .github/workflows/R-CMD-check.yaml
+- R/bifrost_search-methods.R
+- dev-notes.md
+- tests/testthat/test-addShiftToModel.R
+- tests/testthat/test-addShiftToModel_alt.R
+- tests/testthat/test-extractRegimeVCVs.R
+- tests/testthat/test-fitMvglsAndExtractBIC.formula.R
+- tests/testthat/test-fitMvglsAndExtractGIC.formula.r
+- tests/testthat/test-generatePaintedTrees.R
+- tests/testthat/test-generateViridisColorScale.R
+- tests/testthat/test-getDescendants.R
+- tests/testthat/test-mvgls-functions.R
+- tests/testthat/test-paintSubTree_mod.R
+- tests/testthat/test-paintSubTree_removeShift.R
+- tests/testthat/test-plot_ic_acceptance_matrix.R
+- tests/testthat/test-print-bifrost_search.R
+- tests/testthat/test-removeShiftFromTree.R
+- tests/testthat/test-searchOptimalConfiguration.R
+- tests/testthat/test-whichShifts.R
+- vignettes/jaw-shape-vignette.Rmd
+
+**Summary**
+- Refactored `print.bifrost_search` into internal helper functions (behavior/output preserved) to reduce complexity and improve maintainability.
+- Continued improving test coverage and stability:
+  - Added/updated targeted tests across core helpers (`addShiftToModel*`, `fitMvglsAndExtract*`, `generatePaintedTrees`, plotting helpers, shift utilities, and `whichShifts`).
+  - Consolidated/cleaned print-method tests in `test-print-bifrost_search.R`.
+  - Added additional coverage-oriented assertions while keeping tests deterministic.
+- Minor repository/CI housekeeping:
+  - Updated ignore rules and the R-CMD-check workflow.
+  - Updated jaw-shape vignette content as part of ongoing documentation refinement.
+
 ### 2025-12-20 — Commit 108b19e: Add `bifrost_search` print method with IC-history plot; reorganize tests
 **Files touched**
 - DESCRIPTION
