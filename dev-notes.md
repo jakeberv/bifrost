@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### 2025-12-26 — Commit 2ca1922: Update print output, citation hint, and vignette demo
+**Files touched**
+- R/bifrost_search-methods.R
+- inst/CITATION
+- vignettes/jaw-shape-vignette.Rmd
+- dev-notes.md
+
+**Summary**
+- Print method: reorganized output blocks for readability, added versioned header underline, and added a one-line citation hint (`citation("bifrost")`) at the end of the printout.
+- Citation: updated `inst/CITATION` entries to reflect current package metadata.
+- Vignette: added a small snippet demonstrating that `bifrost_search` has a custom print method.
+
 ### 2025-12-26 — Commit 96c9941: Refactor print helpers; expand/clean test suite; minor CI + vignette updates
 **Files touched**
 - .Rbuildignore
