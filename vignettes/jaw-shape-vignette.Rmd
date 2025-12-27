@@ -209,7 +209,7 @@ Let's explore the choices made in this function call:
   
   * `IC = "GIC"`: We have chosen the **Generalized Information Criterion** to evaluate model fit. GIC is generally preferred for high-dimensional data (like our landmark data) compared to alternatives like AIC or BIC.
     
-  * `plot = TRUE`: This is a helpful option for visualizing the search in real-time. The function will plot the tree and label the shifts as they are accepted, but this will potentially slow down the search.
+  * `plot = FALSE`: This is a helpful option for visualizing the search in real-time. The function will plot the tree and label the shifts as they are accepted, but this will potentially slow down the search.
   
   * `formula = "trait_data ~ 1"`: This specifies the structure of the underlying GLS model. Here, we fit a simple intercept-only model (`~ 1`), which corresponds to a multi-rate Brownian Motion process where each regime has its own rate matrix. Morphometric coordinates that have been GPA aligned are size and rotation adjusted, so no size adjustment is required. For linear dimensions or other predictors, you can use more general formulas that reference subsets of `trait_data`, for example `"trait_data[, 1:5] ~ 1"` to treat columns 1–5 as the multivariate response, or `"trait_data[, 2:ncol(trait_data)] ~ trait_data[, 1]"` if the first column is log-mass and the remaining columns are logged linear dimensions.
   
@@ -224,6 +224,12 @@ Let's explore the choices made in this function call:
 ## Interpreting the Output
 
 The `searchOptimalConfiguration` function returns a list containing detailed results of the search.
+
+```{r print_method_demo, eval=FALSE}
+# The bifrost_search object has a custom S3 print method:
+# typing the object shows a summary.
+jaws_search
+```
 
 Let's look at the key components:
 

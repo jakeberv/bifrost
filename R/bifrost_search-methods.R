@@ -193,8 +193,11 @@
 }
 
 .bifrost_print_header <- function() {
-  cat("Bifrost Search Result\n")
-  cat(strrep("=", 20), "\n\n", sep = "")
+  ver <- as.character(utils::packageVersion("bifrost"))
+  hdr <- paste0("Bifrost Search Result (bifrost ", ver, ")")
+
+  cat(hdr, "\n", sep = "")
+  cat(strrep("=", nchar(hdr, type = "width")), "\n\n", sep = "")
 }
 
 .bifrost_print_ic_block <- function(d) {
@@ -360,12 +363,23 @@ print.bifrost_search <- function(x, ...) {
 
   .bifrost_print_header()
   .bifrost_print_ic_block(d)
+
+  # Search summary first, then shift nodes (so "what happened" comes before fit details)
   .bifrost_print_search_block(d)
-  .bifrost_print_mvgls_block(d)
   .bifrost_print_shift_nodes(d)
+
+  # Fit details next
+  .bifrost_print_mvgls_block(d)
+
+  # Optional diagnostics
   .bifrost_print_history_plot(x, d)
   .bifrost_print_weights(x, d)
+
+  # Warnings footer
   .bifrost_print_warnings(x)
+
+  # Citation hint (one-liner)
+  cat("\nTo cite this package: citation(\"bifrost\")\n")
 
   invisible(x)
 }
