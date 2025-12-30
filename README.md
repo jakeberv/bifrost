@@ -138,45 +138,60 @@ str(res$VCVs)  # regime-specific VCVs (here just the baseline regime "0")
 
 ```mermaid
 flowchart TD
-A([Start])
-A --> B[Check IC]
-B --> C[Validate inputs]
-C --> D[Paint baseline]
-D --> E[Generate candidates]
-E --> F[Fit baseline]
-F --> G[Set parallel plan]
-G --> H[Fit candidates in parallel]
-H --> I[Restore sequential]
-I --> J[Compute delta IC and sort]
-J --> K[Init search state]
-K --> L{More candidates?}
-L -->|Yes| M[Next candidate]
-M --> N[Add shift]
-N --> O[Fit shifted model]
-O --> P{Improvement >= threshold?}
-P -->|Yes| Q[Accept and update]
-P -->|No| R[Reject]
-O --> S{Store history?}
-S -->|Yes| T[Save iteration]
-S -->|No| U[Continue]
-O --> V{Warnings?}
-V -->|Yes| W[Collect warnings]
-V -->|No| X[Continue]
-Q --> L
-R --> L
-L -->|No| Y[Finalize best model]
-Y --> Z{Compute weights?}
-Z -->|Yes| ZA{Parallel weights?}
-ZA -->|Yes| ZB[Parallel drop-one refits]
-ZA -->|No| ZC[Serial drop-one refits]
-Z -->|No| ZD[Skip weights]
-ZB --> ZE[Build ic weights]
-ZC --> ZE
-ZD --> ZE
-ZE --> ZF[Build output trees]
-ZF --> ZG[Assemble result list]
-ZG --> ZH[Extract VCVs]
-ZH --> ZI([Return])
+
+subgraph S[Setup]
+  A([Start]) --> B[Init and validate]
+  B --> C[Paint baseline state 0]
+  C --> D[Generate one-shift candidates]
+end
+
+subgraph CS[Baseline and scoring]
+  D --> E[Fit baseline mvgls]
+  E --> F[Baseline IC GIC or BIC]
+  F --> G[Score candidates in parallel]
+  G --> H[Compute delta IC and sort]
+end
+
+subgraph GS[Greedy search]
+  H --> I[Init best tree and IC]
+  I --> J{More candidates?}
+
+  J -- Yes --> K[Add shift]
+  K --> L[Fit shifted model]
+  L --> M[Delta IC best minus new]
+  M --> N{Delta IC >= threshold?}
+
+  N -- Yes --> O[Accept update best]
+  N -- No --> P[Reject keep best]
+
+  O --> Q[Record status]
+  P --> Q
+
+  Q --> J
+end
+
+subgraph PP[Post processing]
+  J -- No --> U[Finalize best model]
+  U --> V{Compute IC weights?}
+
+  V -- No --> V0[Skip weights]
+  V -- Yes --> W{Any shifts?}
+  W -- No --> V0
+
+  W -- Yes --> X{Weights parallel?}
+  X -- Yes --> X1[Drop-one refits parallel]
+  X -- No --> X2[Drop-one refits serial]
+
+  X1 --> Y[Compute weights aicw and ER]
+  X2 --> Y
+end
+
+subgraph OUT[Output]
+  V0 --> Z[Assemble result]
+  Y --> Z
+  Z --> ZA[Extract regime VCVs]
+  ZA --> ZB([Return])
+end
 ```
 
 -----
