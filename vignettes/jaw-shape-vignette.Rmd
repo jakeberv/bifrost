@@ -285,7 +285,9 @@ print(with(jaws_search$ic_weights, {
 ```{r plot_decay, eval=FALSE}
 # Since we saved the model search history 
 # We can inspect the behavior of the search with this helper function 
-plot_ic_acceptance_matrix(matrix_data = jaws_search$model_fit_history$ic_acceptance_matrix)
+plot_ic_acceptance_matrix(matrix_data = 
+                            jaws_search$model_fit_history$ic_acceptance_matrix, 
+                          rate_limits = c(-600,400))
 
 ```
 
