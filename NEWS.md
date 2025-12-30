@@ -1,3 +1,23 @@
+# bifrost 0.1.2
+
+* Addressed CRAN reviewer feedback following review of 0.1.1:
+  - `plot_ic_acceptance_matrix()` now saves and restores the user’s graphical parameters via an immediate `on.exit()` (prevents leaking `par()` settings across calls).
+
+* Plotting:
+  - Added `rate_limits` argument to `plot_ic_acceptance_matrix()` (default `c(-400, 150)`) to control the secondary y-axis limits for the rate-of-improvement overlay (validated numeric length-2, finite).
+
+* Search results output:
+  - Added a `bifrost_search` S3 class and `print.bifrost_search()` method for `searchOptimalConfiguration()` results (compact console summary; optional ASCII IC-history plot via `txtplot` when `store_model_fit_history = TRUE`; prints IC weights when present).
+  - Print output includes a citation hint (`citation("bifrost")`); package citation metadata updated in `inst/CITATION`.
+
+* IC weights / no-shift behavior:
+  - Standardized `ic_weights` output across serial and parallel uncertainty-weight modes; always returns a `data.frame` with consistent columns, and returns an empty `data.frame` with the same schema when no shifts are detected.
+  - When no shifts are detected, `model_no_uncertainty` now returns the baseline `mvgls` model (instead of `NULL`).
+
+* Documentation / vignettes / tests:
+  - Updated jaw-shape vignette chunk printing of `ic_weights` to avoid RStudio paged/Unicode rendering issues.
+  - Expanded and stabilized unit tests and CI configuration (including `Config/testthat/parallel: false`).
+
 # bifrost 0.1.1
 
 * Addressed CRAN reviewer feedback following review of 0.1.0:

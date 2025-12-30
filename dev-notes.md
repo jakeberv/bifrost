@@ -1,7 +1,5 @@
 # Development Notes
 
-## Unreleased
-
 ### 2025-12-30 — Commit 95afbf8: Add coverage test for `rate_limits` validation (Codecov patch fix)
 
 **Files touched**
