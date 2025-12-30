@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+### 2025-12-30 — Commit 95afbf8: Add coverage test for `rate_limits` validation (Codecov patch fix)
+
+**Files touched**
+- tests/testthat/test-plot_ic_acceptance_matrix.R
+- dev-notes.md
+
+**Summary**
+- Added a targeted unit test exercising `plot_ic_acceptance_matrix()` input validation for `rate_limits` when `plot_rate_of_improvement = TRUE`.
+- Covers the new error path (`stop(...)`) introduced with `rate_limits`, restoring Codecov patch coverage for the plotting changes.
+
+**Intent**
+- Keep coverage stable while preserving strict argument validation for the new `rate_limits` option.
+
+
 ### 2025-12-30 — Commit 96028bb: Restore plotting par; add rate-limits control; vignette print fix
 
 **Files touched**
