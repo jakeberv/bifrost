@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+### 2025-12-30 — Commit 96028bb: Restore plotting par; add rate-limits control; vignette print fix
+
+**Files touched**
+- R/plot_ic_acceptance_matrix.R
+- man/plot_ic_acceptance_matrix.Rd
+- vignettes/jaw-shape-vignette.Rmd
+- dev-notes.md
+
+**Summary**
+- `plot_ic_acceptance_matrix()` plotting robustness + configurability:
+  - Restores user graphical parameters on exit (`par(no.readonly=TRUE)` + `on.exit(par(oldpar))`) to avoid leaking `par()` settings across calls (addresses CRAN-style note).
+  - Added `rate_limits` argument (default `c(-400, 150)`) to control the secondary y-axis limits for the rate-of-improvement overlay.
+  - Added input validation for `rate_limits` (numeric length-2, finite; sorted internally).
+- Documentation:
+  - Regenerated Rd; updated details to reflect restored `par()` behavior and the new `rate_limits` argument.
+- Vignette:
+  - Print `ic_weights` as a matrix inside the chunk to avoid RStudio rendering issues (paged/Unicode table display).
+
+**Intent**
+- Make the IC acceptance plot function safe to call inside packages/vignettes (no persistent `par()` side effects) and provide user control over the diff(IC) axis scale.
+
+
 ### 2025-12-27 — Commit 380134c: Linting cleanup + CRAN compliance fixes (no behavior change)
 
 **Files touched**
