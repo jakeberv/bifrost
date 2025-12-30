@@ -95,7 +95,7 @@ plot_ic_acceptance_matrix <- function(matrix_data,
 
     # Add a black horizontal line at y = 0 with restricted x-range
     lines(
-      x = c(min(x_values), max(x_ticks)+20),  # Extend from data limit to axis limit
+      x = c(min(x_values), max(x_ticks) + 20),  # Extend from data limit to axis limit
       y = c(0, 0),  # Horizontal line at y = 0
       col = rgb(0, 0, 0, alpha = 0.5), lty = 1, lwd = 0.7)
 
@@ -163,7 +163,7 @@ plot_ic_acceptance_matrix <- function(matrix_data,
   # Plot the rejected shifts (red dots, smaller size) first (behind accepted shifts)
   points(
     x_values[categories == 0], y_values[categories == 0],
-    col = rgb(1, 0, 0, alpha = 1), pch = 3, cex = 0.4, lwd=0.3  # Smaller red dots for rejected shifts
+    col = rgb(1, 0, 0, alpha = 1), pch = 3, cex = 0.4, lwd = 0.3  # Smaller red dots for rejected shifts
   )
 
   # Combine all blue dots (excluding the baseline IC) for a continuous line

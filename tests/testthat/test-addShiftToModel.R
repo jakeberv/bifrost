@@ -9,7 +9,7 @@ library(phytools)
 create_test_simmap_tree <- function(n_tips = 20) {
   set.seed(123)
   tree <- pbtree(n = n_tips, scale = 1)
-  simmap_tree <- paintSubTree (tree, node = Ntip(tree)+1,
+  simmap_tree <- paintSubTree(tree, node = Ntip(tree) + 1,
                                state = "0", anc.state = "0")
   return(simmap_tree)
 }

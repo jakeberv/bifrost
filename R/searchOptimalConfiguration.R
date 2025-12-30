@@ -249,7 +249,7 @@ searchOptimalConfiguration <-
            uncertaintyweights_par = FALSE,
            #postorder_traversal = FALSE,
            plot = FALSE,
-           IC = 'GIC',
+           IC = "GIC",
            store_model_fit_history = TRUE,
            verbose = FALSE,
            ...) {
@@ -296,11 +296,11 @@ searchOptimalConfiguration <-
     if (IC != "GIC" && IC != "BIC") {
       stop("IC must be GIC or BIC")
     }
-    if(IC=="GIC"){
+    if(IC == "GIC"){
       baseline_model <- fitMvglsAndExtractGIC.formula(formula, candidate_trees[[1]], trait_data, ...)
       baseline_ic <- baseline_model$GIC$GIC
     }
-    if(IC=="BIC"){
+    if(IC == "BIC"){
       baseline_model <- fitMvglsAndExtractBIC.formula(formula, candidate_trees[[1]], trait_data, ...)
       baseline_ic <- baseline_model$BIC$BIC
     }
@@ -410,8 +410,8 @@ searchOptimalConfiguration <-
     # }
 
     shift_vec <- list() #initialize shift_vec
-    model_with_shift_no_uncertainty<-NULL #initialize output
-    best_tree_no_uncertainty<-NULL #initialize output
+    model_with_shift_no_uncertainty <- NULL #initialize output
+    best_tree_no_uncertainty <- NULL #initialize output
     # Initialize the list to collect warning messages
     warnings_list <- list()
 
@@ -449,7 +449,7 @@ searchOptimalConfiguration <-
       shift_id <- add_shift_result$shift_id
 
       if(plot == TRUE){
-        nodelabels(text = shift_id, node=shift_node_number)
+        nodelabels(text = shift_id, node = shift_node_number)
       }
 
       tryCatch({
@@ -516,7 +516,7 @@ searchOptimalConfiguration <-
 
         # Also store the error in the model fit history
         if (store_model_fit_history) {
-          model_fit_history<- list(
+          model_fit_history <- list(
             model = NULL,
             accepted = FALSE,
             delta_ic = NA,
@@ -533,14 +533,14 @@ searchOptimalConfiguration <-
         )
       }
       if(plot == TRUE){
-        colorvec <- setNames(object = c('black', rainbow(length(unique(getStates(shifted_tree, type = 'both')))-1)),
-                             nm = sort(as.numeric(unique(getStates(shifted_tree, type = 'both')))))
-        plotSimmap(current_best_tree, colors=colorvec, ftype='off')
+        colorvec <- setNames(object = c("black", rainbow(length(unique(getStates(shifted_tree, type = "both"))) - 1)),
+                             nm = sort(as.numeric(unique(getStates(shifted_tree, type = "both")))))
+        plotSimmap(current_best_tree, colors = colorvec, ftype = "off")
       }
     }
 
     #print(paste(shift_vec))
-    shifts_no_uncertainty<-unlist(shift_vec)
+    shifts_no_uncertainty <- unlist(shift_vec)
     .progress("Shifts detected at nodes: %s", paste(shift_vec, collapse = ", "))
 
     # If activated, this section removes shifts after re-evaluating
@@ -827,4 +827,3 @@ searchOptimalConfiguration <-
 
   }
 #... is optional arguments to be passed to mvgls
-

@@ -11,3 +11,5 @@ CRAN-SUBMISSION
 vignettes/jaw-shape/gr1_lrg.jpg
 CI-notes.txt
 lint.txt
+.lintr
+lintr.R
