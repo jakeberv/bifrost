@@ -96,21 +96,27 @@ These files are included with the package and are available at the publication's
 
 ```{r load_data, eval=FALSE}
 # Define paths to the data files included in the package
-tree_path <- system.file("extdata", "jaw-shape", "mrbayes_prune_tree.RDS", package = "bifrost")
-landmark_path <- system.file("extdata", "jaw-shape", "jaws_coords.RDS", package = "bifrost")
+tree_path <- system.file("extdata", "jaw-shape", "mrbayes_prune_tree.RDS", 
+                         package = "bifrost")
+landmark_path <- system.file("extdata", "jaw-shape", "jaws_coords.RDS", 
+                             package = "bifrost")
 
 # Load the phylogenetic tree and landmark data
 fish.tree <- readRDS(tree_path)
 landmarks <- readRDS(landmark_path)
 
-# Ensure the tree is in the correct format (a phylo object, here we also ladderize for downstream plotting)
+# Ensure the tree is in the correct format (a phylo object, here we also 
+# ladderize for downstream plotting)
 fish.tree <- ladderize(untangle(as.phylo(fish.tree)))
 
-# The raw landmark data is a 3D array (landmarks x dimensions x species) after GPA (Generalized Procrustes analysis)
-# We convert the 3D array into a 2D matrix for analysis using a function from the geomorph package.
+# The raw landmark data is a 3D array (landmarks x dimensions x species) after 
+# GPA (Generalized Procrustes analysis)
+# We convert the 3D array into a 2D matrix for analysis using a function from 
+# the geomorph package.
 fish.data <- two.d.array(landmarks)
 
-# It's crucial to ensure the order of species in the trait data matrix matches the order of tip labels in the phylogenetic tree.
+# It's crucial to ensure the order of species in the trait data matrix matches 
+# the order of tip labels in the phylogenetic tree.
 tip_order <- match(fish.tree$tip.label, rownames(fish.data))
 fish.data <- fish.data[tip_order, ]
 
@@ -252,14 +258,17 @@ cat("Improvement (Delta GIC):", jaws_search$baseline_ic - jaws_search$optimal_ic
 # The root state is always assigned to `0`
 heatmap(jaws_search$VCVs$`0`)
 
-# We can also visualize/extract the estimated evolutionary correlations across traits
+# We can also visualize/extract the estimated evolutionary correlations across 
+# traits (for the 'root' regime)
 heatmap(cov2cor(jaws_search$VCVs$`0`))
 
-# The ic_weights sub-object stores detailed information about shift support (if uncertaintyweights_par = TRUE)
-print(jaws_search$ic_weights)
+# The ic_weights sub-object stores detailed information about shift support (
+# if uncertaintyweights_par = TRUE)
+print(as.matrix(jaws_search$ic_weights)) #print as matrix in chunk
 
 # Extract the shift node numbers with corresponding IC weights
-print(cbind(node=jaws_search$ic_weights$node, weight=jaws_search$ic_weights$ic_weight_withshift))
+print(cbind(node=jaws_search$ic_weights$node, 
+            weight=jaws_search$ic_weights$ic_weight_withshift))
 
 # Extract the nodes with weights > 95%
 print(with(jaws_search$ic_weights, {

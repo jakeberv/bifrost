@@ -21,7 +21,7 @@
 #'
 #' The function uses only base graphics. It sets plot margins and \code{mgp} via
 #' \code{par()}, and (when overlaying) uses \code{par(new = TRUE)} to layer the IC plot over the
-#' rate-of-improvement axes. It does not restore previous graphical parameters.
+#' rate-of-improvement axes. Initial user par is reset on exit.
 #'
 #' @param matrix_data A two-column \code{matrix} or \code{data.frame}. Column 1 must be
 #'   numeric IC scores in evaluation order; Column 2 must be a logical or numeric flag
@@ -30,13 +30,16 @@
 #' @param plot_rate_of_improvement \code{logical(1)}. If \code{TRUE}, overlay the
 #'   first differences of the IC series on a secondary (right) y-axis along with a
 #'   horizontal reference line at zero.
+#' @param rate_limits \code{numeric(2)}. Y-axis limits for the rate-of-improvement
+#'   overlay (i.e., \code{diff(IC)}), used only when \code{plot_rate_of_improvement = TRUE}.
+#'   Defaults to \code{c(-400, 150)}.
 #'
 #' @return Invisibly returns \code{NULL}. Called for its plotting side effects.
 #'
 #' @details
 #' **Axes and scaling.** Tick marks for the primary (IC) x/y axes are computed with
 #' \code{pretty()} to give clean bounds. The secondary axis for the rate of improvement
-#' uses fixed limits (\code{c(-400, 150)}) inside the function; adjust in source if your
+#' uses \code{rate_limits} (default \code{c(-400, 150)}); adjust via the argument if your
 #' expected \code{diff(IC)} range differs substantially.
 #'
 #' @examples
@@ -57,7 +60,14 @@
 #' @export
 plot_ic_acceptance_matrix <- function(matrix_data,
                                       plot_title = "IC Acceptance Matrix Scatter Plot",
-                                      plot_rate_of_improvement = TRUE) {
+                                      plot_rate_of_improvement = TRUE,
+                                      rate_limits = c(-400, 150)) {
+
+  #Capture current user par
+  oldpar <- par(no.readonly = TRUE)
+  #restore user par on exit
+  on.exit(par(oldpar), add = TRUE)
+
   # Adjust margins for balanced spacing
   par(mar = c(5, 5.5, 4, 6), mgp = c(3, 0.6, 0))  # Adjust mgp to move tick labels closer
 
@@ -76,8 +86,14 @@ plot_ic_acceptance_matrix <- function(matrix_data,
   y_limits <- range(y_ticks)
 
   # Define limits for the rate of improvement (for the secondary y-axis)
-  rate_ticks <- pretty(range(rate_of_improvement))
-  rate_limits <- c(-400, 150) #range(rate_ticks)
+  if (plot_rate_of_improvement) {
+    if (!is.numeric(rate_limits) || length(rate_limits) != 2L ||
+        any(!is.finite(rate_limits))) {
+      stop("`rate_limits` must be a numeric vector of length 2 with finite values.")
+    }
+    rate_limits <- sort(rate_limits)
+    rate_ticks  <- pretty(rate_limits)
+  }
 
   # Identify the baseline IC as the first IC score
   baseline_ic <- y_values[1]
@@ -216,4 +232,5 @@ plot_ic_acceptance_matrix <- function(matrix_data,
     pt.lwd = c(NA, 0.5, NA, 0),     # Fine outline for "Accepted shift"
     cex = 0.65, bty = "n", xpd = TRUE  # Slightly smaller legend text and allow margin overlap
   )
+
 }

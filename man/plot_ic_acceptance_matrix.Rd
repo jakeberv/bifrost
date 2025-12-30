@@ -7,7 +7,8 @@
 plot_ic_acceptance_matrix(
   matrix_data,
   plot_title = "IC Acceptance Matrix Scatter Plot",
-  plot_rate_of_improvement = TRUE
+  plot_rate_of_improvement = TRUE,
+  rate_limits = c(-400, 150)
 )
 }
 \arguments{
@@ -20,6 +21,10 @@ numeric IC scores in evaluation order; Column 2 must be a logical or numeric fla
 \item{plot_rate_of_improvement}{\code{logical(1)}. If \code{TRUE}, overlay the
 first differences of the IC series on a secondary (right) y-axis along with a
 horizontal reference line at zero.}
+
+\item{rate_limits}{\code{numeric(2)}. Y-axis limits for the rate-of-improvement
+overlay (i.e., \code{diff(IC)}), used only when \code{plot_rate_of_improvement = TRUE}.
+Defaults to \code{c(-400, 150)}.}
 }
 \value{
 Invisibly returns \code{NULL}. Called for its plotting side effects.
@@ -45,11 +50,11 @@ implies improvement).
 
 The function uses only base graphics. It sets plot margins and \code{mgp} via
 \code{par()}, and (when overlaying) uses \code{par(new = TRUE)} to layer the IC plot over the
-rate-of-improvement axes. It does not restore previous graphical parameters.
+rate-of-improvement axes. Initial user par is reset on exit.
 
 \strong{Axes and scaling.} Tick marks for the primary (IC) x/y axes are computed with
 \code{pretty()} to give clean bounds. The secondary axis for the rate of improvement
-uses fixed limits (\code{c(-400, 150)}) inside the function; adjust in source if your
+uses \code{rate_limits} (default \code{c(-400, 150)}); adjust via the argument if your
 expected \code{diff(IC)} range differs substantially.
 }
 \examples{
