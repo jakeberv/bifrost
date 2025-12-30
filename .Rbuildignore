@@ -22,3 +22,6 @@
 ^dev-notes\.md$
 ^CI-notes\.txt$
 ^lint\.txt$
+^.lintr$
+^lintr\.R$
+

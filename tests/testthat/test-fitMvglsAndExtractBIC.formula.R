@@ -185,7 +185,8 @@ test_that("Formula must be provided as a character string", {
 test_that("Determinism: same inputs yield identical BIC", {
   skip_if_missing_deps()
   painted_tree <- make_two_regime_tree(25)
-  set.seed(999); dat <- make_data_for_tree(painted_tree, p = 2)
+  set.seed(999)
+  dat <- make_data_for_tree(painted_tree, p = 2)
   form_chr <- "cbind(y1, y2) ~ x"
 
   r1 <- suppressWarnings(
@@ -209,8 +210,10 @@ test_that("BM/BMM branch selection aligns with regime count (BIC)", {
   expect_equal(length(unique(phytools::getStates(tr_one))), 1)
   expect_gt(length(unique(phytools::getStates(tr_two))), 1)
 
-  set.seed(135); d1 <- make_data_for_tree(tr_one, p = 2)
-  set.seed(136); d2 <- make_data_for_tree(tr_two, p = 2)
+  set.seed(135)
+  d1 <- make_data_for_tree(tr_one, p = 2)
+  set.seed(136)
+  d2 <- make_data_for_tree(tr_two, p = 2)
   f <- "cbind(y1, y2) ~ x"
 
   r1 <- suppressWarnings(fitMvglsAndExtractBIC.formula(f, tr_one, d1, data = d1, method = "LL"))
@@ -226,7 +229,8 @@ test_that("BM/BMM branch selection aligns with regime count (BIC)", {
 test_that("mvgls options via ... are honoured for BIC (LL with REML toggles)", {
   skip_if_missing_deps()
   painted_tree <- make_two_regime_tree(20)
-  set.seed(42); dat <- make_data_for_tree(painted_tree, p = 2)
+  set.seed(42)
+  dat <- make_data_for_tree(painted_tree, p = 2)
   f <- "cbind(y1, y2) ~ x"
 
   # Use method = "LL" for BIC; vary REML
@@ -245,7 +249,8 @@ test_that("mvgls options via ... are honoured for BIC (LL with REML toggles)", {
 test_that("Rownames must match in name and order (not just set) for BIC", {
   skip_if_missing_deps()
   painted_tree <- make_single_regime_tree(15)
-  set.seed(7); dat <- make_data_for_tree(painted_tree, p = 2)
+  set.seed(7)
+  dat <- make_data_for_tree(painted_tree, p = 2)
   shuffled <- dat[sample(nrow(dat)), , drop = FALSE]  # same names, different order
   f <- "cbind(y1, y2) ~ x"
 

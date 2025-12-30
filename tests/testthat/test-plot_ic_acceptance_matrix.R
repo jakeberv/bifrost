@@ -161,7 +161,8 @@ test_that("plot_ic_acceptance_matrix handles zero accepted steps beyond baseline
   mat <- make_ic_matrix(n = 8, seed = 123, accept_every = 100)
   mat[-1, 2] <- 0L  # no accepted after baseline
 
-  open_null_device(); on.exit(close_device_quietly(), add = TRUE)
+  open_null_device()
+  on.exit(close_device_quietly(), add = TRUE)
   # Keep overlay on to exercise ROI plotting even when no accepted markers exist
   expect_invisible(
     with_par_safely(
@@ -178,7 +179,8 @@ test_that("plot_ic_acceptance_matrix handles zero accepted steps beyond baseline
 test_that("plot_ic_acceptance_matrix handles logical acceptance flags", {
   mat <- cbind(ic = c(-1000, -990, -995), acc = c(TRUE, FALSE, TRUE))
 
-  open_null_device(); on.exit(close_device_quietly(), add = TRUE)
+  open_null_device()
+  on.exit(close_device_quietly(), add = TRUE)
   expect_invisible(
     with_par_safely(
       plot_ic_acceptance_matrix(
@@ -195,7 +197,8 @@ test_that("plot_ic_acceptance_matrix works with minimal length (n = 2)", {
   # Two points: baseline + one step; mark second as rejected
   mat <- cbind(ic = c(-1000, -995), acc = c(1L, 0L))
 
-  open_null_device(); on.exit(close_device_quietly(), add = TRUE)
+  open_null_device()
+  on.exit(close_device_quietly(), add = TRUE)
   # Cover both overlay on (diff length 1) and off
   expect_invisible(
     with_par_safely(

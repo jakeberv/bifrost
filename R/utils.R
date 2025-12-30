@@ -137,7 +137,7 @@ fitMvglsAndExtractGIC <- function(painted_tree, trait_data) {
   }
 
   # Fit the mvgls model directly using the matrix
-  model <- mvgls(trait_data ~ 1, tree = painted_tree, model = "BMM", method='LL')
+  model <- mvgls(trait_data ~ 1, tree = painted_tree, model = "BMM", method = "LL")
   gic_value <- GIC(model)
 
   # Return a list containing the model and the GIC
@@ -200,7 +200,7 @@ fitMvglsAndExtractBIC <- function(painted_tree, trait_data) {
   }
 
   # Fit the mvgls model directly using the matrix
-  model <- mvgls(trait_data ~ 1, tree = painted_tree, model = "BMM", method='LL')
+  model <- mvgls(trait_data ~ 1, tree = painted_tree, model = "BMM", method = "LL")
   bic_value <- BIC(model)
 
   # Return a list containing the model and the GIC
@@ -283,7 +283,7 @@ fitMvglsAndExtractGIC.formula <- function(formula, painted_tree, trait_data, ...
   # On the baseline tree, we have to switch to model = BM bc there is only one painted regime
   # Then we switch back to BMM
 
-  if(length(unique(getStates(tree=painted_tree))) == 1){
+  if(length(unique(getStates(tree = painted_tree))) == 1){
     model <- mvgls(formula_obj, tree = painted_tree, model = "BM", ...)
   } else {
     model <- mvgls(formula_obj, tree = painted_tree, model = "BMM", ...)
@@ -370,7 +370,7 @@ fitMvglsAndExtractBIC.formula <- function(formula, painted_tree, trait_data, ...
   # On the baseline tree, we have to switch to model = BM bc there is only one painted regime
   # Then we switch back to BMM
 
-  if(length(unique(getStates(tree=painted_tree))) == 1){
+  if(length(unique(getStates(tree = painted_tree))) == 1){
     model <- mvgls(formula_obj, tree = painted_tree, model = "BM", ...)
   } else {
     model <- mvgls(formula_obj, tree = painted_tree, model = "BMM", ...)
@@ -538,7 +538,7 @@ calculateAllDeltaGIC <- function(model_results, painted_tree_list) {
 #' @importFrom phytools getDescendants
 #' @keywords internal
 #' @noRd
-paintSubTree_mod <- function(tree, node, state, anc.state="1", stem=FALSE, overwrite=TRUE) {
+paintSubTree_mod <- function(tree, node, state, anc.state = "1", stem = FALSE, overwrite = TRUE) {
   if (!inherits(tree, "phylo")) stop("tree should be an object of class \"phylo\".")
   if (stem == 0 && node <= length(tree$tip)) stop("stem must be TRUE for node <= N")
   if (is.null(tree$edge.length)) tree <- compute.brlen(tree)
@@ -580,7 +580,7 @@ paintSubTree_mod <- function(tree, node, state, anc.state="1", stem=FALSE, overw
   s <- vector()
   for (i in 1:nrow(tree$edge)) s <- c(s, names(maps[[i]]))
   s <- unique(s)
-  mapped.edge <- matrix(0, length(tree$edge.length), length(s), dimnames=list(edge=apply(tree$edge, 1, function(x) paste(x, collapse=",")), state=s))
+  mapped.edge <- matrix(0, length(tree$edge.length), length(s), dimnames = list(edge = apply(tree$edge, 1, function(x) paste(x, collapse=",")), state=s))
   for (i in 1:length(maps)) {
     for (j in 1:length(maps[[i]])) {
       mapped.edge[i, names(maps[[i]])[j]] <- mapped.edge[i, names(maps[[i]])[j]] + maps[[i]][j]
@@ -658,7 +658,7 @@ paintSubTree_mod <- function(tree, node, state, anc.state="1", stem=FALSE, overw
 #' @importFrom phytools getParent getDescendants getStates
 #' @keywords internal
 #' @noRd
-paintSubTree_removeShift <- function(tree, shift_node, stem=FALSE) {
+paintSubTree_removeShift <- function(tree, shift_node, stem = FALSE) {
   if (!inherits(tree, "phylo")) stop("tree should be an object of class 'phylo'.")
   if (is.null(tree$edge.length)) tree <- compute.brlen(tree)
 
@@ -771,7 +771,7 @@ addShiftToModel <- function(tree, shift_node, current_shift_id) {
   next_shift_id <- current_shift_id + 1
 
   # Paint the subtree with the new regime/shift id
-  painted_tree <- paintSubTree_mod(tree, node = shift_node, state = as.character(next_shift_id), overwrite= FALSE, stem = FALSE)
+  painted_tree <- paintSubTree_mod(tree, node = shift_node, state = as.character(next_shift_id), overwrite = FALSE, stem = FALSE)
 
   # Return a list with the updated tree and the new shift ID
   return(list(tree = painted_tree, shift_id = next_shift_id))
@@ -845,7 +845,7 @@ removeShiftFromTree <- function(tree, shift_node, stem = FALSE) {
   #print(paste("Removing shift from node:", shift_node))
 
   # Retrieve node states; names of this vector are node indices
-  node_states <- getStates(tree, type="nodes")
+  node_states <- getStates(tree, type = "nodes")
   #print("Current node states:")
   #print(node_states)
 
