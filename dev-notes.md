@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+### 2025-12-27 — Commit 380134c: Linting cleanup + CRAN compliance fixes (no behavior change)
+
+**Files touched**
+- R/plot_ic_acceptance_matrix.R
+- R/searchOptimalConfiguration.R
+- R/utils.R
+- tests/testthat/test-addShiftToModel.R
+- tests/testthat/test-fitMvglsAndExtractBIC.formula.R
+- tests/testthat/test-fitMvglsAndExtractGIC.formula.r
+- tests/testthat/test-plot_ic_acceptance_matrix.R
+- .Rbuildignore
+- .gitignore
+
+**Summary**
+- Performed a focused linting and style cleanup across core R files and tests:
+  - Standardized spacing, argument formatting, and quoting (no functional changes).
+  - Improved readability and consistency with tidyverse / CRAN style expectations.
+- Minor test refactors to make `on.exit()` usage explicit and robust in plotting tests.
+- No changes to model logic, algorithms, or numerical behavior.
+- This commit intentionally does *not* address the outstanding CRAN note about restoring graphical parameters; that fix will be handled in a subsequent commit.
+
+**Intent**
+- Reduce diff noise and improve maintainability before implementing CRAN-requested fixes.
+- Ensure future functional changes are isolated from formatting-only edits.
+
 ### 2025-12-26 — Commit 2ca1922: Update print output, citation hint, and vignette demo
 **Files touched**
 - R/bifrost_search-methods.R
