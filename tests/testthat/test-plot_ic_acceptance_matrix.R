@@ -37,7 +37,6 @@ with_par_safely <- function(expr) {
   force(expr)
 }
 
-
 # Group: plotting scenarios and acceptance patterns
 # Test: plot_ic_acceptance_matrix runs with default settings (overlay on) (uses make_ic_matrix and null device plotting)
 test_that("plot_ic_acceptance_matrix runs with default settings (overlay on)", {
@@ -217,5 +216,25 @@ test_that("plot_ic_acceptance_matrix works with minimal length (n = 2)", {
         plot_rate_of_improvement = FALSE
       )
     )
+  )
+})
+
+# Test: plot_ic_acceptance_matrix validates rate_limits when overlay is on (invalid limits should error)
+test_that("plot_ic_acceptance_matrix validates rate_limits when overlay is on", {
+  mat <- make_ic_matrix(n = 6, seed = 99, accept_every = 2)
+
+  open_null_device()
+  on.exit(close_device_quietly(), add = TRUE)
+
+  expect_error(
+    with_par_safely(
+      plot_ic_acceptance_matrix(
+        matrix_data = mat,
+        plot_title = "Bad rate_limits",
+        plot_rate_of_improvement = TRUE,
+        rate_limits = c(NA_real_, 1)
+      )
+    ),
+    "`rate_limits` must be a numeric vector of length 2 with finite values"
   )
 })
