@@ -1,3 +1,10 @@
+# bifrost 0.1.3
+
+* Addressed CRAN reviewer feedback following review of 0.1.2:
+  - Added explicit return-value documentation (`@return` / `\value{}`) for the exported
+    `print.bifrost_search()` method, clarifying that the function returns the input object
+    invisibly and is called for its printing side effects.
+
 # bifrost 0.1.2
 
 * Addressed CRAN reviewer feedback following review of 0.1.1:

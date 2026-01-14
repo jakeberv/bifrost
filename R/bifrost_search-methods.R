@@ -354,8 +354,15 @@
 # -------------------------------------------------------------------------
 #' Print method for bifrost search results
 #'
+#' Prints a compact summary of a completed Bifrost search, including the baseline and
+#' optimal information criterion (IC) values, the inferred shift node set, key search
+#' settings, and (when present) optional diagnostics such as IC-history and IC-weight
+#' support.
+#'
 #' @param x A `bifrost_search` object returned by [searchOptimalConfiguration()].
 #' @param ... Unused (S3 compatibility).
+#'
+#' @return Invisibly returns `x`. Called for its printing side effects.
 #'
 #' @export
 print.bifrost_search <- function(x, ...) {
