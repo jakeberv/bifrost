@@ -1,20 +1,22 @@
 ## Resubmission
 
-This is a resubmission following CRAN feedback on **bifrost 0.1.1**. The previous submission was **bifrost 0.1.1**. The current submission is **bifrost 0.1.2**.
+This is a resubmission following CRAN feedback on **bifrost 0.1.2**. The previous submission was **bifrost 0.1.2**. The current submission is **bifrost 0.1.3**.
 
 ### Changes made in response to CRAN comments
 
-- `plot_ic_acceptance_matrix()` now saves and restores the user’s graphical parameters via an immediate `on.exit()`:
-  `oldpar <- par(no.readonly = TRUE)` followed immediately by `on.exit(par(oldpar), add = TRUE)`.
-  This ensures `par()` settings are reset even if the function exits early or errors.
+- Added explicit return-value documentation (`@return` / `\value{}`) for the exported
+  `print.bifrost_search()` method, documenting that the function returns the input object
+  invisibly and is called for its printing side effects.
 
-### Other updates since 0.1.1 (unrelated to the CRAN note)
+### Other updates since 0.1.2 (unrelated to the CRAN note)
 
-- `plot_ic_acceptance_matrix()` gained a user-facing `rate_limits` argument (default `c(-400, 150)`) to control the secondary y-axis limits for the rate-of-improvement overlay, with input validation.
-- `bifrost_search` print output was refactored for readability/maintainability (behavior/output preserved), with additional tests.
-- Vignette: `ic_weights` is printed as a matrix in the chunk to avoid RStudio paged/Unicode table rendering issues.
-- Added a unit test exercising the `rate_limits` validation error path.
-- Various maintenance/refactoring and test-suite improvements; no changes to core model algorithms or numerical behavior.
+- `plot_ic_acceptance_matrix()` gained an optional `baseline_ic` argument to use the true
+  no-shift baseline IC for the baseline annotation and for computing the rate-of-improvement
+  series (`diff(IC)`), which is useful when `matrix_data` begins at the first evaluated shift model.
+- Jaw-shape vignette: added additional static figures (evolutionary correlation heatmap, IC
+  trajectory plot, and branch-rate visualization) and updated plotting/legend annotations for
+  clarity. Vignette continues to build under `--as-cran`.
+- Expanded unit tests to cover the new `baseline_ic` behavior and input validation.
 
 ## Test environments
 

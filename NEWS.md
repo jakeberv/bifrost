@@ -5,6 +5,15 @@
     `print.bifrost_search()` method, clarifying that the function returns the input object
     invisibly and is called for its printing side effects.
 
+* Plotting:
+  - `plot_ic_acceptance_matrix()` gains an optional `baseline_ic` argument to plot and compute
+    `diff(IC)` relative to the true no-shift baseline (useful when `matrix_data` begins at the
+    first evaluated shift model rather than the true baseline).
+
+* Documentation / vignettes:
+  - Updated the jaw-shape vignette with additional static figures (evolutionary correlation heatmap,
+    IC-trajectory plot, and branch-rate visualization) and improved plotting annotations.
+
 # bifrost 0.1.2
 
 * Addressed CRAN reviewer feedback following review of 0.1.1:
