@@ -1,7 +1,7 @@
 url: ~
 template:
   bootstrap: 5
-  light-switch: true
+  light-switch: false
   includes:
     after_body: |
       <script type="module">
