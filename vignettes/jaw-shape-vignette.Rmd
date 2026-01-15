@@ -1,9 +1,9 @@
 ---
 title: "Detecting Evolutionary Shifts in Paleozoic Fish Jaw Shape with bifrost"
 output:
+  rmarkdown::html_vignette: default
   rmarkdown::pdf_document:
     latex_engine: xelatex
-  rmarkdown::html_vignette: default
 vignette: >
   %\VignetteIndexEntry{Detecting Evolutionary Shifts in Paleozoic Fish Jaw Shape with bifrost}
   %\VignetteEncoding{UTF-8}
