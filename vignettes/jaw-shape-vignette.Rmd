@@ -1,10 +1,13 @@
 ---
 title: "Detecting Evolutionary Shifts in Paleozoic Fish Jaw Shape with bifrost"
-output: rmarkdown::html_vignette
+output:
+  rmarkdown::html_vignette: default
+  rmarkdown::pdf_document:
+    latex_engine: xelatex
 vignette: >
   %\VignetteIndexEntry{Detecting Evolutionary Shifts in Paleozoic Fish Jaw Shape with bifrost}
-  %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown}
 ---
 
 
@@ -59,7 +62,7 @@ if (identical(Sys.getenv("IN_PKGDOWN"), "true")) {
 We will walk through an example using a fossil dataset from [Troyer et al. (2025)](https://doi.org/10.1016/j.cub.2025.08.008), which examines macroevolutionary patterns of jaw shape in the earliest radiation of bony fishes. `bifrost` assumes that the branch lengths of the input phylogeny are in units of time, and does not require ultrametric phylogenies.  
 <br>
 ```{r troyer_fig1, echo=FALSE, fig.align="center", out.width="60%", fig.alt="Figure 1 from Troyer et al. (2025)."}
-knitr::include_graphics("jaw-shape/gr1_lrg_png8.png")
+knitr::include_graphics("jaw-shape/gr1_lrg_png24.png")
 ```
 
 ```{r troyer_fig1_caption, echo=FALSE, results='asis'}
@@ -152,8 +155,10 @@ if (interactive()) {
 }
 
 # ---- Optional: speed up SEQUENTIAL linear algebra via BLAS/OpenMP threads ----
-# NOTE: bifrost caps BLAS/OpenMP threads to 1 *inside* its PARALLEL blocks to avoid oversubscription.
-{thread_vars <- c("OMP_NUM_THREADS","OPENBLAS_NUM_THREADS","MKL_NUM_THREADS","VECLIB_MAXIMUM_THREADS")
+# NOTE: bifrost caps BLAS/OpenMP threads to 1 *inside* its PARALLEL blocks to 
+# avoid oversubscription.
+{thread_vars <- c("OMP_NUM_THREADS","OPENBLAS_NUM_THREADS","MKL_NUM_THREADS",
+                  "VECLIB_MAXIMUM_THREADS")
 old_threads <- Sys.getenv(thread_vars, unset = NA_character_)
 
 n_threads <- "4"  # must be a character string
@@ -207,7 +212,7 @@ Let's explore the choices made in this function call:
   
   * `min_descendant_tips = 10`: This is a user defined constraint. It tells the function to only consider potential shifts on internal nodes that lead to a clade with at least 10 species. This seeks to reduce overfitting by preventing shifts on very small clades. We use 10 in this example, but the optimal choice here will depend on a given dataset (~10 is recommended for large trees).
   
-  * `num_cores = 6`: To speed up the search, the function evaluates all candidate shift models in parallel. We've specified using 6 CPU cores for this task.
+  * `num_cores = 4`: To speed up the search, the function evaluates all candidate shift models in parallel. We've specified using 4 CPU cores for this task.
   
   * `shift_acceptance_threshold = 20`: This is the core of the greedy algorithm. A potential new shift is only accepted if it improves the model fit by at least 20 IC units (GIC units). This threshold ensures that only shifts with strong support are added to the model, reducing the risk of spurious shifts (false positives).
   
@@ -284,22 +289,22 @@ print(with(jaws_search$ic_weights, {
 knitr::include_graphics("jaw-shape/cor_heatmap.png")
 ```
 
-> Heatmap of estimated evolutionary correlations (`cov2cor(jaws_search$VCVs$`0`)`) among jaw-shape traits for the root regime inferred in the example analysis. Rows and columns are ordered by hierarchical clustering, and blocks of high correlation along the diagonal may indicate modular patterns of trait evolution.
+> Heatmap of estimated evolutionary correlations (computed as ``cov2cor(jaws_search$VCVs$`0`)``) among jaw-shape traits for the root regime inferred in the example analysis. Rows and columns are ordered by hierarchical clustering, and blocks of high correlation along the diagonal may indicate modular patterns of trait evolution.
 
 ## Inspecting the search behavior
 
 ```{r plot_decay, eval=FALSE}
 # Since we saved the model search history 
+
 # We can inspect the behavior of the search with this helper function 
 plot_ic_acceptance_matrix(matrix_data = 
                             jaws_search$model_fit_history$ic_acceptance_matrix, 
-                          rate_limits = c(-700,300), baseline_ic = NULL)
+                          rate_limits = c(-600,300), baseline_ic = NULL)
 
-#to set the baseline to the 'true' baseline, use the following
-
-#plot_ic_acceptance_matrix(matrix_data = 
-#                            jaws_search$model_fit_history$ic_acceptance_matrix, 
-#                          rate_limits = c(-5000,400), baseline_ic = jaws_search$baseline_ic)
+#to set the baseline to the 'true' global baseline, use the following:
+plot_ic_acceptance_matrix(matrix_data =
+                           jaws_search$model_fit_history$ic_acceptance_matrix,
+                         rate_limits = c(-800,600), baseline_ic = jaws_search$baseline_ic)
 
 ```
 <br>
@@ -307,7 +312,7 @@ plot_ic_acceptance_matrix(matrix_data =
 knitr::include_graphics("jaw-shape/IC_decay.png")
 ```
 
-> Information-criterion (IC) trajectory across sequentially evaluated sub-models during the greedy shift search. Blue points and connecting lines indicate accepted shifts, red crosses indicate rejected shifts, and the black point marks the baseline IC (here, the first accepted shift). The grey line shows the per-step change in IC (right axis), with negative values indicating improvement. Labels highlight the baseline and minimum accepted IC values.
+> Information-criterion (IC) trajectory across sequentially evaluated sub-models during the greedy shift search. Blue points and connecting lines indicate accepted shifts, red crosses indicate rejected shifts, and the black point marks the baseline IC. The grey line shows the per-step change in IC (right axis), with negative values indicating improvement. Labels highlight the baseline and minimum accepted IC values.
 
 ## Generating a preliminary branch-rate plot
 
@@ -342,9 +347,11 @@ rect(xs[-length(xs)], y0, xs[-1], y1, col = cols_ord, border = NA)
 rect(x0, y0, x1, y1, border = "grey30")
 
 min_rate <- min(rates); max_rate <- max(rates)
-ratio_int <- if (is.finite(min_rate) && min_rate > 0) as.integer(round(max_rate / min_rate)) else NA_integer_
+ratio_int <- if (is.finite(min_rate) && min_rate > 0) 
+  as.integer(round(max_rate / min_rate)) else NA_integer_
 
-text((x0 + x1) / 2, y1 + vscale * (0.03 * yr), "Mean rate (slow \u2192 fast)", cex = 0.9)
+text((x0 + x1) / 2, y1 + vscale * (0.03 * yr), 
+     "Mean rate (slow \u2192 fast)", cex = 0.9)
 
 #Vignette will be updated with additional plotting functions and post-hoc analyses
 
