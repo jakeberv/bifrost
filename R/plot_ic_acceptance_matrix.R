@@ -13,11 +13,17 @@
 #'   \item Column 2 contains an indicator for acceptance (0 = rejected, 1 = accepted).
 #' }
 #' The first IC value is treated as the \emph{baseline} and is plotted as a larger
-#' black point and labeled. Accepted steps are drawn as blue filled points connected
-#' by a thin line; rejected steps are drawn as small red crosses. When
-#' \code{plot_rate_of_improvement = TRUE}, the function overlays a secondary y-axis on
-#' the right that shows \code{diff(IC)} values (the per-step change in IC; more negative
-#' implies improvement).
+#' black point with a numeric label. If \code{baseline_ic} is supplied, it is used as
+#' the baseline IC score (step 1) in place of \code{matrix_data[1, 1]} for both the
+#' baseline annotation and the rate-of-improvement series (\code{diff(IC)}). This is
+#' useful because \code{matrix_data} begins with the first evaluated shift model (rather
+#' than the true no-shift baseline). To achieve this behavior, pass the true baseline via
+#' \code{baseline_ic} to avoid labeling the first evaluated model as the baseline.
+#'
+#' Accepted steps are drawn as blue filled points connected by a thin line; rejected
+#' steps are drawn as small red crosses. When \code{plot_rate_of_improvement = TRUE},
+#' the function overlays a secondary y-axis on the right that shows \code{diff(IC)} values
+#' (the per-step change in IC; more negative implies improvement).
 #'
 #' The function uses only base graphics. It sets plot margins and \code{mgp} via
 #' \code{par()}, and (when overlaying) uses \code{par(new = TRUE)} to layer the IC plot over the
@@ -33,6 +39,9 @@
 #' @param rate_limits \code{numeric(2)}. Y-axis limits for the rate-of-improvement
 #'   overlay (i.e., \code{diff(IC)}), used only when \code{plot_rate_of_improvement = TRUE}.
 #'   Defaults to \code{c(-400, 150)}.
+#' @param baseline_ic Optional \code{numeric(1)}. If provided, this value is used as the
+#'   baseline IC score (step 1) in place of \code{matrix_data[1, 1]} for plotting and for
+#'   computing \code{diff(IC)}. Default is \code{NULL} (use \code{matrix_data[1, 1]}).
 #'
 #' @return Invisibly returns \code{NULL}. Called for its plotting side effects.
 #'
@@ -49,6 +58,8 @@
 #' plot_ic_acceptance_matrix(mat, plot_title = "IC Path")
 #' # Avoid non-ASCII glyphs in titles on CRAN/CI:
 #' plot_ic_acceptance_matrix(mat, plot_rate_of_improvement = TRUE)
+#' # Override baseline IC:
+#' plot_ic_acceptance_matrix(mat, baseline_ic = -995)
 #'
 #' @seealso
 #' \code{\link[graphics]{par}}, \code{\link[graphics]{plot}}, \code{\link[graphics]{axis}},
@@ -61,7 +72,8 @@
 plot_ic_acceptance_matrix <- function(matrix_data,
                                       plot_title = "IC Acceptance Matrix Scatter Plot",
                                       plot_rate_of_improvement = TRUE,
-                                      rate_limits = c(-400, 150)) {
+                                      rate_limits = c(-400, 150),
+                                      baseline_ic = NULL) {
 
   #Capture current user par
   oldpar <- par(no.readonly = TRUE)
@@ -74,6 +86,14 @@ plot_ic_acceptance_matrix <- function(matrix_data,
   # Extract y-values and category values
   y_values <- matrix_data[, 1]
   categories <- matrix_data[, 2]
+
+  # Optional user-specified baseline IC
+  if (!is.null(baseline_ic)) {
+    if (!is.numeric(baseline_ic) || length(baseline_ic) != 1L || !is.finite(baseline_ic)) {
+      stop("`baseline_ic` must be a finite numeric scalar (or NULL).")
+    }
+    y_values[1] <- baseline_ic
+  }
 
   # Calculate rate of improvement (differences between consecutive IC scores)
   rate_of_improvement <- diff(y_values)
@@ -95,8 +115,8 @@ plot_ic_acceptance_matrix <- function(matrix_data,
     rate_ticks  <- pretty(rate_limits)
   }
 
-  # Identify the baseline IC as the first IC score
-  baseline_ic <- y_values[1]
+  # Identify the baseline IC as the first IC score (possibly overridden)
+  baseline_ic_plot <- y_values[1]
 
   # Plot the rate of improvement optionally
   if (plot_rate_of_improvement) {
@@ -200,12 +220,12 @@ plot_ic_acceptance_matrix <- function(matrix_data,
 
   # Plot the baseline IC value as a larger black dot (after lines/dots for layering)
   points(
-    x = x_values[1], y = baseline_ic, col = "black", pch = 19, cex = 1.0  # Black dot for baseline IC
+    x = x_values[1], y = baseline_ic_plot, col = "black", pch = 19, cex = 1.0  # Black dot for baseline IC
   )
 
   # Add a label for the baseline IC
   text(
-    x = x_values[1] + 2, y = baseline_ic, labels = paste0(round(baseline_ic, 2)),
+    x = x_values[1] + 2, y = baseline_ic_plot, labels = paste0(round(baseline_ic_plot, 2)),
     pos = 4, col = "black", cex = 0.6
   )
 
@@ -233,4 +253,5 @@ plot_ic_acceptance_matrix <- function(matrix_data,
     cex = 0.65, bty = "n", xpd = TRUE  # Slightly smaller legend text and allow margin overlap
   )
 
+invisible(NULL)
 }
