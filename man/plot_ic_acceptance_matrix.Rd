@@ -8,7 +8,8 @@ plot_ic_acceptance_matrix(
   matrix_data,
   plot_title = "IC Acceptance Matrix Scatter Plot",
   plot_rate_of_improvement = TRUE,
-  rate_limits = c(-400, 150)
+  rate_limits = c(-400, 150),
+  baseline_ic = NULL
 )
 }
 \arguments{
@@ -25,6 +26,10 @@ horizontal reference line at zero.}
 \item{rate_limits}{\code{numeric(2)}. Y-axis limits for the rate-of-improvement
 overlay (i.e., \code{diff(IC)}), used only when \code{plot_rate_of_improvement = TRUE}.
 Defaults to \code{c(-400, 150)}.}
+
+\item{baseline_ic}{Optional \code{numeric(1)}. If provided, this value is used as the
+baseline IC score (step 1) in place of \code{matrix_data[1, 1]} for plotting and for
+computing \code{diff(IC)}. Default is \code{NULL} (use \code{matrix_data[1, 1]}).}
 }
 \value{
 Invisibly returns \code{NULL}. Called for its plotting side effects.
@@ -42,11 +47,17 @@ The function expects a two-column object where:
 \item Column 2 contains an indicator for acceptance (0 = rejected, 1 = accepted).
 }
 The first IC value is treated as the \emph{baseline} and is plotted as a larger
-black point and labeled. Accepted steps are drawn as blue filled points connected
-by a thin line; rejected steps are drawn as small red crosses. When
-\code{plot_rate_of_improvement = TRUE}, the function overlays a secondary y-axis on
-the right that shows \code{diff(IC)} values (the per-step change in IC; more negative
-implies improvement).
+black point with a numeric label. If \code{baseline_ic} is supplied, it is used as
+the baseline IC score (step 1) in place of \code{matrix_data[1, 1]} for both the
+baseline annotation and the rate-of-improvement series (\code{diff(IC)}). This is
+useful because \code{matrix_data} begins with the first evaluated shift model (rather
+than the true no-shift baseline). To achieve this behavior, pass the true baseline via
+\code{baseline_ic} to avoid labeling the first evaluated model as the baseline.
+
+Accepted steps are drawn as blue filled points connected by a thin line; rejected
+steps are drawn as small red crosses. When \code{plot_rate_of_improvement = TRUE},
+the function overlays a secondary y-axis on the right that shows \code{diff(IC)} values
+(the per-step change in IC; more negative implies improvement).
 
 The function uses only base graphics. It sets plot margins and \code{mgp} via
 \code{par()}, and (when overlaying) uses \code{par(new = TRUE)} to layer the IC plot over the
@@ -64,6 +75,8 @@ mat <- cbind(ic, c(1, accepted))  # mark baseline as accepted for plotting
 plot_ic_acceptance_matrix(mat, plot_title = "IC Path")
 # Avoid non-ASCII glyphs in titles on CRAN/CI:
 plot_ic_acceptance_matrix(mat, plot_rate_of_improvement = TRUE)
+# Override baseline IC:
+plot_ic_acceptance_matrix(mat, baseline_ic = -995)
 
 }
 \seealso{

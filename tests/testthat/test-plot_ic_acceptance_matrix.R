@@ -238,3 +238,133 @@ test_that("plot_ic_acceptance_matrix validates rate_limits when overlay is on", 
     "`rate_limits` must be a numeric vector of length 2 with finite values"
   )
 })
+
+# Test: plot_ic_acceptance_matrix accepts baseline_ic and it affects the IC y-axis scaling (capture axis(2) ticks)
+test_that("plot_ic_acceptance_matrix accepts baseline_ic and it affects y-axis limits", {
+  mat <- make_ic_matrix(n = 10, seed = 42, accept_every = 2, start_ic = -1000)
+
+  open_null_device()
+  on.exit(close_device_quietly(), add = TRUE)
+
+  y_ticks_default  <- NULL
+  y_ticks_override <- NULL
+
+  # Capture IC y-axis tick locations from axis(2, at = y_ticks, ...)
+  # (Do not rely on par("usr") because par() is restored and overlay order can differ.)
+  testthat::local_mocked_bindings(
+    axis = function(side, at, labels, ...) {
+      if (side == 2) {
+        if (is.null(y_ticks_default)) {
+          y_ticks_default <<- at
+        } else {
+          y_ticks_override <<- at
+        }
+      }
+      graphics::axis(side = side, at = at, labels = labels, ...)
+    },
+    .package = "bifrost"
+  )
+
+  # First run: default baseline comes from matrix_data[1, 1]
+  graphics::plot.new()  # ensure a plotting context exists
+  expect_invisible(
+    with_par_safely(
+      plot_ic_acceptance_matrix(
+        matrix_data = mat,
+        plot_title = "Baseline default",
+        plot_rate_of_improvement = FALSE
+      )
+    )
+  )
+
+  # Second run: override baseline to a much larger value to force expanded IC y-axis ticks
+  graphics::plot.new()
+  expect_invisible(
+    with_par_safely(
+      plot_ic_acceptance_matrix(
+        matrix_data = mat,
+        plot_title = "Baseline overridden",
+        plot_rate_of_improvement = FALSE,
+        baseline_ic = 0
+      )
+    )
+  )
+
+  # With baseline forced to 0, the max IC y tick should increase
+  expect_true(max(y_ticks_override) > max(y_ticks_default))
+})
+
+# Test: plot_ic_acceptance_matrix uses baseline_ic as the baseline for the grey ROI line (diff(IC) curve)
+test_that("plot_ic_acceptance_matrix uses baseline_ic for rate-of-improvement deltas", {
+  # Simple deterministic series so expected diffs are unambiguous
+  mat <- cbind(ic = c(-1000, -1010, -1020), acc = c(1L, 1L, 1L))
+
+  open_null_device()
+  on.exit(close_device_quietly(), add = TRUE)
+
+  roi_y <- NULL
+
+  # Capture the grey ROI curve y-values from lines(..., col = "grey", ...)
+  testthat::local_mocked_bindings(
+    lines = function(x, y, col = NULL, ...) {
+      if (is.character(col) && identical(col, "grey")) {
+        roi_y <<- y
+      }
+      graphics::lines(x = x, y = y, col = col, ...)
+    },
+    .package = "bifrost"
+  )
+
+  expect_invisible(
+    with_par_safely(
+      plot_ic_acceptance_matrix(
+        matrix_data = mat,
+        plot_title = "ROI baseline override",
+        plot_rate_of_improvement = TRUE,
+        baseline_ic = -900
+      )
+    )
+  )
+
+  # Expected diffs: c(-1010 - (-900), -1020 - (-1010)) = c(-110, -10)
+  expect_equal(as.numeric(roi_y), c(-110, -10))
+})
+
+# Test: plot_ic_acceptance_matrix validates baseline_ic when provided (non-finite or non-scalar should error)
+test_that("plot_ic_acceptance_matrix validates baseline_ic when provided", {
+  mat <- make_ic_matrix(n = 6, seed = 99, accept_every = 2)
+
+  open_null_device()
+  on.exit(close_device_quietly(), add = TRUE)
+
+  # Create a plotting context so restoring par() can't warn about par(new=TRUE) with no plot
+  graphics::plot.new()
+
+  expect_error(
+    with_par_safely(
+      plot_ic_acceptance_matrix(
+        matrix_data = mat,
+        plot_title = "Bad baseline (NA)",
+        baseline_ic = NA_real_
+      )
+    ),
+    "`baseline_ic` must be a finite numeric scalar"
+  )
+
+  # Ensure a plotting context still exists for the second expect_error call
+  graphics::plot.new()
+
+  expect_error(
+    with_par_safely(
+      plot_ic_acceptance_matrix(
+        matrix_data = mat,
+        plot_title = "Bad baseline (length > 1)",
+        baseline_ic = c(-1000, -999)
+      )
+    ),
+    "`baseline_ic` must be a finite numeric scalar"
+  )
+})
+
+
+

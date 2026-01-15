@@ -5,6 +5,7 @@ Boyko
 CMD
 Clavel
 Codecov
+Dipnoi
 GIC
 GLS
 Hoffbeck
@@ -25,7 +26,6 @@ Reproducibility
 RidgeArch
 Rtools
 SIMMAP
-Troyer
 Uhlenbeck
 VCV
 VCVs
@@ -40,6 +40,7 @@ coelacanths
 doi
 env
 et
+grey
 intra
 iteratively
 macroevolutionary
