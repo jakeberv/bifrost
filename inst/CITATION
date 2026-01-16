@@ -9,13 +9,14 @@ bibentry(
     person("Nathan",          "Fox"),
     person(c("Matthew","J."), "Thorstensen"),
     person("Henry",           "Lloyd-Laney"),
+    person(c("Emily", "M."), "Troyer"),
     person(c("Stephen","A."), "Smith"),
     person("Matthew",         "Friedman"),
     person(c("David","F."),   "Fouhey"),
     person(c("Brian","C."),   "Weeks")
   ),
-  year    = "2025",
-  note    = "R package version 0.1.1",
+  year    = "2026",
+  note    = "R package version 0.1.3",
   url     = "https://jakeberv.com/bifrost/"
 )
 
@@ -28,12 +29,13 @@ bibentry(
     person("Nathan",          "Fox"),
     person(c("Matthew","J."), "Thorstensen"),
     person("Henry",           "Lloyd-Laney"),
+    person(c("Emily", "M."), "Troyer"),
     person(c("Stephen","A."), "Smith"),
     person("Matthew",         "Friedman"),
     person(c("David","F."),   "Fouhey"),
     person(c("Brian","C."),   "Weeks")
   ),
-  year    = "2025",
+  year    = "2026",
   note    = "Forthcoming manuscript describing the bifrost R package."
 )
 
@@ -51,6 +53,6 @@ bibentry(
     person(c("David",  "F."),  "Fouhey"),
     person(c("Brian",  "C."),  "Weeks")
   ),
-  year    = "2025",
+  year    = "2026",
   note    = "Manuscript in review."
 )
