@@ -2,6 +2,7 @@ url: ~
 template:
   bootstrap: 5
   includes:
+    in_header: pkgdown/extra-head.html
     after_body: |
       <script type="module">
       // Load a pinned, stable Mermaid (v10) and force it to be the one we use.
