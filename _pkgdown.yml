@@ -1,4 +1,10 @@
 url: ~
+articles:
+  - title: Articles
+    navbar: Articles
+    contents:
+      - theoretical-background-vignette
+      - jaw-shape-vignette
 template:
   bootstrap: 5
   includes:
