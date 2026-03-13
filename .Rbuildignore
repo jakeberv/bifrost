@@ -8,10 +8,13 @@
 ^CODE_OF_CONDUCT\.md$
 ^cran-comments\.md$
 ^LICENSE$
+^experimental$
 ^vignettes/jaw-shape/.*\.gif$
 ^doc$
 ^Meta$
 ^vignettes/fit_history$
+^vignettes/theoretical-background-vignette\.Rmd$
+^vignettes/theoretical-background-vignette\.html$
 \.DS_Store
 .*\.log
 \.Rd2pdf
@@ -24,4 +27,3 @@
 ^lint\.txt$
 ^.lintr$
 ^lintr\.R$
-
