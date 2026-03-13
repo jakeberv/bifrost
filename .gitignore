@@ -13,3 +13,4 @@ CI-notes.txt
 lint.txt
 .lintr
 lintr.R
+experimental/
