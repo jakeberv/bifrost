@@ -1356,9 +1356,9 @@ plot(
   yaxt = "n",
   asp = 1
 )
-draw_cov_ellipse(c(0, 0), G_shape, border = "#9aa5b1", lwd = 2.15, lty = 2)
+draw_cov_ellipse(c(0, 0), G_shape, border = "#9aa5b1", lwd = 2.75, lty = 2)
 draw_cov_ellipse(c(0, 0), R_bridge_shape, border = "#2171b5", lwd = 2.8)
-draw_cov_ellipse(c(0, 0), G_shape, border = "#8f99a6", lwd = 2.3, lty = 2)
+draw_cov_ellipse(c(0, 0), G_shape, border = "#8f99a6", lwd = 2.95, lty = 2)
 points(0, 0, pch = 21, bg = "#2171b5", col = "white", cex = 1.05)
 panel_box("Drift-only null\nR proportional to G / Ne")
 legend(
@@ -1366,7 +1366,7 @@ legend(
   legend = c("standardized G", "standardized R"),
   col = c("#9aa5b1", "#2171b5"),
   lty = c(2, 1),
-  lwd = c(2.15, 2.55),
+  lwd = c(2.85, 2.55),
   bty = "o",
   box.col = NA,
   bg = grDevices::adjustcolor("white", alpha.f = 0.88),
@@ -1409,7 +1409,7 @@ layout(1)
 par(op)
 ```
 
-Figure 7 is schematic rather than literal. The macro ellipses are rescaled to comparable size so the comparison is about geometry, not raw units. In the middle panel, the dashed gray \(\mathbf{G}\) ellipse and the blue \(\mathbf{R}\) ellipse coincide after standardization because the drift-only null preserves the same geometry. The right panel is the more general reminder that macroevolutionary covariance need not remain aligned with \(\mathbf{G}\).
+Figure 7 is meant to highlight the relationship, not to reproduce one literal dataset on a common scale. The macro ellipses are rescaled to comparable size so the comparison is about geometry, not raw units. In the middle panel, the dashed gray \(\mathbf{G}\) ellipse and the blue \(\mathbf{R}\) ellipse coincide after standardization because the drift-only null preserves the same geometry. The right panel is the more general reminder that macroevolutionary covariance need not remain aligned with \(\mathbf{G}\).
 
 ## 5. What Does a Branch-Specific Shift Mean?
 A single-regime BM model assumes that the same covariance structure applies everywhere on the tree. `bifrost` is built for cases where that assumption may be too simple.
