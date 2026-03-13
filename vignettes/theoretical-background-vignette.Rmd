@@ -134,11 +134,21 @@ img, .figure img, .figure > p > img {
 }
 
 p.caption, .caption {
+  border-left: 0.32rem solid #d8dde3;
+  color: #2f3439;
+  font-size: inherit;
+  line-height: inherit;
+  margin: 0 3.8% 1.05rem 3.8%;
+  padding: 0 0 0 1rem;
   text-align: left !important;
 }
 
+p.caption strong, .caption strong {
+  font-weight: 700;
+}
+
 .figure-3d-grid + .caption {
-  margin-top: 0.9em;
+  margin-top: 0;
 }
 
 table {
@@ -1855,7 +1865,7 @@ $$
 
 and time-varying-rate models ask whether the overall pace of evolution accelerates or decelerates through time. Those are important alternatives, and multivariate OU models in particular are an active area of method development; for one recent multivariate treatment, see [Mariadassou, Lambert, and Morlon (2018)](https://doi.org/10.1093/sysbio/syy005).
 
-They are mentioned here for context, but `bifrost`'s current niche is narrower and more concrete: multivariate BM/BMM with branch-level heterogeneity in overall rate under proportional regime scaling. If you want a runnable, simulation-first OU companion that starts from this intuition and then fits `mvMORPH::mvOU()` directly, see [From OU Intuition to mvOU](ou-to-mvou-vignette.html).
+They are mentioned here for context, but `bifrost`'s current niche is narrower and more concrete: multivariate BM/BMM with branch-level heterogeneity in overall rate under proportional regime scaling.
 
 ## 8. Mapping Theory to the `bifrost` API
 
