@@ -1,7 +1,7 @@
 url: ~
 articles:
   - title: Articles
-    navbar: Articles
+    navbar: ~
     contents:
       - theoretical-background-vignette
       - jaw-shape-vignette
