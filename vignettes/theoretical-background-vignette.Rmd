@@ -124,7 +124,7 @@ regime_cols <- c("0" = "#3182bd", "1" = "#de2d26")
 ```
 
 ```{r, echo = FALSE, results = "asis"}
-cat("
+if (knitr::is_html_output()) cat("
 <style>
 img, .figure img, .figure > p > img {
   border: 0 !important;
@@ -516,6 +516,174 @@ table code {
   border: 2px solid #1f9bcf;
 }
 
+.bm-explorer-shell {
+  margin: 1.05rem 0 0.35rem 0;
+  border: 1px solid #dbe5ee;
+  border-radius: 20px;
+  background: linear-gradient(180deg, #fcfdff 0%, #f6f9fc 100%);
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.03);
+  overflow: hidden;
+}
+
+.bm-explorer-shell summary {
+  color: #17324d;
+  cursor: pointer;
+  font-size: 0.96rem;
+  font-weight: 700;
+  list-style: none;
+  padding: 0.9rem 1rem 0.88rem 1rem;
+}
+
+.bm-explorer-shell summary::-webkit-details-marker {
+  display: none;
+}
+
+.bm-explorer-shell summary::before {
+  border-bottom: 6px solid transparent;
+  border-left: 8px solid #5f6b76;
+  border-top: 6px solid transparent;
+  content: '';
+  display: inline-block;
+  height: 0;
+  margin-right: 0.55rem;
+  transform: translateY(0.04rem);
+  transform-origin: 35% 50%;
+  transition: transform 160ms ease;
+  width: 0;
+}
+
+.bm-explorer-shell[open] summary::before {
+  transform: rotate(90deg) translateY(0.04rem);
+}
+
+.bm-explorer-shell[open] summary {
+  border-bottom: 1px solid #dbe5ee;
+}
+
+.bm-explorer {
+  padding: 0.95rem 1rem 0.88rem 1rem;
+}
+
+.bm-explorer__top {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.7rem 1rem;
+  margin-bottom: 0.8rem;
+}
+
+.bm-explorer__intro {
+  flex: 1 1 320px;
+  min-width: 250px;
+}
+
+.bm-explorer__intro p {
+  color: #44505c;
+  margin: 0;
+  max-width: 35rem;
+}
+
+.bm-explorer__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 0.9rem;
+  align-items: center;
+}
+
+.bm-explorer__legend-item {
+  align-items: center;
+  display: inline-flex;
+  color: #44505c;
+  font-size: 0.82rem;
+  font-weight: 600;
+  gap: 0.36rem;
+}
+
+.bm-explorer__swatch {
+  border-radius: 999px;
+  display: inline-block;
+  height: 0.52rem;
+  width: 1.4rem;
+}
+
+.bm-explorer__controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem 0.9rem;
+  margin-bottom: 0.88rem;
+}
+
+.bm-explorer__control {
+  background: white;
+  border: 1px solid #dbe5ee;
+  border-radius: 14px;
+  padding: 0.72rem 0.82rem 0.7rem 0.82rem;
+}
+
+.bm-explorer__control label {
+  color: #213243;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.88rem;
+  font-weight: 700;
+  margin-bottom: 0.42rem;
+}
+
+.bm-explorer__value {
+  color: #1f9bcf;
+  font-weight: 700;
+}
+
+.bm-explorer__control input[type='range'] {
+  accent-color: #1f9bcf;
+  width: 100%;
+}
+
+.bm-explorer__plots {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.92rem;
+}
+
+.bm-explorer__panel {
+  background: white;
+  border: 1px solid #dbe5ee;
+  border-radius: 16px;
+  min-width: 0;
+  padding: 0.72rem 0.8rem 0.78rem 0.8rem;
+}
+
+.bm-explorer__panel-title {
+  color: #17324d;
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin-bottom: 0.08rem;
+  text-align: center;
+}
+
+.bm-explorer__panel-subtitle {
+  color: #5f6b76;
+  font-size: 0.78rem;
+  margin-bottom: 0.38rem;
+  text-align: center;
+}
+
+.bm-explorer__svg {
+  display: block;
+  height: auto;
+  width: 100%;
+}
+
+.bm-explorer__note {
+  color: #627384;
+  font-size: 0.78rem;
+  line-height: 1.34;
+  margin-top: 0.62rem;
+}
+
 @media (max-width: 860px) {
   .kronecker-explorer__panels {
     gap: 0.9rem;
@@ -531,6 +699,14 @@ table code {
     margin-top: 0;
     transform: rotate(90deg);
   }
+
+  .bm-explorer__controls {
+    grid-template-columns: 1fr;
+  }
+
+  .bm-explorer__plots {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 640px) {
@@ -543,6 +719,11 @@ table code {
     font-size: 0.84rem;
     height: 2.8rem;
     min-width: 3.2rem;
+  }
+
+  .bm-explorer {
+    padding-left: 0.82rem;
+    padding-right: 0.82rem;
   }
 }
 </style>
@@ -596,7 +777,7 @@ $$
 \mathrm{Var}(X_t) = \sigma^2 t.
 $$
 
-```{r bm_paths, echo = FALSE, fig.width = 6.34, fig.height = 4.86, fig.cap = "**Figure 1.** Brownian motion with two rates. Green paths \\(\\left(\\sigma^2 = 0.1\\right)\\) remain tightly clustered, whereas orange paths \\(\\left(\\sigma^2 = 0.9\\right)\\) spread more rapidly. Larger \\(\\sigma^2\\) increases diffusion, not directional tendency.", fig.alt = "Forty Brownian motion trajectories through time, with a low-rate set in green and a high-rate set in orange."}
+```{r bm_paths, echo = FALSE, fig.width = 10.2, fig.height = 4.9, fig.cap = "**Figure 1.** Brownian motion with two rates. Left: slow green trajectories \\(\\left(\\sigma^2 = 0.1\\right)\\) remain tightly clustered, whereas fast orange trajectories \\(\\left(\\sigma^2 = 0.9\\right)\\) spread more rapidly. Larger \\(\\sigma^2\\) increases diffusion, not directional tendency. Right: disparity through time. Solid colored lines show the mean sampled disparity across repeated batches of 20 trajectories, and ribbons show the central 95% range across those batches.", fig.alt = "Two-panel side-by-side figure. Left panel shows slow green Brownian motion trajectories and fast orange trajectories. Right panel shows mean sampled disparity lines with empirical ribbons for both rates."}
 set.seed(0.1)
 times <- seq(0, 1, length.out = 250)
 
@@ -605,11 +786,52 @@ simulate_bm_path <- function(sigma2) {
   c(0, cumsum(rnorm(length(dt), mean = 0, sd = sqrt(sigma2 * dt))))
 }
 
-slow_paths <- replicate(20, simulate_bm_path(0.10))
-fast_paths <- replicate(20, simulate_bm_path(0.9))
+n_paths_plot <- 20
+slow_paths <- replicate(n_paths_plot, simulate_bm_path(0.10))
+fast_paths <- replicate(n_paths_plot, simulate_bm_path(0.9))
+n_batches_mean <- 250
+
+draw_envelope <- function(x, lower, upper, fill) {
+  polygon(
+    x = c(x, rev(x)),
+    y = c(lower, rev(upper)),
+    col = fill,
+    border = NA
+  )
+}
+
+simulate_disparity_batches <- function(sigma2, n_batches, batch_size) {
+  sapply(
+    seq_len(n_batches),
+    function(batch) {
+      batch_paths <- replicate(batch_size, simulate_bm_path(sigma2))
+      apply(batch_paths, 1, var)
+    }
+  )
+}
+
+slow_batches <- simulate_disparity_batches(0.10, n_batches_mean, n_paths_plot)
+fast_batches <- simulate_disparity_batches(0.9, n_batches_mean, n_paths_plot)
+slow_mean_disparity <- rowMeans(slow_batches)
+fast_mean_disparity <- rowMeans(fast_batches)
+slow_envelope_lower <- apply(slow_batches, 1, stats::quantile, probs = 0.025)
+slow_envelope_upper <- apply(slow_batches, 1, stats::quantile, probs = 0.975)
+fast_envelope_lower <- apply(fast_batches, 1, stats::quantile, probs = 0.025)
+fast_envelope_upper <- apply(fast_batches, 1, stats::quantile, probs = 0.975)
 
 ylim_paths <- range(slow_paths, fast_paths)
+ylim_var <- range(
+  slow_envelope_lower, slow_envelope_upper,
+  fast_envelope_lower, fast_envelope_upper,
+  slow_mean_disparity, fast_mean_disparity,
+  0
+)
 
+op <- par(no.readonly = TRUE)
+layout(matrix(c(1, 2), nrow = 1), widths = c(0.92, 1.08))
+par(mgp = c(2.0, 0.65, 0))
+
+par(mar = c(4.1, 4.1, 2.6, 1.0))
 matplot(
   times, slow_paths,
   type = "n",
@@ -621,20 +843,304 @@ matlines(
   times, fast_paths,
   lty = 1,
   lwd = 1.1,
-  col = rep("#f16913", 20)
+  col = rep("#f16913", n_paths_plot)
 )
 matlines(
   times, slow_paths,
   lty = 1,
   lwd = 1.45,
-  col = rep("#31a354", 20)
+  col = rep("#31a354", n_paths_plot)
 )
 legend(
   "topleft",
-  legend = c(expression(sigma^2 == 0.1), expression(sigma^2 == 0.9)),
+  legend = c("Slow", "Fast"),
   col = c("#31a354", "#f16913"),
-  lty = 1, lwd = c(1.45, 1.1), bty = "n"
+  lty = 1, lwd = c(1.45, 1.1), bty = "n", cex = 0.86
 )
+title(main = "Brownian trajectories", cex.main = 0.96, line = 0.8)
+
+par(mar = c(4.1, 4.3, 2.6, 1.2))
+plot(
+  times, slow_mean_disparity,
+  type = "n",
+  xlab = "Time",
+  ylab = "Disparity",
+  xlim = range(times), ylim = ylim_var
+)
+draw_envelope(
+  times,
+  slow_envelope_lower,
+  slow_envelope_upper,
+  fill = grDevices::adjustcolor("#31a354", alpha.f = 0.10)
+)
+draw_envelope(
+  times,
+  fast_envelope_lower,
+  fast_envelope_upper,
+  fill = grDevices::adjustcolor("#f16913", alpha.f = 0.10)
+)
+lines(times, slow_mean_disparity, col = "#31a354", lwd = 2.2)
+lines(times, fast_mean_disparity, col = "#f16913", lwd = 2.2)
+legend(
+  "topleft",
+  legend = c("Slow", "Fast"),
+  col = c("#31a354", "#f16913"),
+  lty = 1,
+  lwd = c(1.45, 1.1),
+  cex = 0.86,
+  bty = "n"
+)
+title(main = "Disparity through time", cex.main = 0.96, line = 0.8)
+
+layout(1)
+par(op)
+```
+
+```{r bm_interactive_prototype, echo = FALSE, results = "asis", eval = knitr::is_html_output()}
+fig_id <- "bm-explorer-figure1"
+
+js_code <- paste(
+  c(
+    sprintf("(function() { const root = document.getElementById('%s');", fig_id),
+    "if (!root) return;",
+    "const slowSlider = root.querySelector('[data-role=\"slow-slider\"]');",
+    "const fastSlider = root.querySelector('[data-role=\"fast-slider\"]');",
+    "const slowValue = root.querySelector('[data-role=\"slow-value\"]');",
+    "const fastValue = root.querySelector('[data-role=\"fast-value\"]');",
+    "const trajSvg = root.querySelector('[data-role=\"traj-svg\"]');",
+    "const dispSvg = root.querySelector('[data-role=\"disp-svg\"]');",
+    "const width = 420;",
+    "const height = 270;",
+    "const pad = { left: 44, right: 12, top: 14, bottom: 34 };",
+    "const nPoints = 110;",
+    "const nDisplay = 30;",
+    "const nBatches = 70;",
+    "const xValues = Array.from({ length: nPoints }, (_, i) => i / (nPoints - 1));",
+    "const slowCol = '#31a354';",
+    "const fastCol = '#f16913';",
+    "function mulberry32(a) {",
+    "  return function() {",
+    "    let t = a += 0x6D2B79F5;",
+    "    t = Math.imul(t ^ (t >>> 15), t | 1);",
+    "    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);",
+    "    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;",
+    "  };",
+    "}",
+    "function makeNormal(rng) {",
+    "  let spare = null;",
+    "  return function() {",
+    "    if (spare !== null) { const out = spare; spare = null; return out; }",
+    "    let u = 0; let v = 0; let s = 0;",
+    "    while (s === 0 || s >= 1) {",
+    "      u = rng() * 2 - 1;",
+    "      v = rng() * 2 - 1;",
+    "      s = u * u + v * v;",
+    "    }",
+    "    const mul = Math.sqrt(-2 * Math.log(s) / s);",
+    "    spare = v * mul;",
+    "    return u * mul;",
+    "  };",
+    "}",
+    "function quantileSorted(sorted, q) {",
+    "  const pos = (sorted.length - 1) * q;",
+    "  const base = Math.floor(pos);",
+    "  const rest = pos - base;",
+    "  if (sorted[base + 1] !== undefined) {",
+    "    return sorted[base] + rest * (sorted[base + 1] - sorted[base]);",
+    "  }",
+    "  return sorted[base];",
+    "}",
+    "function fmt(value, digits) {",
+    "  const out = value.toFixed(digits);",
+    "  return out.replace(/(\\.\\d*?[1-9])0+$/, '$1').replace(/\\.0+$/, '');",
+    "}",
+    "function regimeSeed(value, offset) {",
+    "  const scaled = Math.round(value * 1000);",
+    "  return (Math.imul(scaled + offset, 2654435761) >>> 0);",
+    "}",
+    "function simulatePaths(sigma2, nPaths, seed) {",
+    "  const rng = mulberry32(seed);",
+    "  const randn = makeNormal(rng);",
+    "  const dt = 1 / (nPoints - 1);",
+    "  const sd = Math.sqrt(sigma2 * dt);",
+    "  return Array.from({ length: nPaths }, () => {",
+    "    const path = new Array(nPoints);",
+    "    path[0] = 0;",
+    "    for (let i = 1; i < nPoints; i += 1) {",
+    "      path[i] = path[i - 1] + randn() * sd;",
+    "    }",
+    "    return path;",
+    "  });",
+    "}",
+    "function summarizeDisparity(sigma2, batchSize, seedBase) {",
+    "  const batches = Array.from({ length: nBatches }, () => new Array(nPoints));",
+    "  for (let b = 0; b < nBatches; b += 1) {",
+    "    const batchPaths = simulatePaths(sigma2, batchSize, (seedBase + Math.imul(b + 1, 2654435761)) >>> 0);",
+    "    for (let i = 0; i < nPoints; i += 1) {",
+    "      let mean = 0;",
+    "      for (let p = 0; p < batchSize; p += 1) mean += batchPaths[p][i];",
+    "      mean /= batchSize;",
+    "      let ss = 0;",
+    "      for (let p = 0; p < batchSize; p += 1) {",
+    "        const diff = batchPaths[p][i] - mean;",
+    "        ss += diff * diff;",
+    "      }",
+    "      batches[b][i] = ss / (batchSize - 1);",
+    "    }",
+    "  }",
+    "  const mean = new Array(nPoints);",
+    "  const low = new Array(nPoints);",
+    "  const high = new Array(nPoints);",
+    "  for (let i = 0; i < nPoints; i += 1) {",
+    "    const vals = batches.map((batch) => batch[i]).sort((a, b) => a - b);",
+    "    mean[i] = vals.reduce((sum, value) => sum + value, 0) / vals.length;",
+    "    low[i] = quantileSorted(vals, 0.025);",
+    "    high[i] = quantileSorted(vals, 0.975);",
+    "  }",
+    "  return { mean, low, high };",
+    "}",
+    "function makeScale(domainMin, domainMax, rangeMin, rangeMax) {",
+    "  const span = domainMax - domainMin || 1;",
+    "  return function(value) {",
+    "    return rangeMin + ((value - domainMin) * (rangeMax - rangeMin)) / span;",
+    "  };",
+    "}",
+    "function ribbonPath(xs, low, high, xScale, yScale) {",
+    "  let d = '';",
+    "  for (let i = 0; i < xs.length; i += 1) {",
+    "    d += (i === 0 ? 'M' : 'L') + xScale(xs[i]).toFixed(2) + ' ' + yScale(high[i]).toFixed(2) + ' ';",
+    "  }",
+    "  for (let i = xs.length - 1; i >= 0; i -= 1) {",
+    "    d += 'L' + xScale(xs[i]).toFixed(2) + ' ' + yScale(low[i]).toFixed(2) + ' ';",
+    "  }",
+    "  return d + 'Z';",
+    "}",
+    "function linePath(xs, ys, xScale, yScale) {",
+    "  return xs.map((x, i) => (i === 0 ? 'M' : 'L') + xScale(x).toFixed(2) + ' ' + yScale(ys[i]).toFixed(2)).join(' ');",
+    "}",
+    "function axisTicks(min, max, count, clampZero) {",
+    "  if (clampZero) min = 0;",
+    "  const step = (max - min) / (count - 1 || 1);",
+    "  return Array.from({ length: count }, (_, i) => min + step * i);",
+    "}",
+    "function buildAxes(xScale, yScale, yTicks, yMin, yMax, showZero) {",
+    "  const parts = [];",
+    "  const x0 = pad.left;",
+    "  const x1 = width - pad.right;",
+    "  const y0 = height - pad.bottom;",
+    "  const y1 = pad.top;",
+    "  parts.push('<line x1=\"' + x0 + '\" y1=\"' + y0 + '\" x2=\"' + x1 + '\" y2=\"' + y0 + '\" stroke=\"#5f6b76\" stroke-width=\"1.2\" />');",
+    "  parts.push('<line x1=\"' + x0 + '\" y1=\"' + y1 + '\" x2=\"' + x0 + '\" y2=\"' + y0 + '\" stroke=\"#5f6b76\" stroke-width=\"1.2\" />');",
+    "  [0, 0.25, 0.5, 0.75, 1].forEach((tick) => {",
+    "    const x = xScale(tick);",
+    "    parts.push('<line x1=\"' + x.toFixed(2) + '\" y1=\"' + y0 + '\" x2=\"' + x.toFixed(2) + '\" y2=\"' + (y0 + 5) + '\" stroke=\"#5f6b76\" stroke-width=\"1\" />');",
+    "    parts.push('<text x=\"' + x.toFixed(2) + '\" y=\"' + (height - 10) + '\" text-anchor=\"middle\" font-size=\"11\" fill=\"#5f6b76\">' + fmt(tick, 2) + '</text>');",
+    "  });",
+    "  yTicks.forEach((tick) => {",
+    "    const y = yScale(tick);",
+    "    parts.push('<line x1=\"' + (x0 - 5) + '\" y1=\"' + y.toFixed(2) + '\" x2=\"' + x0 + '\" y2=\"' + y.toFixed(2) + '\" stroke=\"#5f6b76\" stroke-width=\"1\" />');",
+    "    parts.push('<text x=\"' + (x0 - 8) + '\" y=\"' + (y + 4).toFixed(2) + '\" text-anchor=\"end\" font-size=\"11\" fill=\"#5f6b76\">' + fmt(tick, 2) + '</text>');",
+    "  });",
+    "  if (showZero && yMin < 0 && yMax > 0) {",
+    "    const y = yScale(0);",
+    "    parts.push('<line x1=\"' + x0 + '\" y1=\"' + y.toFixed(2) + '\" x2=\"' + x1 + '\" y2=\"' + y.toFixed(2) + '\" stroke=\"#98a4af\" stroke-width=\"1\" stroke-dasharray=\"5 4\" />');",
+    "  }",
+    "  parts.push('<text x=\"' + ((x0 + x1) / 2).toFixed(2) + '\" y=\"' + (height - 2) + '\" text-anchor=\"middle\" font-size=\"12\" fill=\"#44505c\">Time</text>');",
+    "  return parts.join('');",
+    "}",
+    "function renderTrajectories(pathsSlow, pathsFast) {",
+    "  const allValues = pathsSlow.concat(pathsFast).flat();",
+    "  const maxAbs = Math.max(0.35, ...allValues.map((value) => Math.abs(value)));",
+    "  const yMin = -1.08 * maxAbs;",
+    "  const yMax = 1.08 * maxAbs;",
+    "  const xScale = makeScale(0, 1, pad.left, width - pad.right);",
+    "  const yScale = makeScale(yMin, yMax, height - pad.bottom, pad.top);",
+    "  const yTicks = axisTicks(yMin, yMax, 5, false);",
+    "  const pathEls = [];",
+    "  pathsFast.forEach((path) => {",
+    "    pathEls.push('<path d=\"' + linePath(xValues, path, xScale, yScale) + '\" fill=\"none\" stroke=\"' + fastCol + '\" stroke-width=\"1.4\" stroke-linecap=\"round\" opacity=\"0.92\" />');",
+    "  });",
+    "  pathsSlow.forEach((path) => {",
+    "    pathEls.push('<path d=\"' + linePath(xValues, path, xScale, yScale) + '\" fill=\"none\" stroke=\"' + slowCol + '\" stroke-width=\"1.6\" stroke-linecap=\"round\" opacity=\"0.92\" />');",
+    "  });",
+    "  trajSvg.setAttribute('viewBox', '0 0 ' + width + ' ' + height);",
+    "  trajSvg.innerHTML = buildAxes(xScale, yScale, yTicks, yMin, yMax, true) + pathEls.join('');",
+    "}",
+    "function renderDisparity(summarySlow, summaryFast) {",
+    "  const yMax = Math.max(0.15, ...summarySlow.high, ...summaryFast.high) * 1.04;",
+    "  const xScale = makeScale(0, 1, pad.left, width - pad.right);",
+    "  const yScale = makeScale(0, yMax, height - pad.bottom, pad.top);",
+    "  const yTicks = axisTicks(0, yMax, 5, true);",
+    "  const parts = [];",
+    "  parts.push('<path d=\"' + ribbonPath(xValues, summarySlow.low, summarySlow.high, xScale, yScale) + '\" fill=\"rgba(49, 163, 84, 0.12)\" stroke=\"none\" />');",
+    "  parts.push('<path d=\"' + ribbonPath(xValues, summaryFast.low, summaryFast.high, xScale, yScale) + '\" fill=\"rgba(241, 105, 19, 0.12)\" stroke=\"none\" />');",
+    "  parts.push('<path d=\"' + linePath(xValues, summarySlow.mean, xScale, yScale) + '\" fill=\"none\" stroke=\"' + slowCol + '\" stroke-width=\"2.2\" stroke-linecap=\"round\" />');",
+    "  parts.push('<path d=\"' + linePath(xValues, summaryFast.mean, xScale, yScale) + '\" fill=\"none\" stroke=\"' + fastCol + '\" stroke-width=\"2.2\" stroke-linecap=\"round\" />');",
+    "  dispSvg.setAttribute('viewBox', '0 0 ' + width + ' ' + height);",
+    "  dispSvg.innerHTML = buildAxes(xScale, yScale, yTicks, 0, yMax, false) + parts.join('');",
+    "}",
+    "function updateLabels() {",
+    "  slowValue.textContent = fmt(parseFloat(slowSlider.value), 2);",
+    "  fastValue.textContent = fmt(parseFloat(fastSlider.value), 2);",
+    "}",
+    "function render() {",
+    "  updateLabels();",
+    "  const slow = parseFloat(slowSlider.value);",
+    "  const fast = parseFloat(fastSlider.value);",
+    "  const batchSize = nDisplay;",
+    "  const slowSeed = regimeSeed(slow, 11);",
+    "  const fastSeed = regimeSeed(fast, 97);",
+    "  const slowPaths = simulatePaths(slow, nDisplay, slowSeed);",
+    "  const fastPaths = simulatePaths(fast, nDisplay, fastSeed);",
+    "  const slowSummary = summarizeDisparity(slow, batchSize, (slowSeed + 211) >>> 0);",
+    "  const fastSummary = summarizeDisparity(fast, batchSize, (fastSeed + 431) >>> 0);",
+    "  renderTrajectories(slowPaths, fastPaths);",
+    "  renderDisparity(slowSummary, fastSummary);",
+    "}",
+    "let scheduled = false;",
+    "function scheduleRender() {",
+    "  if (scheduled) return;",
+    "  scheduled = true;",
+    "  window.requestAnimationFrame(function() {",
+    "    scheduled = false;",
+    "    render();",
+    "  });",
+    "}",
+    "[slowSlider, fastSlider].forEach((slider) => { slider.addEventListener('input', scheduleRender); });",
+    "render();",
+    "})();"
+  ),
+  collapse = "\n"
+)
+
+explorer_html <- paste0(
+  '<details class="bm-explorer-shell">',
+  '<summary>Interactive Brownian Rate Explorer</summary>',
+  '<div id="', fig_id, '" class="bm-explorer">',
+  '<div class="bm-explorer__top">',
+  '<div class="bm-explorer__intro">',
+  '<p>Adjust the two regime rates. This browser-side explorer keeps the trajectory panel lightweight while letting the disparity panel update live with the same sample size used for the displayed trajectories.</p>',
+  '</div>',
+  '<div class="bm-explorer__legend">',
+  '<span class="bm-explorer__legend-item"><span class="bm-explorer__swatch" style="background:#31a354;"></span>Green regime</span>',
+  '<span class="bm-explorer__legend-item"><span class="bm-explorer__swatch" style="background:#f16913;"></span>Orange regime</span>',
+  '</div>',
+  '</div>',
+  '<div class="bm-explorer__controls">',
+  '<div class="bm-explorer__control"><label for="', fig_id, '-slow">Green rate <span class="bm-explorer__value" data-role="slow-value">0.10</span></label><input id="', fig_id, '-slow" data-role="slow-slider" type="range" min="0.05" max="1.20" step="0.05" value="0.10" /></div>',
+  '<div class="bm-explorer__control"><label for="', fig_id, '-fast">Orange rate <span class="bm-explorer__value" data-role="fast-value">0.90</span></label><input id="', fig_id, '-fast" data-role="fast-slider" type="range" min="0.05" max="1.20" step="0.05" value="0.90" /></div>',
+  '</div>',
+  '<div class="bm-explorer__plots">',
+  '<div class="bm-explorer__panel"><div class="bm-explorer__panel-title">Trajectories</div><div class="bm-explorer__panel-subtitle">30 trajectories per regime</div><svg class="bm-explorer__svg" data-role="traj-svg" aria-label="Interactive Brownian trajectories"></svg></div>',
+  '<div class="bm-explorer__panel"><div class="bm-explorer__panel-title">Disparity</div><div class="bm-explorer__panel-subtitle">70 batches; n = 30 trajectories per batch</div><svg class="bm-explorer__svg" data-role="disp-svg" aria-label="Interactive disparity through time"></svg></div>',
+  '</div>',
+  '<div class="bm-explorer__note">Each slider only updates its own regime, and the disparity summary uses the same sample size as the displayed trajectory panel: 30 trajectories per regime.</div>',
+  '<script>', js_code, '</script>',
+  '</div>',
+  '</details>'
+)
+
+knitr::asis_output(explorer_html)
 ```
 
 On a phylogeny, BM becomes especially useful because it implies a concrete covariance structure among species. Following [Felsenstein (1985)](https://doi.org/10.1086/284325), the covariance between species \(i\) and \(j\) is proportional to the amount of history they share from the root to their most recent common ancestor:
