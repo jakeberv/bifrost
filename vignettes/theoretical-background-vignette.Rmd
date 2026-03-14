@@ -62,14 +62,14 @@ choose_shift_node <- function(tree, min_tips = 10, target_tips = 15) {
 }
 
 draw_cov_ellipse <- function(center, sigma, level = 0.8, border = "black",
-                             lwd = 2, lty = 1, n = 200) {
+                             lwd = 2, lty = 1, lend = "round", n = 200) {
   ev <- eigen(sigma, symmetric = TRUE)
   theta <- seq(0, 2 * pi, length.out = n)
   circle <- rbind(cos(theta), sin(theta))
   radius <- sqrt(stats::qchisq(level, df = 2))
   shape <- ev$vectors %*% diag(sqrt(pmax(ev$values, 0)), nrow = 2)
   coords <- center + radius * shape %*% circle
-  lines(coords[1, ], coords[2, ], col = border, lwd = lwd, lty = lty)
+  lines(coords[1, ], coords[2, ], col = border, lwd = lwd, lty = lty, lend = lend)
 }
 
 draw_pc_axes <- function(center, rotation, sdev, scale = 1.9,
@@ -1280,7 +1280,7 @@ micro_pts <- scale(
   center = TRUE, scale = FALSE
 )
 
-bridge_tree <- phytools::pbtree(n = 50, scale = 1)
+bridge_tree <- phytools::pbtree(n = 200, scale = 1)
 macro_drift <- scale(
   as_trait_matrix(mvMORPH::mvSIM(
     tree = bridge_tree,
@@ -1314,10 +1314,14 @@ layout(matrix(1:3, nrow = 1), widths = c(1.10, 1, 1))
 par(mgp = c(2.75, 0.98, 0), cex.lab = 2.58, cex.axis = 2.34, xaxs = "i", yaxs = "i", pty = "s")
 
 panel_box <- function(title) {
-  title(main = title, line = 0.96, cex.main = 2.55)
+  title_parts <- strsplit(title, "\n", fixed = TRUE)[[1]]
+  mtext(title_parts[1], side = 3, line = 3.2, cex = 2.0, font = 2)
+  if (length(title_parts) > 1) {
+    mtext(title_parts[2], side = 3, line = 1.3, cex = 1.5, font = 1, col = "#7b8190")
+  }
 }
 
-par(mar = c(4.15, 5.20, 5.55, 0.42))
+par(mar = c(4.15, 5.20, 6.35, 0.42))
 plot(
   micro_pts[, 1], micro_pts[, 2],
   col = grDevices::adjustcolor("#31a354", alpha.f = 0.35),
@@ -1346,7 +1350,7 @@ legend(
   seg.len = 2.9
 )
 
-par(mar = c(4.15, 2.15, 5.55, 0.55))
+par(mar = c(4.15, 2.15, 6.35, 0.55))
 plot(
   macro_drift[, 1], macro_drift[, 2],
   col = grDevices::adjustcolor("#3182bd", alpha.f = 0.65),
@@ -1356,27 +1360,29 @@ plot(
   yaxt = "n",
   asp = 1
 )
-draw_cov_ellipse(c(0, 0), G_shape, border = "#9aa5b1", lwd = 2.75, lty = 2)
+draw_cov_ellipse(c(0, 0), G_shape, border = "#9aa5b1", lwd = 8.09, lty = 2, lend = "butt")
 draw_cov_ellipse(c(0, 0), R_bridge_shape, border = "#2171b5", lwd = 2.8)
-draw_cov_ellipse(c(0, 0), G_shape, border = "#8f99a6", lwd = 2.95, lty = 2)
 points(0, 0, pch = 21, bg = "#2171b5", col = "white", cex = 1.05)
 panel_box("Drift-only null\nR proportional to G / Ne")
+old_lend <- par("lend")
+par(lend = "butt")
 legend(
   "bottomright",
   legend = c("standardized G", "standardized R"),
   col = c("#9aa5b1", "#2171b5"),
   lty = c(2, 1),
-  lwd = c(2.85, 2.55),
+  lwd = c(6.47, 2.55),
   bty = "o",
   box.col = NA,
   bg = grDevices::adjustcolor("white", alpha.f = 0.88),
   inset = 0.01,
   cex = 1.72,
   y.intersp = 1.08,
-  seg.len = 3.0
+  seg.len = 5.4
 )
+par(lend = old_lend)
 
-par(mar = c(4.15, 2.15, 5.55, 0.55))
+par(mar = c(4.15, 2.15, 6.35, 0.55))
 plot(
   macro_alt[, 1], macro_alt[, 2],
   col = grDevices::adjustcolor("#e6550d", alpha.f = 0.68),
@@ -1708,6 +1714,8 @@ par(op)
 ```
 
 In this example, both regimes share the same broad major axis, but the shifted regime has much greater variance along the lower-variance axis perpendicular to it. PCA still assigns `r sprintf("%.1f", 100 * var_explained[1])`% of the total sample spread to PC1, because that long diagonal axis dominates the variance budget. The lower-left panel shows why truncation is dangerous: the retained scores overlap strongly. Because the regime difference here is about spread rather than mean, the lower-right panel plots `|PC2|`; that discarded axis is exactly where the shift becomes clear.
+
+Phylogenetic PCA can be more coherent than ordinary PCA under a Brownian-motion null, but it is still a model-based rotation rather than a neutral preprocessing step ([Revell 2009](https://doi.org/10.1111/j.1558-5646.2009.00804.x); [Uyeda, Caetano, and Pennell 2015](https://doi.org/10.1093/sysbio/syv019)).
 
 A second warning from [Uyeda, Caetano, and Pennell (2015)](https://doi.org/10.1093/sysbio/syv019) is about model selection rather than simple truncation. In their simulations, even when all traits truly evolved under constant-rate multivariate BM, the first few standard PC axes often looked as though they were better fit by an early-burst model. The point is not that PCA invents an early burst out of thin air; it is that PCA ranks axes by realized sample variance across the whole tree, and that ranking can privilege combinations of traits with unusually large deep divergences.
 
