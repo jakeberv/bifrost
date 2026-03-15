@@ -1,11 +1,11 @@
 ---
-title: "Theoretical Background for Multivariate Models of Trait Evolution"
+title: "Brownian Motion and Multivariate Shifts"
 output:
   rmarkdown::html_vignette: default
   rmarkdown::pdf_document:
     latex_engine: xelatex
 vignette: >
-  %\VignetteIndexEntry{Theoretical Background for Multivariate Models of Trait Evolution}
+  %\VignetteIndexEntry{Brownian Motion and Multivariate Shifts}
   %\VignetteEncoding{UTF-8}
   %\VignetteEngine{knitr::rmarkdown}
 ---
@@ -732,19 +732,17 @@ table code {
 
 ## Introduction
 
-This vignette is a concise introduction to the theory behind `bifrost`. The two applied vignettes show full analyses on real datasets; this one focuses on the underlying ideas and the intuition behind them.
-
-All of the figures below are generated directly in the document, using packages in the `bifrost` ecosystem together with lightweight HTML widgets where interactivity helps. For a vignette like this, reproducible examples are more useful than pulling in figures from elsewhere. The relevant claims are cited in the text, but the figures themselves are built here.
+This vignette introduces the Brownian-motion-based theory behind `bifrost`. The applied vignettes show full analyses on real datasets; the goal here is to develop the underlying ideas and the intuition behind them. [Whole-Tree Models, PCA, and bifrost](pca-model-selection-and-bifrost-vignette.html) takes up the model-selection side of the story.
 
 At a high level, `bifrost` rests on three ideas:
 
 1. trait evolution is modeled as a stochastic process on a phylogeny,
 2. most empirical datasets are multivariate, so covariance matters as much as rate, and
-3. branch-specific shifts are interesting precisely because they let the multivariate rate structure change across the tree.
+3. branch-specific shifts are interesting because they let the multivariate rate structure change across the tree.
 
-The current package is built around Brownian-motion-based models, so most of what follows focuses on that family of models. Within that family, the present `bifrost` search is narrower than the full conceptual space described below: it targets branch-specific proportional scaling of a shared covariance geometry.
+`bifrost` is built around Brownian-motion-based models, so most of what follows focuses on that family. Within that family, the current search is narrower than the full conceptual space described below: it targets branch-specific proportional scaling of a shared covariance geometry.
 
-```{r package_setup, eval = FALSE}
+```{r package_setup, include = FALSE}
 library(bifrost)
 library(ape)
 library(phytools)
@@ -755,7 +753,7 @@ library(mvMORPH)
 
 Comparative datasets record the outcomes of many small processes acting over long stretches of time: mutation, drift, development, integration among traits, and changing environments. We rarely observe those microscopic steps directly. Instead, we model the distribution of possible outcomes.
 
-This is the value of a stochastic model. It does **not** claim that evolution is unstructured; it says that uncertainty can still be described with parameters. In comparative biology, those parameters usually control:
+That is the value of a stochastic model. It does **not** claim that evolution is unstructured. Instead, it treats uncertainty as something that can still be described with parameters. In comparative biology, those parameters usually control:
 
 - an ancestral state or intercept,
 - the rate at which variance accumulates through time, and
@@ -1143,7 +1141,7 @@ explorer_html <- paste0(
 knitr::asis_output(explorer_html)
 ```
 
-On a phylogeny, BM becomes especially useful because it implies a concrete covariance structure among species. Following [Felsenstein (1985)](https://doi.org/10.1086/284325), the covariance between species \(i\) and \(j\) is proportional to the amount of history they share from the root to their most recent common ancestor:
+On a phylogeny, BM does more than generate trait variance through time: it also implies a covariance structure among species. Following [Felsenstein (1985)](https://doi.org/10.1086/284325), the covariance between species \(i\) and \(j\) is proportional to the amount of history they share from the root to their most recent common ancestor:
 
 $$
 \mathrm{Cov}(X_i, X_j) = \sigma^2 T_{ij}.
@@ -1207,7 +1205,9 @@ BM is often described as a neutral or drift-like baseline, but that should be tr
 
 Most morphological and ecological datasets are not truly univariate. Landmarks, skeletal dimensions, climatic niches, and life-history syndromes all involve traits that can change together.
 
-The natural multivariate extension of BM replaces a single rate parameter with a variance-covariance matrix:
+The natural multivariate extension of BM starts with trait-level covariance in \(\mathbf{\Sigma}\), then leads to proportional rate shifts, higher-dimensional eigenvalue structure, and finally the full phylogenetic covariance \( \mathbf{C} \otimes \mathbf{\Sigma} \).
+
+At the simplest level, that extension replaces a single rate parameter with a variance-covariance matrix:
 
 $$
 \mathbf{\Sigma} =
@@ -1219,6 +1219,8 @@ $$
 $$
 
 The diagonal entries are trait-specific rates, and the off-diagonal entries are evolutionary covariances. In other words, the diagonal tells us how quickly each trait changes, while the off-diagonal tells us whether traits tend to change together.
+
+### Covariance geometry
 
 One useful way to compare two matrices is by their eigenstructure. In the Flury hierarchy, the strongest similarity is equality; a weaker but still structured relationship is **proportionality**, where one matrix is just a scalar multiple of another; another is the **common principal components (CPC)** case, where matrices share their major axes but not necessarily the same eigenvalues; and a stronger difference changes both eigenvectors and eigenvalues ([Phillips and Arnold 1999](https://doi.org/10.1111/j.1558-5646.1999.tb05414.x)). As a rough visual guide, ellipse orientation reflects correlation structure, whereas ellipse size reflects overall rate ([Stepanova et al. 2025](https://doi.org/10.1093/sysbio/syaf002)).
 
@@ -1283,6 +1285,8 @@ sigma_pos_cov
 round(cov2cor(sigma_pos_cov), 2)
 ```
 
+### Proportional rate shifts
+
 A pure rate shift looks different. If \(\mathbf{\Sigma}_2 = c \mathbf{\Sigma}_1\) for some positive constant \(c\), the matrices are proportional in the Flury sense: they keep the same eigenvectors and the same relative eigenvalues, but one accumulates variance faster on every axis ([Phillips and Arnold 1999](https://doi.org/10.1111/j.1558-5646.1999.tb05414.x)).
 
 ```{r mvbm_proportional_examples, echo = FALSE, fig.width = 10, fig.height = 4.9, fig.cap = "**Figure 4.** A proportional rate shift. The right matrix is a scalar multiple of the left, so the ellipses keep the same orientation and relative shape while expanding in size. Here the right panel is shown as an exact proportional expansion of the same realization, making the faster-versus-slower relationship visually explicit.", fig.alt = "Two scatterplots of simulated two-trait data with exactly the same orientation and relative shape but different overall scale. The right plot is an exact proportional expansion of the left."}
@@ -1333,6 +1337,8 @@ par(op)
 That distinction also shows up in empirical work. Stepanova et al. (2025) used this Flury-inspired ladder explicitly when comparing scincid lizard clades, distinguishing single-matrix, proportional rate-shift, shared-eigenvector, and fully different-eigenvector models. The broader point here is that a multivariate regime shift need not mean the same thing in every case: sometimes it is mostly about tempo, and sometimes it reflects a deeper reorganization of trait covariation.
 
 In Figure 4, \(\mathbf{\Sigma}_{\text{fast}} = 3 \mathbf{\Sigma}_{\text{slow}}\), so the faster regime is literally a proportional expansion of the slower one; the right panel is plotted as \(\sqrt{3}\) times the same simulated realization.
+
+### Dimensionality and eigenvalues
 
 It also helps to move from two traits to three. In three dimensions, covariance no longer just makes a cloud look round or elongated in a plane. It can make the cloud fill a volume, collapse toward a sheet, or narrow toward a ridge. In Figure 5, the three matrices all have the same trace, so the comparison is about how total variance is distributed across eigenvalues rather than about one regime simply having more variance overall.
 
@@ -1550,7 +1556,9 @@ if (knitr::is_html_output()) {
 
 The 3D example makes the same point from another angle. With comparable total variance, evolution can still look effectively three-dimensional, nearly planar, or almost one-dimensional. A simple rule of thumb is that the number of comparatively large eigenvalues tells you how many dimensions the cloud really fills.
 
-On a phylogeny, the full expected covariance combines covariance among species and covariance among traits. A compact way to write it is \( \mathbf{C} \otimes \mathbf{\Sigma} \), where \(\mathbf{C}\) is the phylogenetic covariance matrix and \(\otimes\) is the Kronecker product.
+### From trait covariance to phylogenetic covariance
+
+On a phylogeny, the full expected covariance has two ingredients: covariance among species and covariance among traits. A compact way to write it is \( \mathbf{C} \otimes \mathbf{\Sigma} \), where \(\mathbf{C}\) is the phylogenetic covariance matrix and \(\otimes\) is the Kronecker product.
 
 One intuitive way to read that expression is one species pair at a time. For any pair of species \(i\) and \(j\), the corresponding trait-covariance block is just \(C_{ij}\mathbf{\Sigma}\). The main point is easy to lose in the notation: \(\mathbf{C}\) does not introduce a new trait-covariance pattern for every species pair. It simply rescales the same template according to how much history that pair shares. In Figure 6, \(C_{AB}\) stands in for one chosen entry from \(\mathbf{C}\). In the HTML version, the slider lets you change that scalar directly. As it moves, the A-B block grows or shrinks, but the pattern set by \(\mathbf{\Sigma}\) stays the same.
 
@@ -1745,15 +1753,127 @@ explorer_html <- paste0(
 knitr::asis_output(explorer_html)
 ```
 
-There is no need to picture the full matrix all at once. The same trait template is reused from block to block; what changes from species pair to species pair is the scalar weight pulled from \(\mathbf{C}\). Put differently, \(\mathbf{C}\) governs the strength of covariance among species, whereas \(\mathbf{\Sigma}\) governs its trait-level pattern. That is the statistical backbone of multivariate phylogenetic GLS and of the `mvMORPH::mvgls` fits used inside `bifrost`.
+The full matrix becomes easier to read if you think about it one species pair at a time. The same trait-covariance template is reused across every pair; what changes from block to block is only the scalar weight supplied by \(\mathbf{C}\). Put differently, \(\mathbf{C}\) controls how strong the covariance is between species, whereas \(\mathbf{\Sigma}\) controls the pattern of covariance across traits. That is the statistical backbone of multivariate phylogenetic GLS and of the `mvMORPH::mvgls` fits used inside `bifrost`.
 
-## 4. A Quantitative-Genetic Bridge
+## 4. What Does a Branch-Specific Shift Mean?
+A single-regime BM model assumes that the same covariance structure applies everywhere on the tree. `bifrost` is built for cases where that assumption may be too simple, and the practical question becomes whether some clade appears to evolve under a different multivariate rate structure from the background.
+
+As the examples above suggest, that difference can take several forms. In the Flury hierarchy, which compares covariance matrices by how much eigenstructure they share, one regime might differ mainly by proportional scaling, another might retain the same major axes while changing variance along them, and a more dramatic shift can alter both size and orientation ([Phillips and Arnold 1999](https://doi.org/10.1111/j.1558-5646.1999.tb05414.x)). Even when the fitted comparison is phrased as BM versus BMM rather than as an explicit Flury test, that vocabulary is still useful for interpretation.
+
+A shift is not just a change in where traits sit. It is a change in the geometry of the evolving trait cloud. Here we show the more dramatic end of that spectrum, where a descendant regime changes both size and orientation. The current `bifrost` search is narrower: it tests the proportional-scaling case, where descendant regimes differ in overall rate while retaining the same covariance geometry.
+
+```{r bmm_shift_example, echo = FALSE, fig.width = 10.2, fig.height = 5.6, fig.cap = "**Figure 7.** A two-regime BMM simulation. Left: one clade is painted with a derived regime on the tree. Right: the same simulation in trait space; the shifted clade (red) has a larger, differently oriented covariance ellipse than the background regime (blue). This is more than a simple proportional rate shift.", fig.alt = "Two-panel figure showing a colored phylogenetic tree with one shifted clade and a scatterplot of two-trait data colored by regime."}
+set.seed(4)
+shift_tree <- phytools::pbtree(n = 60, scale = 1)
+shift_node <- choose_shift_node(shift_tree, min_tips = 10, target_tips = 15)
+
+baseline_tree <- phytools::paintBranches(
+  shift_tree,
+  edge = unique(shift_tree$edge[, 2]),
+  state = "0",
+  anc.state = "0"
+)
+shifted_tree <- phytools::paintSubTree(
+  baseline_tree,
+  node = shift_node,
+  state = "1",
+  anc.state = "0"
+)
+
+sigma_regimes <- list(
+  "0" = matrix(c(0.12, 0.02,
+                 0.02, 0.08), 2, 2, byrow = TRUE),
+  "1" = matrix(c(0.90, 0.48,
+                 0.48, 0.36), 2, 2, byrow = TRUE)
+)
+
+shift_sim <- as_trait_matrix(mvMORPH::mvSIM(
+  tree = shifted_tree,
+  nsim = 1,
+  model = "BMM",
+  param = list(ntraits = 2, sigma = sigma_regimes, theta = c(0, 0))
+))
+rownames(shift_sim) <- shifted_tree$tip.label
+tip_regimes <- as.character(phytools::getStates(shifted_tree, type = "tips"))
+shift_xlim <- grDevices::extendrange(shift_sim[, 1], f = 0.08)
+shift_ylim <- grDevices::extendrange(shift_sim[, 2], f = 0.08)
+
+op <- par(no.readonly = TRUE)
+layout(matrix(c(1, 2), nrow = 1), widths = c(0.88, 1.12))
+par(mar = c(3.2, 0.7, 4.6, 0.7), mgp = c(1.8, 0.55, 0))
+
+phytools::plotSimmap(
+  shifted_tree,
+  colors = regime_cols,
+  ftype = "off",
+  lwd = 2,
+  mar = c(3.0, 0.6, 4.9, 0.6),
+  xlim = c(0, max(ape::node.depth.edgelength(shifted_tree)) * 1.12)
+)
+ape::nodelabels(node = shift_node, pch = 21, bg = "#ffd166", cex = 1.2)
+title(main = "Accepted shift on the tree", line = 1.35, cex.main = 0.98)
+legend(
+  "bottomleft",
+  legend = c("background regime", "shifted clade", "accepted shift"),
+  col = c(regime_cols["0"], regime_cols["1"], NA),
+  pch = c(15, 15, 21),
+  pt.bg = c(NA, NA, "#ffd166"),
+  bty = "o",
+  box.col = NA,
+  bg = grDevices::adjustcolor("white", alpha.f = 0.82),
+  cex = 0.8,
+  pt.cex = 1.05,
+  y.intersp = 0.95,
+  x.intersp = 0.75
+)
+
+par(mar = c(3.3, 3.9, 4.6, 1.0), mgp = c(1.9, 0.6, 0))
+plot(
+  shift_sim[, 1], shift_sim[, 2],
+  col = regime_cols[tip_regimes], pch = 19,
+  xlab = "Trait 1", ylab = "Trait 2",
+  main = "Trait space under two regimes",
+  asp = 1,
+  cex = 0.92,
+  xlim = shift_xlim,
+  ylim = shift_ylim
+)
+for (regime in names(regime_cols)) {
+  idx <- tip_regimes == regime
+  draw_cov_ellipse(
+    colMeans(shift_sim[idx, , drop = FALSE]),
+    cov(shift_sim[idx, , drop = FALSE]),
+    border = regime_cols[regime]
+  )
+}
+legend(
+  "bottomleft",
+  legend = c("background tips", "shifted tips"),
+  col = regime_cols,
+  pch = 19,
+  bty = "o",
+  box.col = NA,
+  bg = grDevices::adjustcolor("white", alpha.f = 0.82),
+  cex = 0.8,
+  pt.cex = 1.05,
+  y.intersp = 0.95
+)
+
+layout(1)
+par(op)
+```
+
+That example is conceptually useful, but it is not the literal target of `searchOptimalConfiguration()`. The search starts from a single-regime baseline, proposes internal nodes as candidate shifts, and asks whether allowing a descendant clade to occupy its own proportionally faster or slower multivariate regime gives a better approximation than the single-regime model, with enough improvement in fit to justify the added complexity.
+
+For high-dimensional data, those comparisons are carried out with penalized-likelihood multivariate GLS machinery following the framework of [Clavel, Aristide, and Morlon (2019)](https://doi.org/10.1093/sysbio/syy045). In the returned `bifrost_search` object, `shift_nodes_no_uncertainty` stores the accepted shift locations, `VCVs` stores the regime-specific variance-covariance matrices under the fitted proportional-scaling model, and `baseline_ic`, `optimal_ic`, and `ic_weights` summarize support for those extra regimes.
+
+## 5. A Quantitative-Genetic Bridge
 
 Readers coming from quantitative genetics will recognize the same geometry in the additive genetic variance-covariance matrix, \(\mathbf{G}\). That resemblance is real. Both \(\mathbf{G}\) and the macroevolutionary rate matrix are covariance matrices, so the same language of eigenvalues, eigenvectors, major axes, proportionality, and lines of least resistance naturally carries across scales ([Lande 1979](https://doi.org/10.1111/j.1558-5646.1979.tb04694.x); [Schluter 1996](https://doi.org/10.1111/j.1558-5646.1996.tb03563.x); [Steppan, Phillips, and Houle 2002](https://www.bio.fsu.edu/dhoule/Publications/steppanetal2002.pdf)).
 
-But the two matrices are not the same object. \(\mathbf{G}\) describes additive genetic covariance within populations, whereas \(\mathbf{\Sigma}\) or \(\mathbf{R}\) in a phylogenetic BM model describes the rate at which trait variance accumulates among lineages. Under a narrow drift-only null, with a stable \(\mathbf{G}\), constant effective population size, and branch lengths measured in generations, the expected evolutionary rate matrix is proportional to \(\mathbf{G}/N_e\) ([Lande 1979](https://doi.org/10.1111/j.1558-5646.1979.tb04694.x); [Hohenlohe and Arnold 2008](https://doi.org/10.1086/527498); [Revell and Harmon 2008](https://lukejharmon.github.io/assets/Revell_and_Harmon_2008.pdf)). Outside that special case, the macroevolutionary rate matrix can also reflect changing selection, moving optima, mutation, and evolution of \(\mathbf{G}\) itself, so it should not be read as a direct estimate of the within-population \(\mathbf{G}\)-matrix.
+But the two matrices are not the same object. \(\mathbf{G}\) describes additive genetic covariance within populations. By contrast, \(\mathbf{\Sigma}\) or \(\mathbf{R}\) in a phylogenetic BM model describes the rate at which trait variance accumulates among lineages. Under a narrow drift-only null, with a stable \(\mathbf{G}\), constant effective population size, and branch lengths measured in generations, the expected evolutionary rate matrix is proportional to \(\mathbf{G}/N_e\) ([Lande 1979](https://doi.org/10.1111/j.1558-5646.1979.tb04694.x); [Hohenlohe and Arnold 2008](https://doi.org/10.1086/527498); [Revell and Harmon 2008](https://lukejharmon.github.io/assets/Revell_and_Harmon_2008.pdf)). Outside that special case, the macroevolutionary rate matrix can also reflect changing selection, moving optima, mutation, and evolution of \(\mathbf{G}\) itself, so it should not be read as a direct estimate of the within-population \(\mathbf{G}\)-matrix.
 
-```{r g_matrix_bridge, echo = FALSE, fig.width = 12.6, fig.height = 6.1, fig.cap = "**Figure 7.** A schematic micro-to-macro bridge. Left: within-population additive genetic covariance, \\(\\mathbf{G}\\), shown as a cloud of individuals and its ellipse. Middle: under a narrow drift-only null, the macroevolutionary rate matrix is proportional to \\(\\mathbf{G}/N_e\\), so after rescaling to comparable size it has the same orientation and aspect ratio as \\(\\mathbf{G}\\). Right: once that null is relaxed, the among-lineage rate matrix can rotate or change shape relative to \\(\\mathbf{G}\\). Dashed gray ellipses show the standardized \\(\\mathbf{G}\\) geometry for comparison in the macro panels.", fig.alt = "Three-panel conceptual figure. Left: an individual-level cloud with a green covariance ellipse labeled G. Middle: a lineage-level cloud with a blue ellipse matching a dashed gray G ellipse, illustrating proportionality under drift. Right: a lineage-level cloud with an orange ellipse rotated relative to the dashed gray G ellipse, showing that macroevolutionary covariance can differ from G when assumptions are relaxed."}
+```{r g_matrix_bridge, echo = FALSE, fig.width = 12.6, fig.height = 6.1, fig.cap = "**Figure 8.** A schematic micro-to-macro bridge. Left: within-population additive genetic covariance, \\(\\mathbf{G}\\), shown as a cloud of individuals and its ellipse. The macro panels are rescaled to comparable size, so the comparison is about covariance geometry rather than raw units. Middle: under a narrow drift-only null, the macroevolutionary rate matrix is proportional to \\(\\mathbf{G}/N_e\\), so after standardization the dashed gray \\(\\mathbf{G}\\) ellipse and the blue \\(\\mathbf{R}\\) ellipse coincide. Right: once that null is relaxed, the among-lineage rate matrix can rotate or change shape relative to \\(\\mathbf{G}\\). Dashed gray ellipses show the standardized \\(\\mathbf{G}\\) geometry for comparison in the macro panels.", fig.alt = "Three-panel conceptual figure. Left: an individual-level cloud with a green covariance ellipse labeled G. Middle: a lineage-level cloud with a blue ellipse matching a dashed gray G ellipse, illustrating proportionality under drift. Right: a lineage-level cloud with an orange ellipse rotated relative to the dashed gray G ellipse, showing that macroevolutionary covariance can differ from G when assumptions are relaxed."}
 set.seed(29)
 
 rescale_trace <- function(sigma, target = 1) {
@@ -1921,516 +2041,20 @@ layout(1)
 par(op)
 ```
 
-Figure 7 is meant to highlight the relationship, not to reproduce one literal dataset on a common scale. The macro ellipses are rescaled to comparable size so the comparison is about geometry, not raw units. In the middle panel, the dashed gray \(\mathbf{G}\) ellipse and the blue \(\mathbf{R}\) ellipse coincide after standardization because the drift-only null preserves the same geometry. The right panel is the more general reminder that macroevolutionary covariance need not remain aligned with \(\mathbf{G}\).
-
-## 5. What Does a Branch-Specific Shift Mean?
-A single-regime BM model assumes that the same covariance structure applies everywhere on the tree. `bifrost` is built for cases where that assumption may be too simple.
-
-In practice, the question is whether some clade appears to evolve under a different multivariate rate structure from the background.
-
-As the examples above suggest, that shift can take several forms. In Flury-hierarchy language, a descendant regime could be close to a proportional rate change, it could retain shared major axes while changing magnitudes, or it could shift eigenstructure more fundamentally ([Phillips and Arnold 1999](https://doi.org/10.1111/j.1558-5646.1999.tb05414.x)). Even when the fitted model is phrased as BM versus BMM rather than as an explicit Flury test, that vocabulary is useful for interpretation.
-
-In that sense, a shift is not just a change in where traits sit. It is a change in the geometry of the evolving trait cloud. The simulation below shows the more dramatic end of that spectrum: a shift that changes both size and orientation. The current `bifrost` search is narrower: it tests the proportional-scaling case, where descendant regimes differ in overall rate while retaining the same covariance geometry.
-
-```{r bmm_shift_example, echo = FALSE, fig.width = 10.2, fig.height = 5.6, fig.cap = "**Figure 8.** A two-regime BMM simulation. Left: one clade is painted with a derived regime on the tree. Right: the same simulation in trait space; the shifted clade (red) has a larger, differently oriented covariance ellipse than the background regime (blue). This is more than a simple proportional rate shift.", fig.alt = "Two-panel figure showing a colored phylogenetic tree with one shifted clade and a scatterplot of two-trait data colored by regime."}
-set.seed(4)
-shift_tree <- phytools::pbtree(n = 60, scale = 1)
-shift_node <- choose_shift_node(shift_tree, min_tips = 10, target_tips = 15)
-
-baseline_tree <- phytools::paintBranches(
-  shift_tree,
-  edge = unique(shift_tree$edge[, 2]),
-  state = "0",
-  anc.state = "0"
-)
-shifted_tree <- phytools::paintSubTree(
-  baseline_tree,
-  node = shift_node,
-  state = "1",
-  anc.state = "0"
-)
-
-sigma_regimes <- list(
-  "0" = matrix(c(0.12, 0.02,
-                 0.02, 0.08), 2, 2, byrow = TRUE),
-  "1" = matrix(c(0.90, 0.48,
-                 0.48, 0.36), 2, 2, byrow = TRUE)
-)
-
-shift_sim <- as_trait_matrix(mvMORPH::mvSIM(
-  tree = shifted_tree,
-  nsim = 1,
-  model = "BMM",
-  param = list(ntraits = 2, sigma = sigma_regimes, theta = c(0, 0))
-))
-rownames(shift_sim) <- shifted_tree$tip.label
-tip_regimes <- as.character(phytools::getStates(shifted_tree, type = "tips"))
-shift_xlim <- grDevices::extendrange(shift_sim[, 1], f = 0.08)
-shift_ylim <- grDevices::extendrange(shift_sim[, 2], f = 0.08)
-
-op <- par(no.readonly = TRUE)
-layout(matrix(c(1, 2), nrow = 1), widths = c(0.88, 1.12))
-par(mar = c(3.2, 0.7, 4.6, 0.7), mgp = c(1.8, 0.55, 0))
-
-phytools::plotSimmap(
-  shifted_tree,
-  colors = regime_cols,
-  ftype = "off",
-  lwd = 2,
-  mar = c(3.0, 0.6, 4.9, 0.6),
-  xlim = c(0, max(ape::node.depth.edgelength(shifted_tree)) * 1.12)
-)
-ape::nodelabels(node = shift_node, pch = 21, bg = "#ffd166", cex = 1.2)
-title(main = "Accepted shift on the tree", line = 1.35, cex.main = 0.98)
-legend(
-  "bottomleft",
-  legend = c("background regime", "shifted clade", "accepted shift"),
-  col = c(regime_cols["0"], regime_cols["1"], NA),
-  pch = c(15, 15, 21),
-  pt.bg = c(NA, NA, "#ffd166"),
-  bty = "o",
-  box.col = NA,
-  bg = grDevices::adjustcolor("white", alpha.f = 0.82),
-  cex = 0.8,
-  pt.cex = 1.05,
-  y.intersp = 0.95,
-  x.intersp = 0.75
-)
-
-par(mar = c(3.3, 3.9, 4.6, 1.0), mgp = c(1.9, 0.6, 0))
-plot(
-  shift_sim[, 1], shift_sim[, 2],
-  col = regime_cols[tip_regimes], pch = 19,
-  xlab = "Trait 1", ylab = "Trait 2",
-  main = "Trait space under two regimes",
-  asp = 1,
-  cex = 0.92,
-  xlim = shift_xlim,
-  ylim = shift_ylim
-)
-for (regime in names(regime_cols)) {
-  idx <- tip_regimes == regime
-  draw_cov_ellipse(
-    colMeans(shift_sim[idx, , drop = FALSE]),
-    cov(shift_sim[idx, , drop = FALSE]),
-    border = regime_cols[regime]
-  )
-}
-legend(
-  "bottomleft",
-  legend = c("background tips", "shifted tips"),
-  col = regime_cols,
-  pch = 19,
-  bty = "o",
-  box.col = NA,
-  bg = grDevices::adjustcolor("white", alpha.f = 0.82),
-  cex = 0.8,
-  pt.cex = 1.05,
-  y.intersp = 0.95
-)
-
-layout(1)
-par(op)
-```
-
-That broader picture is conceptually useful, but it is not the literal target of `searchOptimalConfiguration()`. In the current package, the search starts from a single-regime baseline, proposes internal nodes as candidate shifts, and asks whether assigning a descendant clade a proportionally faster or slower multivariate regime improves the model enough to justify the additional complexity.
-
-For high-dimensional data, those comparisons are carried out with penalized-likelihood multivariate GLS machinery following the framework of [Clavel, Aristide, and Morlon (2019)](https://doi.org/10.1093/sysbio/syy045). In the returned `bifrost_search` object:
-
-- `shift_nodes_no_uncertainty` stores the accepted shift locations,
-- `VCVs` stores the regime-specific variance-covariance matrices under that fitted proportional-scaling model, and
-- `baseline_ic`, `optimal_ic`, and `ic_weights` summarize support for those extra regimes.
-
-## 6. Why Not Reduce Everything to Principal Components First?
-
-PCA is useful for visualization, exploratory summaries, and communication. But it is not a neutral preprocessing step for comparative model fitting. The central issue is that PCA rotates the data to maximize *sample* variance, not to preserve the biological axes you necessarily care about.
-
-This becomes important whenever the process of interest lies partly along a lower-variance direction. The issue is not just that PCA rotates the data; it is that truncating to the leading PC can discard the axis carrying the biologically relevant difference. Figure 9 is meant to show that loss directly.
-
-```{r pca_caution_example, echo = FALSE, fig.width = 12.6, fig.height = 5.35, fig.cap = "**Figure 9.** Why truncating PCA can mislead. Left: both regimes share the same broad diagonal axis of variation, but the shifted regime has much greater spread perpendicular to that axis; the overlaid lines show PC1 and PC2. Middle: scores on retained PC1 overlap strongly even though PC1 captures most total variance. Right: the regime difference is clear on the discarded low-variance axis, shown here as absolute distance on PC2 because the difference is in spread rather than mean.", fig.alt = "Three-panel figure arranged left to right. Left: two centered diagonal trait clouds with similar major-axis spread but different minor-axis spread, with principal-component axes overlaid. Middle: vertical boxplots and points for retained PC1 scores, showing strong overlap between regimes. Right: vertical boxplots and points for absolute PC2 scores, showing the shifted regime is much broader on the discarded axis."}
-set.seed(67)
-
-simulate_centered_cloud <- function(n, sigma) {
-  draws <- matrix(stats::rnorm(n * ncol(sigma)), ncol = ncol(sigma))
-  cloud <- draws %*% chol(sigma)
-  scale(cloud, center = TRUE, scale = FALSE)
-}
-
-trim_limits <- function(x, probs = c(0.01, 0.99), pad = 0.08, lower = NULL) {
-  q <- stats::quantile(x, probs = probs, names = FALSE)
-  span <- diff(q)
-  out <- c(q[1] - pad * span, q[2] + pad * span)
-  if (!is.null(lower)) {
-    out[1] <- lower
-  }
-  out
-}
-
-rotation_angle <- 40 * pi / 180
-rotation_mat <- matrix(
-  c(cos(rotation_angle), -sin(rotation_angle),
-    sin(rotation_angle),  cos(rotation_angle)),
-  2, 2, byrow = TRUE
-)
-
-n_background <- 55
-n_shifted <- 15
-
-pca_regimes <- list(
-  "0" = cov_from_eigensystem(c(6.00, 0.08), rotation_mat),
-  "1" = cov_from_eigensystem(c(6.00, 1.20), rotation_mat)
-)
-
-pca_background <- simulate_centered_cloud(n_background, pca_regimes[["0"]])
-pca_shifted <- simulate_centered_cloud(n_shifted, pca_regimes[["1"]])
-pca_sim <- rbind(pca_background, pca_shifted)
-pca_tip_regimes <- c(rep("0", n_background), rep("1", n_shifted))
-group_factor <- factor(
-  pca_tip_regimes,
-  levels = c("0", "1"),
-  labels = c("background", "shifted")
-)
-group_order <- c("0", "1")
-group_fill <- grDevices::adjustcolor(regime_cols[group_order], alpha.f = 0.18)
-
-pc_fit <- prcomp(pca_sim, center = TRUE, scale. = FALSE)
-var_explained <- pc_fit$sdev^2 / sum(pc_fit$sdev^2)
-center_pca <- colMeans(pca_sim)
-xlim_trait <- trim_limits(pca_sim[, 1], pad = 0.06)
-ylim_trait <- trim_limits(pca_sim[, 2], pad = 0.06)
-ylim_pc1 <- trim_limits(pc_fit$x[, 1], probs = c(0.005, 0.995), pad = 0.04)
-ylim_abs_pc2 <- trim_limits(abs(pc_fit$x[, 2]), probs = c(0, 0.995), pad = 0.05, lower = 0)
-
-layout(matrix(1:3, nrow = 1), widths = c(1.30, 0.92, 0.92))
-op <- par(mgp = c(2.55, 0.86, 0), cex.lab = 2.22, cex.axis = 2.01, cex.main = 2.37)
-
-par(mar = c(6.1, 6.2, 5.6, 1.2))
-plot(
-  pca_sim[, 1], pca_sim[, 2],
-  type = "n",
-  xlab = "Trait 1", ylab = "Trait 2",
-  main = "Original trait space with PC axes",
-  asp = 1,
-  xlim = xlim_trait,
-  ylim = ylim_trait
-)
-legend(
-  "topleft",
-  legend = c("background tips", "shifted tips"),
-  col = regime_cols,
-  pch = 19,
-  bty = "o",
-  box.col = NA,
-  bg = grDevices::adjustcolor("white", alpha.f = 0.92),
-  inset = 0.012,
-  cex = 2.16,
-  pt.cex = 2.58,
-  y.intersp = 1.15
-)
-legend(
-  "bottomright",
-  legend = c("PC1", "PC2"),
-  col = c("#303030", "#8c8c8c"),
-  lty = c(1, 2),
-  lwd = 2.1,
-  bty = "o",
-  box.col = NA,
-  bg = grDevices::adjustcolor("white", alpha.f = 0.9),
-  inset = 0.012,
-  cex = 1.91,
-  seg.len = 4.23,
-  y.intersp = 1.04
-)
-for (regime in names(regime_cols)) {
-  idx <- pca_tip_regimes == regime
-  draw_cov_ellipse(
-    colMeans(pca_sim[idx, , drop = FALSE]),
-    cov(pca_sim[idx, , drop = FALSE]),
-    border = regime_cols[regime]
-  )
-}
-draw_pc_axes(
-  center_pca,
-  pc_fit$rotation[, 1:2, drop = FALSE],
-  pc_fit$sdev[1:2],
-  scale = 1.3,
-  cols = c("#303030", "#8c8c8c"),
-  lwd = 2.1,
-  show_labels = FALSE
-)
-points(
-  pca_sim[, 1], pca_sim[, 2],
-  col = regime_cols[pca_tip_regimes],
-  pch = 19,
-  cex = 0.9
-)
-
-par(mar = c(5.8, 5.0, 5.6, 0.8))
-boxplot(
-  split(pc_fit$x[, 1], group_factor),
-  at = c(1, 2),
-  axes = FALSE,
-  outline = FALSE,
-  boxwex = 0.5,
-  col = group_fill,
-  border = regime_cols[group_order],
-  ylab = sprintf("PC1 scores (%.1f%%)", 100 * var_explained[1]),
-  main = "Kept PC1",
-  ylim = ylim_pc1
-)
-axis(2)
-axis(1, at = c(1, 2), labels = levels(group_factor), tick = FALSE)
-box()
-for (i in seq_along(group_order)) {
-  idx <- group_factor == levels(group_factor)[i]
-  points(
-    jitter(rep(i, sum(idx)), amount = 0.08),
-    pc_fit$x[idx, 1],
-    col = regime_cols[group_order[i]], pch = 19, cex = 1.05
-  )
-}
-
-par(mar = c(5.8, 5.0, 5.6, 0.8))
-boxplot(
-  split(abs(pc_fit$x[, 2]), group_factor),
-  at = c(1, 2),
-  axes = FALSE,
-  outline = FALSE,
-  boxwex = 0.54,
-  col = group_fill,
-  border = regime_cols[group_order],
-  ylab = sprintf("|PC2| scores (%.1f%%)", 100 * var_explained[2]),
-  main = "Discarded |PC2|",
-  ylim = ylim_abs_pc2
-)
-axis(2)
-axis(1, at = c(1, 2), labels = levels(group_factor), tick = FALSE)
-box()
-for (i in seq_along(group_order)) {
-  idx <- group_factor == levels(group_factor)[i]
-  points(
-    jitter(rep(i, sum(idx)), amount = 0.08),
-    abs(pc_fit$x[idx, 2]),
-    col = regime_cols[group_order[i]], pch = 19, cex = 1.05
-  )
-}
-
-layout(1)
-par(op)
-```
-
-In this example, both regimes share the same broad major axis, but the shifted regime has much greater variance along the lower-variance axis perpendicular to it. PCA still assigns `r sprintf("%.1f", 100 * var_explained[1])`% of the total sample spread to PC1, because that long diagonal axis dominates the variance budget. The lower-left panel shows why truncation is dangerous: the retained scores overlap strongly. Because the regime difference here is about spread rather than mean, the lower-right panel plots `|PC2|`; that discarded axis is exactly where the shift becomes clear.
-
-Phylogenetic PCA can be more coherent than ordinary PCA under a Brownian-motion null, but it is still a model-based rotation rather than a neutral preprocessing step ([Revell 2009](https://doi.org/10.1111/j.1558-5646.2009.00804.x); [Uyeda, Caetano, and Pennell 2015](https://doi.org/10.1093/sysbio/syv019)).
-
-A second warning from [Uyeda, Caetano, and Pennell (2015)](https://doi.org/10.1093/sysbio/syv019) is about model selection rather than simple truncation. In their simulations, even when all traits truly evolved under constant-rate multivariate BM, the first few standard PC axes often looked as though they were better fit by an early-burst model. The point is not that PCA invents an early burst out of thin air; it is that PCA ranks axes by realized sample variance across the whole tree, and that ranking can privilege combinations of traits with unusually large deep divergences.
-
-The next figure gives a compact illustration of that result using a reduced version of the equal-rate BM setup discussed in their paper: 20 replicate pure-birth trees with 50 tips, 20 independent BM traits, and BM/OU/EB model fits to the original traits and to the first six standard PC scores.
-
-```{r uyeda_pca_replication, echo = FALSE, fig.width = 11.2, fig.height = 4.95, fig.cap = "**Figure 10.** A compact illustration of the standard-PCA artifact emphasized by Uyeda, Caetano, and Pennell (2015). Each replicate simulates 20 independent traits under constant-rate BM on a 50-tip pure-birth tree, then fits BM, OU, and EB models to the original traits and to the first six standard PC axes. Left: averaged across the original traits, BM has the highest support. Right: after standard PCA, support is pulled toward EB on the earliest axes even though the generating process was BM throughout.", fig.alt = "Two-panel figure. Left: one stacked bar for original traits with the largest segment labeled BM and smaller OU and EB segments. Right: six stacked bars labeled PC1 through PC6, with large EB segments on the earliest bars and more BM support on later bars."}
-set.seed(3)
-
-uyeda_model_cols <- c(BM = "#2b8cbe", OU = "#f0ad4e", EB = "#d95f5f")
-uyeda_n_reps <- 20
-uyeda_n_traits <- 20
-uyeda_n_tips <- 50
-uyeda_n_pcs <- 6
-
-uyeda_aic_weights <- function(fits) {
-  loglik <- vapply(fits, logLik, numeric(1))
-  dfs <- vapply(fits, function(fit) attr(logLik(fit), "df"), numeric(1))
-  aic <- -2 * loglik + 2 * dfs
-  weights <- exp(-0.5 * (aic - min(aic)))
-  weights / sum(weights)
-}
-
-uyeda_fit_weights <- function(y, tree) {
-  dat <- data.frame(sp = tree$tip.label, y = y)
-  fits <- list(
-    BM = tryCatch(
-      phylolm::phylolm(y ~ 1, data = dat, phy = tree, model = "BM"),
-      error = function(e) NULL
-    ),
-    OU = tryCatch(
-      suppressWarnings(
-        phylolm::phylolm(y ~ 1, data = dat, phy = tree, model = "OUfixedRoot")
-      ),
-      error = function(e) NULL
-    ),
-    EB = tryCatch(
-      suppressWarnings(
-        phylolm::phylolm(y ~ 1, data = dat, phy = tree, model = "EB")
-      ),
-      error = function(e) NULL
-    )
-  )
-
-  if (any(vapply(fits, is.null, logical(1)))) {
-    return(setNames(rep(NA_real_, 3), names(uyeda_model_cols)))
-  }
-
-  uyeda_aic_weights(fits)
-}
-
-uyeda_one_replicate <- function(ntaxa = uyeda_n_tips, ntraits = uyeda_n_traits, npc = uyeda_n_pcs) {
-  tree <- phytools::pbtree(n = ntaxa, scale = 1)
-  sim <- as_trait_matrix(mvMORPH::mvSIM(
-    tree = tree,
-    nsim = 1,
-    model = "BM1",
-    param = list(theta = rep(0, ntraits), sigma = diag(ntraits), ntraits = ntraits)
-  ))
-  rownames(sim) <- tree$tip.label
-  pc_scores <- stats::prcomp(sim, center = TRUE, scale. = FALSE)$x[, seq_len(npc), drop = FALSE]
-
-  raw_weights <- t(vapply(seq_len(ntraits), function(j) uyeda_fit_weights(sim[, j], tree), numeric(3)))
-  pc_weights <- t(vapply(seq_len(npc), function(j) uyeda_fit_weights(pc_scores[, j], tree), numeric(3)))
-
-  list(
-    raw = colMeans(raw_weights, na.rm = TRUE),
-    pcs = pc_weights
-  )
-}
-
-uyeda_results <- replicate(uyeda_n_reps, uyeda_one_replicate(), simplify = FALSE)
-uyeda_raw <- do.call(rbind, lapply(uyeda_results, `[[`, "raw"))
-uyeda_pcs <- simplify2array(lapply(uyeda_results, `[[`, "pcs"))
-uyeda_raw_mean <- colMeans(uyeda_raw, na.rm = TRUE)
-uyeda_pc_mean <- apply(uyeda_pcs, c(1, 2), mean, na.rm = TRUE)
-uyeda_bm_ceiling <- 1 / (1 + 2 * exp(-1))
-
-op <- par(no.readonly = TRUE)
-layout(matrix(c(1, 2), nrow = 1), widths = c(0.82, 1.45))
-par(mgp = c(2.2, 0.7, 0))
-
-par(mar = c(4.8, 4.9, 4.7, 0.8))
-raw_bar <- barplot(
-  matrix(uyeda_raw_mean[names(uyeda_model_cols)], ncol = 1),
-  col = uyeda_model_cols,
-  border = "white",
-  names.arg = "Original\ntraits",
-  ylim = c(0, 1),
-  ylab = "Mean AIC weight",
-  main = "Raw BM traits"
-)
-abline(h = seq(0, 1, by = 0.25), col = "#e3e9ef", lwd = 0.9)
-barplot(
-  matrix(uyeda_raw_mean[names(uyeda_model_cols)], ncol = 1),
-  col = uyeda_model_cols,
-  border = "white",
-  names.arg = "Original\ntraits",
-  ylim = c(0, 1),
-  ylab = "Mean AIC weight",
-  main = "Raw BM traits",
-  add = TRUE
-)
-legend(
-  "topright",
-  legend = names(uyeda_model_cols),
-  fill = uyeda_model_cols,
-  border = NA,
-  bty = "o",
-  box.col = NA,
-  bg = grDevices::adjustcolor("white", alpha.f = 0.9),
-  cex = 0.9,
-  inset = 0.01
-)
-mtext(sprintf("%d replicates, %d traits", uyeda_n_reps, uyeda_n_traits), side = 3, line = 0.45, cex = 0.82, col = "#5f6b76")
-
-par(mar = c(4.8, 3.4, 4.7, 1.0))
-pc_bars <- barplot(
-  t(uyeda_pc_mean[, names(uyeda_model_cols), drop = FALSE]),
-  col = uyeda_model_cols,
-  border = "white",
-  names.arg = paste0("PC", seq_len(uyeda_n_pcs)),
-  ylim = c(0, 1),
-  ylab = "",
-  main = "Same data after standard PCA"
-)
-abline(h = seq(0, 1, by = 0.25), col = "#e3e9ef", lwd = 0.9)
-barplot(
-  t(uyeda_pc_mean[, names(uyeda_model_cols), drop = FALSE]),
-  col = uyeda_model_cols,
-  border = "white",
-  names.arg = paste0("PC", seq_len(uyeda_n_pcs)),
-  ylim = c(0, 1),
-  ylab = "",
-  main = "Same data after standard PCA",
-  add = TRUE
-)
-
-layout(1)
-par(op)
-```
-
-Figure 10 is doing something narrower than Figure 9. Here there is no special low-variance biological axis being hidden. Instead, the problem is that standard PCA changes which univariate combinations get placed first. Averaged across the original BM traits, BM remains the best-supported model. Even there it does not approach an AIC weight of 1, because OU and EB collapse onto BM when their extra parameter is unnecessary; under this three-model comparison, the BM ceiling is only about `r sprintf("%.2f", uyeda_bm_ceiling)`, for the same reason Uyeda et al. discuss. After standard PCA, though, the first few axes are no longer a neutral sample from the multivariate process: they are the axes most likely to make a constant-rate BM data set look EB-like.
-
-Taken together, Figures 9 and 10 make the same general point in two different ways. PCA can hide biologically meaningful lower-variance directions, and it can also bias which macroevolutionary models look plausible on the leading axes. It is still useful descriptively, but it changes the inferential target.
-
-That is why `bifrost` works in the original trait space. You can still use PCA for visualization after the fact, but the primary model fit does not depend on a rotated and truncated representation of the data.
-
-## 7. Where Do OU and Other Models Fit?
-
-Brownian motion is not the only comparative model. An Ornstein-Uhlenbeck process adds deterministic pull toward an optimum,
-
-$$
-dX_t = \alpha(\theta - X_t)dt + \sigma dB_t,
-$$
-
-and time-varying-rate models ask whether the overall pace of evolution accelerates or decelerates through time. Those are important alternatives, and multivariate OU models in particular are an active area of method development; for one recent multivariate treatment, see [Mariadassou, Lambert, and Morlon (2018)](https://doi.org/10.1093/sysbio/syy005).
-
-They are mentioned here for context, but `bifrost`'s current niche is narrower and more concrete: multivariate BM/BMM with branch-level heterogeneity in overall rate under proportional regime scaling.
-
-## 8. Mapping Theory to the `bifrost` API
-
-Once the pieces above are clear, the main package interface becomes easier to read:
-
-| Theoretical idea | `bifrost` component | Interpretation |
-|:--|:--|:--|
-| Single-regime baseline process | `baseline_tree`, `formula`, `baseline_ic` | One multivariate BM model shared across the tree |
-| Candidate evolutionary shift | internal nodes passing `min_descendant_tips` | A descendant clade is allowed to have a different regime |
-| Model comparison | `IC`, `shift_acceptance_threshold`, `optimal_ic` | Controls how much better a more complex model must fit |
-| Regime-specific rate structure | `VCVs` | Estimated regime-specific variance-covariance matrices, interpreted in the current model through proportional scaling across regimes |
-| Support for accepted shifts | `ic_weights` | Drop-one support values for shifts in the final model |
-| Search dynamics | `model_fit_history` | Sequence of accepted and rejected candidates |
-
-```{r theory_to_api, eval = FALSE}
-library(bifrost)
-
-fit <- searchOptimalConfiguration(
-  baseline_tree              = tree,
-  trait_data                 = trait_data,
-  formula                    = "trait_data ~ 1",
-  min_descendant_tips        = 10,
-  num_cores                  = 4,
-  shift_acceptance_threshold = 20,
-  uncertaintyweights_par     = TRUE,
-  IC                         = "GIC",
-  method                     = "H&L",
-  error                      = TRUE,
-  plot                       = FALSE
-)
-
-fit$shift_nodes_no_uncertainty
-fit$VCVs
-fit$ic_weights
-```
-
-For intercept-only morphometric datasets, `formula = "trait_data ~ 1"` corresponds to the multivariate BM/BMM case discussed above. In the current implementation, that means BM/BMM fits with proportional regime scaling rather than arbitrary covariance reorientation across clades. For multivariate pGLS-style analyses with predictors, the same logic applies except that the covariance model is now describing residual structure after accounting for the predictors.
-
 ## Practical Takeaways
 
-- Brownian motion is useful because it turns evolutionary history into a covariance model.
+- Brownian motion is useful because, on a phylogeny, it turns shared evolutionary history into an expected covariance structure among species.
 - In multivariate data, the covariance matrix is part of the biological signal, not just a nuisance parameter.
-- Matrix differences can reflect overall rate scaling, changes in covariance orientation, or both.
-- A branch-specific shift means that some clade is better described by a different multivariate rate structure than the background.
-- PCA can be valuable for visualization, but it is not a harmless default preprocessing step for fitting comparative models.
-- High-dimensional datasets need regularization and conservative model comparison, which is why `bifrost` leans on penalized-likelihood `mvgls` machinery.
+- Regime differences can reflect overall rate scaling, changes in covariance geometry, or both.
+- A branch-specific shift means that some clade is better described by a different multivariate rate structure than the background; in current `bifrost`, the search targets the proportional-scaling case.
+- Under a narrow drift-only null, macroevolutionary rate geometry can be proportional to \(\mathbf{G}/N_e\), but the phylogenetic rate matrix should not be read as the within-population \(\mathbf{G}\)-matrix itself.
+- High-dimensional datasets require regularization and conservative model comparison, which is why `bifrost` relies on penalized-likelihood `mvgls` machinery.
 
 ## Next Steps
 
-If you want to see these ideas in action on real data:
+If you want to keep going from here:
 
+- Part 2, [Whole-Tree Models, PCA, and bifrost](pca-model-selection-and-bifrost-vignette.html), takes up whole-tree model limits, PCA-related cautions, and model-selection artifacts;
 - the [jaw-shape vignette](https://jakeberv.com/bifrost/articles/jaw-shape-vignette.html) shows an intercept-only morphometric workflow on Paleozoic fishes.
 
 ## References
@@ -2439,10 +2063,21 @@ If you want to see these ideas in action on real data:
 - Felsenstein, J. (1985). *Phylogenies and the Comparative Method*. [https://doi.org/10.1086/284325](https://doi.org/10.1086/284325)
 - Hohenlohe, P. A., and Arnold, S. J. (2008). *MIPoD: A Hypothesis-Test Framework for Microevolutionary Inference From Patterns of Divergence*. [https://doi.org/10.1086/527498](https://doi.org/10.1086/527498)
 - Lande, R. (1979). *Quantitative Genetic Analysis of Multivariate Evolution, Applied to Brain:Body Size Allometry*. [https://doi.org/10.1111/j.1558-5646.1979.tb04694.x](https://doi.org/10.1111/j.1558-5646.1979.tb04694.x)
-- Mariadassou, M., Lambert, A., and Morlon, H. (2018). *Inference of Adaptive Shifts for Multivariate Correlated Traits*. [https://doi.org/10.1093/sysbio/syy005](https://doi.org/10.1093/sysbio/syy005)
 - Phillips, P. C., and Arnold, S. J. (1999). *Hierarchical Comparison of Genetic Variance-Covariance Matrices. I. Using the Flury Hierarchy*. [https://doi.org/10.1111/j.1558-5646.1999.tb05414.x](https://doi.org/10.1111/j.1558-5646.1999.tb05414.x)
 - Revell, L. J., and Harmon, L. J. (2008). *Testing Quantitative Genetic Hypotheses About the Evolutionary Rate Matrix for Continuous Characters*. [https://lukejharmon.github.io/assets/Revell_and_Harmon_2008.pdf](https://lukejharmon.github.io/assets/Revell_and_Harmon_2008.pdf)
 - Schluter, D. (1996). *Adaptive Radiation Along Genetic Lines of Least Resistance*. [https://doi.org/10.1111/j.1558-5646.1996.tb03563.x](https://doi.org/10.1111/j.1558-5646.1996.tb03563.x)
 - Steppan, S. J., Phillips, P. C., and Houle, D. (2002). *Comparative Quantitative Genetics: Evolution of the G Matrix*. [https://www.bio.fsu.edu/dhoule/Publications/steppanetal2002.pdf](https://www.bio.fsu.edu/dhoule/Publications/steppanetal2002.pdf)
 - Stepanova, N., Boyko, J. D., Lin, J., Davis Rabosky, A. R., and Rabosky, D. L. (2025). *Punctuated Versus Gradual Shifts in the Multivariate Evolutionary Process: A Test With Paired Radiations of Scincid Lizards*. [https://doi.org/10.1093/sysbio/syaf002](https://doi.org/10.1093/sysbio/syaf002)
-- Uyeda, J. C., Caetano, D. S., and Pennell, M. W. (2015). *Comparative Analysis of Principal Components Can Be Misleading*. [https://doi.org/10.1093/sysbio/syv019](https://doi.org/10.1093/sysbio/syv019)
+
+## Software Used in This Vignette
+
+- Clavel, J., Escarguel, G., and Merceron, G. (2015). *mvMORPH: an R package for fitting multivariate evolutionary models to morphometric data*. *Methods in Ecology and Evolution*, 6(11), 1311-1319. [https://doi.org/10.1111/2041-210X.12420](https://doi.org/10.1111/2041-210X.12420)
+- Ligges, U., and Mächler, M. (2003). *Scatterplot3d - an R Package for Visualizing Multivariate Data*. *Journal of Statistical Software*, 8(11), 1-20. [https://doi.org/10.18637/jss.v008.i11](https://doi.org/10.18637/jss.v008.i11)
+- Paradis, E., and Schliep, K. (2019). *ape 5.0: an environment for modern phylogenetics and evolutionary analyses in R*. *Bioinformatics*, 35, 526-528. [https://doi.org/10.1093/bioinformatics/bty633](https://doi.org/10.1093/bioinformatics/bty633)
+- Revell, L. J. (2024). *phytools 2.0: an updated R ecosystem for phylogenetic comparative methods (and other things).* *PeerJ*, 12, e16505. [https://doi.org/10.7717/peerj.16505](https://doi.org/10.7717/peerj.16505)
+- Sievert, C. (2020). *Interactive Web-Based Data Visualization with R, plotly, and shiny*. Chapman and Hall/CRC. [https://plotly-r.com](https://plotly-r.com)
+- Cheng, J., Sievert, C., Schloerke, B., Chang, W., Xie, Y., and Allen, J. (2024). *htmltools: Tools for HTML*. R package version 0.5.8.1. [https://CRAN.R-project.org/package=htmltools](https://CRAN.R-project.org/package=htmltools)
+
+## AI Assistance
+
+This vignette was developed with assistance from OpenAI tools for drafting, editing, and figure refinement; all scientific content, interpretation, and final decisions were reviewed by the authors.

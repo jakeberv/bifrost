@@ -1,9 +1,13 @@
 url: ~
 articles:
-  - title: Articles
-    navbar: ~
+  - title: Background
+    navbar: Background
     contents:
       - theoretical-background-vignette
+      - pca-model-selection-and-bifrost-vignette
+  - title: Examples
+    navbar: Examples
+    contents:
       - jaw-shape-vignette
 template:
   bootstrap: 5
