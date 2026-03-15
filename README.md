@@ -46,7 +46,11 @@
 
 ---
 
-📄 **Vignette 1:** [Getting Started with bifrost](https://jakeberv.com/bifrost/articles/jaw-shape-vignette.html)
+📄 **Vignettes**
+
+- [Getting Started with bifrost](https://jakeberv.com/bifrost/articles/jaw-shape-vignette.html)
+- [Brownian Motion and Multivariate Shifts](https://jakeberv.com/bifrost/articles/theoretical-background-vignette.html)
+- [Whole-Tree Models, PCA, and bifrost](https://jakeberv.com/bifrost/articles/pca-model-selection-and-bifrost-vignette.html)
 
 ## Installation (development version)
 
@@ -294,5 +298,3 @@ Development of the `bifrost` R package was supported by the [Oxford Research Sof
        alt="Oxford RSE logo"
        style="height:90px !important; width:auto !important; max-width:100%;" />
 </p>
-
-

@@ -1,0 +1,985 @@
+---
+title: "Whole-Tree Models, PCA, and bifrost"
+output:
+  rmarkdown::html_vignette: default
+  rmarkdown::pdf_document:
+    latex_engine: xelatex
+vignette: >
+  %\VignetteIndexEntry{Whole-Tree Models, PCA, and bifrost}
+  %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.align = "center",
+  out.width = "100%",
+  dpi = 170,
+  fig.retina = 2,
+  dev = "png"
+)
+
+as_trait_matrix <- function(sim) {
+  out <- if (is.list(sim)) sim[[1]] else sim
+  as.matrix(out)
+}
+
+draw_cov_ellipse <- function(center, sigma, level = 0.8, border = "black",
+                             lwd = 2, lty = 1, lend = "round", n = 200) {
+  ev <- eigen(sigma, symmetric = TRUE)
+  theta <- seq(0, 2 * pi, length.out = n)
+  circle <- rbind(cos(theta), sin(theta))
+  radius <- sqrt(stats::qchisq(level, df = 2))
+  shape <- ev$vectors %*% diag(sqrt(pmax(ev$values, 0)), nrow = 2)
+  coords <- center + radius * shape %*% circle
+  lines(coords[1, ], coords[2, ], col = border, lwd = lwd, lty = lty, lend = lend)
+}
+
+draw_pc_axes <- function(center, rotation, sdev, scale = 1.9,
+                         cols = c("#252525", "#969696"), lwd = 2,
+                         cex = 0.8, label_scale = 0.9,
+                         show_labels = TRUE) {
+  for (i in seq_len(ncol(rotation))) {
+    vec <- rotation[, i] * sdev[i] * scale
+    segments(
+      center[1] - vec[1], center[2] - vec[2],
+      center[1] + vec[1], center[2] + vec[2],
+      col = cols[i], lwd = lwd, lty = i
+    )
+    if (show_labels) {
+      text(
+        center[1] + vec[1] * label_scale,
+        center[2] + vec[2] * label_scale,
+        labels = paste0("PC", i),
+        col = cols[i], cex = cex,
+        pos = if (vec[1] >= 0) 4 else 2,
+        xpd = NA
+      )
+    }
+  }
+}
+
+cov_from_eigensystem <- function(eigenvalues, rotation) {
+  rotation %*% diag(eigenvalues, nrow = length(eigenvalues)) %*% t(rotation)
+}
+
+simulate_centered_cloud <- function(n, sigma) {
+  draws <- matrix(stats::rnorm(n * ncol(sigma)), ncol = ncol(sigma))
+  cloud <- draws %*% chol(sigma)
+  scale(cloud, center = TRUE, scale = FALSE)
+}
+
+trim_limits <- function(x, probs = c(0.01, 0.99), pad = 0.08, lower = NULL) {
+  q <- stats::quantile(x, probs = probs, names = FALSE)
+  span <- diff(q)
+  out <- c(q[1] - pad * span, q[2] + pad * span)
+  if (!is.null(lower)) {
+    out[1] <- lower
+  }
+  out
+}
+
+regime_cols <- c("0" = "#3182bd", "1" = "#de2d26")
+```
+
+```{r, echo = FALSE, results = "asis"}
+if (knitr::is_html_output()) cat("
+<style>
+img, .figure img, .figure > p > img {
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: none !important;
+  background: transparent !important;
+}
+
+p.caption, .caption {
+  border-left: 0.32rem solid #d8dde3;
+  color: #2f3439;
+  font-size: inherit;
+  line-height: inherit;
+  margin: 0 3.8% 1.05rem 3.8%;
+  padding: 0 0 0 1rem;
+  text-align: left !important;
+}
+
+p.caption strong, .caption strong {
+  font-weight: 700;
+}
+
+table {
+  width: 100%;
+}
+
+table th, table td {
+  vertical-align: top;
+}
+
+table code {
+  white-space: nowrap;
+}
+</style>
+")
+```
+
+## Introduction
+
+This vignette builds on the Brownian-motion and covariance background developed in [Brownian Motion and Multivariate Shifts](theoretical-background-vignette.html). It considers how BM, OU, and EB behave as whole-tree models, what happens when empirical datasets are more heterogeneous than those single-process descriptions allow, and where `bifrost` sits within that broader landscape.
+
+Whole-tree models are useful because they provide simple ways to describe how variation accumulates across a phylogeny. But that simplicity can also become a limitation when different parts of the tree follow different local regimes, since a single fit may average over structure that is biologically important. PCA often enters this discussion as an appealing way to simplify multivariate data, yet its leading axes are chosen to maximize sample variance rather than preserve the evolutionary structure we necessarily care about. The goal here is to clarify what whole-tree models capture, what they can obscure, and why PCA is not a neutral substitute for modeling heterogeneity directly.
+
+```{r package_setup, include = FALSE}
+library(bifrost)
+library(ape)
+library(phytools)
+library(mvMORPH)
+library(phylolm)
+```
+
+## 1. BM, OU, EB, and the limits of whole-tree models
+
+| Model | Core idea | Main parameters | Typical biological reading |
+|:--|:--|:--|:--|
+| BM | Diffusion with no preferred direction and constant rate through time | \(\sigma^2\) | Trait variance accumulates steadily as lineages diverge |
+| OU | Diffusion plus pull toward an optimum | \(\alpha\), \(\theta\), \(\sigma^2\) | Traits wander, but are restrained around an adaptive peak |
+| EB | Diffusion with a systematic tempo change through time | \(\sigma_0^2\), \(r\) | Evolution is fastest early and then slows, or more generally speeds up or slows down through time |
+
+Under BM, variance accumulates linearly with time and no optimum is preferred. That makes BM a useful baseline for asking whether a multivariate rate structure is constant across a tree. When `bifrost` searches for branch-specific shifts under BM/BMM, it is still working inside that diffusion-based family.
+
+OU changes the story by adding deterministic pull toward an optimum. The parameter \(\alpha\) controls how strongly lineages are drawn back toward \(\theta\), so OU is often read as a simple model of adaptive constraint or stabilization ([Hansen 1997](https://doi.org/10.1111/j.1558-5646.1997.tb01457.x); [Butler and King 2004](https://doi.org/10.1086/426002)). EB is different again: it is not about attraction to an optimum, but about a directional change in tempo through time, often written as a rate like \(\sigma^2(t) = \sigma_0^2 e^{rt}\), with classic early-burst behavior corresponding to \(r < 0\) ([Harmon et al. 2010](https://doi.org/10.1111/j.1558-5646.2010.01025.x)).
+
+```{r bm_ou_eb_overview, echo = FALSE, fig.width = 12.6, fig.height = 8.3, fig.align = "center", out.width = "100%", out.extra = NULL, fig.cap = "**Figure 1.** Three simple continuous-trait models contrasted with simulations and their theoretical disparity implications. Top row: simulated trajectories under BM, OU, and EB. BM diffuses at a constant rate, so trajectories spread steadily through time. OU adds deterministic pull toward an optimum, which keeps trajectories more tightly bounded around the center. EB begins with a stronger early burst and then slows sharply, so most divergence is front-loaded. Bottom row: the corresponding theoretical expected disparity-through-time curves under the same parameter values. BM increases linearly, OU rises and saturates, and EB accumulates disparity early before flattening.", fig.alt = "Six panels arranged in two rows and three columns. Top row shows BM, OU, and EB simulated trajectories through time. Bottom row shows the corresponding theoretical expected disparity curves: BM rises linearly, OU rises then plateaus, and EB rises quickly early and then flattens."}
+set.seed(12)
+
+times <- seq(0, 1, length.out = 250)
+dt <- diff(times)
+n_paths <- 20
+model_cols <- c(BM = "#2b8cbe", OU = "#f0ad4e", EB = "#d95f5f")
+
+bm_sigma2 <- 0.45
+ou_alpha <- 5.0
+ou_theta <- 0
+ou_sigma2 <- 0.52
+eb_sigma0_sq <- 4.8
+eb_r <- -8.0
+
+simulate_bm_path <- function(sigma2 = bm_sigma2) {
+  c(0, cumsum(rnorm(length(dt), mean = 0, sd = sqrt(sigma2 * dt))))
+}
+
+simulate_ou_path <- function(alpha = ou_alpha, theta = ou_theta, sigma2 = ou_sigma2) {
+  x <- numeric(length(times))
+  for (i in seq_along(dt)) {
+    x[i + 1] <- x[i] + alpha * (theta - x[i]) * dt[i] +
+      rnorm(1, mean = 0, sd = sqrt(sigma2 * dt[i]))
+  }
+  x
+}
+
+simulate_eb_path <- function(sigma0_sq = eb_sigma0_sq, r = eb_r) {
+  local_sigma2 <- sigma0_sq * exp(r * times[-length(times)])
+  c(0, cumsum(rnorm(length(dt), mean = 0, sd = sqrt(local_sigma2 * dt))))
+}
+
+bm_paths <- replicate(n_paths, simulate_bm_path())
+ou_paths <- replicate(n_paths, simulate_ou_path())
+# Separate EB seed so that panel can be tuned without changing BM or OU.
+set.seed(41)
+eb_paths <- replicate(n_paths, simulate_eb_path())
+ylim_paths <- grDevices::extendrange(range(bm_paths, ou_paths, eb_paths), f = 0.04)
+bm_expected <- bm_sigma2 * times
+ou_expected <- (ou_sigma2 / (2 * ou_alpha)) * (1 - exp(-2 * ou_alpha * times))
+eb_expected <- if (abs(eb_r) < sqrt(.Machine$double.eps)) {
+  eb_sigma0_sq * times
+} else {
+  (eb_sigma0_sq / eb_r) * (exp(eb_r * times) - 1)
+}
+expected_ylim <- c(0, max(bm_expected, ou_expected, eb_expected) * 1.06)
+ou_asymptote <- ou_sigma2 / (2 * ou_alpha)
+eb_asymptote <- if (eb_r < 0) -eb_sigma0_sq / eb_r else NULL
+bm_params <- list(
+  bquote(sigma^2 == .(formatC(bm_sigma2, format = "f", digits = 2)))
+)
+ou_params <- list(
+  bquote(alpha == .(formatC(ou_alpha, format = "f", digits = 1))),
+  bquote(theta == .(ou_theta)),
+  bquote(sigma^2 == .(formatC(ou_sigma2, format = "f", digits = 2)))
+)
+eb_params <- list(
+  bquote(sigma[0]^2 == .(formatC(eb_sigma0_sq, format = "f", digits = 1))),
+  bquote(r == .(formatC(eb_r, format = "f", digits = 1)))
+)
+
+op <- par(no.readonly = TRUE)
+layout(matrix(1:6, nrow = 2, byrow = TRUE), widths = c(1, 1, 1), heights = c(1.28, 0.86))
+par(mgp = c(2.55, 0.86, 0), cex.lab = 2.22, cex.axis = 2.01, cex.main = 2.37)
+
+plot_model_paths <- function(path_matrix, col, main, subtitle, param_lines, ylab = "") {
+  matplot(
+    times, path_matrix,
+    type = "l",
+    lty = 1,
+    lwd = 1.35,
+    col = grDevices::adjustcolor(col, alpha.f = 0.8),
+    xlab = "Time",
+    ylab = ylab,
+    xlim = range(times),
+    ylim = ylim_paths,
+    main = ""
+  )
+  abline(h = 0, lty = 3, col = "grey70", lwd = 1.0)
+  title(main = main, line = 2.45, font.main = 2)
+  mtext(subtitle, side = 3, line = 0.72, cex = 1.34, col = "#6a7580")
+  legend(
+    "topleft",
+    legend = as.expression(param_lines),
+    bty = "o",
+    box.col = NA,
+    bg = grDevices::adjustcolor("white", alpha.f = 0.82),
+    text.col = "#46515c",
+    cex = 2.0,
+    y.intersp = 0.92,
+    x.intersp = 0.0,
+    inset = c(-0.006, 0.004)
+  )
+}
+
+plot_expected_disparity <- function(curve, col, asymptote = NULL, ylab = "") {
+  plot(
+    times, curve,
+    type = "n",
+    xlab = "Time",
+    ylab = ylab,
+    xlim = range(times),
+    ylim = expected_ylim,
+    main = ""
+  )
+  if (!is.null(asymptote)) {
+    abline(h = asymptote, lty = 3, col = grDevices::adjustcolor(col, alpha.f = 0.65), lwd = 1.2)
+  }
+  lines(times, curve, col = col, lwd = 3.0)
+  mtext("expected disparity", side = 3, line = 1.0, cex = 1.16, col = "#6a7580")
+}
+
+par(mar = c(5.8, 5.2, 5.7, 1.0))
+plot_model_paths(
+  bm_paths,
+  col = model_cols["BM"],
+  main = "BM",
+  subtitle = "constant-rate diffusion",
+  param_lines = bm_params,
+  ylab = "Trait value"
+)
+
+par(mar = c(5.8, 3.2, 5.7, 1.0))
+plot_model_paths(
+  ou_paths,
+  col = model_cols["OU"],
+  main = "OU",
+  subtitle = "pull toward an optimum",
+  param_lines = ou_params
+)
+
+par(mar = c(5.8, 3.2, 5.7, 1.0))
+plot_model_paths(
+  eb_paths,
+  col = model_cols["EB"],
+  main = "EB",
+  subtitle = "strong early burst, then slowdown",
+  param_lines = eb_params
+)
+
+par(mar = c(5.4, 5.2, 3.6, 1.0))
+plot_expected_disparity(
+  bm_expected,
+  col = model_cols["BM"],
+  ylab = "Expected disparity"
+)
+
+par(mar = c(5.4, 3.2, 3.6, 1.0))
+plot_expected_disparity(
+  ou_expected,
+  col = model_cols["OU"],
+  asymptote = ou_asymptote
+)
+
+par(mar = c(5.4, 3.2, 3.6, 1.0))
+plot_expected_disparity(
+  eb_expected,
+  col = model_cols["EB"],
+  asymptote = eb_asymptote
+)
+
+layout(1)
+par(op)
+```
+
+Figure 1 also clarifies the scope of these models. BM, OU, and EB each provide a coarse whole-tree summary of how variation accumulates: BM assumes one diffusion process across the tree, OU adds one global pull structure, and EB allows one simple tree-wide trend in tempo. If a dataset instead contains patchy clade-specific shifts, mixtures of slower and faster regimes, or several distinct episodes of change, then even these more flexible whole-tree descriptions can miss the signal. EB is the clearest example: it allows non-uniformity, but only as one smooth tree-wide tempo trend rather than as localized shifts.
+
+## 2. When the process is heterogeneous across the tree
+
+That kind of mismatch is where `bifrost` becomes useful. The package does not replace BM with a different global family. Instead, it keeps the local process Brownian and allows different parts of the tree to occupy different multivariate BM/BMM regimes. In that sense, variation across an empirical tree can be approximated as a multi-regime Gaussian/Brownian process on a painted phylogeny: within each regime, traits still evolve as multivariate Gaussian diffusion, but across the tree the observed pattern can reflect several branch- or clade-specific regimes rather than one uniform model for the entire dataset.
+
+This matters because heterogeneity is not only a problem for whole-tree fits. If the underlying process is patchy, nested, or recurrent across the phylogeny, then even models assigned to large clades can still average over mixed local regimes and provide a poor description of the data. Figure 2 extends the simpler descendant-clade shift logic introduced in [Brownian Motion and Multivariate Shifts](theoretical-background-vignette.html) to that more heterogeneous setting.
+
+```{r heterogeneity_schematic, echo = FALSE, fig.width = 10.35, fig.height = 12.45, fig.cap = "**Figure 2.** Whole-tree summaries versus heterogeneous regime mixtures. Left column: one global BM/BMM regime applies everywhere, yielding one tree-wide Gaussian trait-space geometry and one linear disparity-accumulation pattern. Right column: localized clade-specific shifts create multiple regimes across the tree; under `bifrost`'s current assumptions those local regimes remain multivariate Gaussian with shared covariance geometry but different scale, and their disparity accumulation patterns can diverge after shifts. Horizontal offsets in the trait-space panel are only for visual separation, not different regime means. Those local trajectories need not be well summarized by any single whole-tree fit.", fig.alt = "Six-panel schematic figure in three rows and two columns. Left column shows a single-regime phylogeny, one global Gaussian ellipse in trait space, and one linear disparity-accumulation curve. Right column shows a phylogeny with two localized shift clades, three Gaussian covariance ellipses with shared orientation but different size, and several clade-specific piecewise disparity curves."}
+schematic_tree <- ape::read.tree(
+  text = "((((t1:0.55,t2:0.55):0.45,(t3:0.55,t4:0.55):0.45):0.70,((t5:0.55,t6:0.55):0.45,(t7:0.55,t8:0.55):0.45):0.70):0.80,((t9:0.87,t10:0.87):0.73,(t11:0.87,t12:0.87):0.73):0.90);"
+)
+schematic_cols <- c(
+  global = "#45688c",
+  baseline = "#45688c",
+  shift1 = "#de7a22",
+  shift2 = "#3a9d5d"
+)
+tree_edge_lwd <- 5.3
+
+descendant_edges <- function(tree, node) {
+  tree$edge[, 2] %in% phytools::getDescendants(tree, node)
+}
+
+left_shift_node <- ape::getMRCA(schematic_tree, c("t1", "t4"))
+right_shift_node <- ape::getMRCA(schematic_tree, c("t9", "t12"))
+hetero_edge_cols <- rep(schematic_cols["baseline"], nrow(schematic_tree$edge))
+hetero_edge_cols[descendant_edges(schematic_tree, left_shift_node)] <- schematic_cols["shift1"]
+hetero_edge_cols[descendant_edges(schematic_tree, right_shift_node)] <- schematic_cols["shift2"]
+terminal_tip_cols <- function(tree, edge_cols) {
+  tip_idx <- match(seq_len(ape::Ntip(tree)), tree$edge[, 2])
+  edge_cols[tip_idx]
+}
+
+schematic_angle <- 35 * pi / 180
+schematic_rotation <- matrix(
+  c(cos(schematic_angle), -sin(schematic_angle),
+    sin(schematic_angle),  cos(schematic_angle)),
+  2, 2, byrow = TRUE
+)
+base_cov <- cov_from_eigensystem(c(1.0, 0.16), schematic_rotation)
+regime_covs <- list(
+  "0" = 0.92 * base_cov,
+  "1" = 1.50 * base_cov,
+  "2" = 0.34 * base_cov
+)
+regime_centers <- rbind(c(-1.28, 0), c(0, 0), c(1.28, 0))
+regime_labels <- c("regime 0", "regime 1", "regime 2")
+regime_label_pos <- rbind(
+  c(-1.72, 1.44),
+  c(0.18, 1.58),
+  c(1.66, -0.78)
+)
+regime_line_cols <- c(schematic_cols["baseline"], schematic_cols["shift1"], schematic_cols["shift2"])
+disp_times <- seq(0, 1, length.out = 250)
+disp_green_time <- 0.36
+disp_orange_time <- 0.64
+disp_sigma0 <- 0.34
+disp_sigma_orange <- 0.92
+disp_sigma_green <- 0.12
+disp_single <- disp_sigma0 * disp_times
+disp_background <- disp_sigma0 * disp_times
+disp_green <- disp_sigma0 * pmin(disp_times, disp_green_time) +
+  disp_sigma_green * pmax(disp_times - disp_green_time, 0)
+disp_orange <- disp_sigma0 * pmin(disp_times, disp_orange_time) +
+  disp_sigma_orange * pmax(disp_times - disp_orange_time, 0)
+disp_ylim <- c(0, max(disp_single, disp_green, disp_orange) * 1.08)
+row_heights <- c(1.0, 1.0, 1.14)
+middle_panel_mar <- c(2.7, 1.8, 4.9, 1.05)
+bottom_panel_mar <- c(4.25, 1.8, 4.8, 1.05)
+bottom_row_center <- row_heights[3] / sum(row_heights) / 2
+
+op <- par(no.readonly = TRUE)
+layout(matrix(1:6, nrow = 3, byrow = TRUE), widths = c(1.0, 1.0), heights = row_heights)
+par(oma = c(0, 2.8, 0, 0), mgp = c(2.3, 0.72, 0), cex.lab = 1.78, cex.axis = 1.54, cex.main = 1.82)
+
+panel_title <- function(main, subtitle, main_line = 1.6, sub_line = 0.48) {
+  mtext(main, side = 3, line = main_line, cex = 1.46, font = 2)
+  mtext(subtitle, side = 3, line = sub_line, cex = 1.28, col = "#5d6670")
+}
+
+plot_schematic_tree <- function(edge_cols, tip_cols, main, subtitle,
+                                add_shift_nodes = FALSE) {
+  ape::plot.phylo(
+    schematic_tree,
+    edge.color = edge_cols,
+    edge.width = tree_edge_lwd,
+    show.tip.label = FALSE,
+    no.margin = FALSE,
+    main = ""
+  )
+  ape::tiplabels(pch = 16, col = tip_cols, cex = 0.72)
+  panel_title(main, subtitle, main_line = 3.18, sub_line = 1.38)
+  if (add_shift_nodes) {
+    ape::nodelabels(
+      node = c(left_shift_node, right_shift_node),
+      pch = 21,
+      bg = c(schematic_cols["shift1"], schematic_cols["shift2"]),
+      col = "white",
+      cex = 1.42
+    )
+  }
+}
+
+par(mar = c(1.35, 0.5, 6.5, 0.7))
+plot_schematic_tree(
+  rep(schematic_cols["global"], nrow(schematic_tree$edge)),
+  tip_cols = rep(schematic_cols["global"], ape::Ntip(schematic_tree)),
+  main = "Single whole-tree regime",
+  subtitle = "every branch and tip stays in regime 0"
+)
+
+par(mar = c(1.35, 0.5, 6.5, 0.7))
+plot_schematic_tree(
+  hetero_edge_cols,
+  tip_cols = terminal_tip_cols(schematic_tree, hetero_edge_cols),
+  main = "Localized regime shifts",
+  subtitle = "background persists while green and orange clades shift",
+  add_shift_nodes = TRUE
+)
+
+par(mar = middle_panel_mar)
+plot(
+  NA,
+  xlim = c(-2.55, 2.55),
+  ylim = c(-2.00, 2.00),
+  xlab = "",
+  ylab = "",
+  axes = FALSE,
+  main = ""
+)
+box(lwd = 1.0)
+abline(h = 0, v = 0, col = "#edf1f5", lwd = 1.0)
+panel_title("One global Gaussian regime", "one covariance geometry for the whole tree", main_line = 2.56, sub_line = 0.82)
+mtext("Trait space", side = 1, line = 0.72, cex = 1.48)
+draw_cov_ellipse(
+  c(0, 0),
+  1.58 * base_cov,
+  level = 0.8,
+  border = schematic_cols["global"],
+  lwd = tree_edge_lwd
+)
+points(0, 0, pch = 16, cex = 0.82, col = schematic_cols["global"])
+text(0, 1.64, "regime 0", col = schematic_cols["global"], cex = 2.15, font = 2)
+
+par(mar = middle_panel_mar)
+plot(
+  NA,
+  xlim = c(-2.95, 2.55),
+  ylim = c(-2.00, 2.00),
+  xlab = "",
+  ylab = "",
+  axes = FALSE,
+  main = ""
+)
+box(lwd = 1.0)
+abline(h = 0, v = 0, col = "#edf1f5", lwd = 1.0)
+panel_title("Local Gaussian regimes", "shared orientation, different scale", main_line = 2.56, sub_line = 0.82)
+mtext("Trait space", side = 1, line = 0.72, cex = 1.48)
+for (i in seq_len(3)) {
+  draw_cov_ellipse(
+    regime_centers[i, ],
+    regime_covs[[i]],
+    level = 0.8,
+    border = regime_line_cols[i],
+    lwd = tree_edge_lwd
+  )
+  points(regime_centers[i, 1], regime_centers[i, 2], pch = 16, cex = 0.76, col = regime_line_cols[i])
+}
+text(regime_label_pos[, 1], regime_label_pos[, 2], labels = regime_labels, col = regime_line_cols, cex = 2.15, font = 2)
+
+plot_disparity_panel <- function(curves, cols, main, subtitle, ylab = "", ltys = 1, lwds = 3.6,
+                                 main_cex = 1.22, sub_cex = 1.06) {
+  ltys <- rep_len(ltys, length(curves))
+  lwds <- rep_len(lwds, length(curves))
+  plot(
+    disp_times, curves[[1]],
+    type = "n",
+    xlab = "Time",
+    ylab = ylab,
+    xlim = c(0, 1),
+    ylim = disp_ylim,
+    main = ""
+  )
+  abline(h = 0, col = "#edf1f5", lwd = 1.0)
+  mtext(main, side = 3, line = 2.28, cex = main_cex, font = 2)
+  mtext(subtitle, side = 3, line = 0.68, cex = sub_cex, col = "#5d6670")
+  for (i in seq_along(curves)) {
+    lines(disp_times, curves[[i]], col = cols[i], lwd = lwds[i], lty = ltys[i])
+  }
+}
+
+par(mar = bottom_panel_mar, pty = "m", mgp = c(2.0, 0.6, 0), cex.axis = 1.92, cex.lab = 2.18)
+plot_disparity_panel(
+  curves = list(disp_single),
+  cols = schematic_cols["global"],
+  main = "Single-regime accumulation",
+  subtitle = "one linear BM disparity trajectory",
+  ylab = "",
+  lwds = tree_edge_lwd,
+  main_cex = 1.46,
+  sub_cex = 1.28
+)
+mtext(
+  "Schematic disparity",
+  side = 2,
+  outer = TRUE,
+  line = 0.8,
+  at = bottom_row_center,
+  cex = 1.46,
+  font = 2
+)
+
+par(mar = bottom_panel_mar, pty = "m", mgp = c(2.0, 0.6, 0), cex.axis = 1.92, cex.lab = 2.18, yaxt = "n")
+plot_disparity_panel(
+  curves = list(disp_background),
+  cols = schematic_cols["baseline"],
+  main = "Heterogeneous accumulation",
+  subtitle = "background persists; green shifts first, orange later",
+  ltys = 1,
+  lwds = tree_edge_lwd,
+  main_cex = 1.46,
+  sub_cex = 1.28
+)
+green_after_shift <- disp_times >= disp_green_time
+orange_after_shift <- disp_times >= disp_orange_time
+lines(
+  disp_times[green_after_shift],
+  disp_green[green_after_shift],
+  col = schematic_cols["shift2"],
+  lwd = tree_edge_lwd
+)
+lines(
+  disp_times[orange_after_shift],
+  disp_orange[orange_after_shift],
+  col = schematic_cols["shift1"],
+  lwd = tree_edge_lwd
+)
+abline(v = disp_green_time, col = grDevices::adjustcolor(schematic_cols["shift2"], alpha.f = 0.40), lty = 3, lwd = 1.9)
+abline(v = disp_orange_time, col = grDevices::adjustcolor(schematic_cols["shift1"], alpha.f = 0.40), lty = 3, lwd = 1.9)
+points(
+  c(disp_green_time, disp_orange_time),
+  c(disp_sigma0 * disp_green_time, disp_sigma0 * disp_orange_time),
+  pch = 21,
+  bg = c(schematic_cols["shift2"], schematic_cols["shift1"]),
+  col = "white",
+  cex = 1.45,
+  lwd = 1.2
+)
+legend(
+  "topleft",
+  legend = c("background", "green-shift clade", "orange-shift clade"),
+  col = c(schematic_cols["baseline"], schematic_cols["shift2"], schematic_cols["shift1"]),
+  lwd = c(tree_edge_lwd, tree_edge_lwd, tree_edge_lwd),
+  lty = c(1, 1, 1),
+  bty = "o",
+  box.col = NA,
+  bg = grDevices::adjustcolor("white", alpha.f = 0.9),
+  cex = 1.58,
+  inset = 0.018,
+  seg.len = 3.0,
+  y.intersp = 1.16
+)
+
+layout(1)
+par(op)
+```
+
+This perspective is close in spirit to mixed Gaussian phylogenetic model frameworks such as `PCMFit`, which also allow different Gaussian evolutionary descriptions to be assigned to different parts of a tree and search among alternative shift configurations ([Mitov, Bartoszek, and Stadler 2019](https://doi.org/10.1073/pnas.1813823116); [Mitov et al. 2020](https://doi.org/10.1016/j.tpb.2019.11.005)). The main distinction is that `bifrost` is currently narrower and more directly oriented toward high-dimensional original trait data. It keeps the local process within the multivariate BM/BMM family, fits regime structure directly in trait space through penalized multivariate GLS, and assumes proportional regime scaling rather than the broader class of Gaussian shift models considered in `PCMFit`. Because `bifrost` fits heterogeneous regime structure directly, it can capture much more complex rate-shift patterns than a single whole-tree BM, OU, or EB fit while still remaining inside a Brownian, covariance-based framework.
+
+`bayou` is another nearby comparison ([Uyeda and Harmon 2014](https://doi.org/10.1093/sysbio/syu057)), but it addresses a different kind of heterogeneity: OU adaptive-regime shifts rather than the multivariate BM/BMM rate shifts targeted by `bifrost`. Multivariate OU models remain an important area of method development ([Mariadassou, Lambert, and Morlon 2018](https://doi.org/10.1093/sysbio/syy005)), whereas `bifrost`'s current niche is heterogeneous multivariate BM/BMM with branch-level rate shifts under proportional regime scaling.
+
+## 3. PCA Is Not a Neutral Fix
+
+When multivariate data are high-dimensional and difficult to summarize directly, one common response is to simplify them first, usually with PCA, rather than model the heterogeneity itself. That can be useful for visualization and exploratory summaries, but it is not a neutral preprocessing step for comparative inference ([Revell 2009](https://doi.org/10.1111/j.1558-5646.2009.00804.x); [Uyeda, Caetano, and Pennell 2015](https://doi.org/10.1093/sysbio/syv019)). PCA can hide the axes carrying the biologically relevant difference, and it can also reorder axes in ways that change which global model looks best supported ([Uyeda, Caetano, and Pennell 2015](https://doi.org/10.1093/sysbio/syv019)).
+
+### 3.1 Why PCA Truncation Can Mislead
+
+The first of those problems is geometric. PCA orders axes by realized sample variance, not by whether they contain the biologically relevant contrast. If the process of interest lies partly along a lower-variance direction, then truncating to the leading PC can discard the very signal we want to interpret, a point long recognized more generally in the PCA literature ([Jolliffe 1982](https://doi.org/10.2307/2348005)). This is easiest to see in a simple two-regime example where most variation lies along one axis, but the important difference lies along another.
+
+```{r pca_caution_example, echo = FALSE, fig.width = 12.6, fig.height = 5.35, fig.cap = "**Figure 3.** Why truncating PCA can mislead. Left: both regimes share the same broad diagonal axis of variation, but the shifted regime has much greater spread perpendicular to that axis; the overlaid lines show PC1 and PC2. Middle: scores on retained PC1 overlap strongly even though PC1 captures most total variance. Right: the regime difference is clear on the discarded low-variance axis, shown here as absolute distance on PC2 because the difference is in spread rather than mean.", fig.alt = "Three-panel figure arranged left to right. Left: two centered diagonal trait clouds with similar major-axis spread but different minor-axis spread, with principal-component axes overlaid. Middle: vertical boxplots and points for retained PC1 scores, showing strong overlap between regimes. Right: vertical boxplots and points for absolute PC2 scores, showing the shifted regime is much broader on the discarded axis."}
+set.seed(67)
+
+rotation_angle <- 40 * pi / 180
+rotation_mat <- matrix(
+  c(cos(rotation_angle), -sin(rotation_angle),
+    sin(rotation_angle),  cos(rotation_angle)),
+  2, 2, byrow = TRUE
+)
+
+n_background <- 55
+n_shifted <- 15
+
+pca_regimes <- list(
+  "0" = cov_from_eigensystem(c(6.00, 0.08), rotation_mat),
+  "1" = cov_from_eigensystem(c(6.00, 1.20), rotation_mat)
+)
+
+pca_background <- simulate_centered_cloud(n_background, pca_regimes[["0"]])
+pca_shifted <- simulate_centered_cloud(n_shifted, pca_regimes[["1"]])
+pca_sim <- rbind(pca_background, pca_shifted)
+pca_tip_regimes <- c(rep("0", n_background), rep("1", n_shifted))
+group_factor <- factor(
+  pca_tip_regimes,
+  levels = c("0", "1"),
+  labels = c("background", "shifted")
+)
+group_order <- c("0", "1")
+group_fill <- grDevices::adjustcolor(regime_cols[group_order], alpha.f = 0.18)
+
+pc_fit <- prcomp(pca_sim, center = TRUE, scale. = FALSE)
+var_explained <- pc_fit$sdev^2 / sum(pc_fit$sdev^2)
+center_pca <- colMeans(pca_sim)
+xlim_trait <- trim_limits(pca_sim[, 1], pad = 0.06)
+ylim_trait <- trim_limits(pca_sim[, 2], pad = 0.06)
+ylim_pc1 <- trim_limits(pc_fit$x[, 1], probs = c(0.005, 0.995), pad = 0.04)
+ylim_abs_pc2 <- trim_limits(abs(pc_fit$x[, 2]), probs = c(0, 0.995), pad = 0.05, lower = 0)
+
+layout(matrix(1:3, nrow = 1), widths = c(1.30, 0.92, 0.92))
+op <- par(mgp = c(2.55, 0.86, 0), cex.lab = 2.22, cex.axis = 2.01, cex.main = 2.37)
+
+par(mar = c(6.1, 6.2, 5.6, 1.2))
+plot(
+  pca_sim[, 1], pca_sim[, 2],
+  type = "n",
+  xlab = "Trait 1", ylab = "Trait 2",
+  main = "Original trait space with PC axes",
+  asp = 1,
+  xlim = xlim_trait,
+  ylim = ylim_trait
+)
+legend(
+  "topleft",
+  legend = c("background tips", "shifted tips"),
+  col = regime_cols,
+  pch = 19,
+  bty = "o",
+  box.col = NA,
+  bg = grDevices::adjustcolor("white", alpha.f = 0.92),
+  inset = 0.012,
+  cex = 2.16,
+  pt.cex = 2.58,
+  y.intersp = 1.15
+)
+legend(
+  "bottomright",
+  legend = c("PC1", "PC2"),
+  col = c("#303030", "#8c8c8c"),
+  lty = c(1, 2),
+  lwd = 2.1,
+  bty = "o",
+  box.col = NA,
+  bg = grDevices::adjustcolor("white", alpha.f = 0.9),
+  inset = 0.012,
+  cex = 1.91,
+  seg.len = 4.23,
+  y.intersp = 1.04
+)
+for (regime in names(regime_cols)) {
+  idx <- pca_tip_regimes == regime
+  draw_cov_ellipse(
+    colMeans(pca_sim[idx, , drop = FALSE]),
+    cov(pca_sim[idx, , drop = FALSE]),
+    border = regime_cols[regime]
+  )
+}
+draw_pc_axes(
+  center_pca,
+  pc_fit$rotation[, 1:2, drop = FALSE],
+  pc_fit$sdev[1:2],
+  scale = 1.3,
+  cols = c("#303030", "#8c8c8c"),
+  lwd = 2.1,
+  show_labels = FALSE
+)
+points(
+  pca_sim[, 1], pca_sim[, 2],
+  col = regime_cols[pca_tip_regimes],
+  pch = 19,
+  cex = 0.9
+)
+
+par(mar = c(5.8, 5.0, 5.6, 0.8))
+boxplot(
+  split(pc_fit$x[, 1], group_factor),
+  at = c(1, 2),
+  axes = FALSE,
+  outline = FALSE,
+  boxwex = 0.5,
+  col = group_fill,
+  border = regime_cols[group_order],
+  ylab = sprintf("PC1 scores (%.1f%%)", 100 * var_explained[1]),
+  main = "Kept PC1",
+  ylim = ylim_pc1
+)
+axis(2)
+axis(1, at = c(1, 2), labels = levels(group_factor), tick = FALSE)
+box()
+for (i in seq_along(group_order)) {
+  idx <- group_factor == levels(group_factor)[i]
+  points(
+    jitter(rep(i, sum(idx)), amount = 0.08),
+    pc_fit$x[idx, 1],
+    col = regime_cols[group_order[i]], pch = 19, cex = 1.05
+  )
+}
+
+par(mar = c(5.8, 5.0, 5.6, 0.8))
+boxplot(
+  split(abs(pc_fit$x[, 2]), group_factor),
+  at = c(1, 2),
+  axes = FALSE,
+  outline = FALSE,
+  boxwex = 0.54,
+  col = group_fill,
+  border = regime_cols[group_order],
+  ylab = sprintf("|PC2| scores (%.1f%%)", 100 * var_explained[2]),
+  main = "Discarded |PC2|",
+  ylim = ylim_abs_pc2
+)
+axis(2)
+axis(1, at = c(1, 2), labels = levels(group_factor), tick = FALSE)
+box()
+for (i in seq_along(group_order)) {
+  idx <- group_factor == levels(group_factor)[i]
+  points(
+    jitter(rep(i, sum(idx)), amount = 0.08),
+    abs(pc_fit$x[idx, 2]),
+    col = regime_cols[group_order[i]], pch = 19, cex = 1.05
+  )
+}
+
+layout(1)
+par(op)
+```
+
+Here both regimes share the same broad major axis, but the shifted regime has much greater variance along the lower-variance axis perpendicular to it. PCA still assigns `r sprintf("%.1f", 100 * var_explained[1])`% of the total sample spread to PC1 because that long diagonal axis dominates the variance budget. Yet the retained PC1 scores overlap strongly, while the discarded `|PC2|` scores are exactly where the regime difference becomes clear. Because the shift is in spread rather than mean, the contrast appears in `|PC2|` rather than in signed PC2 scores.
+
+Phylogenetic PCA can be more coherent than ordinary PCA under a Brownian-motion null, but it is still a model-based rotation rather than a neutral preprocessing step ([Revell 2009](https://doi.org/10.1111/j.1558-5646.2009.00804.x); [Uyeda, Caetano, and Pennell 2015](https://doi.org/10.1093/sysbio/syv019)).
+
+### 3.2 PCA Can Distort Model Selection
+
+The truncation problem above is only one PCA caution. A second issue is more inferential: PCA can change which comparative model appears best supported. In the simulations of [Uyeda, Caetano, and Pennell (2015)](https://doi.org/10.1093/sysbio/syv019), even when all traits truly evolved under constant-rate multivariate BM, the first few standard PC axes often looked as though they were better fit by an early-burst model. The point is not that PCA invents an early burst out of thin air; it is that ranking axes by realized sample variance across the whole tree can privilege combinations of traits with unusually large deep divergences.
+
+We show a compact illustration of this result using a reduced version of the equal-rate BM setup discussed in [Uyeda, Caetano, and Pennell (2015)](https://doi.org/10.1093/sysbio/syv019): 20 replicate pure-birth trees with 50 tips, 20 independent BM traits, and BM, OU, and EB model fits to both the original traits and the first six standard PC scores.
+
+```{r uyeda_pca_replication, echo = FALSE, fig.width = 11.2, fig.height = 4.95, fig.cap = "**Figure 4.** A compact illustration of the standard-PCA artifact emphasized by Uyeda, Caetano, and Pennell (2015). Left: averaged across the original traits, BM has the highest support. Right: after standard PCA, support is pulled toward EB on the earliest axes even though the generating process was BM throughout.", fig.alt = "Two-panel figure. Left: one stacked bar for original traits with the largest segment labeled BM and smaller OU and EB segments. Right: six stacked bars labeled PC1 through PC6, with large EB segments on the earliest bars and more BM support on later bars."}
+set.seed(3)
+
+uyeda_model_cols <- c(BM = "#2b8cbe", OU = "#f0ad4e", EB = "#d95f5f")
+uyeda_n_reps <- 20
+uyeda_n_traits <- 20
+uyeda_n_tips <- 50
+uyeda_n_pcs <- 6
+
+uyeda_aic_weights <- function(fits) {
+  loglik <- vapply(fits, logLik, numeric(1))
+  dfs <- vapply(fits, function(fit) attr(logLik(fit), "df"), numeric(1))
+  aic <- -2 * loglik + 2 * dfs
+  weights <- exp(-0.5 * (aic - min(aic)))
+  weights / sum(weights)
+}
+
+uyeda_fit_weights <- function(y, tree) {
+  dat <- data.frame(sp = tree$tip.label, y = y)
+  fits <- list(
+    BM = tryCatch(
+      phylolm::phylolm(y ~ 1, data = dat, phy = tree, model = "BM"),
+      error = function(e) NULL
+    ),
+    OU = tryCatch(
+      suppressWarnings(
+        phylolm::phylolm(y ~ 1, data = dat, phy = tree, model = "OUfixedRoot")
+      ),
+      error = function(e) NULL
+    ),
+    EB = tryCatch(
+      suppressWarnings(
+        phylolm::phylolm(y ~ 1, data = dat, phy = tree, model = "EB")
+      ),
+      error = function(e) NULL
+    )
+  )
+
+  if (any(vapply(fits, is.null, logical(1)))) {
+    return(setNames(rep(NA_real_, 3), names(uyeda_model_cols)))
+  }
+
+  uyeda_aic_weights(fits)
+}
+
+uyeda_one_replicate <- function(ntaxa = uyeda_n_tips, ntraits = uyeda_n_traits, npc = uyeda_n_pcs) {
+  tree <- phytools::pbtree(n = ntaxa, scale = 1)
+  sim <- as_trait_matrix(mvMORPH::mvSIM(
+    tree = tree,
+    nsim = 1,
+    model = "BM1",
+    param = list(theta = rep(0, ntraits), sigma = diag(ntraits), ntraits = ntraits)
+  ))
+  rownames(sim) <- tree$tip.label
+  pc_scores <- stats::prcomp(sim, center = TRUE, scale. = FALSE)$x[, seq_len(npc), drop = FALSE]
+
+  raw_weights <- t(vapply(seq_len(ntraits), function(j) uyeda_fit_weights(sim[, j], tree), numeric(3)))
+  pc_weights <- t(vapply(seq_len(npc), function(j) uyeda_fit_weights(pc_scores[, j], tree), numeric(3)))
+
+  list(
+    raw = colMeans(raw_weights, na.rm = TRUE),
+    pcs = pc_weights
+  )
+}
+
+uyeda_results <- replicate(uyeda_n_reps, uyeda_one_replicate(), simplify = FALSE)
+uyeda_raw <- do.call(rbind, lapply(uyeda_results, `[[`, "raw"))
+uyeda_pcs <- simplify2array(lapply(uyeda_results, `[[`, "pcs"))
+uyeda_raw_mean <- colMeans(uyeda_raw, na.rm = TRUE)
+uyeda_pc_mean <- apply(uyeda_pcs, c(1, 2), mean, na.rm = TRUE)
+uyeda_bm_ceiling <- 1 / (1 + 2 * exp(-1))
+
+op <- par(no.readonly = TRUE)
+layout(matrix(c(1, 2), nrow = 1), widths = c(0.82, 1.45))
+par(mgp = c(2.3, 0.82, 0), cex.axis = 1.16, cex.lab = 1.14)
+
+par(mar = c(4.8, 4.9, 4.7, 0.8))
+mids_raw <- barplot(
+  matrix(uyeda_raw_mean[names(uyeda_model_cols)], ncol = 1),
+  col = uyeda_model_cols,
+  border = "white",
+  names.arg = "",
+  ylim = c(0, 1),
+  ylab = "Mean AIC weight",
+  main = ""
+)
+abline(h = seq(0, 1, by = 0.25), col = "#e3e9ef", lwd = 0.9)
+barplot(
+  matrix(uyeda_raw_mean[names(uyeda_model_cols)], ncol = 1),
+  col = uyeda_model_cols,
+  border = "white",
+  names.arg = "",
+  ylim = c(0, 1),
+  ylab = "Mean AIC weight",
+  main = "",
+  add = TRUE
+)
+title(main = "Raw BM traits", line = 2.08, font.main = 2, cex.main = 1.42)
+legend(
+  "topright",
+  legend = names(uyeda_model_cols),
+  fill = uyeda_model_cols,
+  border = NA,
+  bty = "o",
+  box.col = NA,
+  bg = grDevices::adjustcolor("white", alpha.f = 0.9),
+  cex = 0.98,
+  inset = 0.01
+)
+mtext(sprintf("%d replicates, %d traits", uyeda_n_reps, uyeda_n_traits), side = 3, line = 0.62, cex = 0.92, col = "#5f6b76")
+mtext("Original\ntraits", side = 1, at = mids_raw, line = 1.72, cex = 1.22)
+
+par(mar = c(4.8, 3.4, 4.7, 1.0))
+mids_pc <- barplot(
+  t(uyeda_pc_mean[, names(uyeda_model_cols), drop = FALSE]),
+  col = uyeda_model_cols,
+  border = "white",
+  names.arg = rep("", uyeda_n_pcs),
+  ylim = c(0, 1),
+  ylab = "",
+  main = ""
+)
+abline(h = seq(0, 1, by = 0.25), col = "#e3e9ef", lwd = 0.9)
+barplot(
+  t(uyeda_pc_mean[, names(uyeda_model_cols), drop = FALSE]),
+  col = uyeda_model_cols,
+  border = "white",
+  names.arg = rep("", uyeda_n_pcs),
+  ylim = c(0, 1),
+  ylab = "",
+  main = "",
+  add = TRUE
+)
+axis(1, at = mids_pc, labels = paste0("PC", seq_len(uyeda_n_pcs)), tick = FALSE, cex.axis = 1.18)
+title(main = "Same data after standard PCA", line = 2.08, font.main = 2, cex.main = 1.42)
+
+layout(1)
+par(op)
+```
+
+The PCA issue here is different from the truncation problem above. The signal is not being hidden on a low-variance axis. Instead, standard PCA changes which univariate combinations get placed first. Averaged across the original BM traits, BM remains the best-supported model, although its mean AIC weight does not approach 1 because OU and EB collapse onto BM when their extra parameter is unnecessary; under this three-model comparison, the BM ceiling is only about `r sprintf("%.2f", uyeda_bm_ceiling)`, as Uyeda et al. discuss. After standard PCA, the leading axes are no longer a neutral sample from the multivariate process: they are the axes most likely to make a constant-rate BM data set look EB-like.
+
+PCA can be useful descriptively, but once the transformed axes are treated as the units of model comparison, the ranking itself can change which macroevolutionary explanations look plausible. PCA is a variance-maximizing dimension reduction, not a model of tree-structured heterogeneity. It therefore does not rescue a heterogeneous dataset from the limitations of a single whole-tree fit; it can add another layer of distortion on top of that original mismatch. That is why `bifrost` fits models in the original trait space and treats PCA as optional description rather than as primary preprocessing for inference.
+
+## 4. Mapping Theory to the `bifrost` API
+
+With that in mind, the main package interface becomes easier to read. `bifrost` is most useful when a single whole-tree summary is too crude, but a Brownian, covariance-based description is still a reasonable local approximation within regimes. Relative to broader mixed-Gaussian frameworks such as `PCMFit`, it trades model generality for tractability in high-dimensional original trait space.
+
+`bifrost` handles high-dimensional trait data through penalized-likelihood multivariate GLS fits implemented in `mvMORPH::mvgls` ([Clavel, Aristide, and Morlon 2019](https://doi.org/10.1093/sysbio/syy045)). In ordinary multivariate GLS, covariance estimation becomes unstable or singular when the number of traits is large relative to the number of species. Penalization regularizes those covariance estimates, which makes it possible to work directly in the original trait space rather than collapsing the data to a few PCs first. In `bifrost`, that high-dimensional machinery is combined with proportional regime scaling, which further keeps the BM/BMM search tractable.
+
+| Theoretical idea | `bifrost` component | Interpretation |
+|:--|:--|:--|
+| Single-regime baseline process | `baseline_tree`, `formula`, `baseline_ic` | One multivariate BM model shared across the tree |
+| Candidate evolutionary shift | internal nodes passing `min_descendant_tips` | A descendant clade is allowed to have a different regime |
+| Model comparison | `IC`, `shift_acceptance_threshold`, `optimal_ic` | Controls how much better a more complex model must fit |
+| Regime-specific rate structure | `VCVs` | Estimated regime-specific variance-covariance matrices, interpreted in the current model through proportional scaling across regimes |
+| Support for accepted shifts | `ic_weights` | Drop-one support values for shifts in the final model |
+| Search dynamics | `model_fit_history` | Sequence of accepted and rejected candidates |
+
+```{r theory_to_api, eval = FALSE}
+library(bifrost)
+
+fit <- searchOptimalConfiguration(
+  baseline_tree              = tree,
+  trait_data                 = trait_data,
+  formula                    = "trait_data ~ 1",
+  min_descendant_tips        = 10,
+  num_cores                  = 4,
+  shift_acceptance_threshold = 20,
+  uncertaintyweights_par     = TRUE,
+  IC                         = "GIC",
+  method                     = "H&L",
+  error                      = TRUE,
+  plot                       = FALSE
+)
+
+fit$shift_nodes_no_uncertainty
+fit$VCVs
+fit$ic_weights
+```
+
+For intercept-only morphometric datasets, `formula = "trait_data ~ 1"` corresponds to the multivariate BM/BMM case discussed in Part 1, [Brownian Motion and Multivariate Shifts](theoretical-background-vignette.html). At present, that means BM/BMM fits with proportional regime scaling rather than arbitrary covariance reorientation across clades. For multivariate pGLS-style analyses with predictors, the same logic applies except that the covariance model now describes residual structure after accounting for the predictors.
+
+## Practical Takeaways
+
+- BM, OU, and EB are useful whole-tree summaries, but they can fit heterogeneous datasets poorly when local regimes are nested, patchy, or clade-specific.
+- `bifrost` addresses that problem by fitting heterogeneous multivariate BM/BMM regimes directly in the original trait space, using penalized multivariate GLS to remain tractable for high-dimensional data.
+- PCA is useful descriptively, but its axes maximize sample variance rather than preserve the evolutionary structure we necessarily care about.
+- PCA can mislead inference in more than one way: truncation can discard biologically relevant low-variance structure, and axis ranking can make different comparative models look spuriously attractive.
+- `bifrost` therefore treats PCA as optional description rather than required preprocessing, and its current niche is multivariate BM/BMM shift detection under proportional regime scaling.
+
+## Next Steps
+
+If you want to connect this back to the broader theoretical setup or a worked analysis:
+
+- Part 1, [Brownian Motion and Multivariate Shifts](theoretical-background-vignette.html), lays out the BM and covariance ideas assumed here;
+- the [jaw-shape vignette](https://jakeberv.com/bifrost/articles/jaw-shape-vignette.html) shows a full morphometric workflow on a real dataset.
+
+## References
+
+- Butler, M. A., and King, A. A. (2004). *Phylogenetic Comparative Analysis: A Modeling Approach for Adaptive Evolution*. [https://doi.org/10.1086/426002](https://doi.org/10.1086/426002)
+- Clavel, J., Aristide, L., and Morlon, H. (2019). *A Penalized Likelihood Framework for High-Dimensional Phylogenetic Comparative Methods and an Application to New-World Monkeys Brain Evolution*. [https://doi.org/10.1093/sysbio/syy045](https://doi.org/10.1093/sysbio/syy045)
+- Hansen, T. F. (1997). *Stabilizing Selection and the Comparative Analysis of Adaptation*. [https://doi.org/10.1111/j.1558-5646.1997.tb01457.x](https://doi.org/10.1111/j.1558-5646.1997.tb01457.x)
+- Harmon, L. J., Losos, J. B., Davies, T. J., Gillespie, R. G., Gittleman, J. L., Jennings, W. B., Kozak, K. H., McPeek, M. A., Moreno-Roark, F., Near, T. J., Purvis, A., Ricklefs, R. E., Schluter, D., Schulte II, J. A., Seehausen, O., Sidlauskas, B. L., Torres-Carvajal, O., Weir, J. T., and Mooers, A. O. (2010). *Early Bursts of Body Size and Shape Evolution Are Rare in Comparative Data*. [https://doi.org/10.1111/j.1558-5646.2010.01025.x](https://doi.org/10.1111/j.1558-5646.2010.01025.x)
+- Jolliffe, I. T. (1982). *A Note on the Use of Principal Components in Regression*. [https://doi.org/10.2307/2348005](https://doi.org/10.2307/2348005)
+- Mariadassou, M., Lambert, A., and Morlon, H. (2018). *Inference of Adaptive Shifts for Multivariate Correlated Traits*. [https://doi.org/10.1093/sysbio/syy005](https://doi.org/10.1093/sysbio/syy005)
+- Mitov, V., Bartoszek, K., and Stadler, T. (2019). *Automatic Generation of Evolutionary Hypotheses Using Mixed Gaussian Phylogenetic Models*. [https://doi.org/10.1073/pnas.1813823116](https://doi.org/10.1073/pnas.1813823116)
+- Mitov, V., Bartoszek, K., Asimomitis, G., and Stadler, T. (2020). *Fast Likelihood Calculation for Multivariate Gaussian Phylogenetic Models with Shifts*. [https://doi.org/10.1016/j.tpb.2019.11.005](https://doi.org/10.1016/j.tpb.2019.11.005)
+- Revell, L. J. (2009). *Size-Correction and Principal Components for Interspecific Comparative Studies*. [https://doi.org/10.1111/j.1558-5646.2009.00804.x](https://doi.org/10.1111/j.1558-5646.2009.00804.x)
+- Uyeda, J. C., and Harmon, L. J. (2014). *A Novel Bayesian Method for Inferring and Interpreting the Dynamics of Adaptive Landscapes from Phylogenetic Comparative Data*. [https://doi.org/10.1093/sysbio/syu057](https://doi.org/10.1093/sysbio/syu057)
+- Uyeda, J. C., Caetano, D. S., and Pennell, M. W. (2015). *Comparative Analysis of Principal Components Can Be Misleading*. [https://doi.org/10.1093/sysbio/syv019](https://doi.org/10.1093/sysbio/syv019)
+
+## Software Used in This Vignette
+
+- Ho, L. S. T., and Ané, C. (2014). *A Linear-Time Algorithm for Gaussian and Non-Gaussian Trait Evolution Models*. *Systematic Biology*, 63(3), 397-408. [`phylolm`]
+- Clavel, J., Escarguel, G., and Merceron, G. (2015). *mvMORPH: an R package for fitting multivariate evolutionary models to morphometric data*. *Methods in Ecology and Evolution*, 6(11), 1311-1319. [https://doi.org/10.1111/2041-210X.12420](https://doi.org/10.1111/2041-210X.12420)
+- Paradis, E., and Schliep, K. (2019). *ape 5.0: an environment for modern phylogenetics and evolutionary analyses in R*. *Bioinformatics*, 35, 526-528. [https://doi.org/10.1093/bioinformatics/bty633](https://doi.org/10.1093/bioinformatics/bty633)
+- Revell, L. J. (2024). *phytools 2.0: an updated R ecosystem for phylogenetic comparative methods (and other things).* *PeerJ*, 12, e16505. [https://doi.org/10.7717/peerj.16505](https://doi.org/10.7717/peerj.16505)
+
+## AI Assistance
+
+This vignette was developed with assistance from OpenAI tools for drafting, editing, and figure refinement; all scientific content, interpretation, and final decisions were reviewed by the authors.
