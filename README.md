@@ -48,9 +48,11 @@
 
 📄 **Vignettes**
 
-- [Getting Started with bifrost](https://jakeberv.com/bifrost/articles/jaw-shape-vignette.html)
-- [Brownian Motion and Multivariate Shifts](https://jakeberv.com/bifrost/articles/theoretical-background-vignette.html)
-- [Whole-Tree Models, PCA, and bifrost](https://jakeberv.com/bifrost/articles/pca-model-selection-and-bifrost-vignette.html)
+- **Background**
+  - [Brownian Motion and Multivariate Shifts](https://jakeberv.com/bifrost/articles/theoretical-background-vignette.html)
+  - [Whole-Tree Models, PCA, and bifrost](https://jakeberv.com/bifrost/articles/pca-model-selection-and-bifrost-vignette.html)
+- **Examples**
+  - [Getting Started with bifrost](https://jakeberv.com/bifrost/articles/jaw-shape-vignette.html)
 
 ## Installation (development version)
 

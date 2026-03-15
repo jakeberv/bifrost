@@ -591,7 +591,7 @@ This perspective is close in spirit to mixed Gaussian phylogenetic model framewo
 
 When multivariate data are high-dimensional and difficult to summarize directly, one common response is to simplify them first, usually with PCA, rather than model the heterogeneity itself. That can be useful for visualization and exploratory summaries, but it is not a neutral preprocessing step for comparative inference ([Revell 2009](https://doi.org/10.1111/j.1558-5646.2009.00804.x); [Uyeda, Caetano, and Pennell 2015](https://doi.org/10.1093/sysbio/syv019)). PCA can hide the axes carrying the biologically relevant difference, and it can also reorder axes in ways that change which global model looks best supported ([Uyeda, Caetano, and Pennell 2015](https://doi.org/10.1093/sysbio/syv019)).
 
-### 3.1 Why PCA Truncation Can Mislead
+### Why PCA Truncation Can Mislead
 
 The first of those problems is geometric. PCA orders axes by realized sample variance, not by whether they contain the biologically relevant contrast. If the process of interest lies partly along a lower-variance direction, then truncating to the leading PC can discard the very signal we want to interpret, a point long recognized more generally in the PCA literature ([Jolliffe 1982](https://doi.org/10.2307/2348005)). This is easiest to see in a simple two-regime example where most variation lies along one axis, but the important difference lies along another.
 
@@ -755,7 +755,7 @@ Here both regimes share the same broad major axis, but the shifted regime has mu
 
 Phylogenetic PCA can be more coherent than ordinary PCA under a Brownian-motion null, but it is still a model-based rotation rather than a neutral preprocessing step ([Revell 2009](https://doi.org/10.1111/j.1558-5646.2009.00804.x); [Uyeda, Caetano, and Pennell 2015](https://doi.org/10.1093/sysbio/syv019)).
 
-### 3.2 PCA Can Distort Model Selection
+### PCA Can Distort Model Selection
 
 The truncation problem above is only one PCA caution. A second issue is more inferential: PCA can change which comparative model appears best supported. In the simulations of [Uyeda, Caetano, and Pennell (2015)](https://doi.org/10.1093/sysbio/syv019), even when all traits truly evolved under constant-rate multivariate BM, the first few standard PC axes often looked as though they were better fit by an early-burst model. The point is not that PCA invents an early burst out of thin air; it is that ranking axes by realized sample variance across the whole tree can privilege combinations of traits with unusually large deep divergences.
 
