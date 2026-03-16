@@ -1,0 +1,302 @@
+testthat::skip_on_cran()
+
+skip_if_fp_study_deps <- function() {
+  testthat::skip_if_not_installed("ape")
+  testthat::skip_if_not_installed("phytools")
+  testthat::skip_if_not_installed("mvMORPH")
+  testthat::skip_if_not_installed("future")
+  testthat::skip_if_not_installed("future.apply")
+  testthat::skip_if_not_installed("progressr")
+}
+
+make_fp_template <- function() {
+  set.seed(30)
+  tr <- ape::rtree(22)
+  X <- matrix(rnorm(22 * 2), ncol = 2)
+  rownames(X) <- tr$tip.label
+  createSimulationTemplate(
+    baseline_tree = tr,
+    trait_data = X,
+    formula = "trait_data ~ 1",
+    method = "LL"
+  )
+}
+
+make_formula_fp_template <- function() {
+  set.seed(31)
+  tr <- ape::rtree(22)
+  X <- cbind(y1 = rnorm(22), y2 = rnorm(22), mass = rnorm(22))
+  rownames(X) <- tr$tip.label
+  createSimulationTemplate(
+    baseline_tree = tr,
+    trait_data = X,
+    formula = "trait_data[, 1:2] ~ trait_data[, 3]",
+    response_columns = 1:2,
+    predictor_columns = 3,
+    method = "LL"
+  )
+}
+
+make_fp_template_with_error <- function() {
+  set.seed(32)
+  tr <- ape::rtree(18)
+  X <- matrix(rnorm(18 * 2), ncol = 2)
+  rownames(X) <- tr$tip.label
+  createSimulationTemplate(
+    baseline_tree = tr,
+    trait_data = X,
+    formula = "trait_data ~ 1",
+    method = "LL",
+    error = TRUE
+  )
+}
+
+test_that("runFalsePositiveSimulationStudy returns study summaries", {
+  skip_if_fp_study_deps()
+
+  tmpl <- make_fp_template()
+  study <- runFalsePositiveSimulationStudy(
+    tmpl,
+    n_replicates = 2,
+    tree_tip_count = 18,
+    search_options = list(
+      formula = "trait_data ~ 1",
+      min_descendant_tips = 3,
+      shift_acceptance_threshold = 5,
+      num_cores = 1,
+      IC = "GIC",
+      method = "LL"
+    ),
+    num_cores = 1,
+    seed = 6
+  )
+
+  testthat::expect_s3_class(study, "bifrost_simulation_study")
+  testthat::expect_identical(study$study_type, "false_positive")
+  testthat::expect_identical(study$generating_scenario, "null")
+  testthat::expect_length(study$simdata, 2)
+  testthat::expect_length(study$results, 2)
+  testthat::expect_true(all(c(
+    "replicate", "n_candidates", "n_inferred_shifts", "false_positive_rate",
+    "status", "error"
+  ) %in% names(study$per_replicate)))
+  testthat::expect_equal(
+    study$per_replicate$false_positive_rate,
+    study$per_replicate$n_inferred_shifts / study$per_replicate$n_candidates
+  )
+})
+
+test_that("runFalsePositiveSimulationStudy rejects per-replicate seeds", {
+  skip_if_fp_study_deps()
+
+  tmpl <- make_fp_template()
+
+  testthat::expect_error(
+    runFalsePositiveSimulationStudy(
+      tmpl,
+      n_replicates = 2,
+      simulation_options = list(seed = 99),
+      search_options = list(
+        formula = "trait_data ~ 1",
+        min_descendant_tips = 3,
+        shift_acceptance_threshold = 5,
+        num_cores = 1,
+        IC = "GIC",
+        method = "LL"
+      ),
+      num_cores = 1,
+      seed = 6
+    ),
+    "simulation_options\\$seed"
+  )
+})
+
+test_that("runFalsePositiveSimulationStudy requires predictors for formula templates", {
+  skip_if_fp_study_deps()
+
+  tmpl <- make_formula_fp_template()
+
+  testthat::expect_error(
+    runFalsePositiveSimulationStudy(
+      tmpl,
+      n_replicates = 1,
+      simulation_options = list(preserve_predictors = FALSE),
+      search_options = list(
+        formula = "trait_data[, 1:2] ~ trait_data[, 3]",
+        min_descendant_tips = 3,
+        shift_acceptance_threshold = 5,
+        num_cores = 1,
+        IC = "GIC",
+        method = "LL"
+      ),
+      num_cores = 1,
+      seed = 6
+    ),
+    "preserve_predictors = TRUE"
+  )
+})
+
+test_that("runFalsePositiveSimulationStudy validates inputs and inherits template error settings", {
+  skip_if_fp_study_deps()
+
+  tmpl <- make_fp_template_with_error()
+
+  testthat::expect_error(
+    runFalsePositiveSimulationStudy(list(), n_replicates = 1),
+    "bifrost_simulation_template"
+  )
+  testthat::expect_error(
+    runFalsePositiveSimulationStudy(tmpl, n_replicates = 0),
+    "n_replicates"
+  )
+  testthat::expect_error(
+    runFalsePositiveSimulationStudy(tmpl, n_replicates = 1, num_cores = 0),
+    "num_cores"
+  )
+  testthat::expect_error(
+    runFalsePositiveSimulationStudy(tmpl, n_replicates = 1, simulation_options = 1),
+    "must both be lists"
+  )
+
+  study <- runFalsePositiveSimulationStudy(
+    tmpl,
+    n_replicates = 1,
+    search_options = list(
+      formula = "trait_data ~ 1",
+      min_descendant_tips = 3,
+      shift_acceptance_threshold = 5,
+      num_cores = 1,
+      IC = "GIC",
+      method = "LL"
+    ),
+    num_cores = 1,
+    seed = 33
+  )
+
+  testthat::expect_true(isTRUE(study$search_options$error))
+})
+
+test_that("runFalsePositiveSimulationStudy inherits evaluated template settings", {
+  skip_if_fp_study_deps()
+
+  set.seed(36)
+  tr <- ape::rtree(18)
+  X <- matrix(rnorm(18 * 2), ncol = 2)
+  rownames(X) <- tr$tip.label
+  method_value <- "LL"
+  error_value <- TRUE
+
+  tmpl <- createSimulationTemplate(
+    baseline_tree = tr,
+    trait_data = X,
+    formula = "trait_data ~ 1",
+    method = method_value,
+    error = error_value
+  )
+
+  study <- runFalsePositiveSimulationStudy(
+    tmpl,
+    n_replicates = 1,
+    search_options = list(
+      formula = "trait_data ~ 1",
+      min_descendant_tips = 3,
+      shift_acceptance_threshold = 5,
+      num_cores = 1,
+      IC = "GIC"
+    ),
+    num_cores = 1,
+    seed = 37
+  )
+
+  testthat::expect_identical(study$search_options$method, "LL")
+  testthat::expect_true(isTRUE(study$search_options$error))
+  testthat::expect_identical(study$per_replicate$status, "ok")
+})
+
+test_that("runFalsePositiveSimulationStudy warns on nested parallelism", {
+  skip_if_fp_study_deps()
+
+  tmpl <- make_fp_template()
+
+  testthat::local_mocked_bindings(
+    future_lapply = function(X, FUN, ...) lapply(X, FUN),
+    .package = "future.apply"
+  )
+  testthat::local_mocked_bindings(
+    plan = function(...) list(),
+    .package = "future"
+  )
+
+  testthat::expect_warning(
+    runFalsePositiveSimulationStudy(
+      tmpl,
+      n_replicates = 1,
+      search_options = list(
+        formula = "trait_data ~ 1",
+        min_descendant_tips = 3,
+        shift_acceptance_threshold = 5,
+        num_cores = 2,
+        IC = "GIC",
+        method = "LL"
+      ),
+      num_cores = 2,
+      seed = 34
+    ),
+    "nested parallelism"
+  )
+})
+
+test_that("runFalsePositiveSimulationStudy records search fallback errors", {
+  skip_if_fp_study_deps()
+
+  tmpl <- make_fp_template()
+
+  study <- runFalsePositiveSimulationStudy(
+    tmpl,
+    n_replicates = 1,
+    search_options = list(
+      formula = "trait_data ~ 1",
+      min_descendant_tips = 3,
+      shift_acceptance_threshold = 5,
+      num_cores = 1,
+      IC = "BAD",
+      method = "LL"
+    ),
+    num_cores = 1,
+    seed = 35
+  )
+
+  testthat::expect_identical(study$per_replicate$status, "error")
+  testthat::expect_match(study$per_replicate$error, "IC must be GIC or BIC")
+  testthat::expect_equal(
+    study$results[[1]]$num_candidates,
+    max(length(generatePaintedTrees(ape::as.phylo(study$simdata[[1]]$tree), min_tips = 3)) - 1L, 0L)
+  )
+})
+
+test_that("runFalsePositiveSimulationStudy reports NA summaries when no replicate is evaluable", {
+  skip_if_fp_study_deps()
+
+  tmpl <- make_fp_template()
+
+  study <- runFalsePositiveSimulationStudy(
+    tmpl,
+    n_replicates = 1,
+    search_options = list(
+      formula = "trait_data ~ 1",
+      min_descendant_tips = 100,
+      shift_acceptance_threshold = 5,
+      num_cores = 1,
+      IC = "GIC",
+      method = "LL"
+    ),
+    num_cores = 1,
+    seed = 38
+  )
+
+  testthat::expect_equal(study$per_replicate$n_candidates, 0)
+  testthat::expect_true(is.na(study$per_replicate$false_positive_rate))
+  testthat::expect_identical(study$study_summary$n_evaluable_replicates, 0L)
+  testthat::expect_true(is.na(study$study_summary$mean_false_positive_rate))
+  testthat::expect_true(is.na(study$study_summary$median_false_positive_rate))
+})
