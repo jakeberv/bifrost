@@ -106,6 +106,8 @@ The template stores the aligned analysis data, the fitted global `mvgls` model, 
 
 One manuscript-specific nuance is worth making explicit. In the passerine body-plan analyses, the global empirical model used body mass as a covariate when estimating the overall covariance scale, but the simulation searches themselves were run as intercept-only searches. In other words, the manuscript used the mass-corrected empirical fit to calibrate the scale of the simulations, then asked a narrower question: how conservative and how sensitive is the shift-search itself on a dataset of this size and covariance structure?
 
+That shortcut is best understood as an approximation to the residual multivariate variation the search was operating on, not as a full generative reconstruction of the empirical covariate-plus-shift model. Body mass was used to estimate the residual variance and covariance regime, but the simulation benchmark did not try to simulate predictors or to re-evaluate predictor estimation itself.
+
 That shortcut was reasonable for the manuscript because the simulation study was aimed at calibrating branch-shift detection, not at jointly validating both predictor estimation and shift recovery. For a new user, the safer default is the fully matched workflow shown above, where the simulated datasets preserve the predictor columns and the simulation study uses the same formula you plan to fit empirically.
 
 If you want a closer analogue of the manuscript shortcut, the package can also be used in an intercept-only, response-only mode:
