@@ -9,7 +9,6 @@ articles:
     navbar: Examples
     contents:
       - jaw-shape-vignette
-      - simulation-study-vignette
 template:
   bootstrap: 5
   includes:
