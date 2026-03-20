@@ -53,7 +53,6 @@
   - [Whole-Tree Models, PCA, and bifrost](https://jakeberv.com/bifrost/articles/pca-model-selection-and-bifrost-vignette.html)
 - **Examples**
   - [Getting Started with bifrost](https://jakeberv.com/bifrost/articles/jaw-shape-vignette.html)
-  - [Assessing Expected Performance with Dataset-Matched Simulations](https://jakeberv.com/bifrost/articles/simulation-study-vignette.html)
 
 ## Installation (development version)
 

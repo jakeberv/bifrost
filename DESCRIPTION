@@ -24,8 +24,6 @@ Imports:
     future,
     future.apply,
     phytools,
-    progressr,
-    RRphylo,
     grDevices,
     stats,
     mvMORPH,
