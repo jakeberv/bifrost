@@ -38,7 +38,7 @@ named columns can be used instead.}
 multivariate trait matrix as the response. This is the appropriate choice for most
 morphometric data where there are no predictor variables. For more general models,
 \code{formula} can reference subsets of \code{trait_data} explicitly, for example
-\code{"trait_data[, 1:5] ~ 1"} to treat columns 1–5 as a multivariate response, or
+\code{"trait_data[, 1:5] ~ 1"} to treat columns 1-5 as a multivariate response, or
 \code{"trait_data[, 1:5] ~ trait_data[, 6]"} to fit a multivariate pGLS with column 6
 as a predictor.}
 
@@ -93,7 +93,14 @@ while plots are updating. Set to \code{FALSE} to run quietly (default). Use
 \code{suppressMessages()} (and \code{capture.output()} if needed) to silence or capture output.}
 
 \item{...}{Additional arguments passed to \code{\link[mvMORPH]{mvgls}} (e.g., \code{method},
-\code{penalty}, \code{target}, \code{error}, etc.).}
+\code{penalty}, \code{target}, \code{error}, \code{REML}, etc.). In the workflows
+emphasized in the package vignettes, \code{method = "H&L"} is used for
+intercept-only searches on high-dimensional response matrices, whereas
+\code{method = "LL"} is used for formula-based searches with predictors and
+should also be used when \code{IC = "BIC"}. In \pkg{mvMORPH}, \code{method = "H&L"}
+is restricted to intercept-only models and the \code{"RidgeArch"} penalty.
+Setting \code{error = TRUE} asks \code{mvgls()} to estimate a nuisance
+measurement-error (intraspecific-variance) term from the data.}
 }
 \value{
 A named \code{list} with (at minimum):
@@ -134,8 +141,12 @@ information criterion (IC; \code{GIC} or \code{BIC}),
 
 Models are fitted directly in multivariate trait space (no PCA), assuming a multi-rate
 Brownian Motion with proportional VCV scaling across regimes. Extra arguments in \code{...}
-are forwarded to \code{\link[mvMORPH]{mvgls}} (e.g., \code{method = "LL"} or
-\code{method = "PL-LOOCV"}, \code{penalty}, \code{error = TRUE}, etc.).
+are forwarded to \code{\link[mvMORPH]{mvgls}}. In practice, \code{method} and
+\code{error} are often the most important of these: the package vignettes use
+\code{method = "H&L"} for intercept-only, high-dimensional response matrices and
+\code{method = "LL"} for formula-based searches with predictors, while
+\code{error = TRUE} asks \code{mvgls()} to estimate a nuisance measurement-error
+(intraspecific-variance) term from the data.
 }
 \details{
 \strong{Input requirements.}
@@ -175,11 +186,17 @@ On Unix, \code{multicore} is used; on Windows, \code{multisession}. A sequential
 estimates (when \code{mvgls} is fitted under a PL/ML method).
 
 For high-dimensional trait datasets (p \eqn{\ge} n), penalized-likelihood settings in
-\code{mvgls()} are often required for stable estimation. In practice, methods such as
-\code{method = "LL"} or \code{method = "H&L"} combined with appropriate penalties (e.g.,
-ridge-type penalties) have proven effective for intercept-only multivariate Brownian
-motion models, as illustrated in the package vignettes. Users should consult the
-\pkg{mvMORPH} documentation for details on available methods and penalties and
+\code{mvgls()} are often required for stable estimation. The package vignettes
+distinguish two common workflows. For intercept-only searches on high-dimensional
+response matrices (for example, GPA-aligned landmark data), the jaw-shape vignette
+uses \code{method = "H&L"} with the default \code{"RidgeArch"} penalty; in
+\pkg{mvMORPH}, this is a fast approximation to penalized LOOCV and is only available
+for intercept-only models. For formula-based searches with predictors, the avian
+skeleton vignette uses \code{method = "LL"} instead. When \code{IC = "BIC"},
+\code{method = "LL"} should be used. Across empirical workflows, \code{error = TRUE}
+is often a sensible default because it asks \code{mvgls()} to estimate a nuisance
+measurement-error (intraspecific-variance) term from the data. Users should consult
+the \pkg{mvMORPH} documentation for details on available methods and penalties and
 tune these choices to the structure of their data.
 }
 \note{
@@ -259,6 +276,50 @@ res <- searchOptimalConfiguration(
 res$shift_nodes_no_uncertainty
 res$optimal_ic - res$baseline_ic
 str(res$VCVs)
+
+\dontrun{
+# Intercept-only empirical-style search:
+# high-dimensional response matrix with H&L + measurement error
+res_hl <- searchOptimalConfiguration(
+  baseline_tree              = as.phylo(simmap),
+  trait_data                 = X,
+  formula                    = "trait_data ~ 1",
+  min_descendant_tips        = 10,
+  num_cores                  = 2,
+  shift_acceptance_threshold = 20,
+  uncertaintyweights_par     = TRUE,
+  IC                         = "GIC",
+  plot                       = FALSE,
+  method                     = "H&L",
+  error                      = TRUE,
+  store_model_fit_history    = TRUE,
+  verbose                    = TRUE
+)
+
+# Formula-based search with a predictor:
+# use LL when the model includes predictors
+dat <- data.frame(
+  trait1    = X[, 1],
+  trait2    = X[, 2],
+  predictor = rnorm(nrow(X))
+)
+rownames(dat) <- simmap$tip.label
+
+res_ll <- searchOptimalConfiguration(
+  baseline_tree              = as.phylo(simmap),
+  trait_data                 = dat,
+  formula                    = "trait_data[, 1:2] ~ trait_data[, 3]",
+  min_descendant_tips        = 10,
+  num_cores                  = 2,
+  shift_acceptance_threshold = 20,
+  IC                         = "GIC",
+  plot                       = FALSE,
+  method                     = "LL",
+  error                      = TRUE,
+  store_model_fit_history    = TRUE,
+  verbose                    = TRUE
+)
+}
 }
 \seealso{
 \code{\link[mvMORPH]{mvgls}}, \code{\link[mvMORPH]{GIC}}, \code{\link[stats]{BIC}},
