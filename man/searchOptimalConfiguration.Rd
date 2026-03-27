@@ -22,9 +22,10 @@ searchOptimalConfiguration(
 )
 }
 \arguments{
-\item{baseline_tree}{A rooted SIMMAP/\code{phylo} object representing the baseline
-(single-regime) tree. If not SIMMAP-initialized, it should already be painted to a
-single baseline state and have tip order matching \code{trait_data}.}
+\item{baseline_tree}{A clean, rooted \code{phylo} object representing the baseline
+(single-regime) tree. Tip labels must match \code{trait_data}. The function
+initializes the baseline regime internally by painting the tree to state
+\code{0}.}
 
 \item{trait_data}{A \code{matrix} or \code{data.frame} of continuous trait values with row
 names matching \code{baseline_tree$tip.label} (same order). For the default
@@ -120,8 +121,9 @@ Additional components appear conditionally:
 }
 }
 \description{
-Greedy, stepwise search for evolutionary regime shifts on a SIMMAP-style phylogeny
-using multivariate \code{mvgls} fits from \pkg{mvMORPH}. The routine:
+Greedy, stepwise search for evolutionary regime shifts on a rooted phylogeny
+using internally painted SIMMAP regime mappings and multivariate \code{mvgls}
+fits from \pkg{mvMORPH}. The routine:
 \enumerate{
 \item builds one-shift candidate trees for all internal nodes meeting a tip-size threshold
 (via \code{generatePaintedTrees}),
@@ -140,8 +142,11 @@ are forwarded to \code{\link[mvMORPH]{mvgls}} (e.g., \code{method = "LL"} or
 \details{
 \strong{Input requirements.}
 \itemize{
-\item \emph{Tree:} \code{baseline_tree} should be a rooted \code{phylo} (or SIMMAP-style) tree
+\item \emph{Tree:} \code{baseline_tree} should be a clean, rooted \code{phylo} tree
 with branch lengths interpreted in units of time. An ultrametric tree is not required.
+\item \emph{Baseline regime initialization:} \code{baseline_tree} is coerced with
+\code{ape::as.phylo()} and then painted internally to a single baseline
+state (\code{0}), so pre-existing SIMMAP mappings are ignored.
 \item \emph{Trait data alignment:} \code{rownames(trait_data)} must match
 \code{baseline_tree$tip.label} in both names and order; any tips without data should be
 pruned beforehand.
