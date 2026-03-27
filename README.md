@@ -132,9 +132,9 @@ str(res$VCVs)  # regime-specific VCVs (here just the baseline regime "0")
 
 ### Data requirements
 
-- **Tree and data alignment.** `rownames(trait_data)` must match `tree$tip.label` (same order and names).  
+- **Tree and data alignment.** `rownames(trait_data)` must match `baseline_tree$tip.label` (same order and names).  
 - **Branch lengths.** Interpreted in units of time; ultrametric not required.  
-- **SIMMAP style.** Internally, regimes are stored using SIMMAP conventions (e.g., `phytools` class `simmap`) 
+- **Input tree.** Provide a clean, rooted `phylo` object. `searchOptimalConfiguration()` initializes the baseline regime internally and returns SIMMAP trees for fitted multi-regime models.  
 - **Multi-dimensional traits.** Works directly in trait space; tune penalties/methods using `mvgls` (mvMORPH) options for your data.  
 - **Thresholds.** Use conservative `shift_acceptance_threshold` and `ic_uncertainty_threshold` to limit false positives; explore sensitivity.
 
