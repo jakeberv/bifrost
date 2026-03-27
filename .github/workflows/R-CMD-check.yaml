@@ -42,10 +42,13 @@ jobs:
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
           cache-version: 2
+          # The deprecated vignette-preview step below is disabled, so we no longer
+          # install its helper packages here:
+          # any::devtools
+          # any::remotes
           extra-packages: |
             any::rcmdcheck
             any::roxygen2
-            any::devtools
           needs: check
 
       # Generate NAMESPACE + Rd files from roxygen comments
@@ -76,16 +79,18 @@ jobs:
         shell: powershell
         run: choco install qpdf --no-progress
 
-      # Build vignettes to doc/ so we can inspect the HTML/PNG in artifacts
-      - name: Build vignettes (to doc/)
-        run: Rscript -e 'dir.create("doc", showWarnings = FALSE); devtools::build_vignettes()'
-
-      # Upload built vignettes so we can inspect them after the run
-      - name: Upload vignette artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: built-vignettes-${{ matrix.config.os }}-${{ matrix.config.r }}
-          path: doc/
+      # Deprecated vignette-preview path, kept commented for reference.
+      # We do not need this for R CMD check itself, and it was only used to
+      # upload manually inspectable HTML/PNG artifacts from doc/.
+      #
+      # - name: Build vignettes (to doc/)
+      #   run: Rscript -e 'dir.create("doc", showWarnings = FALSE); devtools::build_vignettes()'
+      #
+      # - name: Upload vignette artifacts
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: built-vignettes-${{ matrix.config.os }}-${{ matrix.config.r }}
+      #     path: doc/
 
       - uses: r-lib/actions/check-r-package@v2
         with:
