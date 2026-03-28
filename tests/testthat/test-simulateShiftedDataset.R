@@ -159,6 +159,14 @@ test_that("simulateShiftedDataset returns a proportional shifted replicate", {
     sum(getDescendants(sim$paintedTree, node) <= ape::Ntip(sim$paintedTree))
   }, integer(1))
   testthat::expect_true(all(clade_sizes >= 3 & clade_sizes <= 8))
+  testthat::expect_false(any(vapply(seq_along(sim$shiftNodes), function(i) {
+    any(vapply(seq_along(sim$shiftNodes), function(j) {
+      if (i == j) {
+        return(FALSE)
+      }
+      sim$shiftNodes[j] %in% getDescendants(sim$paintedTree, sim$shiftNodes[i])
+    }, logical(1)))
+  }, logical(1))))
 
   node_distance <- RRphylo::distNodes(
     ape::reorder.phylo(ape::as.phylo(sim$paintedTree), order = "cladewise"),
@@ -188,6 +196,31 @@ test_that("simulateShiftedDataset supports the correlation scenario and preserve
     tmpl$trait_data[sim$sampled_tree$tip.label, 3]
   )
   testthat::expect_equal(dim(sim$simulatedData), c(24, 2))
+})
+
+test_that("simulateShiftedDataset correlation mode is not just proportional rescaling", {
+  skip_if_shift_sim_deps()
+
+  tmpl <- make_shift_template()
+  sim <- simulateShiftedDataset(
+    tmpl,
+    tree_tip_count = 24,
+    num_shifts = 2,
+    min_shift_tips = 3,
+    max_shift_tips = 7,
+    scale_mode = "correlation",
+    seed = 5
+  )
+
+  ancestral_sigma <- sim$VCVs[["ancestral"]]
+  derived_sigma <- sim$VCVs[[setdiff(names(sim$VCVs), "ancestral")[[1L]]]]
+  scaling_factor <- derived_sigma[1, 1] / ancestral_sigma[1, 1]
+
+  testthat::expect_gt(max(abs(derived_sigma - (scaling_factor * ancestral_sigma))), 1e-8)
+  testthat::expect_gt(
+    max(abs(stats::cov2cor(derived_sigma) - stats::cov2cor(ancestral_sigma))[lower.tri(ancestral_sigma)]),
+    1e-8
+  )
 })
 
 test_that("simulateShiftedDataset requires predictors for formula templates", {

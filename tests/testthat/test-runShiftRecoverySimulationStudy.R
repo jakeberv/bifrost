@@ -101,6 +101,17 @@ test_that("runShiftRecoverySimulationStudy supports the proportional scenario", 
   testthat::expect_identical(study$study_type, "shift_recovery")
   testthat::expect_identical(study$generating_scenario, "proportional")
   testthat::expect_length(study$simdata, 2)
+  testthat::expect_true(all(vapply(study$simdata, function(x) length(x$shiftNodes), integer(1)) == 2L))
+  testthat::expect_false(any(vapply(study$simdata, function(sim) {
+    any(vapply(seq_along(sim$shiftNodes), function(i) {
+      any(vapply(seq_along(sim$shiftNodes), function(j) {
+        if (i == j) {
+          return(FALSE)
+        }
+        sim$shiftNodes[j] %in% getDescendants(sim$paintedTree, sim$shiftNodes[i])
+      }, logical(1)))
+    }, logical(1)))
+  }, logical(1))))
   testthat::expect_true(all(c("strict", "fuzzy", "weighted", "counts") %in% names(study$evaluation)))
 })
 
@@ -199,6 +210,45 @@ test_that("runShiftRecoverySimulationStudy requires predictors for formula templ
       seed = 8
     ),
     "preserve_predictors = TRUE"
+  )
+})
+
+test_that("runShiftRecoverySimulationStudy supports formula-based end-to-end studies", {
+  skip_if_recovery_study_deps()
+
+  tmpl <- make_formula_recovery_template()
+  study <- suppressWarnings(
+    runShiftRecoverySimulationStudy(
+      tmpl,
+      n_replicates = 1,
+      tree_tip_count = 20,
+      simulation_options = list(
+        num_shifts = 1,
+        min_shift_tips = 3,
+        max_shift_tips = 7,
+        scale_mode = "proportional"
+      ),
+      search_options = list(
+        formula = "trait_data[, 1:2] ~ trait_data[, 3]",
+        min_descendant_tips = 3,
+        shift_acceptance_threshold = 5,
+        num_cores = 1,
+        IC = "GIC",
+        method = "LL",
+        uncertaintyweights_par = FALSE
+      ),
+      weighted = FALSE,
+      num_cores = 1,
+      seed = 123
+    )
+  )
+
+  testthat::expect_identical(study$search_options$formula, "trait_data[, 1:2] ~ trait_data[, 3]")
+  testthat::expect_identical(study$per_replicate$status, "ok")
+  testthat::expect_equal(study$per_replicate$n_true_shifts, 1L)
+  testthat::expect_identical(
+    study$simdata[[1]]$trait_data[, 3],
+    tmpl$trait_data[study$simdata[[1]]$sampled_tree$tip.label, 3]
   )
 })
 
@@ -303,6 +353,55 @@ test_that("runShiftRecoverySimulationStudy inherits evaluated template settings"
   testthat::expect_identical(study$search_options$method, "LL")
   testthat::expect_true(isTRUE(study$search_options$error))
   testthat::expect_identical(study$per_replicate$status, "ok")
+})
+
+test_that("runShiftRecoverySimulationStudy is reproducible with the same seed and workers", {
+  skip_if_recovery_study_deps()
+
+  tmpl <- make_recovery_template()
+  run_once <- function() {
+    suppressWarnings(
+      runShiftRecoverySimulationStudy(
+        tmpl,
+        n_replicates = 2,
+        tree_tip_count = 20,
+        simulation_options = list(
+          num_shifts = 2,
+          min_shift_tips = 3,
+          max_shift_tips = 7,
+          scale_mode = "proportional"
+        ),
+        search_options = list(
+          formula = "trait_data ~ 1",
+          min_descendant_tips = 3,
+          shift_acceptance_threshold = 5,
+          num_cores = 1,
+          IC = "GIC",
+          method = "LL",
+          uncertaintyweights_par = FALSE
+        ),
+        weighted = FALSE,
+        num_cores = 2,
+        seed = 7
+      )
+    )
+  }
+
+  study_a <- run_once()
+  study_b <- run_once()
+
+  testthat::expect_identical(study_a$per_replicate, study_b$per_replicate)
+  testthat::expect_true(all(vapply(seq_along(study_a$simdata), function(i) {
+    isTRUE(all.equal(study_a$simdata[[i]]$simulatedData, study_b$simdata[[i]]$simulatedData))
+  }, logical(1))))
+  testthat::expect_identical(
+    lapply(study_a$simdata, `[[`, "shiftNodes"),
+    lapply(study_b$simdata, `[[`, "shiftNodes")
+  )
+  testthat::expect_identical(
+    lapply(study_a$results, `[[`, "shift_nodes_no_uncertainty"),
+    lapply(study_b$results, `[[`, "shift_nodes_no_uncertainty")
+  )
 })
 
 test_that("runShiftRecoverySimulationStudy warns on nested parallelism", {
@@ -532,4 +631,112 @@ test_that("runShiftRecoverySimulationStudy handles missing trait_data and mixed 
 
   testthat::expect_length(study$generating_scenario, 2)
   testthat::expect_true(all(c("proportional", "correlation") %in% study$generating_scenario))
+})
+
+test_that("runShiftRecoverySimulationStudy integrates weighted metrics across mixed evaluable replicates", {
+  skip_if_recovery_study_deps()
+
+  tmpl <- make_recovery_template()
+  tr <- phytools::paintSubTree(ape::rtree(6), node = 7, state = "ancestral", anc.state = "ancestral")
+  sim_stub <- list(
+    list(
+      paintedTree = tr,
+      shiftNodes = 7L,
+      simulatedData = matrix(rnorm(12), ncol = 2, dimnames = list(tr$tip.label, c("y1", "y2"))),
+      trait_data = NULL,
+      generating_scenario = "proportional"
+    ),
+    list(
+      paintedTree = tr,
+      shiftNodes = 7L,
+      simulatedData = matrix(rnorm(12), ncol = 2, dimnames = list(tr$tip.label, c("y1", "y2"))),
+      trait_data = NULL,
+      generating_scenario = "proportional"
+    )
+  )
+  result_stub <- list(
+    list(
+      shift_nodes_no_uncertainty = integer(0),
+      num_candidates = 0L,
+      ic_weights = data.frame(
+        node = integer(0),
+        ic_with_shift = numeric(0),
+        ic_without_shift = numeric(0),
+        delta_ic = numeric(0),
+        ic_weight_withshift = numeric(0),
+        ic_weight_withoutshift = numeric(0),
+        evidence_ratio = numeric(0)
+      )
+    ),
+    list(
+      shift_nodes_no_uncertainty = 7L,
+      num_candidates = 4L,
+      ic_weights = data.frame(
+        node = 7L,
+        ic_with_shift = 1,
+        ic_without_shift = 2,
+        delta_ic = 1,
+        ic_weight_withshift = 0.8,
+        ic_weight_withoutshift = 0.2,
+        evidence_ratio = 4
+      )
+    )
+  )
+
+  mock_env <- new.env(parent = emptyenv())
+  mock_env$mock_i <- 0L
+  local_rebind(
+    "simulateShiftedDataset",
+    function(...) {
+      sim_stub[[get("mock_i", envir = mock_env)]]
+    },
+    environment(runShiftRecoverySimulationStudy)
+  )
+  local_rebind(
+    "searchOptimalConfiguration",
+    function(baseline_tree, trait_data, ...) {
+      testthat::expect_equal(trait_data, sim_stub[[get("mock_i", envir = mock_env)]]$simulatedData)
+      result_stub[[get("mock_i", envir = mock_env)]]
+    },
+    environment(runShiftRecoverySimulationStudy)
+  )
+  testthat::local_mocked_bindings(
+    future_lapply = function(X, FUN, ...) {
+      lapply(X, function(i) {
+        mock_env$mock_i <- i
+        FUN(i)
+      })
+    },
+    .package = "future.apply"
+  )
+
+  study <- runShiftRecoverySimulationStudy(
+    tmpl,
+    n_replicates = 2,
+    simulation_options = list(
+      num_shifts = 1,
+      min_shift_tips = 2,
+      max_shift_tips = 5,
+      scale_mode = "proportional"
+    ),
+    search_options = list(
+      formula = "trait_data ~ 1",
+      min_descendant_tips = 2,
+      shift_acceptance_threshold = 5,
+      num_cores = 1,
+      IC = "GIC",
+      method = "LL"
+    ),
+    weighted = TRUE,
+    num_cores = 1,
+    seed = 50
+  )
+
+  testthat::expect_equal(study$per_replicate$n_candidates, c(0, 4))
+  testthat::expect_false(is.null(study$evaluation$weighted))
+  testthat::expect_equal(study$evaluation$strict$precision, 1)
+  testthat::expect_equal(study$evaluation$strict$recall, 0.5)
+  testthat::expect_equal(study$evaluation$strict$specificity, 1)
+  testthat::expect_equal(study$evaluation$weighted$strict$precision, 1)
+  testthat::expect_equal(study$evaluation$weighted$strict$recall, 0.4)
 })

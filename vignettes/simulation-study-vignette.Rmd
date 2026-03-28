@@ -268,27 +268,125 @@ recovery_corr$evaluation$fuzzy
 
 This scenario is not the current generating model for `bifrost`, so the goal is not perfect recovery. Instead, it is a robustness check: do the same search settings still behave reasonably when the data depart from the assumed model in a biologically plausible way?
 
-## 4. Choosing empirical search settings
+## 4. Tuning GIC and BIC separately
 
-The manuscript workflow used the simulation results to pick a search configuration that balanced low false-positive behavior with acceptable recovery. The same logic applies here.
+In practice, it is often cleaner to treat GIC and BIC as separate workflows rather than as one more parameter in a single giant grid. The new tuning helpers are designed around that idea: fix `IC = "GIC"` and tune the threshold/clade-size settings within GIC, then repeat the same process for BIC.
 
-For example, after comparing candidate settings you might decide that a run with GIC, `min_descendant_tips = 10`, and a threshold of 10 or 20 units gives a good tradeoff for your dataset.
+The helper below runs the same three-study logic shown above for every combination of `shift_acceptance_threshold` and `min_descendant_tips`, but it holds `IC` fixed throughout the grid.
+
+```{r tune_gic_grid, eval = FALSE}
+gic_grid <- runSearchTuningGrid(
+  template = bodyplan_template,
+  IC = "GIC",
+  shift_acceptance_thresholds = c(2, 10, 20),
+  min_descendant_tips_values = c(10, 15),
+  tree_tip_count = 250,
+  null_replicates = 100,
+  recovery_replicates = 100,
+  proportional_simulation_options = list(
+    num_shifts = 5,
+    min_shift_tips = 10,
+    max_shift_tips = 20,
+    scale_factor_range = c(0.1, 2.0),
+    exclude_range = c(0.5, 1.5),
+    buffer = 3
+  ),
+  base_search_options = list(
+    formula = formula_str,
+    method = "LL",
+    error = TRUE,
+    num_cores = 1,
+    uncertaintyweights_par = TRUE,
+    plot = FALSE,
+    store_model_fit_history = FALSE
+  ),
+  weighted = TRUE,
+  num_cores = 8,
+  seed = 5
+)
+```
+
+```{r select_gic_grid, eval = FALSE}
+gic_tuned <- selectTunedSearchParameters(
+  gic_grid,
+  max_false_positive_rate = 0.05,
+  max_any_false_positive = 0.20,
+  min_evaluable_fraction = 0.8,
+  primary_metric = "weighted_fuzzy_f1",
+  tie_break = "conservative"
+)
+
+gic_tuned$selected_row
+gic_tuned$recommended_search_options
+```
+
+The same pattern applies to BIC:
+
+```{r tune_bic_grid, eval = FALSE}
+bic_grid <- runSearchTuningGrid(
+  template = bodyplan_template,
+  IC = "BIC",
+  shift_acceptance_thresholds = c(2, 10, 20),
+  min_descendant_tips_values = c(10, 15),
+  tree_tip_count = 250,
+  null_replicates = 100,
+  recovery_replicates = 100,
+  proportional_simulation_options = list(
+    num_shifts = 5,
+    min_shift_tips = 10,
+    max_shift_tips = 20,
+    scale_factor_range = c(0.1, 2.0),
+    exclude_range = c(0.5, 1.5),
+    buffer = 3
+  ),
+  base_search_options = list(
+    formula = formula_str,
+    method = "LL",
+    error = TRUE,
+    num_cores = 1,
+    uncertaintyweights_par = TRUE,
+    plot = FALSE,
+    store_model_fit_history = FALSE
+  ),
+  weighted = TRUE,
+  num_cores = 8,
+  seed = 5
+)
+
+bic_tuned <- selectTunedSearchParameters(
+  bic_grid,
+  max_false_positive_rate = 0.05,
+  max_any_false_positive = 0.20,
+  min_evaluable_fraction = 0.8,
+  primary_metric = "weighted_fuzzy_f1",
+  tie_break = "conservative"
+)
+```
+
+At that point you have two tuned workflows:
+
+1. the best threshold/clade-size combination within GIC, and
+2. the best threshold/clade-size combination within BIC.
+
+That is usually a more interpretable outcome than one global optimization across both IC families.
+
+## 5. Carry the tuned settings into the empirical search
+
+The selected search options are ready to pass directly into `searchOptimalConfiguration()`. For example, if you decide to proceed with the GIC-tuned workflow:
 
 ```{r empirical_search_after_simulations, eval = FALSE}
-empirical_result <- searchOptimalConfiguration(
-  baseline_tree = bird_tree,
-  trait_data = bodyplan_data,
-  formula = formula_str,
-  min_descendant_tips = 10,
-  shift_acceptance_threshold = 20,
-  IC = "GIC",
-  num_cores = 20,
-  method = "LL",
-  error = TRUE,
-  uncertaintyweights_par = TRUE,
-  plot = FALSE,
-  store_model_fit_history = TRUE,
-  verbose = TRUE
+empirical_result <- do.call(
+  searchOptimalConfiguration,
+  utils::modifyList(
+    gic_tuned$recommended_search_options,
+    list(
+      baseline_tree = bird_tree,
+      trait_data = bodyplan_data,
+      num_cores = 20,
+      store_model_fit_history = TRUE,
+      verbose = TRUE
+    )
+  )
 )
 ```
 
@@ -316,6 +414,7 @@ The new simulation API makes the manuscript assessment workflow reusable:
 2. estimate false positives under the null model,
 3. measure recovery under the generating model,
 4. test robustness under the non-generating correlation scenario, and
-5. choose empirical search settings with those results in hand.
+5. tune GIC and BIC as separate fixed-IC workflows, then
+6. choose empirical search settings with those results in hand.
 
 That is the recommended way to calibrate `bifrost` for a new dataset whose tree size, trait dimension, and predictor structure may differ substantially from the original manuscript example.

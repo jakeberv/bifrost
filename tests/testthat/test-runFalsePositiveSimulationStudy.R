@@ -136,6 +136,34 @@ test_that("runFalsePositiveSimulationStudy requires predictors for formula templ
   )
 })
 
+test_that("runFalsePositiveSimulationStudy supports formula-based end-to-end studies", {
+  skip_if_fp_study_deps()
+
+  tmpl <- make_formula_fp_template()
+  study <- runFalsePositiveSimulationStudy(
+    tmpl,
+    n_replicates = 1,
+    tree_tip_count = 20,
+    search_options = list(
+      formula = "trait_data[, 1:2] ~ trait_data[, 3]",
+      min_descendant_tips = 3,
+      shift_acceptance_threshold = 5,
+      num_cores = 1,
+      IC = "GIC",
+      method = "LL"
+    ),
+    num_cores = 1,
+    seed = 123
+  )
+
+  testthat::expect_identical(study$search_options$formula, "trait_data[, 1:2] ~ trait_data[, 3]")
+  testthat::expect_identical(study$per_replicate$status, "ok")
+  testthat::expect_identical(
+    study$simdata[[1]]$data[, 3],
+    tmpl$trait_data[study$simdata[[1]]$tree$tip.label, 3]
+  )
+})
+
 test_that("runFalsePositiveSimulationStudy validates inputs and inherits template error settings", {
   skip_if_fp_study_deps()
 
@@ -211,6 +239,41 @@ test_that("runFalsePositiveSimulationStudy inherits evaluated template settings"
   testthat::expect_identical(study$search_options$method, "LL")
   testthat::expect_true(isTRUE(study$search_options$error))
   testthat::expect_identical(study$per_replicate$status, "ok")
+})
+
+test_that("runFalsePositiveSimulationStudy is reproducible with the same seed and workers", {
+  skip_if_fp_study_deps()
+
+  tmpl <- make_fp_template()
+  run_once <- function() {
+    runFalsePositiveSimulationStudy(
+      tmpl,
+      n_replicates = 2,
+      tree_tip_count = 18,
+      search_options = list(
+        formula = "trait_data ~ 1",
+        min_descendant_tips = 3,
+        shift_acceptance_threshold = 5,
+        num_cores = 1,
+        IC = "GIC",
+        method = "LL"
+      ),
+      num_cores = 2,
+      seed = 6
+    )
+  }
+
+  study_a <- run_once()
+  study_b <- run_once()
+
+  testthat::expect_identical(study_a$per_replicate, study_b$per_replicate)
+  testthat::expect_true(all(vapply(seq_along(study_a$simdata), function(i) {
+    isTRUE(all.equal(study_a$simdata[[i]]$data, study_b$simdata[[i]]$data))
+  }, logical(1))))
+  testthat::expect_identical(
+    lapply(study_a$results, `[[`, "shift_nodes_no_uncertainty"),
+    lapply(study_b$results, `[[`, "shift_nodes_no_uncertainty")
+  )
 })
 
 test_that("runFalsePositiveSimulationStudy warns on nested parallelism", {
