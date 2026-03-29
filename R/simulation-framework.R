@@ -279,10 +279,6 @@ createSimulationTemplate <- function(baseline_tree,
 #' @param tree_tip_count Optional integer tip count for random subtree sampling.
 #'   If `NULL`, the full empirical tree from `template` is used.
 #' @param seed Optional integer random seed.
-#' @param preserve_predictors Retained for backward compatibility. Simulation
-#'   studies generated from a template always operate on the response block
-#'   alone, so predictor columns are not carried through into simulated
-#'   datasets.
 #' @param ... Reserved for future extensions. Currently ignored.
 #'
 #' @details
@@ -319,8 +315,14 @@ createSimulationTemplate <- function(baseline_tree,
 simulateNullDataset <- function(template,
                                 tree_tip_count = NULL,
                                 seed = NULL,
-                                preserve_predictors = TRUE,
                                 ...) {
+  extra_args <- list(...)
+  if ("preserve_predictors" %in% names(extra_args)) {
+    stop(
+      "preserve_predictors has been removed. ",
+      "Simulation replicates now always contain the response block only."
+    )
+  }
   if (!inherits(template, "bifrost_simulation_template")) {
     stop("template must be a 'bifrost_simulation_template' object.")
   }
@@ -336,10 +338,6 @@ simulateNullDataset <- function(template,
     if (tree_tip_count > template$n_tips) {
       stop("tree_tip_count cannot exceed the number of tips in the template.")
     }
-  }
-  if (!is.logical(preserve_predictors) || length(preserve_predictors) != 1L ||
-      is.na(preserve_predictors)) {
-    stop("preserve_predictors must be TRUE or FALSE.")
   }
   sampled_tree <- if (is.null(tree_tip_count) || tree_tip_count == template$n_tips) {
     ape::reorder.phylo(ape::as.phylo(template$baseline_tree), order = "postorder")
@@ -461,10 +459,6 @@ simulateNullDataset <- function(template,
 #'   excluded from sampled shift scalars.
 #' @param buffer Integer minimum node distance between simulated shifts.
 #' @param seed Optional integer random seed.
-#' @param preserve_predictors Retained for backward compatibility. Simulation
-#'   studies generated from a template always operate on the response block
-#'   alone, so predictor columns are not carried through into simulated
-#'   datasets.
 #' @param ... Reserved for future extensions. Currently ignored.
 #'
 #' @details
@@ -530,8 +524,14 @@ simulateShiftedDataset <- function(template,
                                    exclude_range = c(0.5, 1.5),
                                    buffer = 3,
                                    seed = NULL,
-                                   preserve_predictors = TRUE,
                                    ...) {
+  extra_args <- list(...)
+  if ("preserve_predictors" %in% names(extra_args)) {
+    stop(
+      "preserve_predictors has been removed. ",
+      "Simulation replicates now always contain the response block only."
+    )
+  }
   scale_mode <- match.arg(scale_mode)
 
   if (!inherits(template, "bifrost_simulation_template")) {
@@ -579,11 +579,6 @@ simulateShiftedDataset <- function(template,
       stop("tree_tip_count cannot exceed the number of tips in the template.")
     }
   }
-  if (!is.logical(preserve_predictors) || length(preserve_predictors) != 1L ||
-      is.na(preserve_predictors)) {
-    stop("preserve_predictors must be TRUE or FALSE.")
-  }
-
   sampled_tree <- if (is.null(tree_tip_count) || tree_tip_count == template$n_tips) {
     ape::reorder.phylo(ape::as.phylo(template$baseline_tree), order = "postorder")
   } else {

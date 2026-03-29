@@ -8,7 +8,6 @@ simulateNullDataset(
   template,
   tree_tip_count = NULL,
   seed = NULL,
-  preserve_predictors = TRUE,
   ...
 )
 }
@@ -20,11 +19,6 @@ simulateNullDataset(
 If \code{NULL}, the full empirical tree from \code{template} is used.}
 
 \item{seed}{Optional integer random seed.}
-
-\item{preserve_predictors}{Retained for backward compatibility. Simulation
-studies generated from a template always operate on the response block
-alone, so predictor columns are not carried through into simulated
-datasets.}
 
 \item{...}{Reserved for future extensions. Currently ignored.}
 }

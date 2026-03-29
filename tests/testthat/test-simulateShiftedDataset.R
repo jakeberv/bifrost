@@ -238,7 +238,7 @@ test_that("simulateShiftedDataset validates argument types and edge cases", {
   testthat::expect_error(simulateShiftedDataset(one_trait, num_shifts = 1, min_shift_tips = 1, max_shift_tips = 2, scale_mode = "correlation"), "requires at least two response traits")
   testthat::expect_error(simulateShiftedDataset(tmpl, tree_tip_count = 1, num_shifts = 1, min_shift_tips = 1, max_shift_tips = 2), "single integer >= 2")
   testthat::expect_error(simulateShiftedDataset(tmpl, tree_tip_count = 100, num_shifts = 1, min_shift_tips = 1, max_shift_tips = 2), "cannot exceed")
-  testthat::expect_error(simulateShiftedDataset(tmpl, num_shifts = 1, min_shift_tips = 1, max_shift_tips = 2, preserve_predictors = NA), "TRUE or FALSE")
+  testthat::expect_error(simulateShiftedDataset(tmpl, num_shifts = 1, min_shift_tips = 1, max_shift_tips = 2, preserve_predictors = NA), "has been removed")
 })
 
 test_that("simulateShiftedDataset supports full-tree and single-trait proportional runs", {

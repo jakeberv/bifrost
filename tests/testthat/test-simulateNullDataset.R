@@ -180,7 +180,7 @@ test_that("simulateNullDataset validates template and argument types", {
   )
   testthat::expect_error(
     simulateNullDataset(tmpl, preserve_predictors = NA),
-    "TRUE or FALSE"
+    "has been removed"
   )
 })
 

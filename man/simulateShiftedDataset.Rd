@@ -15,7 +15,6 @@ simulateShiftedDataset(
   exclude_range = c(0.5, 1.5),
   buffer = 3,
   seed = NULL,
-  preserve_predictors = TRUE,
   ...
 )
 }
@@ -46,11 +45,6 @@ excluded from sampled shift scalars.}
 \item{buffer}{Integer minimum node distance between simulated shifts.}
 
 \item{seed}{Optional integer random seed.}
-
-\item{preserve_predictors}{Retained for backward compatibility. Simulation
-studies generated from a template always operate on the response block
-alone, so predictor columns are not carried through into simulated
-datasets.}
 
 \item{...}{Reserved for future extensions. Currently ignored.}
 }
