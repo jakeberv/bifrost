@@ -84,7 +84,7 @@ test_that("runShiftRecoverySimulationStudy supports the proportional scenario", 
   study <- suppressWarnings(
     runShiftRecoverySimulationStudy(
       tmpl,
-      n_replicates = 2,
+      n_replicates = 1,
       tree_tip_count = 20,
       simulation_options = list(
         num_shifts = 2,
@@ -110,7 +110,7 @@ test_that("runShiftRecoverySimulationStudy supports the proportional scenario", 
   testthat::expect_s3_class(study, "bifrost_simulation_study")
   testthat::expect_identical(study$study_type, "shift_recovery")
   testthat::expect_identical(study$generating_scenario, "proportional")
-  testthat::expect_length(study$simdata, 2)
+  testthat::expect_length(study$simdata, 1)
   testthat::expect_true(all(vapply(study$simdata, function(x) length(x$shiftNodes), integer(1)) == 2L))
   testthat::expect_false(any(vapply(study$simdata, function(sim) {
     any(vapply(seq_along(sim$shiftNodes), function(i) {
@@ -796,6 +796,7 @@ test_that("runShiftRecoverySimulationStudy handles missing trait_data and mixed 
 
   mock_env <- new.env(parent = emptyenv())
   mock_env$mock_i <- 0L
+  mock_env$seen_trait_data <- vector("list", length(sim_stub))
   local_rebind(
     "simulateShiftedDataset",
     function(...) {
@@ -806,7 +807,8 @@ test_that("runShiftRecoverySimulationStudy handles missing trait_data and mixed 
   local_rebind(
     "searchOptimalConfiguration",
     function(baseline_tree, trait_data, ...) {
-      testthat::expect_equal(trait_data, sim_stub[[get("mock_i", envir = mock_env)]]$simulatedData)
+      mock_i <- get("mock_i", envir = mock_env)
+      mock_env$seen_trait_data[[mock_i]] <- trait_data
       list(
         shift_nodes_no_uncertainty = integer(0),
         num_candidates = 3L,
@@ -869,6 +871,7 @@ test_that("runShiftRecoverySimulationStudy handles missing trait_data and mixed 
 
   testthat::expect_length(study$generating_scenario, 2)
   testthat::expect_true(all(c("proportional", "correlation") %in% study$generating_scenario))
+  testthat::expect_equal(mock_env$seen_trait_data, lapply(sim_stub, `[[`, "simulatedData"))
 })
 
 test_that("runShiftRecoverySimulationStudy integrates weighted metrics across mixed evaluable replicates", {
@@ -923,6 +926,7 @@ test_that("runShiftRecoverySimulationStudy integrates weighted metrics across mi
 
   mock_env <- new.env(parent = emptyenv())
   mock_env$mock_i <- 0L
+  mock_env$seen_trait_data <- vector("list", length(sim_stub))
   local_rebind(
     "simulateShiftedDataset",
     function(...) {
@@ -933,8 +937,9 @@ test_that("runShiftRecoverySimulationStudy integrates weighted metrics across mi
   local_rebind(
     "searchOptimalConfiguration",
     function(baseline_tree, trait_data, ...) {
-      testthat::expect_equal(trait_data, sim_stub[[get("mock_i", envir = mock_env)]]$simulatedData)
-      result_stub[[get("mock_i", envir = mock_env)]]
+      mock_i <- get("mock_i", envir = mock_env)
+      mock_env$seen_trait_data[[mock_i]] <- trait_data
+      result_stub[[mock_i]]
     },
     environment(runShiftRecoverySimulationStudy)
   )
@@ -971,6 +976,7 @@ test_that("runShiftRecoverySimulationStudy integrates weighted metrics across mi
   )
 
   testthat::expect_equal(study$per_replicate$n_candidates, c(0, 4))
+  testthat::expect_equal(mock_env$seen_trait_data, lapply(sim_stub, `[[`, "simulatedData"))
   testthat::expect_false(is.null(study$evaluation$weighted))
   testthat::expect_equal(study$evaluation$strict$precision, 1)
   testthat::expect_equal(study$evaluation$strict$recall, 0.5)

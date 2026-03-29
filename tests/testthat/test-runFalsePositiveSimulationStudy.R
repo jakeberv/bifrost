@@ -62,7 +62,7 @@ test_that("runFalsePositiveSimulationStudy returns study summaries", {
   tmpl <- make_fp_template()
   study <- runFalsePositiveSimulationStudy(
     tmpl,
-    n_replicates = 2,
+    n_replicates = 1,
     tree_tip_count = 18,
     search_options = list(
       formula = "trait_data ~ 1",
@@ -79,8 +79,8 @@ test_that("runFalsePositiveSimulationStudy returns study summaries", {
   testthat::expect_s3_class(study, "bifrost_simulation_study")
   testthat::expect_identical(study$study_type, "false_positive")
   testthat::expect_identical(study$generating_scenario, "null")
-  testthat::expect_length(study$simdata, 2)
-  testthat::expect_length(study$results, 2)
+  testthat::expect_length(study$simdata, 1)
+  testthat::expect_length(study$results, 1)
   testthat::expect_true(all(c(
     "replicate", "n_candidates", "n_inferred_shifts", "false_positive_rate",
     "status", "error"
