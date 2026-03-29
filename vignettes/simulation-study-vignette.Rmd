@@ -1,11 +1,11 @@
 ---
-title: "Assessing Expected Performance with Dataset-Matched Simulations"
+title: "Calibrating bifrost with Dataset-Matched Simulations"
 output:
   rmarkdown::html_vignette: default
   rmarkdown::pdf_document:
     latex_engine: xelatex
 vignette: >
-  %\VignetteIndexEntry{Assessing Expected Performance with Dataset-Matched Simulations}
+  %\VignetteIndexEntry{Calibrating bifrost with Dataset-Matched Simulations}
   %\VignetteEncoding{UTF-8}
   %\VignetteEngine{knitr::rmarkdown}
 ---
@@ -13,15 +13,414 @@ vignette: >
 ```{r, include = FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
-  comment = "#>"
+  comment = "#>",
+  fig.align = "center",
+  out.width = "100%",
+  dpi = 170,
+  fig.retina = 2,
+  dev = "png"
 )
 
-pkg_file <- function(...) {
-  installed_path <- system.file(..., package = "bifrost")
-  if (nzchar(installed_path)) {
-    return(installed_path)
+Sys.setenv(
+  OMP_NUM_THREADS = "1",
+  OPENBLAS_NUM_THREADS = "1",
+  MKL_NUM_THREADS = "1",
+  VECLIB_MAXIMUM_THREADS = "1",
+  BLIS_NUM_THREADS = "1",
+  NUMEXPR_NUM_THREADS = "1"
+)
+
+if (!exists("createSimulationTemplate", mode = "function")) {
+  pkg_root <- if (file.exists("DESCRIPTION")) {
+    "."
+  } else if (file.exists(file.path("..", "DESCRIPTION"))) {
+    ".."
+  } else {
+    NULL
   }
 
+  if (!is.null(pkg_root) && requireNamespace("pkgload", quietly = TRUE)) {
+    pkgload::load_all(pkg_root, quiet = TRUE, export_all = FALSE, helpers = FALSE)
+  } else {
+    library(bifrost)
+  }
+}
+
+render_preview_table <- function(x, caption, col_names = colnames(x), digits = 3) {
+  x <- as.data.frame(x, stringsAsFactors = FALSE, check.names = FALSE)
+
+  if (length(digits) == 1L) {
+    digits <- rep(digits, ncol(x))
+  } else {
+    digits <- rep_len(digits, ncol(x))
+  }
+
+  for (j in seq_along(x)) {
+    if (is.numeric(x[[j]])) {
+      x[[j]] <- ifelse(
+        is.na(x[[j]]),
+        "",
+        formatC(x[[j]], digits = digits[j], format = "f")
+      )
+    } else {
+      x[[j]] <- ifelse(is.na(x[[j]]), "", as.character(x[[j]]))
+    }
+  }
+
+  align <- c("l", rep("r", max(ncol(x) - 1L, 0L)))
+
+  out <- knitr::kable(
+    x,
+    caption = caption,
+    col.names = col_names,
+    digits = digits,
+    align = align,
+    format = if (knitr::is_html_output()) "html" else "pipe",
+    table.attr = if (knitr::is_html_output()) {
+      'class="simulation-preview-table"'
+    } else {
+      NULL
+    }
+  )
+
+  if (knitr::is_html_output()) {
+    out <- paste0(
+      "<div class=\"simulation-table-wrap\">",
+      out,
+      "</div>"
+    )
+  }
+
+  knitr::asis_output(out)
+}
+
+build_performance_table <- function(evaluation) {
+  weighted <- evaluation$weighted
+
+  data.frame(
+    Metric = c(
+      "Precision",
+      "Recall",
+      "F1 score",
+      "Specificity",
+      "False positive rate",
+      "Balanced accuracy"
+    ),
+    Strict = c(
+      evaluation$strict$precision,
+      evaluation$strict$recall,
+      evaluation$strict$f1,
+      evaluation$strict$specificity,
+      evaluation$strict$fpr,
+      evaluation$strict$balanced_accuracy
+    ),
+    `Strict wt` = c(
+      if (!is.null(weighted)) weighted$strict$precision else NA_real_,
+      if (!is.null(weighted)) weighted$strict$recall else NA_real_,
+      if (!is.null(weighted)) weighted$strict$f1 else NA_real_,
+      NA_real_,
+      NA_real_,
+      NA_real_
+    ),
+    Fuzzy = c(
+      evaluation$fuzzy$precision,
+      evaluation$fuzzy$recall,
+      evaluation$fuzzy$f1,
+      evaluation$fuzzy$specificity,
+      evaluation$fuzzy$fpr,
+      evaluation$fuzzy$balanced_accuracy
+    ),
+    `Fuzzy wt` = c(
+      if (!is.null(weighted)) weighted$fuzzy$precision else NA_real_,
+      if (!is.null(weighted)) weighted$fuzzy$recall else NA_real_,
+      if (!is.null(weighted)) weighted$fuzzy$f1 else NA_real_,
+      NA_real_,
+      NA_real_,
+      NA_real_
+    ),
+    check.names = FALSE
+  )
+}
+
+build_null_summary_table <- function(studies) {
+  rows <- lapply(names(studies), function(ic_name) {
+    study <- studies[[ic_name]]
+    per_rep <- study$per_replicate
+    summary <- study$study_summary
+
+    mean_fp <- if (!is.null(summary$mean_false_positive_rate)) {
+      summary$mean_false_positive_rate
+    } else if (!is.null(per_rep$false_positive_rate)) {
+      mean(per_rep$false_positive_rate, na.rm = TRUE)
+    } else {
+      NA_real_
+    }
+
+    median_fp <- if (!is.null(summary$median_false_positive_rate)) {
+      summary$median_false_positive_rate
+    } else if (!is.null(per_rep$false_positive_rate)) {
+      stats::median(per_rep$false_positive_rate, na.rm = TRUE)
+    } else {
+      NA_real_
+    }
+
+    any_fp <- if (!is.null(summary$fraction_any_false_positive)) {
+      summary$fraction_any_false_positive
+    } else if (!is.null(per_rep$n_inferred_shifts)) {
+      mean(per_rep$n_inferred_shifts > 0, na.rm = TRUE)
+    } else {
+      NA_real_
+    }
+
+    mean_inferred <- if (!is.null(summary$mean_inferred_shifts)) {
+      summary$mean_inferred_shifts
+    } else if (!is.null(per_rep$n_inferred_shifts)) {
+      mean(per_rep$n_inferred_shifts, na.rm = TRUE)
+    } else {
+      NA_real_
+    }
+
+    data.frame(
+      IC = ic_name,
+      `Mean FP` = mean_fp,
+      `Median FP` = median_fp,
+      `Any FP` = any_fp,
+      `Mean shifts` = mean_inferred,
+      `Evaluable` = summary$n_evaluable_replicates,
+      check.names = FALSE
+    )
+  })
+
+  do.call(rbind, rows)
+}
+
+compute_effective_dimensionality <- function(sigma) {
+  eigenvalues <- eigen(sigma, symmetric = TRUE, only.values = TRUE)$values
+  weights <- eigenvalues / sum(eigenvalues)
+  weights <- weights[weights > 0]
+  exp(-sum(weights * log(weights)))
+}
+
+simulate_demo_ancestral_vcv <- function(
+  n_traits = 10,
+  var_mean = 1,
+  var_sd = 0.1,
+  cov_mean = 0.5,
+  cov_sd = 0.25
+) {
+  variances <- abs(stats::rnorm(n_traits, var_mean, var_sd))
+  lower_tri <- matrix(stats::rnorm(n_traits^2, cov_mean, cov_sd), nrow = n_traits)
+  lower_tri[upper.tri(lower_tri)] <- 0
+  sigma <- t(lower_tri) %*% lower_tri
+  diag(sigma) <- diag(sigma) + variances
+  sigma
+}
+
+rescale_demo_correlation <- function(sigma, scale_factor) {
+  cor_mat <- stats::cov2cor(sigma)
+  scaled_cor <- cor_mat
+  scaled_cor[lower.tri(scaled_cor)] <- cor_mat[lower.tri(cor_mat)] * scale_factor
+  scaled_cor[upper.tri(scaled_cor)] <- t(scaled_cor)[upper.tri(scaled_cor)]
+
+  sd_vec <- sqrt(diag(sigma))
+  new_vars <- (sd_vec^2) / scale_factor
+  rescaled_sigma <- diag(sqrt(new_vars)) %*% scaled_cor %*% diag(sqrt(new_vars))
+
+  list(
+    cor_mat = cor_mat,
+    scaled_cor = scaled_cor,
+    new_vars = new_vars,
+    rescaled_sigma = rescaled_sigma
+  )
+}
+
+build_simulation_scenario_figure <- function(
+  seed = 123,
+  n_traits = 10,
+  var_mean = 1,
+  var_sd = 0.1,
+  cov_mean = 0.5,
+  cov_sd = 0.25,
+  scale_factor = 0.5
+) {
+  if (!requireNamespace("ggplot2", quietly = TRUE) ||
+      !requireNamespace("reshape2", quietly = TRUE) ||
+      !requireNamespace("viridis", quietly = TRUE) ||
+      !requireNamespace("patchwork", quietly = TRUE)) {
+    stop("Rendering the simulation-scenarios figure requires ggplot2, reshape2, viridis, and patchwork.")
+  }
+
+  set.seed(seed)
+  ancestral_sigma <- simulate_demo_ancestral_vcv(
+    n_traits = n_traits,
+    var_mean = var_mean,
+    var_sd = var_sd,
+    cov_mean = cov_mean,
+    cov_sd = cov_sd
+  )
+  correlation_rescaled <- rescale_demo_correlation(ancestral_sigma, scale_factor)
+  proportional_sigma <- scale_factor * ancestral_sigma
+
+  vcv_list <- list(
+    "Ancestral VCV" = ancestral_sigma,
+    "Proportional VCV" = proportional_sigma,
+    "Reduced Correlation VCV" = correlation_rescaled$rescaled_sigma
+  )
+  cor_list <- list(
+    "Correlation Matrix (Anc)" = stats::cov2cor(ancestral_sigma),
+    "Correlation Matrix (Prop)" = stats::cov2cor(proportional_sigma),
+    "Correlation Matrix (Reduced)" = stats::cov2cor(correlation_rescaled$rescaled_sigma)
+  )
+
+  all_vals <- unlist(lapply(vcv_list, function(mat) mat))
+  vcv_limits <- c(min(all_vals), max(all_vals))
+
+  melt_matrix <- function(mat) {
+    df <- reshape2::melt(mat)
+    colnames(df) <- c("Trait1", "Trait2", "Value")
+    df
+  }
+
+  clean_heatmap_theme <- ggplot2::theme(
+    panel.grid = ggplot2::element_blank(),
+    panel.background = ggplot2::element_blank(),
+    panel.border = ggplot2::element_blank(),
+    axis.text = ggplot2::element_blank(),
+    axis.ticks = ggplot2::element_blank(),
+    plot.title = ggplot2::element_text(size = 12, face = "bold"),
+    legend.title = ggplot2::element_text(size = 11),
+    legend.text = ggplot2::element_text(size = 10)
+  )
+
+  l_shaped_theme <- ggplot2::theme(
+    panel.grid = ggplot2::element_blank(),
+    panel.background = ggplot2::element_blank(),
+    panel.border = ggplot2::element_blank(),
+    axis.line = ggplot2::element_line(),
+    axis.ticks = ggplot2::element_line(),
+    axis.text.x = ggplot2::element_text(size = 10),
+    axis.text.y = ggplot2::element_text(size = 10),
+    axis.title = ggplot2::element_text(size = 11),
+    plot.title = ggplot2::element_text(size = 12, face = "bold"),
+    axis.ticks.length = grid::unit(0.25, "cm"),
+    legend.title = ggplot2::element_text(size = 11),
+    legend.text = ggplot2::element_text(size = 10)
+  )
+
+  vcv_plots <- lapply(names(vcv_list), function(name) {
+    ggplot2::ggplot(melt_matrix(vcv_list[[name]]), ggplot2::aes(Trait1, Trait2, fill = Value)) +
+      ggplot2::geom_tile() +
+      viridis::scale_fill_viridis(
+        name = "VCV Value",
+        option = "D",
+        limits = vcv_limits
+      ) +
+      ggplot2::labs(title = name, x = NULL, y = NULL) +
+      ggplot2::theme_minimal(base_size = 11) +
+      clean_heatmap_theme
+  })
+
+  cor_plots <- lapply(names(cor_list), function(name) {
+    ggplot2::ggplot(melt_matrix(cor_list[[name]]), ggplot2::aes(Trait1, Trait2, fill = Value)) +
+      ggplot2::geom_tile() +
+      viridis::scale_fill_viridis(
+        name = "Correlation",
+        option = "B",
+        limits = c(0, 0.75)
+      ) +
+      ggplot2::labs(title = name, x = NULL, y = NULL) +
+      ggplot2::theme_minimal(base_size = 11) +
+      clean_heatmap_theme
+  })
+
+  eigen_df <- do.call(rbind, list(
+    data.frame(
+      Eigenvalue = eigen(ancestral_sigma)$values,
+      Rank = seq_len(n_traits),
+      Scenario = "Ancestral"
+    ),
+    data.frame(
+      Eigenvalue = eigen(correlation_rescaled$rescaled_sigma)$values,
+      Rank = seq_len(n_traits),
+      Scenario = "Correlation-scaled"
+    ),
+    data.frame(
+      Eigenvalue = eigen(proportional_sigma)$values,
+      Rank = seq_len(n_traits),
+      Scenario = "Proportional-scaled"
+    )
+  ))
+
+  eff_dim_df <- data.frame(
+    Scenario = c("Ancestral", "Correlation-scaled", "Proportional-scaled"),
+    EffDimensionality = c(
+      compute_effective_dimensionality(ancestral_sigma),
+      compute_effective_dimensionality(correlation_rescaled$rescaled_sigma),
+      compute_effective_dimensionality(proportional_sigma)
+    )
+  )
+
+  mean_var_df <- data.frame(
+    Scenario = c("Ancestral", "Correlation-scaled", "Proportional-scaled"),
+    MeanVariance = c(
+      mean(diag(ancestral_sigma)),
+      mean(diag(correlation_rescaled$rescaled_sigma)),
+      mean(diag(proportional_sigma))
+    )
+  )
+
+  p_effdim <- ggplot2::ggplot(eff_dim_df, ggplot2::aes(x = Scenario, y = EffDimensionality, fill = Scenario)) +
+    ggplot2::geom_bar(stat = "identity") +
+    ggplot2::labs(title = "Effective Dimensionality", y = "Effective Dimensionality", x = NULL) +
+    ggplot2::theme_minimal(base_size = 11) +
+    ggplot2::scale_fill_viridis_d() +
+    l_shaped_theme +
+    ggplot2::theme(
+      axis.title.x = ggplot2::element_blank(),
+      axis.text.x = ggplot2::element_blank(),
+      legend.position = "none"
+    )
+
+  p_eig <- ggplot2::ggplot(eigen_df, ggplot2::aes(x = Rank, y = Eigenvalue, color = Scenario)) +
+    ggplot2::geom_line(linewidth = 1.2) +
+    ggplot2::labs(title = "Eigenvalue Spectra", x = "Rank", y = "Eigenvalue") +
+    ggplot2::theme_minimal(base_size = 11) +
+    ggplot2::scale_color_viridis_d() +
+    l_shaped_theme +
+    ggplot2::theme(legend.position = "none")
+
+  p_trace <- ggplot2::ggplot(mean_var_df, ggplot2::aes(x = Scenario, y = MeanVariance, fill = Scenario)) +
+    ggplot2::geom_bar(stat = "identity") +
+    ggplot2::labs(title = "Mean Diagonal Variance", y = "Mean Variance", x = NULL) +
+    ggplot2::theme_minimal(base_size = 11) +
+    ggplot2::scale_fill_viridis_d() +
+    l_shaped_theme +
+    ggplot2::theme(
+      axis.title.x = ggplot2::element_blank(),
+      axis.text.x = ggplot2::element_blank()
+    )
+
+  vcv_plots[[1]] <- vcv_plots[[1]] + ggplot2::theme(legend.position = "none")
+  vcv_plots[[2]] <- vcv_plots[[2]] + ggplot2::theme(legend.position = "none")
+  cor_plots[[1]] <- cor_plots[[1]] + ggplot2::theme(legend.position = "none")
+  cor_plots[[2]] <- cor_plots[[2]] + ggplot2::theme(legend.position = "none")
+
+  title_text <- "Covariance Structure Under Three Simulation Scenarios"
+
+  ((vcv_plots[[1]] + vcv_plots[[2]] + vcv_plots[[3]]) /
+     (cor_plots[[1]] + cor_plots[[2]] + cor_plots[[3]]) /
+     (p_effdim + p_eig + p_trace)) +
+    patchwork::plot_annotation(
+      title = title_text,
+      tag_levels = "A",
+      theme = ggplot2::theme(
+        plot.title = ggplot2::element_text(size = 14, face = "bold", hjust = 0.5),
+        plot.tag = ggplot2::element_text(size = 13, face = "bold")
+      )
+    )
+}
+
+pkg_file <- function(...) {
   candidates <- c(
     file.path("inst", ...),
     file.path("..", "inst", ...)
@@ -33,30 +432,88 @@ pkg_file <- function(...) {
     }
   }
 
+  installed_path <- system.file(..., package = "bifrost")
+  if (nzchar(installed_path)) {
+    return(installed_path)
+  }
+
   stop("Could not locate: ", file.path(...))
 }
 ```
 
-## Introduction
+```{r, echo = FALSE, results = "asis"}
+if (knitr::is_html_output()) cat("
+<style>
+img, .figure img, .figure > p > img {
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: none !important;
+  background: transparent !important;
+}
 
-This vignette ports the manuscript simulation workflow into a package-generalized form. The idea is simple: before fitting an empirical `bifrost` search, we simulate datasets that resemble the tree shape and trait structure of the real dataset, then ask how the search behaves under three scenarios:
+p.caption, .caption, table > caption {
+  border-left: 0.32rem solid #d8dde3;
+  color: #2f3439;
+  font-size: inherit;
+  line-height: inherit;
+  margin: 0 3.8% 1.05rem 3.8%;
+  padding: 0 0 0 1rem;
+  text-align: left !important;
+}
+
+p.caption strong, .caption strong {
+  font-weight: 700;
+}
+
+table {
+  width: 100%;
+}
+
+table th, table td {
+  vertical-align: top;
+}
+
+table code {
+  white-space: nowrap;
+}
+
+.simulation-table-wrap {
+  margin: 1em 0 1.15em 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.simulation-table-wrap table {
+  margin-bottom: 0;
+}
+
+.simulation-preview-table thead th {
+  white-space: nowrap;
+}
+</style>
+")
+```
+
+## Why use dataset-matched simulations
+
+Before fitting an empirical `bifrost` search, it helps to know how the method behaves on datasets that look like the one you actually care about. A practical way to answer that question is to match the simulations to the empirical tree, trait dimensionality, and covariance scale, then ask how the search behaves under three scenarios:
 
 1. a null model with no shifts, to estimate expected false positives,
 2. the current generating model, where shifts are proportional covariance scalings, and
 3. a deliberately non-generating robustness scenario, where trait correlations evolve in ways that violate strict proportional scaling.
 
-That workflow mirrors the simulation framework used in the passerine body-plan manuscript, but the new package API is designed so that a new user can run the same style of assessment on their own dataset.
+This strategy follows the general logic of the passerine body-plan study of Berv et al. (2026), but it is useful well beyond that one application. Fit a dataset-matched template, simulate the three scenario classes, use those results to choose search settings, and then carry the selected search back into the empirical analysis. On large trees, repeated subtree resampling is especially helpful because it lets simulations vary across many local topologies and parameter draws without requiring a full-tree search on every replicate.
 
-## Setup
+A typical session starts by loading `bifrost` and `ape`.
 
 ```{r load_packages, eval = FALSE}
 library(bifrost)
 library(ape)
 ```
 
-## Loading a dataset and building a simulation template
+## Build a dataset-matched template
 
-The packaged passerine skeleton example is a convenient demonstration because it shows the formula-based workflow: 12 skeletal traits are modeled jointly while log body mass is kept as a phylogenetic covariate.
+The packaged passerine skeleton example provides a fully matched starting point: 12 skeletal traits are modeled jointly while log body mass is kept as a phylogenetic covariate.
 
 ```{r load_bodyplan_example}
 tree_path <- pkg_file("extdata", "avian-skeleton", "passerine_bodyplan_tree.tre")
@@ -82,7 +539,7 @@ c(
 )
 ```
 
-The next step is to fit a global empirical template. This reproduces the manuscript logic in which simulation parameters were estimated from a single-regime empirical fit before generating null and shifted replicates.
+The template comes from a single-regime global fit. That fit provides the empirical variance and covariance scale used to generate a fresh ancestral covariance matrix for each simulation replicate. Under the hood, it uses the penalized high-dimensional phylogenetic GLS framework of [Clavel, Aristide, and Morlon (2019)](https://doi.org/10.1093/sysbio/syy045), as implemented in `mvMORPH` ([Clavel, Escarguel, and Merceron 2015](https://doi.org/10.1111/2041-210X.12420)).
 
 ```{r create_template_code, eval = FALSE}
 bodyplan_template <- createSimulationTemplate(
@@ -96,21 +553,31 @@ bodyplan_template <- createSimulationTemplate(
 )
 ```
 
-```{r create_template_print, eval = FALSE}
-bodyplan_template
+```{r create_template_live, echo = FALSE, message = FALSE, warning = FALSE, cache = TRUE}
+bodyplan_template_live <- createSimulationTemplate(
+  baseline_tree = bird_tree,
+  trait_data = bodyplan_data,
+  formula = formula_str,
+  response_columns = seq_along(skeletal_cols),
+  predictor_columns = ncol(bodyplan_data),
+  method = "LL",
+  error = TRUE
+)
+```
+
+```{r create_template_print, echo = FALSE}
+bodyplan_template_live
 ```
 
 The template stores the aligned analysis data, the fitted global `mvgls` model, and the empirical variance/covariance summaries used to generate a fresh ancestral covariance matrix for each simulation replicate.
 
-## A note on manuscript alignment
+## When an intercept-only shortcut helps
 
-One manuscript-specific nuance is worth making explicit. In the passerine body-plan analyses, the global empirical model used body mass as a covariate when estimating the overall covariance scale, but the simulation searches themselves were run as intercept-only searches. In other words, the manuscript used the mass-corrected empirical fit to calibrate the scale of the simulations, then asked a narrower question: how conservative and how sensitive is the shift-search itself on a dataset of this size and covariance structure?
+The passerine body-plan study used one additional shortcut that is worth making explicit. Body mass was included when estimating the overall covariance scale, but the simulation searches themselves were run as intercept-only searches. In practical terms, that means the simulations were approximating the residual multivariate variation seen by the shift search, rather than trying to regenerate the full covariate-plus-shift model from scratch.
 
-That shortcut is best understood as an approximation to the residual multivariate variation the search was operating on, not as a full generative reconstruction of the empirical covariate-plus-shift model. Body mass was used to estimate the residual variance and covariance regime, but the simulation benchmark did not try to simulate predictors or to re-evaluate predictor estimation itself.
+That shortcut is most useful when the main goal is to calibrate branch-shift detection itself. If predictor effects are central to the scientific question, the safer default is still the fully matched analysis in which the simulated datasets preserve the predictor columns and the simulation study uses the same formula that will be used in the empirical fit.
 
-That shortcut was reasonable for the manuscript because the simulation study was aimed at calibrating branch-shift detection, not at jointly validating both predictor estimation and shift recovery. For a new user, the safer default is the fully matched workflow shown above, where the simulated datasets preserve the predictor columns and the simulation study uses the same formula you plan to fit empirically.
-
-If you want a closer analogue of the manuscript shortcut, the package can also be used in an intercept-only, response-only mode:
+The same residual-focused approximation can be reproduced in `bifrost` with an intercept-only, response-only template:
 
 ```{r manuscript_style_template, eval = FALSE}
 bodyplan_response_only <- bodyplan_data[, skeletal_cols, drop = FALSE]
@@ -124,29 +591,210 @@ bodyplan_template_intercept <- createSimulationTemplate(
 )
 ```
 
-Using `bodyplan_template_intercept` makes the simulation study target the multivariate response block alone. That is closer to the original manuscript search simulations, but it is less faithful to a truly formula-based empirical analysis than the full `bodyplan_template` workflow above.
+Using `bodyplan_template_intercept` makes the simulation study target the multivariate response block alone. That is often a reasonable approximation when the aim is to tune shift-detection settings, but it is less faithful to a truly formula-based empirical analysis than the full `bodyplan_template` fit.
 
-The same response-only shortcut also works with subset-response intercept formulas such as `"trait_data[, 1:12] ~ 1"`, as long as `response_columns` is supplied so the template knows which columns to simulate.
+The same shortcut also works with subset-response intercept formulas such as `"trait_data[, 1:12] ~ 1"`, as long as `response_columns` identifies the columns to simulate.
 
-## Practical guardrails
+## Simulation scenarios
 
-The current simulation wrappers include a few package-level guardrails that are worth knowing about before launching a large study.
+The figure below summarizes the three simulation scenarios used throughout this vignette. It reproduces the Supplementary Figure 1 demonstration from Berv et al. (2026): a single ancestral covariance matrix, a proportional rescaling, and a reduced-correlation transform. The goal here is to show exactly what changes under each scenario before those same ideas are applied to dataset-matched subtree resampling.
 
-For formula-based workflows, predictor columns are preserved automatically and should stay in the simulated dataset. In other words, once you build a template like `bodyplan_template`, the downstream simulation studies should keep using that same formula-based structure rather than dropping the predictor block.
+```{r simulation_scenarios_figure, echo = FALSE, dev = "svglite", fig.ext = "svg", fig.width = 8.8, fig.height = 8.4, out.width = "100%", fig.cap = "Simulation scenarios reproduced from the Supplementary Figure 1 workflow in Berv et al. (2026). Panels A-C show the ancestral VCV, a proportional rescaling with s = 0.5, and a reduced-correlation scenario in which off-diagonal correlations are scaled by s = 0.5 while variances are adjusted to preserve comparable covariances. Panels D-F show the corresponding correlation matrices. Panels G-I summarize effective dimensionality, eigenvalue spectra, and mean diagonal variance. For a fuller discussion of the panel logic, see Supplementary Figure 1 in Berv et al. (2026)."}
+build_simulation_scenario_figure(
+  seed = 123,
+  n_traits = 10,
+  var_mean = 1,
+  var_sd = 0.1,
+  cov_mean = 0.5,
+  cov_sd = 0.25,
+  scale_factor = 0.5
+)
+```
 
-Reproducibility for replicated studies is controlled by the wrapper-level `seed` argument in `runFalsePositiveSimulationStudy()` and `runShiftRecoverySimulationStudy()`. There is no need to pass a separate seed inside `simulation_options`; the wrappers manage replicate-level seeding internally.
+The main contrast is between proportional scaling and reduced-correlation scaling. Proportional scaling changes overall magnitude while leaving the correlation pattern intact, whereas the reduced-correlation scenario weakens trait associations and compensates with larger variances. The passerine examples below use these same two simulation styles under repeated subtree resampling from the full tree.
 
-The study wrappers also inherit key fit settings such as `method` and `error` from the simulation template. In many cases you can leave those out of `search_options` unless you intentionally want to override the template defaults.
+```{r preview_template_setup, echo = FALSE, message = FALSE, warning = FALSE, cache = TRUE}
+preview_response_only <- bodyplan_data[, skeletal_cols, drop = FALSE]
 
-Finally, it is a good idea to inspect `per_replicate$n_candidates` after a run. If `min_descendant_tips` is set so high that very few candidate shifts remain, the study will be much less informative about expected model performance.
+preview_template <- createSimulationTemplate(
+  baseline_tree = bird_tree,
+  trait_data = preview_response_only,
+  formula = "trait_data ~ 1",
+  method = "LL",
+  error = TRUE
+)
+```
 
-In particular, a replicate with `n_candidates == 0` should be treated as unevaluable rather than as evidence for good recovery performance. In that case, recovery specificity, false-positive rate, and balanced accuracy are reported as `NA`, and the usual fix is to lower `min_descendant_tips` until a meaningful candidate set is available.
+## Calibration guardrails
 
-## 1. Estimating false positives under the null model
+Keep these guardrails in mind before launching a large study.
 
-The first manuscript-style question is: if the real dataset had no shifts at all, how often would the chosen search settings infer one anyway?
+- For formula-based workflows, predictor columns are preserved automatically and should stay in the simulated dataset. Once you build a template like `bodyplan_template`, the downstream studies should keep using that same formula-based structure rather than dropping the predictor block.
 
-The code below keeps the full formula-based workflow intact. If you want the closer manuscript analogue instead, replace `bodyplan_template` with `bodyplan_template_intercept` and change the search formula to `"trait_data ~ 1"`.
+- Reproducibility for replicated studies is controlled by the wrapper-level `seed` argument in `runFalsePositiveSimulationStudy()` and `runShiftRecoverySimulationStudy()`. There is no need to pass a separate seed inside `simulation_options`; the wrappers manage replicate-level seeding internally.
+
+- The study wrappers inherit key fit settings such as `method` and `error` from the simulation template. In many cases you can leave those out of `search_options` unless you intentionally want to override the template defaults.
+
+- Inspect `per_replicate$n_candidates` after a run. If `min_descendant_tips` is set so high that very few candidate shifts remain, the study will be much less informative about expected model performance.
+
+- Treat a replicate with `n_candidates == 0` as unevaluable rather than as evidence for good recovery performance. In that case, recovery specificity, false-positive rate, and balanced accuracy are reported as `NA`, and the usual fix is to lower `min_descendant_tips` until a meaningful candidate set is available.
+
+## 1. Inspect One Fixed Search
+
+This worked example keeps the search settings fixed and asks a simple question: what does expected performance look like on repeated 200-tip subtree resamples from the passerine tree? Using an intercept-only template keeps the example close to the residual-focused approximation described earlier, and holding the settings fixed makes the null, proportional, and correlation scenarios easier to interpret before comparing alternative thresholds or clade-size filters.
+
+The search is intentionally conservative: `shift_acceptance_threshold = 10`, `min_descendant_tips = 10`, and five simulated shifts ranging from 10 to 20 descendant tips. These settings are not being optimized yet. They provide a stable baseline for understanding how null and shifted datasets behave.
+
+```{r medium_case_study_setup, echo = FALSE, message = FALSE, warning = FALSE, cache = TRUE}
+if (requireNamespace("RhpcBLASctl", quietly = TRUE)) {
+  RhpcBLASctl::blas_set_num_threads(1)
+  RhpcBLASctl::omp_set_num_threads(1)
+}
+
+medium_case_template <- preview_template
+
+medium_case_simulation_options <- list(
+  num_shifts = 5,
+  min_shift_tips = 10,
+  max_shift_tips = 20,
+  scale_factor_range = c(0.1, 2.0),
+  exclude_range = c(0.5, 1.5),
+  buffer = 3
+)
+
+medium_case_search <- function(IC) {
+  list(
+    formula = "trait_data ~ 1",
+    IC = IC,
+    shift_acceptance_threshold = 10,
+    min_descendant_tips = 10,
+    method = "LL",
+    error = TRUE,
+    num_cores = 1,
+    uncertaintyweights_par = TRUE,
+    plot = FALSE,
+    store_model_fit_history = FALSE
+  )
+}
+
+gic_case_null <- runFalsePositiveSimulationStudy(
+  template = medium_case_template,
+  n_replicates = 20,
+  tree_tip_count = 200,
+  search_options = medium_case_search("GIC"),
+  num_cores = 8,
+  seed = 11
+)
+gic_case_prop <- runShiftRecoverySimulationStudy(
+  template = medium_case_template,
+  n_replicates = 20,
+  tree_tip_count = 200,
+  simulation_options = utils::modifyList(
+    medium_case_simulation_options,
+    list(scale_mode = "proportional")
+  ),
+  search_options = medium_case_search("GIC"),
+  fuzzy_distance = 2,
+  weighted = TRUE,
+  num_cores = 8,
+  seed = 1011
+)
+gic_case_corr <- runShiftRecoverySimulationStudy(
+  template = medium_case_template,
+  n_replicates = 20,
+  tree_tip_count = 200,
+  simulation_options = utils::modifyList(
+    medium_case_simulation_options,
+    list(scale_mode = "correlation")
+  ),
+  search_options = medium_case_search("GIC"),
+  fuzzy_distance = 2,
+  weighted = TRUE,
+  num_cores = 8,
+  seed = 2011
+)
+
+bic_case_null <- runFalsePositiveSimulationStudy(
+  template = medium_case_template,
+  n_replicates = 20,
+  tree_tip_count = 200,
+  search_options = medium_case_search("BIC"),
+  num_cores = 8,
+  seed = 22
+)
+bic_case_prop <- runShiftRecoverySimulationStudy(
+  template = medium_case_template,
+  n_replicates = 20,
+  tree_tip_count = 200,
+  simulation_options = utils::modifyList(
+    medium_case_simulation_options,
+    list(scale_mode = "proportional")
+  ),
+  search_options = medium_case_search("BIC"),
+  fuzzy_distance = 2,
+  weighted = TRUE,
+  num_cores = 8,
+  seed = 1022
+)
+bic_case_corr <- runShiftRecoverySimulationStudy(
+  template = medium_case_template,
+  n_replicates = 20,
+  tree_tip_count = 200,
+  simulation_options = utils::modifyList(
+    medium_case_simulation_options,
+    list(scale_mode = "correlation")
+  ),
+  search_options = medium_case_search("BIC"),
+  fuzzy_distance = 2,
+  weighted = TRUE,
+  num_cores = 8,
+  seed = 2022
+)
+```
+
+Blank cells in the weighted columns for specificity, false-positive rate, and balanced accuracy are expected. Weighted summaries are defined only for precision, recall, and F1 because the weights apply to inferred shifts rather than to true negatives.
+
+```{r medium_case_study_tables, echo = FALSE, results = "asis"}
+render_preview_table(
+  build_null_summary_table(list(GIC = gic_case_null, BIC = bic_case_null)),
+  caption = "Fixed-setting case study with 20 repeated 200-tip subsamples. In this preview, both GIC and BIC remain fully conservative under the null, with no inferred false positives.",
+  digits = c(0, 3, 3, 3, 3, 0)
+)
+
+render_preview_table(
+  build_performance_table(gic_case_prop$evaluation),
+  caption = "Fixed-setting case study with 20 repeated 200-tip subsamples. Under proportional scaling, GIC recovers shifts well, especially under fuzzy matching.",
+  digits = c(0, 3, 3, 3, 3)
+)
+
+render_preview_table(
+  build_performance_table(bic_case_prop$evaluation),
+  caption = "Fixed-setting case study with 20 repeated 200-tip subsamples. Under proportional scaling, BIC stays a bit more conservative while retaining strong recovery.",
+  digits = c(0, 3, 3, 3, 3)
+)
+
+render_preview_table(
+  build_performance_table(gic_case_corr$evaluation),
+  caption = "Fixed-setting case study with 20 repeated 200-tip subsamples. Under correlation change, GIC still recovers many shifts, with fuzzy matching outperforming strict matching.",
+  digits = c(0, 3, 3, 3, 3)
+)
+
+render_preview_table(
+  build_performance_table(bic_case_corr$evaluation),
+  caption = "Fixed-setting case study with 20 repeated 200-tip subsamples. Under correlation change, BIC becomes more conservative and recovery drops most clearly under strict matching.",
+  digits = c(0, 3, 3, 3, 3)
+)
+```
+
+Taken together, these tables show how one fixed search behaves under repeated subtree resampling: how often it infers shifts under the null, how well it recovers shifts when the generating model is proportional, and how much that recovery changes when trait correlations evolve in a non-proportional way.
+
+That kind of case study is useful when the goal is to understand the implications of one specific search. When the goal is calibration, the next step is to estimate false positives, recovery, and robustness more systematically, then compare plausible thresholds and clade-size filters in a small grid.
+
+## 2. Estimate False Positives
+
+The null study asks the most conservative performance question: if the real dataset contained no shifts at all, how often would the search still infer one?
+
+A fully matched formula-based null study looks like this. To approximate residual-only variation instead, replace `bodyplan_template` with `bodyplan_template_intercept` and change the search formula to `"trait_data ~ 1"`.
 
 ```{r false_positive_study, eval = FALSE}
 fp_study <- runFalsePositiveSimulationStudy(
@@ -176,11 +824,11 @@ head(fp_study$per_replicate)
 fp_study$study_summary
 ```
 
-In practice, this is the stage where you tune conservative choices such as `shift_acceptance_threshold`, `IC`, and `min_descendant_tips`.
+Null simulations are especially useful for screening conservative choices such as `shift_acceptance_threshold`, `IC`, and `min_descendant_tips`.
 
-## 2. Assessing recovery under the generating model
+## 3. Estimate Recovery Under Proportional Scaling
 
-The second step mirrors the manuscript's proportional-scaling simulations. Here the generating process matches the current `bifrost` BMM search assumptions: shifted regimes are scalar multiples of the background covariance matrix.
+Recovery under proportional scaling evaluates the scenario that matches the current `bifrost` BMM search assumptions: shifted covariance matrices are scalar multiples of the background covariance matrix.
 
 ```{r proportional_recovery_study, eval = FALSE}
 recovery_prop <- runShiftRecoverySimulationStudy(
@@ -223,9 +871,9 @@ recovery_prop$evaluation$fuzzy
 recovery_prop$evaluation$weighted
 ```
 
-## 3. Assessing robustness under the non-generating scenario
+## 4. Check Robustness Under Correlation Change
 
-The manuscript also tested a deliberately mis-specified scenario in which trait correlations evolve. This is useful because it asks how well the search behaves when the real data deviate from strict proportional VCV scaling.
+It is also useful to test a deliberately mis-specified scenario in which trait correlations evolve. This asks how well the same search settings behave when the data depart from strict proportional VCV scaling.
 
 ```{r correlation_recovery_study, eval = FALSE}
 recovery_corr <- runShiftRecoverySimulationStudy(
@@ -268,18 +916,136 @@ recovery_corr$evaluation$fuzzy
 
 This scenario is not the current generating model for `bifrost`, so the goal is not perfect recovery. Instead, it is a robustness check: do the same search settings still behave reasonably when the data depart from the assumed model in a biologically plausible way?
 
-## 4. Tuning GIC and BIC separately
+## 5. Choose Settings from a Search Grid
 
-In practice, it is often cleaner to treat GIC and BIC as separate workflows rather than as one more parameter in a single giant grid. The new tuning helpers are designed around that idea: fix `IC = "GIC"` and tune the threshold/clade-size settings within GIC, then repeat the same process for BIC.
+The fixed-setting case study describes how one search behaves. Choosing settings is a different task. A small simulation grid is usually more informative because it makes the tradeoff between `shift_acceptance_threshold` and `min_descendant_tips` visible instead of relying on a single ad hoc choice.
 
-The helper below runs the same three-study logic shown above for every combination of `shift_acceptance_threshold` and `min_descendant_tips`, but it holds `IC` fixed throughout the grid.
+In practice, this usually means running one grid for GIC and a second grid for BIC. If the empirical analysis will be fitted with GIC, it makes the most sense to choose the best threshold and clade-size settings within the GIC results. The same logic applies to BIC. Pooling them into a single ranking is less useful because the two criteria penalize model complexity differently.
+
+For a compact example, the grid varies three acceptance thresholds (`10`, `20`, `30`) and two minimum clade sizes (`10`, `20`). Five null and five recovery replicates per setting are enough to show the tuning logic, and the same grid scales directly to larger replicate counts.
+
+```{r preview_tuning_setup, echo = FALSE, message = FALSE, warning = FALSE, cache = TRUE}
+preview_grid_args <- list(
+  shift_acceptance_thresholds = c(10, 20, 30),
+  min_descendant_tips_values = c(10, 20),
+  tree_tip_count = 200,
+  null_replicates = 5,
+  recovery_replicates = 5,
+  proportional_simulation_options = list(
+    num_shifts = 5,
+    min_shift_tips = 10,
+    max_shift_tips = 20,
+    scale_factor_range = c(0.1, 2.0),
+    exclude_range = c(0.5, 1.5),
+    buffer = 3
+  ),
+  base_search_options = list(
+    formula = "trait_data ~ 1",
+    method = "LL",
+    error = TRUE,
+    num_cores = 1,
+    uncertaintyweights_par = TRUE,
+    plot = FALSE,
+    store_model_fit_history = FALSE
+  ),
+  weighted = TRUE,
+  num_cores = 8,
+  seed = 5,
+  store_studies = FALSE
+)
+
+preview_cols <- c(
+  "shift_acceptance_threshold",
+  "min_descendant_tips",
+  "null_mean_false_positive_rate",
+  "proportional_fuzzy_f1",
+  "correlation_fuzzy_f1"
+)
+preview_labels <- c(
+  "Threshold",
+  "Min clade",
+  "Null FP",
+  "Prop. Fuzzy F1",
+  "Corr. Fuzzy F1"
+)
+
+gic_preview_grid <- do.call(
+  runSearchTuningGrid,
+  c(list(template = preview_template, IC = "GIC"), preview_grid_args)
+)
+bic_preview_grid <- do.call(
+  runSearchTuningGrid,
+  c(list(template = preview_template, IC = "BIC"), preview_grid_args)
+)
+
+gic_preview_tuned <- selectTunedSearchParameters(
+  gic_preview_grid,
+  max_false_positive_rate = 0.10,
+  max_any_false_positive = 0.50,
+  min_evaluable_fraction = 0.50,
+  primary_metric = "weighted_fuzzy_f1",
+  tie_break = "conservative"
+)
+bic_preview_tuned <- selectTunedSearchParameters(
+  bic_preview_grid,
+  max_false_positive_rate = 0.10,
+  max_any_false_positive = 0.50,
+  min_evaluable_fraction = 0.50,
+  primary_metric = "weighted_fuzzy_f1",
+  tie_break = "conservative"
+)
+
+preview_recommendations <- rbind(
+  data.frame(IC = "GIC", gic_preview_tuned$selected_row[, preview_cols], row.names = NULL),
+  data.frame(IC = "BIC", bic_preview_tuned$selected_row[, preview_cols], row.names = NULL)
+)
+```
+
+Each row represents one threshold/clade-size combination evaluated under repeated subtree resampling.
+
+### GIC
+
+```{r preview_tuning_gic_table, echo = FALSE, results = "asis"}
+render_preview_table(
+  gic_preview_grid$summary_table[, preview_cols],
+  caption = "Preview tuning grid with 5 repeated 200-tip subsamples per setting. In this GIC preview, all settings keep null false positives at zero, and recovery is strongest at threshold 10 with a minimum clade size of 10.",
+  col_names = preview_labels,
+  digits = c(0, 0, 3, 3, 3)
+)
+```
+
+### BIC
+
+```{r preview_tuning_bic_table, echo = FALSE, results = "asis"}
+render_preview_table(
+  bic_preview_grid$summary_table[, preview_cols],
+  caption = "Preview tuning grid with 5 repeated 200-tip subsamples per setting. In this BIC preview, all settings also remain conservative under the null, with the strongest recovery at threshold 10 and a minimum clade size of 10.",
+  col_names = preview_labels,
+  digits = c(0, 0, 3, 3, 3)
+)
+```
+
+### Recommended settings
+
+```{r preview_tuning_selected_table, echo = FALSE, results = "asis"}
+render_preview_table(
+  preview_recommendations,
+  caption = "Selected settings from the repeated-subsampling GIC and BIC preview grids. In this preview, both IC families choose threshold 10 and a minimum clade size of 10 because that combination preserves null conservatism while maximizing fuzzy recovery.",
+  col_names = c("IC", preview_labels),
+  digits = c(0, 0, 0, 3, 3, 3)
+)
+```
+
+The selected rows follow a simple rule. First, discard settings with too many false positives or too few evaluable replicates. Among the settings that remain, prefer the one with the strongest weighted fuzzy recovery, and break close ties conservatively in favor of larger thresholds or clade sizes.
+
+The same code scales directly to larger runs, first for GIC and then for BIC.
 
 ```{r tune_gic_grid, eval = FALSE}
 gic_grid <- runSearchTuningGrid(
   template = bodyplan_template,
   IC = "GIC",
-  shift_acceptance_thresholds = c(2, 10, 20),
-  min_descendant_tips_values = c(10, 15),
+  shift_acceptance_thresholds = c(10, 20, 30),
+  min_descendant_tips_values = c(10, 20),
   tree_tip_count = 250,
   null_replicates = 100,
   recovery_replicates = 100,
@@ -309,9 +1075,9 @@ gic_grid <- runSearchTuningGrid(
 ```{r select_gic_grid, eval = FALSE}
 gic_tuned <- selectTunedSearchParameters(
   gic_grid,
-  max_false_positive_rate = 0.05,
-  max_any_false_positive = 0.20,
-  min_evaluable_fraction = 0.8,
+  max_false_positive_rate = 0.10,
+  max_any_false_positive = 0.50,
+  min_evaluable_fraction = 0.50,
   primary_metric = "weighted_fuzzy_f1",
   tie_break = "conservative"
 )
@@ -320,14 +1086,14 @@ gic_tuned$selected_row
 gic_tuned$recommended_search_options
 ```
 
-The same pattern applies to BIC:
+BIC follows the same pattern:
 
 ```{r tune_bic_grid, eval = FALSE}
 bic_grid <- runSearchTuningGrid(
   template = bodyplan_template,
   IC = "BIC",
-  shift_acceptance_thresholds = c(2, 10, 20),
-  min_descendant_tips_values = c(10, 15),
+  shift_acceptance_thresholds = c(10, 20, 30),
+  min_descendant_tips_values = c(10, 20),
   tree_tip_count = 250,
   null_replicates = 100,
   recovery_replicates = 100,
@@ -352,25 +1118,30 @@ bic_grid <- runSearchTuningGrid(
   num_cores = 8,
   seed = 5
 )
+```
 
+```{r select_bic_grid, eval = FALSE}
 bic_tuned <- selectTunedSearchParameters(
   bic_grid,
-  max_false_positive_rate = 0.05,
-  max_any_false_positive = 0.20,
-  min_evaluable_fraction = 0.8,
+  max_false_positive_rate = 0.10,
+  max_any_false_positive = 0.50,
+  min_evaluable_fraction = 0.50,
   primary_metric = "weighted_fuzzy_f1",
   tie_break = "conservative"
 )
+
+bic_tuned$selected_row
+bic_tuned$recommended_search_options
 ```
 
-At that point you have two tuned workflows:
+This yields two tuned search configurations:
 
 1. the best threshold/clade-size combination within GIC, and
 2. the best threshold/clade-size combination within BIC.
 
-That is usually a more interpretable outcome than one global optimization across both IC families.
+That is usually easier to interpret than one global optimization across both IC families.
 
-## 5. Carry the tuned settings into the empirical search
+## 6. Use Tuned Settings in the Empirical Search
 
 The selected search options are ready to pass directly into `searchOptimalConfiguration()`. For example, if you decide to proceed with the GIC-tuned workflow:
 
@@ -390,9 +1161,9 @@ empirical_result <- do.call(
 )
 ```
 
-## Intercept-only datasets
+## Intercept-Only Data
 
-The same workflow also applies to intercept-only datasets such as GPA-aligned landmark matrices. In that case the template call is simpler because the multivariate response is just the full trait matrix:
+This approach also applies to intercept-only datasets such as GPA-aligned landmark matrices. Here `fish_tree` and `fish_data` stand in for any aligned intercept-only dataset, including the jaw-shape example used in the companion vignette. In that case the template call is simpler because the multivariate response is just the full trait matrix:
 
 ```{r intercept_only_template, eval = FALSE}
 jaw_template <- createSimulationTemplate(
@@ -406,15 +1177,24 @@ jaw_template <- createSimulationTemplate(
 
 The downstream null, proportional, and correlation-scenario studies are then identical in structure; only the template and search options change.
 
-## Takeaway
+## Calibration Summary
 
-The new simulation API makes the manuscript assessment workflow reusable:
+The new simulation API makes this dataset-matched assessment strategy reusable:
 
 1. fit a global empirical template,
 2. estimate false positives under the null model,
 3. measure recovery under the generating model,
 4. test robustness under the non-generating correlation scenario, and
-5. tune GIC and BIC as separate fixed-IC workflows, then
-6. choose empirical search settings with those results in hand.
+5. choose empirical search settings from fixed-IC tuning grids.
 
-That is the recommended way to calibrate `bifrost` for a new dataset whose tree size, trait dimension, and predictor structure may differ substantially from the original manuscript example.
+That is the recommended way to calibrate `bifrost` for a new dataset whose tree size, trait dimension, and predictor structure may differ substantially from the original passerine body-plan example.
+
+## References
+
+Berv, J. S., Probst, C. M., Claramunt, S., Shipley, J. R., Friedman, M., Smith, S. A., Fouhey, D. F., and Weeks, B. C. (2026). *Rates of passerine body plan evolution in time and space*. Nature Ecology & Evolution (in press).
+
+Clavel, J., Aristide, L., and Morlon, H. (2019). *A Penalized Likelihood Framework for High-Dimensional Phylogenetic Comparative Methods and an Application to New-World Monkeys Brain Evolution*. [https://doi.org/10.1093/sysbio/syy045](https://doi.org/10.1093/sysbio/syy045)
+
+Clavel, J., Escarguel, G., and Merceron, G. (2015). *mvMORPH: an R package for fitting multivariate evolutionary models to morphometric data*. *Methods in Ecology and Evolution*, 6(11), 1311-1319. [https://doi.org/10.1111/2041-210X.12420](https://doi.org/10.1111/2041-210X.12420)
+
+Smith, S. A., Walker-Hale, N., and Parins-Fukuchi, C. T. (2023). *Compositional shifts associated with major evolutionary transitions in plants*. *New Phytologist*, 239(6), 2404-2415. [https://doi.org/10.1111/nph.19099](https://doi.org/10.1111/nph.19099)

@@ -94,11 +94,13 @@ test_that("runSearchTuningGrid propagates fixed IC and scenario-specific options
 
   local_rebind(
     "runFalsePositiveSimulationStudy",
-    function(template, search_options, seed, ...) {
+    function(template, search_options, seed, num_cores, ...) {
       mock_env$null_calls[[length(mock_env$null_calls) + 1L]] <- list(
         IC = search_options$IC,
         threshold = search_options$shift_acceptance_threshold,
         min_tips = search_options$min_descendant_tips,
+        search_num_cores = search_options$num_cores,
+        num_cores = num_cores,
         seed = seed
       )
       list(
@@ -116,11 +118,13 @@ test_that("runSearchTuningGrid propagates fixed IC and scenario-specific options
   )
   local_rebind(
     "runShiftRecoverySimulationStudy",
-    function(template, simulation_options, search_options, weighted, seed, ...) {
+    function(template, simulation_options, search_options, weighted, seed, num_cores, ...) {
       mock_env$shift_calls[[length(mock_env$shift_calls) + 1L]] <- list(
         IC = search_options$IC,
         threshold = search_options$shift_acceptance_threshold,
         min_tips = search_options$min_descendant_tips,
+        search_num_cores = search_options$num_cores,
+        num_cores = num_cores,
         scale_mode = simulation_options$scale_mode,
         weighted = weighted,
         seed = seed
@@ -162,7 +166,7 @@ test_that("runSearchTuningGrid propagates fixed IC and scenario-specific options
       min_shift_tips = 2,
       max_shift_tips = 5
     ),
-    base_search_options = list(formula = "trait_data ~ 1", method = "LL"),
+    base_search_options = list(formula = "trait_data ~ 1", method = "LL", num_cores = 7),
     weighted = TRUE,
     num_cores = 1,
     seed = 62,
@@ -174,6 +178,10 @@ test_that("runSearchTuningGrid propagates fixed IC and scenario-specific options
   testthat::expect_equal(nrow(grid$summary_table), 2)
   testthat::expect_true(all(vapply(mock_env$null_calls, `[[`, character(1), "IC") == "BIC"))
   testthat::expect_true(all(vapply(mock_env$shift_calls, `[[`, character(1), "IC") == "BIC"))
+  testthat::expect_true(all(vapply(mock_env$null_calls, `[[`, numeric(1), "num_cores") == 1))
+  testthat::expect_true(all(vapply(mock_env$shift_calls, `[[`, numeric(1), "num_cores") == 1))
+  testthat::expect_true(all(vapply(mock_env$null_calls, `[[`, numeric(1), "search_num_cores") == 1))
+  testthat::expect_true(all(vapply(mock_env$shift_calls, `[[`, numeric(1), "search_num_cores") == 1))
   testthat::expect_equal(
     vapply(mock_env$shift_calls[c(FALSE, TRUE, FALSE, TRUE)], `[[`, character(1), "scale_mode"),
     c("correlation", "correlation")
@@ -238,4 +246,39 @@ test_that("runSearchTuningGrid validates inputs", {
     ),
     "must include num_shifts, min_shift_tips, and max_shift_tips"
   )
+})
+
+test_that("runSearchTuningGrid can parallelize over settings in a small real run", {
+  skip_if_tuning_grid_deps()
+
+  tmpl <- make_tuning_template()
+  grid <- suppressWarnings(
+    runSearchTuningGrid(
+      template = tmpl,
+      IC = "GIC",
+      shift_acceptance_thresholds = c(2, 5),
+      min_descendant_tips_values = 3,
+      tree_tip_count = 16,
+      null_replicates = 1,
+      recovery_replicates = 1,
+      proportional_simulation_options = list(
+        num_shifts = 1,
+        min_shift_tips = 2,
+        max_shift_tips = 5
+      ),
+      base_search_options = list(
+        formula = "trait_data ~ 1",
+        method = "LL",
+        num_cores = 4
+      ),
+      weighted = FALSE,
+      num_cores = 2,
+      seed = 63,
+      store_studies = FALSE
+    )
+  )
+
+  testthat::expect_s3_class(grid, "bifrost_search_tuning_grid")
+  testthat::expect_equal(nrow(grid$summary_table), 2)
+  testthat::expect_true(all(grid$summary_table$IC == "GIC"))
 })

@@ -49,8 +49,10 @@
 #' @param weighted Logical; if `TRUE`, request weighted recovery summaries from
 #'   [runShiftRecoverySimulationStudy()] and include weighted fuzzy F1 columns
 #'   in the output table.
-#' @param num_cores Integer number of workers passed to the study wrappers for
-#'   each grid row.
+#' @param num_cores Integer number of workers used across grid settings. When
+#'   `num_cores > 1`, [runSearchTuningGrid()] parallelizes over settings and
+#'   forces the dependent study wrappers and search calls to run serially within
+#'   each setting.
 #' @param seed Optional integer seed used to derive deterministic per-study
 #'   seeds across the entire grid.
 #' @param store_studies Logical; if `TRUE`, retain the raw study objects for
@@ -70,6 +72,12 @@
 #' tracked separately via evaluable fractions so that overly strict
 #' `min_descendant_tips` settings can be screened out before choosing a final
 #' workflow.
+#'
+#' Parallelism is owned by the top-level function that the user calls. In this
+#' helper, `num_cores` is interpreted at the setting level, so dependent study
+#' wrappers are always called with `num_cores = 1` and their embedded search
+#' calls are forced to `num_cores = 1` as well. This avoids nested parallelism
+#' while keeping the user-facing API simple.
 #'
 #' @return A list of class `bifrost_search_tuning_grid` with components:
 #' \describe{
@@ -227,16 +235,14 @@ runSearchTuningGrid <- function(template,
     NULL
   }
 
-  studies <- if (store_studies) vector("list", nrow(grid)) else NULL
-  summary_rows <- vector("list", nrow(grid))
-
-  for (i in seq_len(nrow(grid))) {
+  evaluate_setting <- function(i) {
     tuning_search_options <- utils::modifyList(
       base_search_options,
       list(
         IC = IC,
         shift_acceptance_threshold = grid$shift_acceptance_threshold[i],
-        min_descendant_tips = grid$min_descendant_tips[i]
+        min_descendant_tips = grid$min_descendant_tips[i],
+        num_cores = 1L
       )
     )
 
@@ -246,7 +252,7 @@ runSearchTuningGrid <- function(template,
       tree_tip_count = tree_tip_count,
       simulation_options = null_simulation_options,
       search_options = tuning_search_options,
-      num_cores = num_cores,
+      num_cores = 1L,
       seed = if (is.null(setting_seeds)) NULL else setting_seeds[i, "null"]
     )
 
@@ -258,7 +264,7 @@ runSearchTuningGrid <- function(template,
       search_options = tuning_search_options,
       fuzzy_distance = fuzzy_distance,
       weighted = weighted,
-      num_cores = num_cores,
+      num_cores = 1L,
       seed = if (is.null(setting_seeds)) NULL else setting_seeds[i, "proportional"]
     )
 
@@ -270,17 +276,9 @@ runSearchTuningGrid <- function(template,
       search_options = tuning_search_options,
       fuzzy_distance = fuzzy_distance,
       weighted = weighted,
-      num_cores = num_cores,
+      num_cores = 1L,
       seed = if (is.null(setting_seeds)) NULL else setting_seeds[i, "correlation"]
     )
-
-    if (store_studies) {
-      studies[[i]] <- list(
-        null = null_study,
-        proportional = proportional_study,
-        correlation = correlation_study
-      )
-    }
 
     null_any_fp <- mean(null_study$per_replicate$n_inferred_shifts > 0)
     null_evaluable_fraction <- mean(!is.na(null_study$per_replicate$false_positive_rate))
@@ -322,10 +320,42 @@ runSearchTuningGrid <- function(template,
       }
     }
 
-    summary_rows[[i]] <- summary_row
+    list(
+      summary_row = summary_row,
+      studies = if (store_studies) {
+        list(
+          null = null_study,
+          proportional = proportional_study,
+          correlation = correlation_study
+        )
+      } else {
+        NULL
+      }
+    )
   }
 
-  summary_table <- do.call(rbind, summary_rows)
+  old_plan <- future::plan()
+  on.exit(future::plan(old_plan), add = TRUE)
+  if (num_cores > 1L) {
+    future::plan(future::multisession, workers = num_cores)
+  } else {
+    future::plan(future::sequential)
+  }
+
+  setting_results <- progressr::with_progress({
+    progress <- progressr::progressor(along = seq_len(nrow(grid)))
+    future.apply::future_lapply(
+      seq_len(nrow(grid)),
+      function(i) {
+        on.exit(progress(), add = TRUE)
+        evaluate_setting(i)
+      },
+      future.seed = TRUE
+    )
+  })
+
+  studies <- if (store_studies) lapply(setting_results, `[[`, "studies") else NULL
+  summary_table <- do.call(rbind, lapply(setting_results, `[[`, "summary_row"))
   rownames(summary_table) <- NULL
 
   out <- list(

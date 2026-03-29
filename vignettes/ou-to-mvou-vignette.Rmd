@@ -1,0 +1,1726 @@
+---
+title: "From BM to mvOU: Ornstein-Uhlenbeck Models for Comparative Data"
+output:
+  rmarkdown::html_vignette: default
+  rmarkdown::pdf_document:
+    latex_engine: xelatex
+vignette: >
+  %\VignetteIndexEntry{From BM to mvOU: Ornstein-Uhlenbeck Models for Comparative Data}
+  %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown}
+---
+
+```{r setup, include = FALSE}
+suppressPackageStartupMessages({
+  library(ape)
+  library(phytools)
+  library(mvMORPH)
+})
+
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.align = "center",
+  out.width = "100%",
+  dpi = 170,
+  fig.retina = 2,
+  dev = "png"
+)
+
+as_trait_matrix <- function(sim) {
+  out <- if (is.list(sim)) sim[[1]] else sim
+  as.matrix(out)
+}
+
+half_life <- function(alpha) {
+  log(2) / alpha
+}
+
+stationary_variance_scalar <- function(sigma, alpha) {
+  sigma / (2 * alpha)
+}
+
+stationary_covariance_diag <- function(sigma, alpha_diag) {
+  out <- matrix(
+    0,
+    nrow = nrow(sigma),
+    ncol = ncol(sigma),
+    dimnames = dimnames(sigma)
+  )
+
+  for (i in seq_len(nrow(sigma))) {
+    for (j in seq_len(ncol(sigma))) {
+      out[i, j] <- sigma[i, j] / (alpha_diag[i] + alpha_diag[j])
+    }
+  }
+
+  out
+}
+
+simulate_ou_paths <- function(theta, alpha, sigma, x0, total_time = 2.8,
+                              n_steps = 160, n_paths = 24) {
+  times <- seq(0, total_time, length.out = n_steps)
+  dt <- times[2] - times[1]
+  pull <- exp(-alpha * dt)
+  step_sd <- sqrt(sigma / (2 * alpha) * (1 - exp(-2 * alpha * dt)))
+
+  paths <- matrix(NA_real_, nrow = n_steps, ncol = n_paths)
+  paths[1, ] <- x0
+
+  for (i in 2:n_steps) {
+    mu <- theta + pull * (paths[i - 1, ] - theta)
+    paths[i, ] <- stats::rnorm(n_paths, mean = mu, sd = step_sd)
+  }
+
+  expected <- theta + exp(-alpha * times) * (x0 - theta)
+  midpoint <- theta + 0.5 * (x0 - theta)
+
+  list(
+    time = times,
+    paths = paths,
+    expected = expected,
+    half_life = half_life(alpha),
+    midpoint = midpoint
+  )
+}
+
+draw_cov_ellipse <- function(center, sigma, level = 0.8, border = "black",
+                             lwd = 2, lty = 1, n = 200) {
+  ev <- eigen(sigma, symmetric = TRUE)
+  theta <- seq(0, 2 * pi, length.out = n)
+  circle <- rbind(cos(theta), sin(theta))
+  radius <- sqrt(stats::qchisq(level, df = 2))
+  shape <- ev$vectors %*% diag(sqrt(pmax(ev$values, 0)), nrow = 2)
+  coords <- center + radius * shape %*% circle
+  lines(coords[1, ], coords[2, ], col = border, lwd = lwd, lty = lty)
+}
+
+descendant_tips <- function(tree, node) {
+  children <- tree$edge[tree$edge[, 1] == node, 2]
+
+  unlist(
+    lapply(children, function(child) {
+      if (child <= ape::Ntip(tree)) {
+        child
+      } else {
+        descendant_tips(tree, child)
+      }
+    }),
+    use.names = FALSE
+  )
+}
+
+choose_shift_node <- function(tree, target_tips = 6, min_tips = 4) {
+  internal_nodes <- sort(unique(tree$edge[, 1]))
+  internal_nodes <- internal_nodes[internal_nodes > ape::Ntip(tree)]
+
+  desc_counts <- vapply(
+    internal_nodes,
+    function(node) length(descendant_tips(tree, node)),
+    integer(1)
+  )
+
+  eligible <- desc_counts >= min_tips
+  if (!any(eligible)) {
+    stop("No internal node meets the minimum descendant-tip threshold.")
+  }
+
+  eligible_nodes <- internal_nodes[eligible]
+  eligible_counts <- desc_counts[eligible]
+
+  eligible_nodes[which.min(abs(eligible_counts - target_tips))]
+}
+
+matrix_to_display_df <- function(mat, row_label) {
+  out <- data.frame(
+    label = rownames(mat),
+    as.data.frame(mat, check.names = FALSE),
+    check.names = FALSE
+  )
+
+  names(out)[1] <- row_label
+  rownames(out) <- NULL
+  out
+}
+
+ou_kable <- function(x, caption = NULL, digits = 3, col.names = colnames(x), align = NULL, escape = FALSE) {
+  fmt <- if (knitr::is_html_output()) "html" else "pipe"
+
+  as.character(knitr::kable(
+    x,
+    format = fmt,
+    caption = caption,
+    digits = digits,
+    col.names = col.names,
+    align = align,
+    escape = escape,
+    row.names = FALSE
+  ))
+}
+
+ou_table <- function(table_markup) {
+  if (!knitr::is_html_output()) {
+    return(table_markup)
+  }
+
+  sprintf('<div class="ou-table-wrapper">%s</div>', table_markup)
+}
+
+ou_table_grid <- function(...) {
+  tables <- unlist(list(...), use.names = FALSE)
+
+  if (!knitr::is_html_output()) {
+    return(paste(tables, collapse = "\n\n"))
+  }
+
+  panels <- paste0(
+    '<div class="ou-table-panel"><div class="ou-table-wrapper">',
+    tables,
+    "</div></div>",
+    collapse = ""
+  )
+
+  sprintf('<div class="ou-table-grid">%s</div>', panels)
+}
+
+figure_axis_cex <- 1.28
+figure_lab_cex <- 1.42
+figure_main_cex <- 1.28
+figure_label_cex <- 1.42
+figure_note_cex <- 1.26
+figure_legend_cex <- 1.36
+```
+
+```{r, echo = FALSE, results = "asis"}
+cat("
+<style>
+img, .figure img, .figure > p > img {
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: none !important;
+  background: transparent !important;
+}
+
+p.caption, .caption {
+  border-left: 0.32rem solid #d8dde3;
+  color: #2f3439;
+  font-size: inherit;
+  line-height: inherit;
+  margin: 0 3.8% 1.05rem 3.8%;
+  padding: 0 0 0 1rem;
+  text-align: left !important;
+}
+
+p.caption strong, .caption strong {
+  font-weight: 700;
+}
+
+.ou-alpha-explorer + .caption {
+  margin-top: 0;
+}
+
+table {
+  width: auto;
+  margin: 0.65rem auto 1rem auto;
+}
+
+table th, table td {
+  vertical-align: top;
+  padding: 0.32rem 0.6rem;
+}
+
+table code {
+  white-space: nowrap;
+}
+
+.ou-table-wrapper {
+  margin: 0.7rem auto 1rem auto;
+  overflow-x: auto;
+}
+
+.ou-table-wrapper table {
+  width: auto !important;
+  margin: 0 auto;
+  font-size: 0.95rem;
+}
+
+.ou-table-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem 1.2rem;
+  justify-content: center;
+  align-items: flex-start;
+  margin: 0.75rem 0 1rem 0;
+}
+
+.ou-table-panel {
+  flex: 0 1 auto;
+  max-width: 100%;
+}
+
+.ou-table-panel .ou-table-wrapper {
+  margin: 0;
+}
+
+.ou-table-wrapper caption,
+.ou-table-grid caption {
+  white-space: normal;
+}
+
+@media (max-width: 760px) {
+  .ou-table-grid {
+    display: block;
+  }
+
+  .ou-table-panel {
+    margin-bottom: 0.9rem;
+  }
+}
+
+.ou-bridge-note {
+  border: 1px solid #dbe5ee;
+  border-radius: 20px;
+  background: linear-gradient(180deg, #fcfdff 0%, #f6f9fc 100%);
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.03);
+  margin: 0.95rem 0 1.05rem 0;
+  padding: 0.92rem 0.95rem 0.82rem 0.95rem;
+}
+
+.ou-bridge-note__eyebrow {
+  color: #5f6b76;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  margin-bottom: 0.24rem;
+  text-transform: uppercase;
+}
+
+.ou-bridge-note__title {
+  color: #17324d;
+  font-size: 0.98rem;
+  font-weight: 600;
+  margin-bottom: 0.28rem;
+}
+
+.ou-bridge-note p:last-child {
+  margin-bottom: 0;
+}
+
+.ou-alpha-explorer {
+  border: 1px solid #dbe5ee;
+  border-radius: 20px;
+  background: linear-gradient(180deg, #fcfdff 0%, #f7fafc 100%);
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.03);
+  margin: 0.9rem 0 1.15rem 0;
+  padding: 0.95rem 1rem 0.95rem 1rem;
+}
+
+.ou-alpha-explorer__top {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(240px, 0.8fr);
+  gap: 1rem 1.2rem;
+  align-items: start;
+}
+
+.ou-alpha-explorer__eyebrow {
+  color: #5f6b76;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  margin-bottom: 0.22rem;
+  text-transform: uppercase;
+}
+
+.ou-alpha-explorer__title {
+  color: #17324d;
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.ou-alpha-explorer__intro p {
+  margin-bottom: 0;
+}
+
+.ou-alpha-explorer__controls {
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px solid #e4ebf2;
+  border-radius: 16px;
+  padding: 0.8rem 0.85rem 0.75rem 0.85rem;
+}
+
+.ou-alpha-explorer__controls label {
+  display: block;
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 0.38rem;
+}
+
+.ou-alpha-explorer__slider-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.55rem;
+  align-items: center;
+}
+
+.ou-alpha-explorer__slider-row span {
+  color: #61707c;
+  font-size: 0.86rem;
+}
+
+.ou-alpha-explorer__slider-row input[type='range'] {
+  width: 100%;
+}
+
+.ou-alpha-explorer__value {
+  color: #18324b;
+  font-size: 1rem;
+  margin-top: 0.48rem;
+}
+
+.ou-alpha-explorer__note {
+  color: #61707c;
+  font-size: 0.9rem;
+  margin-top: 0.35rem;
+}
+
+.ou-alpha-explorer__panels {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.85fr) minmax(260px, 1.15fr);
+  gap: 1rem 1.15rem;
+  margin-top: 0.95rem;
+}
+
+.ou-alpha-explorer__panel {
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid #e4ebf2;
+  border-radius: 18px;
+  padding: 0.78rem 0.82rem 0.76rem 0.82rem;
+}
+
+.ou-alpha-explorer__panel-step {
+  color: #61707c;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.2rem;
+  text-transform: uppercase;
+}
+
+.ou-alpha-explorer__panel-title {
+  color: #17324d;
+  font-size: 1.08rem;
+  font-weight: 600;
+  margin-bottom: 0.18rem;
+}
+
+.ou-alpha-explorer__panel-subtitle {
+  color: #61707c;
+  font-size: 0.92rem;
+  margin-bottom: 0.52rem;
+}
+
+.ou-alpha-explorer__metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.ou-alpha-explorer__metric {
+  background: #f4f7fb;
+  border-radius: 12px;
+  padding: 0.55rem 0.55rem 0.5rem 0.55rem;
+}
+
+.ou-alpha-explorer__metric-label {
+  color: #61707c;
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  margin-bottom: 0.18rem;
+  text-transform: uppercase;
+}
+
+.ou-alpha-explorer__metric code {
+  color: #17324d;
+  font-size: 1.02rem;
+  font-weight: 600;
+}
+
+.ou-alpha-explorer__story {
+  color: #31485e;
+  font-size: 0.94rem;
+  margin-top: 0.6rem;
+}
+
+.ou-alpha-explorer__curve {
+  background: #fcfdff;
+  border: 1px solid #e6edf4;
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.ou-alpha-explorer__curve svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.ou-alpha-explorer__axis {
+  stroke: #94a3b8;
+  stroke-width: 1.1;
+}
+
+.ou-alpha-explorer__theta-line {
+  stroke: #b22222;
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
+}
+
+.ou-alpha-explorer__theta-label {
+  fill: #b22222;
+  font-size: 18.5px;
+  font-weight: 600;
+}
+
+.ou-alpha-explorer__axis-label {
+  fill: #61707c;
+  font-size: 17px;
+}
+
+.ou-alpha-explorer__curve-fill {
+  fill: rgba(76, 120, 168, 0.18);
+}
+
+.ou-alpha-explorer__curve-line {
+  fill: none;
+  stroke: #4c78a8;
+  stroke-width: 2.4;
+}
+
+.ou-alpha-explorer__curve-caption {
+  color: #61707c;
+  font-size: 1rem;
+  margin-top: 0.45rem;
+}
+
+@media (max-width: 860px) {
+  .ou-alpha-explorer__top,
+  .ou-alpha-explorer__panels {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
+")
+```
+
+## 1. Introduction
+
+Brownian motion is the usual starting point for comparative trait models, but it is not the end of the story. Once the question shifts from unconstrained diffusion to attraction toward an optimum, Ornstein-Uhlenbeck models become the natural extension. This vignette follows that path explicitly: we begin by contrasting BM and OU for a single trait, then move to multivariate OU and fit `OU1` and `OUM` examples with `mvMORPH::mvOU()` on small trees.
+
+If you want the broader BM/BMM covariance background or the current empirical `bifrost` workflows, see the theoretical-background, jaw-shape, and avian-skeleton vignettes. Here the goal is narrower: to show how BM intuition extends to OU and then to `mvOU`.
+
+Once the extended `bifrost` mvOU model is implemented, this vignette can be updated to document that workflow directly. For now, the examples below use `mvMORPH` directly while keeping the connection to the current `bifrost` workflow explicit.
+
+```{r ou_bridge_note, echo=FALSE, results='asis'}
+cat('
+<div class="ou-bridge-note">
+  <div class="ou-bridge-note__eyebrow">Current Scope</div>
+  <div class="ou-bridge-note__title">What changes from <code>OU1</code> to <code>OUM</code>?</div>
+  <p>Under <code>OU1</code>, the whole tree shares one inferred <code>theta</code> vector. Under <code>OUM</code>, <code>theta</code> is still inferred, but now one row is estimated per painted regime while <code>alpha</code> and <code>sigma</code> stay shared in this vignette.</p>
+</div>
+')
+```
+
+## 2. From BM to single-trait OU
+
+We will use the `mvMORPH` parameterization directly:
+
+$$
+dX_t = \alpha (\theta - X_t)dt + \sqrt{\Sigma} \, dB_t.
+$$
+
+In that notation:
+
+- `theta` is the optimum,
+- `alpha` controls how strongly the process is pulled toward that optimum,
+- `Sigma` is the diffusion-rate parameter (stored in the `sigma` argument in `mvMORPH`), and
+- the half-life is `log(2) / alpha`.
+
+The stochastic process itself goes back to Uhlenbeck and Ornstein (1930), but the comparative interpretation that matters here is Hansen's (1997): OU is not just noisy motion with friction, but a model in which traits evolve under attraction toward an optimum.
+
+Under the same parameterization, the one-trait stationary variance is
+
+$$
+\mathrm{Var}_{\mathrm{stationary}}(X) = \frac{\Sigma}{2\alpha}.
+$$
+
+That formula is the first important departure from BM. Under BM, variance just keeps accumulating with time. Under OU, variance approaches a ceiling, and the size of that ceiling depends on both the pull back toward the optimum and the amount of stochastic diffusion around it. So larger `alpha` means faster return toward the optimum and a tighter stationary cloud, while larger `sigma` increases residual spread around that optimum. In the toy simulation below we set `theta = 0.6`, `alpha = 1.1`, and `sigma = 0.12`.
+
+```{r univariate_setup, echo=FALSE}
+set.seed(11)
+
+small_tree <- phytools::pbtree(n = 80, scale = 1.35)
+
+ou_sigma <- 0.12
+tree_sigma <- 0.16
+ou_theta <- 0.6
+ou_alpha <- 1.1
+root_state <- -0.85
+ou_tree_alpha <- 1.4
+
+bm_states <- phytools::fastBM(
+  small_tree,
+  a = root_state,
+  sig2 = tree_sigma,
+  internal = TRUE
+)
+
+ou_tree_states <- phytools::fastBM(
+  small_tree,
+  a = root_state,
+  sig2 = tree_sigma,
+  internal = TRUE,
+  alpha = ou_tree_alpha,
+  theta = ou_theta
+)
+
+bm_tips <- bm_states[small_tree$tip.label]
+ou_tips <- ou_tree_states[small_tree$tip.label]
+
+tip_range <- range(c(bm_tips, ou_tips, ou_theta, root_state)) + c(-0.15, 0.15)
+tree_y_range <- range(c(bm_states, ou_tree_states, ou_theta, root_state)) + c(-0.15, 0.18)
+bm_tip_density <- density(bm_tips, from = tip_range[1], to = tip_range[2], n = 512)
+ou_tip_density <- density(ou_tips, from = tip_range[1], to = tip_range[2], n = 512)
+
+ou_tree_summary <- c(
+  half_life = half_life(ou_tree_alpha),
+  stationary_variance = stationary_variance_scalar(tree_sigma, ou_tree_alpha)
+)
+```
+
+Before comparing BM and OU on a whole tree, it helps to see what OU pull means in the simplest possible setting. Start the process away from a fixed optimum and ask how quickly the expected trajectory forgets that displaced root state.
+
+```{r ou_half_life_setup, echo=FALSE}
+set.seed(18)
+
+root_theta <- ou_theta
+alpha_slow <- 0.35
+alpha_fast <- 1.4
+
+slow_relax <- simulate_ou_paths(
+  theta = root_theta,
+  alpha = alpha_slow,
+  sigma = ou_sigma,
+  x0 = root_state
+)
+
+fast_relax <- simulate_ou_paths(
+  theta = root_theta,
+  alpha = alpha_fast,
+  sigma = ou_sigma,
+  x0 = root_state
+)
+
+relax_ylim <- range(
+  c(slow_relax$paths, fast_relax$paths, root_theta, root_state)
+) + c(-0.08, 0.08)
+```
+
+```{r ou_half_life_prototype, echo=FALSE, fig.width=10.8, fig.height=5.5, fig.cap="**Figure 1.** Half-life as root memory in a one-trait OU process. Both panels start from the same displaced root state below the optimum `theta`. Thin lines are simulated paths, the thick curve is the expected relaxation toward the optimum, and the filled point marks one half-life, when the expected deviation from `theta` has been cut in half. Larger `alpha` means faster return toward the optimum and faster loss of root memory."}
+op <- par(
+  mfrow = c(1, 2),
+  mar = c(4.2, 4.4, 3, 1),
+  mgp = c(2.3, 0.72, 0),
+  bty = "l",
+  las = 1,
+  cex.axis = figure_axis_cex,
+  cex.lab = figure_lab_cex,
+  cex.main = figure_main_cex
+)
+
+plot_relaxation_panel <- function(sim, alpha_value, col, title) {
+  plot(
+    NA,
+    xlim = range(sim$time),
+    ylim = relax_ylim,
+    xlab = "Time from root",
+    ylab = "Trait value",
+    main = title
+  )
+
+  abline(h = root_theta, lty = 2, lwd = 1.5, col = "#b22222")
+  text(
+    x = max(sim$time) * 0.9,
+    y = root_theta + 0.03,
+    labels = expression(theta),
+    col = "#b22222",
+    cex = figure_label_cex,
+    pos = 3
+  )
+
+  for (j in seq_len(ncol(sim$paths))) {
+    lines(
+      sim$time,
+      sim$paths[, j],
+      col = grDevices::adjustcolor(col, alpha.f = 0.22),
+      lwd = 1
+    )
+  }
+
+  lines(sim$time, sim$expected, col = col, lwd = 2.8)
+  points(0, root_state, pch = 21, bg = "white", col = "#252525", cex = 1.45, lwd = 1.3)
+  text(
+    x = 0.04 * max(sim$time),
+    y = root_state - 0.02,
+    labels = expression(x[0]),
+    cex = figure_label_cex,
+    pos = 4
+  )
+  points(sim$half_life, sim$midpoint, pch = 21, bg = col, col = "#252525", cex = 1.55, lwd = 1.1)
+  segments(
+    x0 = sim$half_life,
+    y0 = relax_ylim[1],
+    x1 = sim$half_life,
+    y1 = sim$midpoint,
+    lty = 3,
+    lwd = 1,
+    col = grDevices::adjustcolor("#61707c", alpha.f = 0.8)
+  )
+  text(
+    x = sim$half_life,
+    y = relax_ylim[1] + 0.05 * diff(relax_ylim),
+    labels = expression(t[1/2]),
+    cex = figure_label_cex,
+    pos = 4,
+    col = "#475569"
+  )
+  mtext(
+    sprintf("alpha = %.2f, half-life = %.2f", alpha_value, sim$half_life),
+    side = 3,
+    line = 0.1,
+    cex = figure_note_cex,
+    col = "#61707c"
+  )
+}
+
+plot_relaxation_panel(
+  slow_relax,
+  alpha_slow,
+  col = "#4c78a8",
+  title = "A. Low pull, long memory"
+)
+
+plot_relaxation_panel(
+  fast_relax,
+  alpha_fast,
+  col = "#f58518",
+  title = "B. High pull, short memory"
+)
+
+par(op)
+```
+
+Figure 1 isolates the half-life idea directly. Both panels begin from the same root state below `theta`, but the expected path forgets that initial condition at very different speeds. Under low `alpha`, the process still remembers the displaced root well into the tree. Under high `alpha`, the expected path is already halfway back to `theta` after a much shorter amount of time.
+
+That is the core OU intuition in its cleanest form: `alpha` is a memory parameter. After one half-life, the expected deviation from `theta` has been cut in half, so larger `alpha` means faster forgetting of the root state.
+
+Now scale that same idea up to a comparative setting. BM has no return toward `theta`, so variance keeps accumulating along the tree. OU repeatedly shrinks deviations back toward the optimum, which changes both the path of evolution and the spread of tip values.
+
+```{r univariate_comparison_figure, echo=FALSE, fig.width=12.8, fig.height=6.2, fig.cap="**Figure 2.** The same displaced root state behaves differently under BM and OU on a phylogeny. Left: under BM, lineages diffuse away from `x[0]` without any preferred state. Middle: under OU, lineages are repeatedly pulled back toward `theta`. Right: the resulting tip densities show BM remaining broader and more root-influenced, whereas OU is shifted toward the optimum and more concentrated around it."}
+ylims <- tree_y_range
+op <- par(
+  mfrow = c(1, 3),
+  mar = c(4.2, 4.3, 2.9, 1),
+  mgp = c(2.3, 0.72, 0),
+  bty = "l",
+  las = 1,
+  cex.axis = figure_axis_cex,
+  cex.lab = figure_lab_cex,
+  cex.main = figure_main_cex
+)
+tree_height <- max(ape::node.depth.edgelength(small_tree))
+ymax_density <- max(c(bm_tip_density$y, ou_tip_density$y)) * 1.12
+
+phytools::phenogram(
+  small_tree,
+  bm_states,
+  ftype = "off",
+  spread.labels = FALSE,
+  ylim = ylims,
+  colors = "#4c78a8",
+  fsize = 0.82,
+  lwd = 1.15,
+  xlab = "Time from root",
+  ylab = "Trait value",
+  main = "A. BM from x[0]"
+)
+points(0, root_state, pch = 21, bg = "white", col = "#252525", cex = 1.42, lwd = 1.1)
+text(0.04 * tree_height, root_state - 0.03, labels = expression(x[0]), cex = figure_label_cex, pos = 4)
+
+phytools::phenogram(
+  small_tree,
+  ou_tree_states,
+  ftype = "off",
+  spread.labels = FALSE,
+  ylim = ylims,
+  colors = "#f58518",
+  fsize = 0.82,
+  lwd = 1.15,
+  xlab = "Time from root",
+  ylab = "Trait value",
+  main = "B. OU back to theta"
+)
+points(0, root_state, pch = 21, bg = "white", col = "#252525", cex = 1.42, lwd = 1.1)
+text(0.04 * tree_height, root_state - 0.03, labels = expression(x[0]), cex = figure_label_cex, pos = 4)
+abline(h = ou_theta, lty = 2, lwd = 1.5, col = "#b22222")
+text(
+  x = tree_height * 0.83,
+  y = ou_theta + 0.04,
+  labels = expression(theta),
+  col = "#b22222",
+  cex = figure_label_cex,
+  pos = 3
+)
+
+plot(
+  bm_tip_density,
+  xlim = tip_range,
+  ylim = c(0, ymax_density),
+  lwd = 2.2,
+  col = "#4c78a8",
+  xlab = "Tip value",
+  ylab = "Density",
+  main = "C. Tip densities"
+)
+polygon(
+  c(bm_tip_density$x, rev(bm_tip_density$x)),
+  c(bm_tip_density$y, rep(0, length(bm_tip_density$y))),
+  col = grDevices::adjustcolor("#4c78a8", alpha.f = 0.18),
+  border = NA
+)
+polygon(
+  c(ou_tip_density$x, rev(ou_tip_density$x)),
+  c(ou_tip_density$y, rep(0, length(ou_tip_density$y))),
+  col = grDevices::adjustcolor("#f58518", alpha.f = 0.18),
+  border = NA
+)
+lines(bm_tip_density, lwd = 2.2, col = "#4c78a8")
+lines(ou_tip_density, lwd = 2.2, col = "#f58518")
+abline(v = ou_theta, lty = 2, lwd = 1.5, col = "#b22222")
+text(
+  x = ou_theta + 0.03 * diff(tip_range),
+  y = ymax_density * 0.92,
+  labels = expression(theta),
+  col = "#b22222",
+  cex = figure_label_cex,
+  pos = 4
+)
+legend(
+  "topright",
+  legend = c("BM tips", "OU tips", expression(theta)),
+  col = c("#4c78a8", "#f58518", "#b22222"),
+  lty = c(1, 1, 2),
+  lwd = c(2.2, 2.2, 1.5),
+  bty = "n",
+  cex = figure_legend_cex
+)
+
+par(op)
+```
+
+Figure 2 translates the one-lineage half-life story into a tree-wide comparison. Both tree panels begin from the same displaced root state, but only the OU process is repeatedly pulled back toward `theta`. The density panel shows the long-run consequence at the tips: BM remains broader and more root-influenced, whereas OU shifts toward the optimum and becomes more concentrated around it.
+
+For the OU parameterization used in Figure 2, the half-life is about `r sprintf("%.2f", ou_tree_summary["half_life"])`, and the stationary variance is about `r sprintf("%.3f", ou_tree_summary["stationary_variance"])`. The main visual difference from panel A is no longer a schematic overlay, but the fact that the OU branches repeatedly bend back toward `theta` while the BM branches do not.
+
+Before moving to the multivariate case, it still helps to isolate what changing `alpha` alone actually does across the whole stationary distribution.
+
+```{r ou_alpha_explorer, echo=FALSE, results='asis', eval=knitr::is_html_output()}
+explorer_id <- "ou-alpha-explorer-figure3"
+alpha_default <- ou_alpha
+alpha_min <- 0.2
+alpha_max <- 2.0
+x_min <- ou_theta - 1.6
+x_max <- ou_theta + 1.6
+
+js_code <- paste(
+  c(
+    sprintf("(function() { const root = document.getElementById('%s');", explorer_id),
+    "if (!root) return;",
+    sprintf("const theta = %.3f;", ou_theta),
+    sprintf("const sigma = %.3f;", ou_sigma),
+    sprintf("const alphaMin = %.2f;", alpha_min),
+    sprintf("const alphaMax = %.2f;", alpha_max),
+    sprintf("const xMin = %.3f;", x_min),
+    sprintf("const xMax = %.3f;", x_max),
+    "const yMax = 2.6;",
+    "const slider = root.querySelector('[data-role=\"alpha-slider\"]');",
+    "const alphaValues = root.querySelectorAll('[data-role=\"alpha-value\"]');",
+    "const halfLifeValue = root.querySelector('[data-role=\"half-life\"]');",
+    "const statVarValue = root.querySelector('[data-role=\"stationary-var\"]');",
+    "const story = root.querySelector('[data-role=\"story\"]');",
+    "const linePath = root.querySelector('[data-role=\"curve-line\"]');",
+    "const fillPath = root.querySelector('[data-role=\"curve-fill\"]');",
+    "const width = 390;",
+    "const height = 195;",
+    "const padX = 26;",
+    "const padY = 22;",
+    "const innerW = width - 2 * padX;",
+    "const innerH = height - 2 * padY;",
+    "function stationaryVariance(alpha) { return sigma / (2 * alpha); }",
+    "function halfLife(alpha) { return Math.log(2) / alpha; }",
+    "function xToSvg(x) { return padX + ((x - xMin) / (xMax - xMin)) * innerW; }",
+    "function yToSvg(y) { return height - padY - (y / yMax) * innerH; }",
+    "function normalPdf(x, variance) {",
+    "  return Math.exp(-0.5 * Math.pow(x - theta, 2) / variance) / Math.sqrt(2 * Math.PI * variance);",
+    "}",
+    "function storyText(alpha) {",
+    "  if (alpha < 0.5) return 'Low alpha means long memory: the process drifts broadly before being pulled back.';",
+    "  if (alpha < 1.1) return 'Intermediate alpha still allows noticeable spread, but attraction toward theta is clearly visible.';",
+    "  if (alpha < 1.6) return 'At this setting, pull toward theta is strong enough to keep the stationary distribution fairly tight.';",
+    "  return 'High alpha gives very short memory: deviations are erased quickly and the stationary distribution narrows sharply.';",
+    "}",
+    "function update() {",
+    "  const alpha = parseFloat(slider.value);",
+    "  const variance = stationaryVariance(alpha);",
+    "  const xVals = [];",
+    "  for (let i = 0; i <= 120; i += 1) { xVals.push(xMin + (i / 120) * (xMax - xMin)); }",
+    "  const points = xVals.map((x) => [xToSvg(x), yToSvg(normalPdf(x, variance))]);",
+    "  const lineD = points.map((pt, idx) => (idx === 0 ? 'M' : 'L') + pt[0].toFixed(2) + ' ' + pt[1].toFixed(2)).join(' ');",
+    "  const fillD = lineD + ' L ' + xToSvg(xMax).toFixed(2) + ' ' + yToSvg(0).toFixed(2) + ' L ' + xToSvg(xMin).toFixed(2) + ' ' + yToSvg(0).toFixed(2) + ' Z';",
+    "  linePath.setAttribute('d', lineD);",
+    "  fillPath.setAttribute('d', fillD);",
+    "  alphaValues.forEach((node) => { node.textContent = alpha.toFixed(2); });",
+    "  halfLifeValue.textContent = halfLife(alpha).toFixed(2);",
+    "  statVarValue.textContent = variance.toFixed(3);",
+    "  story.textContent = storyText(alpha);",
+    "}",
+    "slider.addEventListener('input', update);",
+    "update();",
+    "})();"
+  ),
+  collapse = "\n"
+)
+
+explorer_html <- paste0(
+  '<div class="figure" role="figure" aria-labelledby="fig3-caption">',
+  '<div id="', explorer_id, '" class="ou-alpha-explorer">',
+  '<div class="ou-alpha-explorer__top">',
+  '<div class="ou-alpha-explorer__intro">',
+  '<div class="ou-alpha-explorer__eyebrow">What does alpha change?</div>',
+  '<div class="ou-alpha-explorer__title">Stronger pull shortens memory and narrows the stationary distribution</div>',
+  '<p>Fix <code>theta = ', sprintf("%.2f", ou_theta), '</code> and <code>&Sigma; = ', sprintf("%.2f", ou_sigma), '</code>. Drag <code>alpha</code> to see how one parameter changes both the half-life and the stationary spread.</p>',
+  '</div>',
+  '<div class="ou-alpha-explorer__controls">',
+  '<label for="', explorer_id, '-slider">Pull strength <code>alpha</code></label>',
+  '<div class="ou-alpha-explorer__slider-row">',
+  '<span>', sprintf("%.2f", alpha_min), '</span>',
+  '<input id="', explorer_id, '-slider" type="range" min="', sprintf("%.2f", alpha_min), '" max="', sprintf("%.2f", alpha_max), '" step="0.01" value="', sprintf("%.2f", alpha_default), '" data-role="alpha-slider" />',
+  '<span>', sprintf("%.2f", alpha_max), '</span>',
+  '</div>',
+  '<div class="ou-alpha-explorer__value">Current value: <code>alpha</code> = <span data-role="alpha-value">', sprintf("%.2f", alpha_default), '</span></div>',
+  '<div class="ou-alpha-explorer__note">Only <code>alpha</code> is changing here. <code>theta</code> and <code>&Sigma;</code> stay fixed.</div>',
+  '</div>',
+  '</div>',
+  '<div class="ou-alpha-explorer__panels">',
+  '<div class="ou-alpha-explorer__panel">',
+  '<div class="ou-alpha-explorer__panel-step">Derived summaries</div>',
+  '<div class="ou-alpha-explorer__panel-title">One slider, two consequences</div>',
+  '<div class="ou-alpha-explorer__panel-subtitle">Higher <code>alpha</code> both shortens the half-life and lowers the stationary variance.</div>',
+  '<div class="ou-alpha-explorer__metrics">',
+  '<div class="ou-alpha-explorer__metric"><span class="ou-alpha-explorer__metric-label">alpha</span><code><span data-role="alpha-value">', sprintf("%.2f", alpha_default), '</span></code></div>',
+  '<div class="ou-alpha-explorer__metric"><span class="ou-alpha-explorer__metric-label">half-life</span><code><span data-role="half-life">', sprintf("%.2f", half_life(alpha_default)), '</span></code></div>',
+  '<div class="ou-alpha-explorer__metric"><span class="ou-alpha-explorer__metric-label">stationary var.</span><code><span data-role="stationary-var">', sprintf("%.3f", stationary_variance_scalar(ou_sigma, alpha_default)), '</span></code></div>',
+  '</div>',
+  '<div class="ou-alpha-explorer__story" data-role="story">At this setting, pull toward theta is strong enough to keep the stationary distribution fairly tight.</div>',
+  '</div>',
+  '<div class="ou-alpha-explorer__panel">',
+  '<div class="ou-alpha-explorer__panel-step">Stationary distribution</div>',
+  '<div class="ou-alpha-explorer__panel-title">The optimum stays fixed, but the cloud changes width</div>',
+  '<div class="ou-alpha-explorer__panel-subtitle">As <code>alpha</code> increases, the stationary distribution becomes narrower around <code>theta</code>.</div>',
+  '<div class="ou-alpha-explorer__curve">',
+  '<svg viewBox="0 0 390 195" aria-hidden="true">',
+  '<line class="ou-alpha-explorer__axis" x1="26" y1="173" x2="364" y2="173"></line>',
+  '<line class="ou-alpha-explorer__theta-line" x1="195" y1="20" x2="195" y2="173"></line>',
+  '<text class="ou-alpha-explorer__theta-label" x="202" y="31">theta</text>',
+  '<text class="ou-alpha-explorer__axis-label" x="195" y="189" text-anchor="middle">trait value</text>',
+  '<path class="ou-alpha-explorer__curve-fill" data-role="curve-fill" d=""></path>',
+  '<path class="ou-alpha-explorer__curve-line" data-role="curve-line" d=""></path>',
+  '</svg>',
+  '</div>',
+  '<div class="ou-alpha-explorer__curve-caption">This is the stationary density implied by the current <code>alpha</code>, with <code>theta</code> and <code>&Sigma;</code> held fixed.</div>',
+  '</div>',
+  '</div>',
+  '</div>',
+  '<p id="fig3-caption" class="caption"><strong>Figure 3.</strong> An <code>alpha</code> explorer for one-trait OU. The slider changes only <code>alpha</code>, holding <code>theta</code> and <code>&Sigma;</code> fixed. As pull strength increases, the half-life shortens and the stationary distribution narrows around the same optimum.</p>',
+  '<script>', js_code, '</script>',
+  '</div>'
+)
+
+knitr::asis_output(explorer_html)
+```
+
+```{r ou_alpha_static_fallback, echo=FALSE, eval=!knitr::is_html_output(), fig.width=7.8, fig.height=5.4, fig.cap="**Figure 3.** Static fallback for the `alpha` explorer. With `theta` and `Sigma` fixed, increasing `alpha` shortens the half-life and narrows the stationary distribution around the optimum."}
+alpha_low <- 0.3
+alpha_high <- 1.8
+x_vals <- seq(ou_theta - 1.35, ou_theta + 1.35, length.out = 400)
+var_low <- stationary_variance_scalar(ou_sigma, alpha_low)
+var_high <- stationary_variance_scalar(ou_sigma, alpha_high)
+
+pdf_curve <- function(x, theta, variance) {
+  exp(-0.5 * (x - theta)^2 / variance) / sqrt(2 * pi * variance)
+}
+
+op <- par(
+  mar = c(4.2, 4.3, 2.9, 1),
+  mgp = c(2.3, 0.72, 0),
+  bty = "l",
+  las = 1,
+  cex.axis = figure_axis_cex,
+  cex.lab = figure_lab_cex,
+  cex.main = figure_main_cex
+)
+
+plot(
+  x_vals,
+  pdf_curve(x_vals, ou_theta, var_low),
+  type = "l",
+  lwd = 2.3,
+  col = "#4c78a8",
+  xlab = "Trait value",
+  ylab = "Density",
+  main = "Static alpha comparison"
+)
+polygon(
+  c(x_vals, rev(x_vals)),
+  c(pdf_curve(x_vals, ou_theta, var_low), rep(0, length(x_vals))),
+  col = grDevices::adjustcolor("#4c78a8", alpha.f = 0.18),
+  border = NA
+)
+polygon(
+  c(x_vals, rev(x_vals)),
+  c(pdf_curve(x_vals, ou_theta, var_high), rep(0, length(x_vals))),
+  col = grDevices::adjustcolor("#f58518", alpha.f = 0.18),
+  border = NA
+)
+lines(x_vals, pdf_curve(x_vals, ou_theta, var_low), lwd = 2.3, col = "#4c78a8")
+lines(x_vals, pdf_curve(x_vals, ou_theta, var_high), lwd = 2.3, col = "#f58518")
+abline(v = ou_theta, lty = 2, lwd = 1.5, col = "#b22222")
+text(
+  x = ou_theta + 0.03 * diff(range(x_vals)),
+  y = max(pdf_curve(x_vals, ou_theta, var_high)) * 1.03,
+  labels = expression(theta),
+  col = "#b22222",
+  cex = figure_label_cex,
+  pos = 4
+)
+legend(
+  "topright",
+  legend = c(
+    bquote(alpha == .(alpha_low)),
+    bquote(alpha == .(alpha_high)),
+    expression(theta)
+  ),
+  col = c("#4c78a8", "#f58518", "#b22222"),
+  lty = c(1, 1, 2),
+  lwd = c(2.6, 2.6, 1.5),
+  bty = "n",
+  cex = figure_legend_cex
+)
+
+par(op)
+```
+
+Whether you use the interactive HTML version or the static fallback, the point is the same: `alpha` controls both how quickly the process forgets the past and how concentrated the long-run distribution is around `theta`. That intuition carries directly into the multivariate case, except that now the optimum becomes a vector and the residual spread becomes a covariance matrix.
+
+## 3. From Single-Trait OU to Multivariate OU
+
+For multiple traits, the OU process becomes
+
+$$
+d\mathbf{X}_t = \mathbf{A}(\boldsymbol{\theta} - \mathbf{X}_t)dt + \mathbf{\Sigma}^{1/2} d\mathbf{B}_t.
+$$
+
+Now the main objects are matrices or vectors:
+
+- `theta` becomes a trait optimum vector,
+- `sigma` becomes a variance-covariance matrix `Sigma`, and
+- `alpha` becomes a pull matrix `A`.
+
+That shift from one number to several linked objects is what makes multivariate OU interesting. `theta` is no longer a single preferred value but a location in trait space. `sigma` now controls both marginal spread and the covariance pattern of the residual diffusion. And `alpha` determines how quickly deviations are damped back toward the optimum along each trait axis. Bartoszek et al. (2012) is the key comparative reference here because it makes the adaptive story genuinely multivariate: adaptation can point toward a region of trait space, not just toward one scalar target.
+
+Fully general `alpha` matrices can be biologically interesting, but for an introductory example it is clearer to start with diagonal `alpha`. That keeps the intuition close to the scalar case: each trait has its own characteristic pull strength, while `sigma` still controls both marginal variance and cross-trait covariance. The specific implementation used below is `mvMORPH` (Clavel et al. 2015), and the current `mvOU()` documentation is what formalizes details such as SIMMAP-like regime mapping and the `decomp = "diagonal"` parameterization used in this draft.
+
+For `mvOU(..., model = "OU1")`, the whole tree shares a single inferred `theta` vector. That is the main inferential target in this section: given the tree and the multivariate tip data, what two-dimensional optimum best explains the whole tree under one OU process?
+
+```{r multivariate_setup, echo=FALSE}
+set.seed(12)
+
+multi_tree <- phytools::pbtree(n = 25, scale = 1)
+
+theta_vector <- c(trait1 = 0.8, trait2 = -0.5)
+
+sigma_matrix <- matrix(
+  c(0.05, 0.02,
+    0.02, 0.04),
+  nrow = 2,
+  byrow = TRUE,
+  dimnames = list(names(theta_vector), names(theta_vector))
+)
+
+alpha_matrix <- diag(c(1.2, 0.5))
+dimnames(alpha_matrix) <- dimnames(sigma_matrix)
+
+stationary_cov <- stationary_covariance_diag(
+  sigma = sigma_matrix,
+  alpha_diag = diag(alpha_matrix)
+)
+
+multi_ou_data <- as_trait_matrix(
+  mvMORPH::mvSIM(
+    multi_tree,
+    model = "OU1",
+    nsim = 1,
+    param = list(
+      ntraits = 2,
+      theta = theta_vector,
+      sigma = sigma_matrix,
+      alpha = alpha_matrix,
+      root = FALSE
+    )
+  )
+)
+
+colnames(multi_ou_data) <- names(theta_vector)
+```
+
+The simulation below uses one optimum vector, one diagonal pull matrix, and one diffusion matrix:
+
+```{r multivariate_generating_parameters, echo=FALSE, results='asis'}
+multivariate_generating_summary <- data.frame(
+  trait = names(theta_vector),
+  true_theta = unname(theta_vector),
+  alpha_diag = diag(alpha_matrix),
+  stationary_variance = diag(stationary_cov),
+  row.names = NULL
+)
+
+sigma_display <- matrix_to_display_df(round(sigma_matrix, 3), row_label = "trait")
+
+cat(ou_table_grid(
+  ou_kable(
+    multivariate_generating_summary,
+    digits = 3,
+    caption = "Generating OU1 parameters by trait.",
+    col.names = c("trait", "true&nbsp;&theta;", "diag&nbsp;&alpha;", "stationary var."),
+    escape = FALSE
+  ),
+  ou_kable(
+    sigma_display,
+    digits = 3,
+    caption = "Generating diffusion matrix &Sigma;.",
+    col.names = c("trait", "trait 1", "trait 2"),
+    escape = FALSE
+  )
+))
+```
+
+With diagonal `alpha`, the stationary covariance entries are easy to read:
+
+$$
+V_{ii} = \frac{\Sigma_{ii}}{2\alpha_i}, \qquad
+V_{ij} = \frac{\Sigma_{ij}}{\alpha_i + \alpha_j}.
+$$
+
+That is why both matrices matter. `sigma` says where instantaneous diffusion is allowed to go, while `alpha` determines how quickly deviations are damped back toward the optimum along each trait axis. Before fitting anything, it helps to separate those roles visually.
+
+```{r multivariate_role_setup, echo=FALSE}
+set.seed(14)
+
+role_tree <- phytools::pbtree(n = 35, scale = 1)
+role_alpha_levels <- c(low = 0.35, high = 1.4)
+role_sigma_scales <- c(low = 0.45, high = 1.65)
+role_specs <- expand.grid(
+  alpha_key = c("low", "high"),
+  sigma_key = c("low", "high"),
+  stringsAsFactors = FALSE
+)
+
+role_specs$alpha_value <- role_alpha_levels[role_specs$alpha_key]
+role_specs$sigma_scale <- role_sigma_scales[role_specs$sigma_key]
+
+role_sims <- lapply(seq_len(nrow(role_specs)), function(i) {
+  alpha_value <- role_specs$alpha_value[i]
+  sigma_value <- role_specs$sigma_scale[i] * sigma_matrix
+  alpha_value_mat <- diag(rep(alpha_value, 2))
+  dimnames(alpha_value_mat) <- dimnames(sigma_matrix)
+
+  as_trait_matrix(
+    mvMORPH::mvSIM(
+      role_tree,
+      model = "OU1",
+      nsim = 1,
+      param = list(
+        ntraits = 2,
+        theta = theta_vector,
+        sigma = sigma_value,
+        alpha = alpha_value_mat,
+        root = FALSE
+      )
+    )
+  )
+})
+
+role_limits <- range(
+  c(
+    unlist(lapply(role_sims, c)),
+    theta_vector
+  )
+) + c(-0.15, 0.15)
+
+role_fill_cols <- ifelse(role_specs$sigma_key == "low", "#76b7d8", "#f2a65a")
+role_border_cols <- ifelse(role_specs$sigma_key == "low", "#2f6f91", "#c96a14")
+```
+
+```{r multivariate_parameter_roles, echo=FALSE, fig.width=11.2, fig.height=10.0, fig.cap="**Figure 4.** A 2x2 OU grid separating pull and diffusion in trait space. Across columns diffusion increases; across rows pull strengthens. The red cross marks the shared optimum vector in every panel, and the ellipse summarizes the covariance of the simulated tip cloud."}
+panel_titles <- c(
+  "A. weak pull, low diffusion",
+  "B. weak pull, high diffusion",
+  "C. strong pull, low diffusion",
+  "D. strong pull, high diffusion"
+)
+
+op <- par(
+  mfrow = c(2, 2),
+  mar = c(4.1, 4.1, 2.8, 1),
+  mgp = c(2.25, 0.72, 0),
+  bty = "l",
+  las = 1,
+  cex.axis = figure_axis_cex,
+  cex.lab = figure_lab_cex,
+  cex.main = figure_main_cex
+)
+
+for (i in seq_len(nrow(role_specs))) {
+  plot(
+    role_sims[[i]][, 1],
+    role_sims[[i]][, 2],
+    xlim = role_limits,
+    ylim = role_limits,
+    pch = 21,
+    cex = 1.28,
+    bg = grDevices::adjustcolor(role_fill_cols[i], alpha.f = 0.58),
+    col = "#1f2933",
+    xlab = "Trait 1",
+    ylab = "Trait 2",
+    main = panel_titles[i],
+    asp = 1
+  )
+  abline(
+    v = theta_vector["trait1"],
+    h = theta_vector["trait2"],
+    lty = 3,
+    col = grDevices::adjustcolor("#b22222", alpha.f = 0.6)
+  )
+  points(theta_vector["trait1"], theta_vector["trait2"], pch = 4, cex = 2.25, lwd = 2.4, col = "#b22222")
+  draw_cov_ellipse(
+    colMeans(role_sims[[i]]),
+    cov(role_sims[[i]]),
+    border = role_border_cols[i],
+    lwd = 2.1
+  )
+  text(
+    x = role_limits[1] + 0.05 * diff(role_limits),
+    y = role_limits[2] - 0.06 * diff(role_limits),
+    labels = sprintf("alpha = %.2f\nSigma x %.2f", role_specs$alpha_value[i], role_specs$sigma_scale[i]),
+    adj = c(0, 1),
+    cex = figure_note_cex,
+    col = "#61707c"
+  )
+}
+
+par(op)
+```
+
+Figure 4 makes the division of labor between the parameters more concrete. Moving across columns changes how much residual diffusion there is, so the cloud expands and the ellipse gets larger. Moving down rows changes how strongly deviations are erased, so the cloud becomes tighter around the same optimum. In other words, `theta` sets the location, `sigma` sets the raw tendency to spread, and `alpha` determines how much of that spread survives.
+
+With that parameter separation in mind, we can return to one concrete OU1 data set and fit it back with `mvOU()`. To keep the interpretation aligned with the generating setup, the fit below constrains `alpha` to be diagonal.
+
+```{r multivariate_fit, echo=FALSE}
+multi_ou_fit <- mvMORPH::mvOU(
+  multi_tree,
+  multi_ou_data,
+  model = "OU1",
+  param = list(decomp = "diagonal"),
+  diagnostic = FALSE,
+  echo = FALSE
+)
+```
+
+```{r multivariate_fit_summary, echo=FALSE, results='asis'}
+multi_theta_summary <- data.frame(
+  trait = names(theta_vector),
+  true_theta = unname(theta_vector),
+  estimated_theta = as.numeric(multi_ou_fit$theta[1, ]),
+  row.names = NULL
+)
+
+multi_alpha_summary <- data.frame(
+  trait = names(theta_vector),
+  true_alpha_diag = diag(alpha_matrix),
+  estimated_alpha_diag = diag(multi_ou_fit$alpha),
+  row.names = NULL
+)
+
+cat(ou_table_grid(
+  ou_kable(
+    multi_theta_summary,
+    digits = 3,
+    caption = "OU1 inference for the shared optimum vector.",
+    col.names = c("trait", "true&nbsp;&theta;", "fit&nbsp;&theta;"),
+    escape = FALSE
+  ),
+  ou_kable(
+    multi_alpha_summary,
+    digits = 3,
+    caption = "Diagonal pull estimates by trait.",
+    col.names = c("trait", "true diag&nbsp;&alpha;", "fit diag&nbsp;&alpha;"),
+    escape = FALSE
+  )
+))
+```
+
+This is already an inference step, not just a simulation. `mvOU()` is estimating the optimum vector `theta` from the data. Under `OU1`, the returned `theta` has one row because the entire tree shares one multivariate optimum. That is a useful place to pause, because in comparative OU models `theta` is not just the empirical centroid of the tips. It is the optimum that best explains the observed data given the tree, the diffusion matrix, and the pull back toward the optimum.
+
+The return structure is also the first hint of what would matter for an eventual `bifrost` mvOU workflow: one fitted optimum vector, one fitted pull matrix, and one fitted diffusion matrix. The exact estimates do not need to match the generating parameters perfectly. On a 25-tip simulated tree, some deviation is expected: the point here is to see what kind of object is being inferred, not to claim exact recovery in a small example. Cooper et al. (2016) is a useful caution here, especially for interpreting `alpha` too literally on small trees.
+
+## 4. What Changes When `theta` Varies by Regime?
+
+This setup will look familiar to `bifrost` users. We will:
+
+1. start from a single baseline regime painted across the whole tree,
+2. paint one descendant clade with a new regime label, and
+3. ask whether a two-optimum OUM model beats a single-optimum OU1 model.
+
+The difference is that `mvOU()` interprets the painted regimes as selective regimes with different optima, rather than as BM/BMM rate regimes. This is the modeling move Butler and King (2004) made explicit: different painted histories correspond to different hypotheses about where the adaptive optimum changes.
+
+```{r oum_setup, echo=FALSE}
+set.seed(10)
+
+ou_tree <- phytools::pbtree(n = 20, scale = 1)
+
+baseline_tree <- phytools::paintBranches(
+  ou_tree,
+  edge = unique(ou_tree$edge[, 2]),
+  state = "0",
+  anc.state = "0"
+)
+
+shift_node <- choose_shift_node(baseline_tree, target_tips = 6, min_tips = 4)
+
+regime_tree <- phytools::paintSubTree(
+  baseline_tree,
+  node = shift_node,
+  state = "1",
+  anc.state = "0"
+)
+
+tip_regimes <- as.character(phytools::getStates(regime_tree, type = "tips"))
+
+theta_by_regime <- matrix(
+  c(0.0, 0.0,
+    1.1, -0.9),
+  nrow = 2,
+  byrow = TRUE,
+  dimnames = list(c("0", "1"), c("trait1", "trait2"))
+)
+
+sigma_oum <- matrix(
+  c(0.05, 0.015,
+    0.015, 0.03),
+  nrow = 2,
+  byrow = TRUE,
+  dimnames = list(colnames(theta_by_regime), colnames(theta_by_regime))
+)
+
+alpha_oum <- diag(c(1.0, 0.55))
+dimnames(alpha_oum) <- dimnames(sigma_oum)
+
+oum_data <- as_trait_matrix(
+  mvMORPH::mvSIM(
+    regime_tree,
+    model = "OUM",
+    nsim = 1,
+    param = list(
+      ntraits = 2,
+      theta = theta_by_regime,
+      sigma = sigma_oum,
+      alpha = alpha_oum,
+      root = FALSE
+    )
+  )
+)
+
+colnames(oum_data) <- colnames(theta_by_regime)
+```
+
+The painted tree below has one shifted descendant clade with `r sum(tip_regimes == "1")` tips nested inside a `r nrow(oum_data)`-tip tree. The simulation assigns one optimum vector to the background regime and one to the shifted regime:
+
+```{r oum_generating_parameters, echo=FALSE, results='asis'}
+theta_display <- matrix_to_display_df(round(theta_by_regime, 3), row_label = "regime")
+
+cat(ou_table(
+  ou_kable(
+    theta_display,
+    digits = 3,
+    caption = "Generating regime-specific optima.",
+    col.names = c("regime", "&theta;<sub>1</sub>", "&theta;<sub>2</sub>"),
+    escape = FALSE
+  )
+))
+```
+
+Under Butler and King (2004), this is the essential regime-specific OU move: the painted tree is a hypothesis about where the optimum changes. In this draft setup, `alpha` and `sigma` are still shared across the tree, so `theta` is the only parameter that varies across regimes.
+
+```{r oum_fit_compare, echo=FALSE}
+regime_cols <- c("0" = "#4c78a8", "1" = "#f58518")
+
+ou1_fit <- mvMORPH::mvOU(
+  ape::as.phylo(regime_tree),
+  oum_data,
+  model = "OU1",
+  param = list(decomp = "diagonal"),
+  diagnostic = FALSE,
+  echo = FALSE
+)
+
+oum_fit <- mvMORPH::mvOU(
+  regime_tree,
+  oum_data,
+  model = "OUM",
+  param = list(decomp = "diagonal"),
+  diagnostic = FALSE,
+  echo = FALSE
+)
+```
+
+```{r oum_inference_figure, echo=FALSE, fig.width=13.2, fig.height=6.1, fig.cap="**Figure 5.** A regime-specific OU comparison made visual. Left: the painted SIMMAP tree defining the candidate shift. Middle: simulated trait data with the true regime optima marked by crosses. Right: fitted `OU1` and `OUM` optima overlaid on the same data. The inferential question is whether one shared optimum is enough, or whether the shifted clade requires its own optimum."}
+tip_xlim <- range(
+  c(
+    oum_data[, 1],
+    theta_by_regime[, 1],
+    ou1_fit$theta[1, 1],
+    oum_fit$theta[, 1]
+  )
+) + c(-0.15, 0.15)
+
+tip_ylim <- range(
+  c(
+    oum_data[, 2],
+    theta_by_regime[, 2],
+    ou1_fit$theta[1, 2],
+    oum_fit$theta[, 2]
+  )
+) + c(-0.15, 0.15)
+
+layout(matrix(1:3, nrow = 1), widths = c(0.92, 1.04, 1.14))
+
+par(
+  mar = c(3.1, 1.2, 2.8, 0.6),
+  cex.main = figure_main_cex
+)
+phytools::plotSimmap(
+  regime_tree,
+  colors = regime_cols,
+  fsize = 0.9,
+  lwd = 2.1,
+  pts = FALSE
+)
+title(main = "A. Painted shift hypothesis")
+legend(
+  "bottomleft",
+  legend = c("regime 0", "regime 1"),
+  col = regime_cols[c("0", "1")],
+  lwd = 3,
+  bty = "n",
+  cex = figure_legend_cex
+)
+
+par(
+  mar = c(4.1, 4.1, 2.8, 0.8),
+  mgp = c(2.25, 0.72, 0),
+  bty = "l",
+  las = 1,
+  cex.axis = figure_axis_cex,
+  cex.lab = figure_lab_cex,
+  cex.main = figure_main_cex
+)
+plot(
+  oum_data[, 1],
+  oum_data[, 2],
+  xlim = tip_xlim,
+  ylim = tip_ylim,
+  col = "#25374a",
+  bg = grDevices::adjustcolor(regime_cols[tip_regimes], alpha.f = 0.82),
+  pch = 21,
+  cex = 1.34,
+  xlab = "Trait 1",
+  ylab = "Trait 2",
+  main = "B. Generating optima",
+  asp = 1
+)
+for (regime in names(regime_cols)) {
+  regime_idx <- tip_regimes == regime
+  draw_cov_ellipse(
+    colMeans(oum_data[regime_idx, , drop = FALSE]),
+    cov(oum_data[regime_idx, , drop = FALSE]),
+    border = regime_cols[regime],
+    lwd = 2
+  )
+}
+  points(
+  theta_by_regime[, 1],
+  theta_by_regime[, 2],
+  pch = 4,
+  cex = 2.3,
+  lwd = 2,
+  col = regime_cols[rownames(theta_by_regime)]
+)
+text(
+  theta_by_regime[, 1],
+  theta_by_regime[, 2],
+  labels = c(expression(theta[0]), expression(theta[1])),
+  pos = 4,
+  cex = figure_label_cex,
+  col = regime_cols[rownames(theta_by_regime)]
+)
+
+par(
+  mar = c(4.1, 4.1, 2.8, 1),
+  mgp = c(2.25, 0.72, 0),
+  bty = "l",
+  las = 1,
+  cex.axis = figure_axis_cex,
+  cex.lab = figure_lab_cex,
+  cex.main = figure_main_cex
+)
+plot(
+  oum_data[, 1],
+  oum_data[, 2],
+  xlim = tip_xlim,
+  ylim = tip_ylim,
+  col = "#25374a",
+  bg = grDevices::adjustcolor(regime_cols[tip_regimes], alpha.f = 0.82),
+  pch = 21,
+  cex = 1.34,
+  xlab = "Trait 1",
+  ylab = "Trait 2",
+  main = "C. Inferred optima",
+  asp = 1
+)
+for (regime in names(regime_cols)) {
+  regime_idx <- tip_regimes == regime
+  draw_cov_ellipse(
+    colMeans(oum_data[regime_idx, , drop = FALSE]),
+    cov(oum_data[regime_idx, , drop = FALSE]),
+    border = regime_cols[regime],
+    lwd = 2
+  )
+}
+points(
+  ou1_fit$theta[1, 1],
+  ou1_fit$theta[1, 2],
+  pch = 15,
+  cex = 1.55,
+  col = "#252525"
+)
+points(
+  oum_fit$theta[, 1],
+  oum_fit$theta[, 2],
+  pch = 23,
+  cex = 1.75,
+  bg = regime_cols[rownames(oum_fit$theta)],
+  col = "#252525"
+)
+text(
+  ou1_fit$theta[1, 1],
+  ou1_fit$theta[1, 2],
+  labels = expression(hat(theta)["OU1"]),
+  pos = 2,
+  cex = figure_note_cex,
+  col = "#252525"
+)
+text(
+  oum_fit$theta[, 1],
+  oum_fit$theta[, 2],
+  labels = expression(hat(theta)[0], hat(theta)[1]),
+  pos = 4,
+  cex = figure_note_cex,
+  col = regime_cols[rownames(oum_fit$theta)]
+)
+legend(
+  "bottomleft",
+  legend = c("regime 0 tips", "regime 1 tips", "OU1 fit", "OUM fits"),
+  col = c("#25374a", "#25374a", "#252525", "#252525"),
+  pt.bg = c(regime_cols["0"], regime_cols["1"], NA, "white"),
+  pch = c(21, 21, 15, 23),
+  pt.cex = c(1.55, 1.55, 1.55, 1.7),
+  bty = "n",
+  cex = figure_legend_cex
+)
+
+layout(1)
+```
+
+Figure 5 makes the model comparison visually concrete before we ever look at AIC. The middle panel shows the true regime-specific optima used to generate the data. The right panel asks the inferential version of the same question: does a single shared optimum land in the right place, or do we need one optimum for each regime to explain the observed cloud?
+
+```{r oum_comparison_table, echo=FALSE, results='asis'}
+comparison <- data.frame(
+  model = c("OU1", "OUM"),
+  AIC = c(ou1_fit$AIC, oum_fit$AIC),
+  AICc = c(ou1_fit$AICc, oum_fit$AICc)
+)
+
+comparison$delta_AIC <- comparison$AIC - min(comparison$AIC)
+comparison$delta_AICc <- comparison$AICc - min(comparison$AICc)
+
+comparison[, -1] <- round(comparison[, -1], 3)
+cat(ou_table(
+  ou_kable(
+    comparison,
+    caption = "Information-criterion comparison between one shared theta vector (OU1) and regime-specific theta vectors (OUM).",
+    col.names = c("model", "AIC", "AICc", "&Delta;AIC", "&Delta;AICc"),
+    escape = FALSE
+  )
+))
+```
+
+In this simulation the painted OUM model is better by both AIC and AICc, which is what we expect because the data were generated with two selective regimes rather than one. The point is not just that `OUM` has more parameters. It is that those extra parameters correspond to a biologically meaningful change in the model: the optimum is allowed to move when the painted regime changes.
+
+The simplest reading of the table is that the data support letting the optimum change across regimes, not just repainting the tree while forcing one shared optimum.
+
+## 5. Reading the fitted OUM object
+
+The `mvOU()` fit is compact, but there are three pieces worth reading carefully:
+
+```{r oum_parameters, echo=FALSE, results='asis'}
+theta_comparison <- data.frame(
+  regime = rownames(theta_by_regime),
+  true_trait1 = theta_by_regime[, "trait1"],
+  estimated_trait1 = oum_fit$theta[rownames(theta_by_regime), "trait1"],
+  true_trait2 = theta_by_regime[, "trait2"],
+  estimated_trait2 = oum_fit$theta[rownames(theta_by_regime), "trait2"],
+  row.names = NULL
+)
+
+alpha_display <- matrix_to_display_df(round(oum_fit$alpha, 3), row_label = "trait")
+sigma_display_fit <- matrix_to_display_df(round(oum_fit$sigma, 3), row_label = "trait")
+
+cat(ou_table(
+  ou_kable(
+    theta_comparison,
+    digits = 3,
+    caption = "True and fitted regime-specific optimum vectors.",
+    col.names = c(
+      "regime",
+      "true&nbsp;&theta;<sub>1</sub>",
+      "fit&nbsp;&theta;<sub>1</sub>",
+      "true&nbsp;&theta;<sub>2</sub>",
+      "fit&nbsp;&theta;<sub>2</sub>"
+    ),
+    escape = FALSE
+  )
+))
+
+cat(ou_table_grid(
+  ou_kable(
+    alpha_display,
+    digits = 3,
+    caption = "Estimated shared pull matrix &alpha;.",
+    col.names = c("trait", "trait 1", "trait 2"),
+    escape = FALSE
+  ),
+  ou_kable(
+    sigma_display_fit,
+    digits = 3,
+    caption = "Estimated shared diffusion matrix &Sigma;.",
+    col.names = c("trait", "trait 1", "trait 2"),
+    escape = FALSE
+  )
+))
+```
+
+Here is how to interpret those objects:
+
+- `theta` is a regime-by-trait matrix. In this example it has one row for the baseline regime `"0"` and one row for the shifted regime `"1"`.
+- `alpha` is the shared pull matrix. Because we fit with `decomp = "diagonal"`, it is easy to read trait-wise pull strengths directly from the diagonal.
+- `sigma` is the shared diffusion-rate matrix. Its diagonal entries control marginal spread, and its off-diagonal entries allow correlated diffusion between traits.
+
+The important conceptual change from `OU1` to `OUM` is not that `theta` becomes estimated; it was already estimated under `OU1`. The change is that `theta` now has one inferred row per regime instead of one inferred row for the whole tree. That is why `theta` is the right object to stare at first when you read an OUM fit.
+
+It is also worth separating `theta` from a raw regime mean. In OU models, the fitted optimum is not simply the average of the tips inside that painted clade. It is the optimum that best explains the entire tree given the regime history, the diffusion matrix, and how quickly the process forgets past states. That is why `alpha` matters conceptually even when the biological headline is about `theta`: stronger pull means the model gives less weight to older states and more weight to the current regime.
+
+`sigma` plays a different role. It is not an optimum at all; it is the covariance structure of the residual diffusion around the optimum. In a multivariate OU fit, that means `sigma` tells you which directions of trait space are easier to wander through once the attraction toward the optimum has been accounted for.
+
+Again, the recovered values are not exact copies of the generating parameters, especially on a small tree. What matters here is that the fitted object has the right structure and that the regime-specific `theta` rows move in the expected direction. That is also why this vignette leans on model structure and information-criterion comparison more than on exact parameter recovery, in line with the caution emphasized by Cooper et al. (2016).
+
+## 6. Mapping the BM-to-`mvOU` Progression to the `bifrost` API
+
+That regime-by-regime interpretation is the clearest connection back to `bifrost`. The current package API is BM/BMM-focused, so the fitted objects emphasize regime-specific rate structure and variance-covariance matrices. An eventual mvOU search would likely preserve much of the same outer workflow:
+
+- paint candidate descendant clades on a tree,
+- fit a multivariate comparative model on each painted tree,
+- compare information criteria across candidate regime mappings, and
+- summarize the best-supported painted history.
+
+But the biological meaning of the fitted parameters would change. Under BM/BMM, the central question is whether different clades evolved with different rate or covariance structure. Under OUM, the central question becomes whether different clades are pulled toward different multivariate optima, while sharing a common OU process for attraction and diffusion.
+
+That is also why multivariate OU remains an active methodological area. Once multiple traits, multiple optima, and shift locations are all in play, the inferential problem becomes richer than a simple one-parameter extension of BM. Mariadassou, Lambert, and Morlon (2018) are a good recent reference for that broader multivariate adaptive-shift perspective.
+
+```{r minimal_fitting_pattern, eval=FALSE}
+# Minimal pattern: one shared optimum
+ou1_fit <- mvMORPH::mvOU(
+  tree,
+  trait_data,
+  model = "OU1",
+  param = list(decomp = "diagonal")
+)
+
+# Minimal pattern: one optimum per painted regime
+oum_fit <- mvMORPH::mvOU(
+  painted_tree,
+  trait_data,
+  model = "OUM",
+  param = list(decomp = "diagonal")
+)
+```
+
+So if you need OU today, the practical route is to fit it directly with `mvMORPH::mvOU()` as shown here. If you need the current `bifrost` workflow for empirical data, return to `vignette("jaw-shape-vignette", package = "bifrost")` or `vignette("avian-skeleton-vignette", package = "bifrost")`, and use `vignette("theoretical-background-vignette", package = "bifrost")` for the broader multivariate covariance intuition behind both approaches.
+
+## Practical Takeaways
+
+- Under `OU1`, `mvOU()` infers one shared multivariate `theta` vector for the whole tree.
+- Under `OUM`, `theta` is still inferred, but it becomes a regime-by-trait matrix with one row per painted regime.
+- In this vignette’s setup, `alpha` and `sigma` are shared, so the main model comparison is about whether one optimum or multiple optima better explain the data.
+- That is why the `OU1` versus `OUM` comparison is the cleanest conceptual bridge from current `bifrost` BM/BMM workflows to a future mvOU-style search.
+
+## Next Steps
+
+If you want to place this vignette in the broader package context:
+
+- use `vignette("theoretical-background-vignette", package = "bifrost")` for the multivariate BM/BMM covariance foundations,
+- use `vignette("jaw-shape-vignette", package = "bifrost")` and `vignette("avian-skeleton-vignette", package = "bifrost")` for current empirical `bifrost` workflows, and
+- return here for the eventual package-native mvOU workflow once the extended `bifrost` implementation is available.
+
+## References
+
+- Bartoszek, K., Pienaar, J., Mostad, P., Andersson, S., and Hansen, T. F. (2012). *A phylogenetic comparative method for studying multivariate adaptation*. Journal of Theoretical Biology, 314, 204-215. [https://doi.org/10.1016/j.jtbi.2012.08.005](https://doi.org/10.1016/j.jtbi.2012.08.005)
+- Butler, M. A., and King, A. A. (2004). *Phylogenetic Comparative Analysis: A Modeling Approach for Adaptive Evolution*. The American Naturalist, 164(6), 683-695. [https://doi.org/10.1086/426002](https://doi.org/10.1086/426002)
+- Clavel, J. (2025). *Package ‘mvMORPH’ reference manual*, version 1.2.1. CRAN. [https://cran.r-project.org/web/packages/mvMORPH/mvMORPH.pdf](https://cran.r-project.org/web/packages/mvMORPH/mvMORPH.pdf)
+- Clavel, J., Escarguel, G., and Merceron, G. (2015). *mvMORPH: an R package for fitting multivariate evolutionary models to morphometric data*. Methods in Ecology and Evolution, 6(11), 1311-1319. [https://doi.org/10.1111/2041-210X.12420](https://doi.org/10.1111/2041-210X.12420)
+- Cooper, N., Thomas, G. H., Venditti, C., Meade, A., and Freckleton, R. P. (2016). *A cautionary note on the use of Ornstein Uhlenbeck models in macroevolutionary studies*. Biological Journal of the Linnean Society, 118(1), 64-77. [https://doi.org/10.1111/bij.12701](https://doi.org/10.1111/bij.12701)
+- Hansen, T. F. (1997). *Stabilizing selection and the comparative analysis of adaptation*. Evolution, 51(5), 1341-1351. [https://doi.org/10.1111/j.1558-5646.1997.tb01457.x](https://doi.org/10.1111/j.1558-5646.1997.tb01457.x)
+- Mariadassou, M., Lambert, A., and Morlon, H. (2018). *Inference of Adaptive Shifts for Multivariate Correlated Traits*. Systematic Biology, 67(4), 662-682. [https://doi.org/10.1093/sysbio/syy005](https://doi.org/10.1093/sysbio/syy005)
+- Uhlenbeck, G. E., and Ornstein, L. S. (1930). *On the Theory of the Brownian Motion*. Physical Review, 36(5), 823-841. [https://doi.org/10.1103/PhysRev.36.823](https://doi.org/10.1103/PhysRev.36.823)
+- `mvOU`: *Multivariate Ornstein-Uhlenbeck model of continuous traits evolution*. `mvMORPH` online help page, accessed March 13, 2026. [https://rdrr.io/cran/mvMORPH/man/mvOU.html](https://rdrr.io/cran/mvMORPH/man/mvOU.html)
