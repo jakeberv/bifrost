@@ -12,10 +12,11 @@
 #' @param trait_data A numeric matrix or data frame containing the empirical data
 #'   used to parameterize the simulations. Row names must match
 #'   `baseline_tree$tip.label`.
-#' @param formula Character scalar passed to [mvMORPH::mvgls()]. As in
-#'   [searchOptimalConfiguration()], formulas should typically reference
-#'   `trait_data` directly (for example, `"trait_data ~ 1"` or
-#'   `"trait_data[, 1:12] ~ 1"` or `"trait_data[, 1:12] ~ trait_data[, 13]"`).
+#' @param formula Formula specification passed to [mvMORPH::mvgls()]. May be a
+#'   single character string or a formula object. Legacy forms that reference
+#'   `trait_data` directly remain supported (for example, `"trait_data ~ 1"` or
+#'   `"trait_data[, 1:12] ~ trait_data[, 13]"`), but named-column formulas such
+#'   as `cbind(y1, y2) ~ size + grp` are also accepted.
 #' @param response_columns Optional column specification identifying the
 #'   multivariate response. May be integer positions, character column names, or
 #'   a mix resolvable against `trait_data`. For intercept-only workflows this
@@ -23,9 +24,11 @@
 #'   `trait_data`, including intercept-only formulas such as
 #'   `"trait_data[, 1:12] ~ 1"`, this should be supplied explicitly.
 #' @param predictor_columns Optional column specification identifying predictor
-#'   columns that should be carried through unchanged in simulated datasets. If
-#'   `formula` is not intercept-only and `predictor_columns` is omitted, the
-#'   complement of `response_columns` is used.
+#'   columns used by the global calibration model. For named-column formulas
+#'   these are usually inferred from the formula itself. For non-intercept
+#'   workflows where `predictor_columns` is omitted, the complement of
+#'   `response_columns` is used unless the formula identifies raw predictor
+#'   columns directly.
 #' @param ... Additional arguments passed to [mvMORPH::mvgls()] for the global
 #'   empirical fit (for example `method = "LL"` or `error = TRUE`).
 #'
@@ -34,7 +37,7 @@
 #' closely as possible while cleaning it up for package use. The returned template
 #' stores:
 #' \itemize{
-#'   \item the aligned empirical tree and analysis data,
+#'   \item the aligned empirical tree and calibration data,
 #'   \item the fitted global `mvgls` model,
 #'   \item evaluated copies of key fit settings (`fit_method`, `fit_error`) that
 #'         can be reused safely by downstream simulation-study wrappers,
@@ -47,14 +50,20 @@
 #'         covariance matrix for each replicate.
 #' }
 #'
-#' For intercept-only workflows, the analysis data stored in the template are the
-#' response columns only, because `formula = "trait_data ~ 1"` treats the entire
-#' supplied object as the multivariate response. This same intercept-only logic
-#' also applies to subset-response formulas whose right-hand side is just `1`,
-#' such as `"trait_data[, 1:12] ~ 1"`, provided that `response_columns` is used
-#' to identify the simulated response block. For formula-based workflows with
-#' predictors, the full aligned `trait_data` object is retained so that
-#' predictors can be carried through unchanged during simulation studies.
+#' The template is a calibration object, not a full simulation-study design. Its
+#' formula defines the one global mean model used to estimate fitted values and
+#' residual covariance structure. Downstream simulation studies then regenerate
+#' the response block around those fitted means and evaluate intercept-only
+#' shift-search behavior on the simulated responses. In other words, a richer
+#' calibration model can still feed the manuscript-style `trait_data ~ 1`
+#' simulation workflow.
+#'
+#' Internally, all supported formulas are normalized into a single simulation
+#' formula specification. Legacy indexed formulas are rewritten onto named
+#' columns, formula objects are accepted alongside character strings, predictor
+#' schemas record numeric/logical/factor/ordered predictors, and unsupported
+#' forms such as transformed responses, `.` shorthand, and character predictors
+#' are rejected early.
 #'
 #' @return A list of class `bifrost_simulation_template` containing the aligned
 #'   inputs, fitted global model, empirical mean structure, response/predictor
@@ -94,6 +103,9 @@ createSimulationTemplate <- function(baseline_tree,
   if ("model" %in% names(extra_args)) {
     stop("Do not supply 'model' to createSimulationTemplate(); the global fit is always BM.")
   }
+  if ("data" %in% names(extra_args)) {
+    stop("Do not supply 'data' to createSimulationTemplate(); trait_data is always the empirical data source.")
+  }
 
   if (!inherits(ape::as.phylo(baseline_tree), "phylo")) {
     stop("baseline_tree must be coercible to class 'phylo'.")
@@ -104,10 +116,7 @@ createSimulationTemplate <- function(baseline_tree,
   if (is.null(rownames(trait_data))) {
     stop("trait_data must have row names matching the tree tip labels.")
   }
-  if (!is.character(formula) || length(formula) != 1L || is.na(formula)) {
-    stop("formula must be a single character string.")
-  }
-  formula_obj <- stats::as.formula(formula)
+  formula_obj <- simulationFormulaToObject(formula)
 
   aligned_tree <- ape::as.phylo(baseline_tree)
   if (!all(aligned_tree$tip.label %in% rownames(trait_data))) {
@@ -121,97 +130,71 @@ createSimulationTemplate <- function(baseline_tree,
   if (is.matrix(aligned_trait_data) && is.null(colnames(aligned_trait_data))) {
     colnames(aligned_trait_data) <- paste0("V", seq_len(ncol(aligned_trait_data)))
   }
-
-  formula_terms <- stats::terms(formula_obj)
-  intercept_only <- length(attr(formula_terms, "term.labels")) == 0L &&
-    identical(attr(formula_terms, "intercept"), 1L)
-  analysis_colnames <- colnames(aligned_trait_data)
-
-  resolve_columns <- function(columns, what) {
-    if (is.null(columns)) {
-      return(NULL)
-    }
-    if (length(columns) == 0L) {
-      return(integer(0))
-    }
-    if (is.numeric(columns)) {
-      idx <- as.integer(columns)
-      if (anyNA(idx) || any(idx < 1L) || any(idx > ncol(aligned_trait_data))) {
-        stop(sprintf("%s contains invalid column positions.", what))
-      }
-      return(unique(idx))
-    }
-    if (is.character(columns)) {
-      if (is.null(analysis_colnames)) {
-        stop(sprintf("%s were supplied as names, but trait_data has no column names.", what))
-      }
-      if (!all(columns %in% analysis_colnames)) {
-        stop(sprintf("%s contains names not found in trait_data.", what))
-      }
-      return(match(unique(columns), analysis_colnames))
-    }
-    stop(sprintf("%s must be NULL, numeric positions, or character column names.", what))
+  aligned_data_for_spec <- if (is.data.frame(aligned_trait_data)) {
+    aligned_trait_data
+  } else {
+    as.data.frame(aligned_trait_data, check.names = FALSE, stringsAsFactors = FALSE)
   }
+  formula_spec <- normalizeSimulationFormulaSpec(
+    formula = formula_obj,
+    trait_data = aligned_data_for_spec,
+    response_columns = response_columns,
+    predictor_columns = predictor_columns
+  )
 
-  response_idx <- resolve_columns(response_columns, "response_columns")
-  predictor_idx <- resolve_columns(predictor_columns, "predictor_columns")
-
-  if (is.null(response_idx)) {
-    if (intercept_only) {
-      response_idx <- seq_len(ncol(aligned_trait_data))
-    } else {
-      stop("response_columns must be supplied for non-intercept simulation templates.")
-    }
-  }
-  if (length(response_idx) == 0L) {
-    stop("response_columns must identify at least one response column.")
-  }
+  response_idx <- formula_spec$response_columns
+  predictor_idx <- formula_spec$predictor_columns
+  intercept_only <- formula_spec$intercept_only
 
   if (intercept_only) {
-    if (!is.null(predictor_columns) && length(predictor_columns) > 0L) {
-      stop("predictor_columns should not be supplied for intercept-only formulas.")
-    }
-    analysis_trait_data <- aligned_trait_data[, response_idx, drop = FALSE]
-    response_idx <- seq_len(ncol(analysis_trait_data))
-    predictor_idx <- integer(0)
+    analysis_trait_data <- as.matrix(aligned_data_for_spec[, response_idx, drop = FALSE])
+    colnames(analysis_trait_data) <- formula_spec$response_column_names
+    fit_formula_obj <- formula_spec$formula_normalized_obj
+    fit_call_args <- c(
+      list(
+        formula = fit_formula_obj,
+        tree = phytools::paintSubTree(
+          ape::reorder.phylo(aligned_tree, order = "postorder"),
+          node = ape::Ntip(aligned_tree) + 1L,
+          state = 0,
+          anc.state = 0
+        ),
+        model = "BM",
+        data = list(trait_data = analysis_trait_data)
+      ),
+      extra_args
+    )
   } else {
-    if (is.null(predictor_idx)) {
-      predictor_idx <- setdiff(seq_len(ncol(aligned_trait_data)), response_idx)
+    analysis_trait_data <- aligned_data_for_spec
+    response_block <- analysis_trait_data[, formula_spec$response_column_names, drop = FALSE]
+    if (!all(vapply(response_block, is.numeric, logical(1)))) {
+      stop("Response columns in simulation templates must be numeric.")
     }
-    if (length(predictor_idx) == 0L) {
-      stop("predictor_columns must identify at least one predictor column for non-intercept formulas.")
-    }
-    if (length(intersect(response_idx, predictor_idx)) > 0L) {
-      stop("response_columns and predictor_columns must not overlap.")
-    }
-    analysis_trait_data <- aligned_trait_data
-    if (is.data.frame(analysis_trait_data)) {
-      numeric_columns <- vapply(analysis_trait_data, is.numeric, logical(1))
-      if (!all(numeric_columns)) {
-        stop(
-          "Formula-based simulation templates currently require a numeric matrix ",
-          "or a data.frame with only numeric columns so that the formula remains ",
-          "compatible with searchOptimalConfiguration()."
-        )
-      }
-      analysis_trait_data <- as.matrix(analysis_trait_data)
-    }
+    formula_spec$data_prototype <- analysis_trait_data[0, , drop = FALSE]
+    normalized_fit <- normalizeMvglsFormulaCall(
+      formula = formula_spec$formula_normalized_obj,
+      trait_data = analysis_trait_data,
+      args_list = list(data = analysis_trait_data),
+      allow_single_response = TRUE
+    )
+    fit_formula_obj <- normalized_fit$formula
+    fit_call_args <- c(
+      list(
+        formula = fit_formula_obj,
+        tree = phytools::paintSubTree(
+          ape::reorder.phylo(aligned_tree, order = "postorder"),
+          node = ape::Ntip(aligned_tree) + 1L,
+          state = 0,
+          anc.state = 0
+        ),
+        model = "BM"
+      ),
+      normalized_fit$args_list,
+      extra_args
+    )
   }
 
-  painted_tree <- phytools::paintSubTree(
-    ape::reorder.phylo(aligned_tree, order = "postorder"),
-    node = ape::Ntip(aligned_tree) + 1L,
-    state = 0,
-    anc.state = 0
-  )
-
-  trait_data <- analysis_trait_data
-  global_model <- mvMORPH::mvgls(
-    formula_obj,
-    tree = painted_tree,
-    model = "BM",
-    ...
-  )
+  global_model <- do.call(mvMORPH::mvgls, fit_call_args)
 
   sigma_source <- global_model$sigma$Pinv
   if (is.null(sigma_source)) {
@@ -244,23 +227,27 @@ createSimulationTemplate <- function(baseline_tree,
   fitted_values <- as.matrix(global_model$fitted)
   rownames(fitted_values) <- rownames(analysis_trait_data)
   if (is.null(colnames(fitted_values))) {
-    colnames(fitted_values) <- colnames(analysis_trait_data)[response_idx]
+    colnames(fitted_values) <- formula_spec$response_column_names
   }
 
   result <- list(
     user_input = as.list(match.call()),
     baseline_tree = aligned_tree,
     trait_data = analysis_trait_data,
-    formula = formula,
+    calibration_formula = formula_spec$formula_original_chr,
+    formula = formula_spec$formula_original_chr,
+    formula_original = formula_spec$formula_original,
+    formula_normalized = formula_spec$formula_normalized_chr,
+    formula_normalized_obj = formula_spec$formula_normalized_obj,
+    search_formula = "trait_data ~ 1",
+    formula_mode = formula_spec$formula_mode,
     response_columns = response_idx,
-    response_column_names = colnames(analysis_trait_data)[response_idx],
+    response_column_names = formula_spec$response_column_names,
     predictor_columns = predictor_idx,
-    predictor_column_names = if (length(predictor_idx) > 0L) {
-      colnames(analysis_trait_data)[predictor_idx]
-    } else {
-      character(0)
-    },
-    trait_data_is_matrix = is.matrix(analysis_trait_data),
+    predictor_column_names = formula_spec$predictor_column_names,
+    predictor_schema = formula_spec$predictor_schema,
+    data_prototype = if (intercept_only) NULL else formula_spec$data_prototype,
+    trait_data_is_matrix = is.matrix(aligned_trait_data),
     fit_method = if ("method" %in% names(extra_args)) extra_args$method else NULL,
     fit_error = if ("error" %in% names(extra_args)) extra_args$error else NULL,
     global_model = global_model,
@@ -292,10 +279,10 @@ createSimulationTemplate <- function(baseline_tree,
 #' @param tree_tip_count Optional integer tip count for random subtree sampling.
 #'   If `NULL`, the full empirical tree from `template` is used.
 #' @param seed Optional integer random seed.
-#' @param preserve_predictors Logical; if `TRUE`, predictor columns stored in the
-#'   template are carried through unchanged for the sampled taxa. This must
-#'   remain `TRUE` for templates created from non-intercept workflows, because
-#'   the stored model formula still references those predictor columns.
+#' @param preserve_predictors Retained for backward compatibility. Simulation
+#'   studies generated from a template always operate on the response block
+#'   alone, so predictor columns are not carried through into simulated
+#'   datasets.
 #' @param ... Reserved for future extensions. Currently ignored.
 #'
 #' @details
@@ -303,11 +290,10 @@ createSimulationTemplate <- function(baseline_tree,
 #' `simulate_traits_BM1()` workflow. The core scientific behavior is preserved:
 #' a new covariance matrix is generated for each replicate from the empirical
 #' variance/covariance summaries in the template, rather than reusing the fitted
-#' covariance matrix directly. For formula-based templates, the empirical fitted
-#' mean structure is added back to the simulated residual process and predictor
-#' columns are preserved unchanged. To keep the stored formula valid for
-#' downstream `bifrost` searches, non-intercept templates require
-#' `preserve_predictors = TRUE`.
+#' covariance matrix directly. For templates calibrated from richer global
+#' models, the empirical fitted mean structure is added back to the simulated
+#' residual process before the downstream intercept-only search is run on the
+#' regenerated response block.
 #'
 #' @return A list of class `bifrost_simulation_replicate_null` containing the
 #'   sampled tree, a single-regime baseline tree, the simulated response matrix,
@@ -355,13 +341,6 @@ simulateNullDataset <- function(template,
       is.na(preserve_predictors)) {
     stop("preserve_predictors must be TRUE or FALSE.")
   }
-  if (length(template$predictor_columns) > 0L && !preserve_predictors) {
-    stop(
-      "preserve_predictors must be TRUE for templates with predictor columns ",
-      "so the stored formula remains valid."
-    )
-  }
-
   sampled_tree <- if (is.null(tree_tip_count) || tree_tip_count == template$n_tips) {
     ape::reorder.phylo(ape::as.phylo(template$baseline_tree), order = "postorder")
   } else {
@@ -371,7 +350,6 @@ simulateNullDataset <- function(template,
     )
   }
 
-  sampled_data <- template$trait_data[sampled_tree$tip.label, , drop = FALSE]
   sampled_fitted <- template$fitted_values[sampled_tree$tip.label, , drop = FALSE]
   n_traits <- template$n_response_traits
 
@@ -430,23 +408,10 @@ simulateNullDataset <- function(template,
   simulated_response <- sampled_fitted + simulated_residuals
   colnames(simulated_response) <- template$response_column_names
 
-  trait_data <- if (length(template$predictor_columns) == 0L || !preserve_predictors) {
-    if (template$trait_data_is_matrix) {
-      simulated_response
-    } else {
-      as.data.frame(simulated_response, stringsAsFactors = FALSE)
-    }
+  trait_data <- if (template$trait_data_is_matrix) {
+    simulated_response
   } else {
-    rebuilt <- sampled_data
-    if (is.matrix(rebuilt)) {
-      rebuilt[, template$response_columns] <- simulated_response
-    } else {
-      rebuilt[, template$response_columns] <- as.data.frame(
-        simulated_response,
-        stringsAsFactors = FALSE
-      )
-    }
-    rebuilt
+    as.data.frame(simulated_response, stringsAsFactors = FALSE)
   }
 
   baseline_tree <- phytools::paintSubTree(
@@ -496,10 +461,10 @@ simulateNullDataset <- function(template,
 #'   excluded from sampled shift scalars.
 #' @param buffer Integer minimum node distance between simulated shifts.
 #' @param seed Optional integer random seed.
-#' @param preserve_predictors Logical; if `TRUE`, predictor columns stored in the
-#'   template are carried through unchanged for the sampled taxa. This must
-#'   remain `TRUE` for templates created from non-intercept workflows, because
-#'   the stored model formula still references those predictor columns.
+#' @param preserve_predictors Retained for backward compatibility. Simulation
+#'   studies generated from a template always operate on the response block
+#'   alone, so predictor columns are not carried through into simulated
+#'   datasets.
 #' @param ... Reserved for future extensions. Currently ignored.
 #'
 #' @details
@@ -514,7 +479,7 @@ simulateNullDataset <- function(template,
 #'   \item construction of derived regimes by either proportional scaling or the
 #'         non-generating correlation-scaling scenario, and
 #'   \item simulation of multivariate BMM residuals that are added to the
-#'         empirical fitted mean structure for formula-based templates.
+#'         empirical fitted mean structure from the global calibration model.
 #' }
 #'
 #' Under `scale_mode = "proportional"`, derived regimes are scalar multiples of
@@ -522,8 +487,8 @@ simulateNullDataset <- function(template,
 #' of the current `bifrost` BMM search. Under `scale_mode = "correlation"`, the
 #' off-diagonal correlation structure is changed while variances are adjusted,
 #' mirroring the manuscript's deliberate model-misspecification robustness test.
-#' To keep the stored formula valid for downstream `bifrost` searches,
-#' non-intercept templates require `preserve_predictors = TRUE`.
+#' Downstream simulation studies still evaluate intercept-only shift searches on
+#' the regenerated response block.
 #'
 #' @return A list of class `bifrost_simulation_replicate_shifted` containing the
 #'   painted generating tree, the true shift nodes, the simulated response
@@ -618,12 +583,6 @@ simulateShiftedDataset <- function(template,
       is.na(preserve_predictors)) {
     stop("preserve_predictors must be TRUE or FALSE.")
   }
-  if (length(template$predictor_columns) > 0L && !preserve_predictors) {
-    stop(
-      "preserve_predictors must be TRUE for templates with predictor columns ",
-      "so the stored formula remains valid."
-    )
-  }
 
   sampled_tree <- if (is.null(tree_tip_count) || tree_tip_count == template$n_tips) {
     ape::reorder.phylo(ape::as.phylo(template$baseline_tree), order = "postorder")
@@ -634,7 +593,6 @@ simulateShiftedDataset <- function(template,
     )
   }
 
-  sampled_data <- template$trait_data[sampled_tree$tip.label, , drop = FALSE]
   sampled_fitted <- template$fitted_values[sampled_tree$tip.label, , drop = FALSE]
   n_traits <- template$n_response_traits
 
@@ -837,23 +795,10 @@ simulateShiftedDataset <- function(template,
     simulated_response <- sampled_fitted + simulated_residuals
     colnames(simulated_response) <- template$response_column_names
 
-    trait_data <- if (length(template$predictor_columns) == 0L || !preserve_predictors) {
-      if (template$trait_data_is_matrix) {
-        simulated_response
-      } else {
-        as.data.frame(simulated_response, stringsAsFactors = FALSE)
-      }
+    trait_data <- if (template$trait_data_is_matrix) {
+      simulated_response
     } else {
-      rebuilt <- sampled_data
-      if (is.matrix(rebuilt)) {
-        rebuilt[, template$response_columns] <- simulated_response
-      } else {
-        rebuilt[, template$response_columns] <- as.data.frame(
-          simulated_response,
-          stringsAsFactors = FALSE
-        )
-      }
-      rebuilt
+      as.data.frame(simulated_response, stringsAsFactors = FALSE)
     }
 
     baseline_tree <- phytools::paintSubTree(
@@ -900,11 +845,10 @@ simulateShiftedDataset <- function(template,
 #'   If `NULL`, each replicate uses the full empirical tree.
 #' @param simulation_options Named list of additional arguments passed to
 #'   [simulateNullDataset()]. For replicated studies, `simulation_options$seed`
-#'   is not allowed; use the wrapper-level `seed` argument instead. For
-#'   templates with predictor columns, `preserve_predictors` must remain `TRUE`.
+#'   is not allowed; use the wrapper-level `seed` argument instead.
 #' @param search_options Named list of arguments passed to
 #'   [searchOptimalConfiguration()]. These override the default manuscript-style
-#'   search settings assembled from `template`.
+#'   intercept-only search settings assembled from `template`.
 #' @param num_cores Integer number of workers used across replicate analyses.
 #' @param seed Optional integer random seed.
 #'
@@ -915,6 +859,11 @@ simulateShiftedDataset <- function(template,
 #' simulated datasets, search results, a per-replicate summary table, and a
 #' compact study summary are all returned in a single object of class
 #' `bifrost_simulation_study`.
+#'
+#' Regardless of the global calibration model used to build `template`, the
+#' downstream search is intentionally restricted to intercept-only formulas.
+#' This keeps the simulation study focused on branch-shift detection in the
+#' response block, matching the manuscript-style residual-calibration logic.
 #'
 #' Failed search replicates are retained in the output and counted as zero
 #' inferred shifts; the corresponding error messages are recorded in the
@@ -986,19 +935,18 @@ runFalsePositiveSimulationStudy <- function(template,
       "use the wrapper-level seed argument instead."
     )
   }
-  if (length(template$predictor_columns) > 0L &&
-      identical(simulation_options$preserve_predictors, FALSE)) {
-    stop(
-      "Formula-based simulation studies require preserve_predictors = TRUE so ",
-      "the stored formula remains valid."
-    )
-  }
   if (!is.null(seed)) {
     set.seed(seed)
   }
 
+  template_search_formula <- if (!is.null(template$search_formula)) {
+    template$search_formula
+  } else {
+    "trait_data ~ 1"
+  }
+
   search_defaults <- list(
-    formula = template$formula,
+    formula = template_search_formula,
     min_descendant_tips = 10,
     num_cores = 1,
     shift_acceptance_threshold = 10,
@@ -1025,6 +973,7 @@ runFalsePositiveSimulationStudy <- function(template,
     search_defaults$error <- error_setting
   }
   search_opts <- utils::modifyList(search_defaults, search_options)
+  search_opts$formula <- validateSimulationStudyFormula(search_opts$formula)
   if (isTRUE(num_cores > 1L) && isTRUE(search_opts$num_cores > 1L)) {
     warning("Both wrapper-level and search-level parallelism are > 1; nested parallelism may be inefficient.")
   }
@@ -1157,11 +1106,10 @@ runFalsePositiveSimulationStudy <- function(template,
 #' @param simulation_options Named list of additional arguments passed to
 #'   [simulateShiftedDataset()]. For replicated studies,
 #'   `simulation_options$seed` is not allowed; use the wrapper-level `seed`
-#'   argument instead. For templates with predictor columns,
-#'   `preserve_predictors` must remain `TRUE`.
+#'   argument instead.
 #' @param search_options Named list of arguments passed to
 #'   [searchOptimalConfiguration()]. These override the default manuscript-style
-#'   search settings assembled from `template`.
+#'   intercept-only search settings assembled from `template`.
 #' @param fuzzy_distance Integer node distance used for fuzzy matching in
 #'   [evaluateShiftRecovery()].
 #' @param weighted Logical; if `TRUE`, compute weighted recovery summaries using
@@ -1175,6 +1123,11 @@ runFalsePositiveSimulationStudy <- function(template,
 #' possible, the default search configuration uses `uncertaintyweights_par = TRUE`
 #' when `weighted = TRUE`, so that shift-recovery summaries can report both
 #' unweighted and IC-weighted metrics.
+#'
+#' Regardless of the global calibration model used to build `template`, the
+#' downstream search is intentionally restricted to intercept-only formulas.
+#' This keeps the study focused on shift recovery in the simulated response
+#' block rather than re-estimating predictor effects within each replicate.
 #'
 #' Failed search replicates are retained in the output and treated as zero-shift
 #' recoveries in the per-replicate summary; the corresponding error messages are
@@ -1259,13 +1212,6 @@ runShiftRecoverySimulationStudy <- function(template,
       "use the wrapper-level seed argument instead."
     )
   }
-  if (length(template$predictor_columns) > 0L &&
-      identical(simulation_options$preserve_predictors, FALSE)) {
-    stop(
-      "Formula-based simulation studies require preserve_predictors = TRUE so ",
-      "the stored formula remains valid."
-    )
-  }
   if (!is.null(seed)) {
     set.seed(seed)
   }
@@ -1275,8 +1221,14 @@ runShiftRecoverySimulationStudy <- function(template,
     stop("simulation_options must include num_shifts, min_shift_tips, and max_shift_tips.")
   }
 
+  template_search_formula <- if (!is.null(template$search_formula)) {
+    template$search_formula
+  } else {
+    "trait_data ~ 1"
+  }
+
   search_defaults <- list(
-    formula = template$formula,
+    formula = template_search_formula,
     min_descendant_tips = 10,
     num_cores = 1,
     shift_acceptance_threshold = 10,
@@ -1305,6 +1257,7 @@ runShiftRecoverySimulationStudy <- function(template,
     search_defaults$error <- error_setting
   }
   search_opts <- utils::modifyList(search_defaults, search_options)
+  search_opts$formula <- validateSimulationStudyFormula(search_opts$formula)
   if (isTRUE(num_cores > 1L) && isTRUE(search_opts$num_cores > 1L)) {
     warning("Both wrapper-level and search-level parallelism are > 1; nested parallelism may be inefficient.")
   }

@@ -47,10 +47,10 @@ excluded from sampled shift scalars.}
 
 \item{seed}{Optional integer random seed.}
 
-\item{preserve_predictors}{Logical; if \code{TRUE}, predictor columns stored in the
-template are carried through unchanged for the sampled taxa. This must
-remain \code{TRUE} for templates created from non-intercept workflows, because
-the stored model formula still references those predictor columns.}
+\item{preserve_predictors}{Retained for backward compatibility. Simulation
+studies generated from a template always operate on the response block
+alone, so predictor columns are not carried through into simulated
+datasets.}
 
 \item{...}{Reserved for future extensions. Currently ignored.}
 }
@@ -78,7 +78,7 @@ variance/covariance summaries for each replicate,
 \item construction of derived regimes by either proportional scaling or the
 non-generating correlation-scaling scenario, and
 \item simulation of multivariate BMM residuals that are added to the
-empirical fitted mean structure for formula-based templates.
+empirical fitted mean structure from the global calibration model.
 }
 
 Under \code{scale_mode = "proportional"}, derived regimes are scalar multiples of
@@ -86,8 +86,8 @@ the ancestral covariance matrix and therefore match the generating assumptions
 of the current \code{bifrost} BMM search. Under \code{scale_mode = "correlation"}, the
 off-diagonal correlation structure is changed while variances are adjusted,
 mirroring the manuscript's deliberate model-misspecification robustness test.
-To keep the stored formula valid for downstream \code{bifrost} searches,
-non-intercept templates require \code{preserve_predictors = TRUE}.
+Downstream simulation studies still evaluate intercept-only shift searches on
+the regenerated response block.
 }
 \examples{
 \dontrun{

@@ -180,40 +180,7 @@ test_that("runShiftRecoverySimulationStudy rejects per-replicate seeds", {
   )
 })
 
-test_that("runShiftRecoverySimulationStudy requires predictors for formula templates", {
-  skip_if_recovery_study_deps()
-
-  tmpl <- make_formula_recovery_template()
-
-  testthat::expect_error(
-    runShiftRecoverySimulationStudy(
-      tmpl,
-      n_replicates = 1,
-      simulation_options = list(
-        num_shifts = 2,
-        min_shift_tips = 3,
-        max_shift_tips = 7,
-        scale_mode = "correlation",
-        preserve_predictors = FALSE
-      ),
-      search_options = list(
-        formula = "trait_data[, 1:2] ~ trait_data[, 3]",
-        min_descendant_tips = 3,
-        shift_acceptance_threshold = 5,
-        num_cores = 1,
-        IC = "GIC",
-        method = "LL",
-        uncertaintyweights_par = FALSE
-      ),
-      weighted = FALSE,
-      num_cores = 1,
-      seed = 8
-    ),
-    "preserve_predictors = TRUE"
-  )
-})
-
-test_that("runShiftRecoverySimulationStudy supports formula-based end-to-end studies", {
+test_that("runShiftRecoverySimulationStudy uses intercept-only searches for formula-calibrated templates", {
   skip_if_recovery_study_deps()
 
   tmpl <- make_formula_recovery_template()
@@ -229,7 +196,7 @@ test_that("runShiftRecoverySimulationStudy supports formula-based end-to-end stu
         scale_mode = "proportional"
       ),
       search_options = list(
-        formula = "trait_data[, 1:2] ~ trait_data[, 3]",
+        formula = "trait_data ~ 1",
         min_descendant_tips = 3,
         shift_acceptance_threshold = 5,
         num_cores = 1,
@@ -243,12 +210,42 @@ test_that("runShiftRecoverySimulationStudy supports formula-based end-to-end stu
     )
   )
 
-  testthat::expect_identical(study$search_options$formula, "trait_data[, 1:2] ~ trait_data[, 3]")
+  testthat::expect_identical(study$search_options$formula, "trait_data ~ 1")
   testthat::expect_identical(study$per_replicate$status, "ok")
   testthat::expect_equal(study$per_replicate$n_true_shifts, 1L)
-  testthat::expect_identical(
-    study$simdata[[1]]$trait_data[, 3],
-    tmpl$trait_data[study$simdata[[1]]$sampled_tree$tip.label, 3]
+  testthat::expect_equal(colnames(study$simdata[[1]]$trait_data), c("y1", "y2"))
+  testthat::expect_false("mass" %in% colnames(study$simdata[[1]]$trait_data))
+})
+
+test_that("runShiftRecoverySimulationStudy rejects non-intercept search formulas", {
+  skip_if_recovery_study_deps()
+
+  tmpl <- make_formula_recovery_template()
+
+  testthat::expect_error(
+    runShiftRecoverySimulationStudy(
+      tmpl,
+      n_replicates = 1,
+      simulation_options = list(
+        num_shifts = 2,
+        min_shift_tips = 3,
+        max_shift_tips = 7,
+        scale_mode = "correlation"
+      ),
+      search_options = list(
+        formula = "trait_data[, 1:2] ~ trait_data[, 3]",
+        min_descendant_tips = 3,
+        shift_acceptance_threshold = 5,
+        num_cores = 1,
+        IC = "GIC",
+        method = "LL",
+        uncertaintyweights_par = FALSE
+      ),
+      weighted = FALSE,
+      num_cores = 1,
+      seed = 8
+    ),
+    "intercept-only search formulas only"
   )
 })
 

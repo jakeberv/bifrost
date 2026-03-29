@@ -17,8 +17,9 @@ Invisibly returns \code{x}. Called for its printing side effects.
 }
 \description{
 Print a compact summary of a \code{bifrost_simulation_template}, including the
-aligned tree size, response/predictor structure, fitted formula, and the
-empirical covariance summaries used to generate simulation replicates.
+aligned tree size, response/predictor structure, global calibration formula,
+downstream simulation-search formula, and the empirical covariance summaries
+used to generate simulation replicates.
 }
 \examples{
 \dontrun{

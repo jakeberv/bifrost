@@ -60,7 +60,9 @@ scenario. If \code{NULL}, the proportional options are reused and only
 
 \item{base_search_options}{Named list of search options shared across all
 grid rows. The tuning helper overwrites \code{IC}, \code{shift_acceptance_threshold},
-and \code{min_descendant_tips} for each row.}
+and \code{min_descendant_tips} for each row. Simulation-grid searches are
+intentionally intercept-only, so \code{formula} should remain \code{"trait_data ~ 1"}
+(or an equivalent intercept-only response formula).}
 
 \item{fuzzy_distance}{Integer node distance passed to
 \code{\link[=evaluateShiftRecovery]{evaluateShiftRecovery()}} inside the shifted-study wrappers.}
@@ -118,6 +120,11 @@ optimize over \code{IC}; instead, it assumes that GIC and BIC should be tuned as
 separate workflows. In typical use, you call it twice, once with
 \code{IC = "GIC"} and once with \code{IC = "BIC"}, then select one recommended setting
 from each grid with \code{\link[=selectTunedSearchParameters]{selectTunedSearchParameters()}}.
+
+The template may come from a richer global calibration model, but each grid
+row is still evaluated with an intercept-only shift search on the simulated
+response block. This mirrors the manuscript-style residual-calibration
+workflow.
 
 The returned \code{summary_table} contains one row per grid combination. Null
 summaries emphasize false-positive behavior, while proportional and

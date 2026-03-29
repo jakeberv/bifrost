@@ -2,8 +2,9 @@
 #'
 #' @description
 #' Print a compact summary of a `bifrost_simulation_template`, including the
-#' aligned tree size, response/predictor structure, fitted formula, and the
-#' empirical covariance summaries used to generate simulation replicates.
+#' aligned tree size, response/predictor structure, global calibration formula,
+#' downstream simulation-search formula, and the empirical covariance summaries
+#' used to generate simulation replicates.
 #'
 #' @param x A `bifrost_simulation_template` object returned by
 #'   [createSimulationTemplate()].
@@ -33,7 +34,10 @@ print.bifrost_simulation_template <- function(x, ...) {
   cat("  Predictor columns: ", length(x$predictor_columns), "\n\n", sep = "")
 
   cat("Model\n")
-  cat("  Formula: ", x$formula, "\n", sep = "")
+  cat("  Calibration formula: ", x$formula, "\n", sep = "")
+  if (!is.null(x$search_formula)) {
+    cat("  Simulation search:   ", x$search_formula, "\n", sep = "")
+  }
   method_setting <- x$fit_method
   if (is.null(method_setting) && !is.null(x$global_model$call$method)) {
     method_setting <- as.character(x$global_model$call$method)

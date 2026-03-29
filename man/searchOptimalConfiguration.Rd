@@ -33,14 +33,14 @@ matrix so that the multivariate response is interpreted correctly by \code{mvgls
 When using more general formulas (e.g., pGLS-style models), a \code{data.frame} with
 named columns can be used instead.}
 
-\item{formula}{Character formula passed to \code{mvgls}. Defaults to
+\item{formula}{Character string or formula object passed to \code{mvgls}. Defaults to
 \code{"trait_data ~ 1"}, which fits an intercept-only model treating the supplied
 multivariate trait matrix as the response. This is the appropriate choice for most
 morphometric data where there are no predictor variables. For more general models,
 \code{formula} can reference subsets of \code{trait_data} explicitly, for example
 \code{"trait_data[, 1:5] ~ 1"} to treat columns 1–5 as a multivariate response, or
-\code{"trait_data[, 1:5] ~ trait_data[, 6]"} to fit a multivariate pGLS with column 6
-as a predictor.}
+\code{cbind(y1, y2) ~ size + grp} to fit a multivariate pGLS with named numeric or
+factor predictors.}
 
 \item{min_descendant_tips}{Integer (\eqn{\ge}1). Minimum number of tips required for an internal node
 to be considered as a candidate shift (forwarded to \code{generatePaintedTrees}). Larger values

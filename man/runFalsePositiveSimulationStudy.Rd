@@ -25,12 +25,11 @@ If \code{NULL}, each replicate uses the full empirical tree.}
 
 \item{simulation_options}{Named list of additional arguments passed to
 \code{\link[=simulateNullDataset]{simulateNullDataset()}}. For replicated studies, \code{simulation_options$seed}
-is not allowed; use the wrapper-level \code{seed} argument instead. For
-templates with predictor columns, \code{preserve_predictors} must remain \code{TRUE}.}
+is not allowed; use the wrapper-level \code{seed} argument instead.}
 
 \item{search_options}{Named list of arguments passed to
 \code{\link[=searchOptimalConfiguration]{searchOptimalConfiguration()}}. These override the default manuscript-style
-search settings assembled from \code{template}.}
+intercept-only search settings assembled from \code{template}.}
 
 \item{num_cores}{Integer number of workers used across replicate analyses.}
 
@@ -54,6 +53,11 @@ original analysis while making the outputs stable and package-friendly:
 simulated datasets, search results, a per-replicate summary table, and a
 compact study summary are all returned in a single object of class
 \code{bifrost_simulation_study}.
+
+Regardless of the global calibration model used to build \code{template}, the
+downstream search is intentionally restricted to intercept-only formulas.
+This keeps the simulation study focused on branch-shift detection in the
+response block, matching the manuscript-style residual-calibration logic.
 
 Failed search replicates are retained in the output and counted as zero
 inferred shifts; the corresponding error messages are recorded in the

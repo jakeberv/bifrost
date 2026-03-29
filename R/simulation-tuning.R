@@ -43,7 +43,9 @@
 #'   `scale_mode` is changed to `"correlation"`.
 #' @param base_search_options Named list of search options shared across all
 #'   grid rows. The tuning helper overwrites `IC`, `shift_acceptance_threshold`,
-#'   and `min_descendant_tips` for each row.
+#'   and `min_descendant_tips` for each row. Simulation-grid searches are
+#'   intentionally intercept-only, so `formula` should remain `"trait_data ~ 1"`
+#'   (or an equivalent intercept-only response formula).
 #' @param fuzzy_distance Integer node distance passed to
 #'   [evaluateShiftRecovery()] inside the shifted-study wrappers.
 #' @param weighted Logical; if `TRUE`, request weighted recovery summaries from
@@ -65,6 +67,11 @@
 #' separate workflows. In typical use, you call it twice, once with
 #' `IC = "GIC"` and once with `IC = "BIC"`, then select one recommended setting
 #' from each grid with [selectTunedSearchParameters()].
+#'
+#' The template may come from a richer global calibration model, but each grid
+#' row is still evaluated with an intercept-only shift search on the simulated
+#' response block. This mirrors the manuscript-style residual-calibration
+#' workflow.
 #'
 #' The returned `summary_table` contains one row per grid combination. Null
 #' summaries emphasize false-positive behavior, while proportional and
@@ -201,6 +208,15 @@ runSearchTuningGrid <- function(template,
   if (!is.logical(store_studies) || length(store_studies) != 1L || is.na(store_studies)) {
     stop("store_studies must be TRUE or FALSE.")
   }
+
+  if (is.null(base_search_options$formula)) {
+    base_search_options$formula <- if (!is.null(template$search_formula)) {
+      template$search_formula
+    } else {
+      "trait_data ~ 1"
+    }
+  }
+  base_search_options$formula <- validateSimulationStudyFormula(base_search_options$formula)
 
   threshold_values <- unique(as.numeric(shift_acceptance_thresholds))
   min_tip_values <- unique(as.integer(min_descendant_tips_values))

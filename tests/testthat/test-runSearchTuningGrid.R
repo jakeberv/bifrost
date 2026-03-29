@@ -222,6 +222,17 @@ test_that("runSearchTuningGrid validates inputs", {
       template = tmpl,
       IC = "GIC",
       shift_acceptance_thresholds = 5,
+      min_descendant_tips_values = 3,
+      proportional_simulation_options = list(num_shifts = 1, min_shift_tips = 2, max_shift_tips = 5),
+      base_search_options = list(formula = "trait_data[, 1] ~ x")
+    ),
+    "intercept-only search formulas only"
+  )
+  testthat::expect_error(
+    runSearchTuningGrid(
+      template = tmpl,
+      IC = "GIC",
+      shift_acceptance_thresholds = 5,
       min_descendant_tips_values = 0,
       proportional_simulation_options = list(num_shifts = 1, min_shift_tips = 2, max_shift_tips = 5)
     ),

@@ -144,28 +144,15 @@ test_that("simulateNullDataset returns an aligned null replicate", {
   testthat::expect_identical(sim$generating_scenario, "null")
 })
 
-test_that("simulateNullDataset preserves predictor columns for formula templates", {
+test_that("simulateNullDataset returns response-only data for formula-calibrated templates", {
   skip_if_null_sim_deps()
 
   tmpl <- make_formula_null_template()
   sim <- simulateNullDataset(tmpl, tree_tip_count = 16, seed = 3)
 
-  testthat::expect_identical(
-    sim$trait_data[, 3],
-    tmpl$trait_data[sim$tree$tip.label, 3]
-  )
+  testthat::expect_equal(colnames(sim$trait_data), c("y1", "y2"))
+  testthat::expect_false("mass" %in% colnames(sim$trait_data))
   testthat::expect_equal(dim(sim$simulatedData), c(16, 2))
-})
-
-test_that("simulateNullDataset requires predictors for formula templates", {
-  skip_if_null_sim_deps()
-
-  tmpl <- make_formula_null_template()
-
-  testthat::expect_error(
-    simulateNullDataset(tmpl, tree_tip_count = 16, seed = 3, preserve_predictors = FALSE),
-    "preserve_predictors must be TRUE"
-  )
 })
 
 test_that("simulateNullDataset validates tree_tip_count", {
@@ -216,10 +203,8 @@ test_that("simulateNullDataset preserves data.frame outputs when requested", {
 
   testthat::expect_true(is.data.frame(sim_no_predictor$trait_data))
   testthat::expect_true(is.data.frame(sim_with_predictor$trait_data))
-  testthat::expect_identical(
-    sim_with_predictor$trait_data$mass,
-    make_manual_null_template_df(TRUE)$trait_data[sim_with_predictor$tree$tip.label, "mass"]
-  )
+  testthat::expect_false("mass" %in% colnames(sim_with_predictor$trait_data))
+  testthat::expect_equal(colnames(sim_with_predictor$trait_data), c("y1", "y2"))
 })
 
 test_that("simulateNullDataset errors when covariance generation never succeeds", {

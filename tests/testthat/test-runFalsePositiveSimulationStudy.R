@@ -111,32 +111,7 @@ test_that("runFalsePositiveSimulationStudy rejects per-replicate seeds", {
   )
 })
 
-test_that("runFalsePositiveSimulationStudy requires predictors for formula templates", {
-  skip_if_fp_study_deps()
-
-  tmpl <- make_formula_fp_template()
-
-  testthat::expect_error(
-    runFalsePositiveSimulationStudy(
-      tmpl,
-      n_replicates = 1,
-      simulation_options = list(preserve_predictors = FALSE),
-      search_options = list(
-        formula = "trait_data[, 1:2] ~ trait_data[, 3]",
-        min_descendant_tips = 3,
-        shift_acceptance_threshold = 5,
-        num_cores = 1,
-        IC = "GIC",
-        method = "LL"
-      ),
-      num_cores = 1,
-      seed = 6
-    ),
-    "preserve_predictors = TRUE"
-  )
-})
-
-test_that("runFalsePositiveSimulationStudy supports formula-based end-to-end studies", {
+test_that("runFalsePositiveSimulationStudy uses intercept-only searches for formula-calibrated templates", {
   skip_if_fp_study_deps()
 
   tmpl <- make_formula_fp_template()
@@ -145,7 +120,7 @@ test_that("runFalsePositiveSimulationStudy supports formula-based end-to-end stu
     n_replicates = 1,
     tree_tip_count = 20,
     search_options = list(
-      formula = "trait_data[, 1:2] ~ trait_data[, 3]",
+      formula = "trait_data ~ 1",
       min_descendant_tips = 3,
       shift_acceptance_threshold = 5,
       num_cores = 1,
@@ -156,11 +131,34 @@ test_that("runFalsePositiveSimulationStudy supports formula-based end-to-end stu
     seed = 123
   )
 
-  testthat::expect_identical(study$search_options$formula, "trait_data[, 1:2] ~ trait_data[, 3]")
+  testthat::expect_identical(study$search_options$formula, "trait_data ~ 1")
   testthat::expect_identical(study$per_replicate$status, "ok")
-  testthat::expect_identical(
-    study$simdata[[1]]$data[, 3],
-    tmpl$trait_data[study$simdata[[1]]$tree$tip.label, 3]
+  testthat::expect_equal(colnames(study$simdata[[1]]$data), c("y1", "y2"))
+  testthat::expect_false("mass" %in% colnames(study$simdata[[1]]$data))
+})
+
+test_that("runFalsePositiveSimulationStudy rejects non-intercept search formulas", {
+  skip_if_fp_study_deps()
+
+  tmpl <- make_formula_fp_template()
+
+  testthat::expect_error(
+    runFalsePositiveSimulationStudy(
+      tmpl,
+      n_replicates = 1,
+      tree_tip_count = 20,
+      search_options = list(
+        formula = "trait_data[, 1:2] ~ trait_data[, 3]",
+        min_descendant_tips = 3,
+        shift_acceptance_threshold = 5,
+        num_cores = 1,
+        IC = "GIC",
+        method = "LL"
+      ),
+      num_cores = 1,
+      seed = 123
+    ),
+    "intercept-only search formulas only"
   )
 })
 

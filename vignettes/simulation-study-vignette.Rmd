@@ -513,7 +513,7 @@ library(ape)
 
 ## Build a dataset-matched template
 
-The packaged passerine skeleton example provides a fully matched starting point: 12 skeletal traits are modeled jointly while log body mass is kept as a phylogenetic covariate.
+The packaged passerine skeleton example provides a useful calibration starting point: 12 skeletal traits are modeled jointly while log body mass is kept as a phylogenetic covariate.
 
 ```{r load_bodyplan_example}
 tree_path <- pkg_file("extdata", "avian-skeleton", "passerine_bodyplan_tree.tre")
@@ -569,15 +569,17 @@ bodyplan_template_live <- createSimulationTemplate(
 bodyplan_template_live
 ```
 
-The template stores the aligned analysis data, the fitted global `mvgls` model, and the empirical variance/covariance summaries used to generate a fresh ancestral covariance matrix for each simulation replicate.
+The template stores the aligned calibration data, the fitted global `mvgls` model, and the empirical variance/covariance summaries used to generate a fresh ancestral covariance matrix for each simulation replicate.
+
+Conceptually, that calibration step is broader than the specific formula examples shown here. The simulation workflow operates on residual variation from a single global fit: it simulates a new response block around the fitted mean structure, then evaluates intercept-only shift searches on that regenerated response block. In that sense, the underlying logic can accommodate much richer empirical mean structures than the legacy indexed examples might suggest. The main practical requirement is that the response columns remain raw numeric variables that can be regenerated in each replicate.
 
 ## When an intercept-only shortcut helps
 
-The passerine body-plan study used one additional shortcut that is worth making explicit. Body mass was included when estimating the overall covariance scale, but the simulation searches themselves were run as intercept-only searches. In practical terms, that means the simulations were approximating the residual multivariate variation seen by the shift search, rather than trying to regenerate the full covariate-plus-shift model from scratch.
+The passerine body-plan study used one additional shortcut that is worth making explicit. Body mass was included when estimating the global covariance scale, but the simulation searches themselves were run as intercept-only searches. In practical terms, the calibration fit captures the mean and residual structure of the empirical dataset once, and the simulation studies then ask how the shift search behaves on the regenerated multivariate response block.
 
-That shortcut is most useful when the main goal is to calibrate branch-shift detection itself. If predictor effects are central to the scientific question, the safer default is still the fully matched analysis in which the simulated datasets preserve the predictor columns and the simulation study uses the same formula that will be used in the empirical fit.
+Put differently, the simulation engine is targeting the residual covariance structure implied by the global model fit, not just one particular formula syntax. The intercept-only shortcut simply strips that idea down to the multivariate response block alone.
 
-The same residual-focused approximation can be reproduced in `bifrost` with an intercept-only, response-only template:
+The same residual-focused approximation can also be reproduced in `bifrost` with an intercept-only, response-only template when no calibration covariates are needed:
 
 ```{r manuscript_style_template, eval = FALSE}
 bodyplan_response_only <- bodyplan_data[, skeletal_cols, drop = FALSE]
@@ -591,7 +593,7 @@ bodyplan_template_intercept <- createSimulationTemplate(
 )
 ```
 
-Using `bodyplan_template_intercept` makes the simulation study target the multivariate response block alone. That is often a reasonable approximation when the aim is to tune shift-detection settings, but it is less faithful to a truly formula-based empirical analysis than the full `bodyplan_template` fit.
+Using `bodyplan_template_intercept` makes the calibration step target the multivariate response block alone. That is the simplest special case. More generally, a richer global template such as `bodyplan_template` can still feed the same intercept-only simulation studies.
 
 The same shortcut also works with subset-response intercept formulas such as `"trait_data[, 1:12] ~ 1"`, as long as `response_columns` identifies the columns to simulate.
 
@@ -614,22 +616,14 @@ build_simulation_scenario_figure(
 The main contrast is between proportional scaling and reduced-correlation scaling. Proportional scaling changes overall magnitude while leaving the correlation pattern intact, whereas the reduced-correlation scenario weakens trait associations and compensates with larger variances. The passerine examples below use these same two simulation styles under repeated subtree resampling from the full tree.
 
 ```{r preview_template_setup, echo = FALSE, message = FALSE, warning = FALSE, cache = TRUE}
-preview_response_only <- bodyplan_data[, skeletal_cols, drop = FALSE]
-
-preview_template <- createSimulationTemplate(
-  baseline_tree = bird_tree,
-  trait_data = preview_response_only,
-  formula = "trait_data ~ 1",
-  method = "LL",
-  error = TRUE
-)
+preview_template <- bodyplan_template_live
 ```
 
 ## Calibration guardrails
 
 Keep these guardrails in mind before launching a large study.
 
-- For formula-based workflows, predictor columns are preserved automatically and should stay in the simulated dataset. Once you build a template like `bodyplan_template`, the downstream studies should keep using that same formula-based structure rather than dropping the predictor block.
+- Once the template has been fitted, the simulation studies operate on the regenerated response block alone. Predictor terms matter in the global calibration fit, not in each subtree-resampled search replicate.
 
 - Reproducibility for replicated studies is controlled by the wrapper-level `seed` argument in `runFalsePositiveSimulationStudy()` and `runShiftRecoverySimulationStudy()`. There is no need to pass a separate seed inside `simulation_options`; the wrappers manage replicate-level seeding internally.
 
@@ -641,7 +635,7 @@ Keep these guardrails in mind before launching a large study.
 
 ## 1. Inspect One Fixed Search
 
-This worked example keeps the search settings fixed and asks a simple question: what does expected performance look like on repeated 200-tip subtree resamples from the passerine tree? Using an intercept-only template keeps the example close to the residual-focused approximation described earlier, and holding the settings fixed makes the null, proportional, and correlation scenarios easier to interpret before comparing alternative thresholds or clade-size filters.
+This worked example keeps the search settings fixed and asks a simple question: what does expected performance look like on repeated 200-tip subtree resamples from the passerine tree? The template is still calibrated from the global body-mass model above, but the simulated searches are intercept-only. Holding the settings fixed makes the null, proportional, and correlation scenarios easier to interpret before comparing alternative thresholds or clade-size filters.
 
 The search is intentionally conservative: `shift_acceptance_threshold = 10`, `min_descendant_tips = 10`, and five simulated shifts ranging from 10 to 20 descendant tips. These settings are not being optimized yet. They provide a stable baseline for understanding how null and shifted datasets behave.
 
@@ -788,13 +782,11 @@ render_preview_table(
 
 Taken together, these tables show how one fixed search behaves under repeated subtree resampling: how often it infers shifts under the null, how well it recovers shifts when the generating model is proportional, and how much that recovery changes when trait correlations evolve in a non-proportional way.
 
-That kind of case study is useful when the goal is to understand the implications of one specific search. When the goal is calibration, the next step is to estimate false positives, recovery, and robustness more systematically, then compare plausible thresholds and clade-size filters in a small grid.
+That kind of case study is useful when the goal is to understand the implications of one specific intercept-only search. When the goal is calibration, the next step is to estimate false positives, recovery, and robustness more systematically, then compare plausible thresholds and clade-size filters in a small grid.
 
 ## 2. Estimate False Positives
 
-The null study asks the most conservative performance question: if the real dataset contained no shifts at all, how often would the search still infer one?
-
-A fully matched formula-based null study looks like this. To approximate residual-only variation instead, replace `bodyplan_template` with `bodyplan_template_intercept` and change the search formula to `"trait_data ~ 1"`.
+The null study asks the most conservative performance question: if the real dataset contained no shifts at all, how often would the search still infer one? The template below is still calibrated from the global body-mass model, but the simulation search itself remains intercept-only.
 
 ```{r false_positive_study, eval = FALSE}
 fp_study <- runFalsePositiveSimulationStudy(
@@ -803,7 +795,7 @@ fp_study <- runFalsePositiveSimulationStudy(
   tree_tip_count = 250,
   simulation_options = list(),
   search_options = list(
-    formula = formula_str,
+    formula = "trait_data ~ 1",
     min_descendant_tips = 10,
     shift_acceptance_threshold = 10,
     IC = "GIC",
@@ -828,7 +820,7 @@ Null simulations are especially useful for screening conservative choices such a
 
 ## 3. Estimate Recovery Under Proportional Scaling
 
-Recovery under proportional scaling evaluates the scenario that matches the current `bifrost` BMM search assumptions: shifted covariance matrices are scalar multiples of the background covariance matrix.
+Recovery under proportional scaling evaluates the scenario that matches the current `bifrost` BMM search assumptions: shifted covariance matrices are scalar multiples of the background covariance matrix. As above, the template may be calibrated from a richer global model, but the simulation search itself remains intercept-only.
 
 ```{r proportional_recovery_study, eval = FALSE}
 recovery_prop <- runShiftRecoverySimulationStudy(
@@ -845,7 +837,7 @@ recovery_prop <- runShiftRecoverySimulationStudy(
     buffer = 3
   ),
   search_options = list(
-    formula = formula_str,
+    formula = "trait_data ~ 1",
     min_descendant_tips = 10,
     shift_acceptance_threshold = 10,
     IC = "GIC",
@@ -873,7 +865,7 @@ recovery_prop$evaluation$weighted
 
 ## 4. Check Robustness Under Correlation Change
 
-It is also useful to test a deliberately mis-specified scenario in which trait correlations evolve. This asks how well the same search settings behave when the data depart from strict proportional VCV scaling.
+It is also useful to test a deliberately mis-specified scenario in which trait correlations evolve. This asks how well the same intercept-only search settings behave when the data depart from strict proportional VCV scaling.
 
 ```{r correlation_recovery_study, eval = FALSE}
 recovery_corr <- runShiftRecoverySimulationStudy(
@@ -890,7 +882,7 @@ recovery_corr <- runShiftRecoverySimulationStudy(
     buffer = 3
   ),
   search_options = list(
-    formula = formula_str,
+    formula = "trait_data ~ 1",
     min_descendant_tips = 10,
     shift_acceptance_threshold = 10,
     IC = "GIC",
@@ -1058,7 +1050,7 @@ gic_grid <- runSearchTuningGrid(
     buffer = 3
   ),
   base_search_options = list(
-    formula = formula_str,
+    formula = "trait_data ~ 1",
     method = "LL",
     error = TRUE,
     num_cores = 1,
@@ -1106,7 +1098,7 @@ bic_grid <- runSearchTuningGrid(
     buffer = 3
   ),
   base_search_options = list(
-    formula = formula_str,
+    formula = "trait_data ~ 1",
     method = "LL",
     error = TRUE,
     num_cores = 1,

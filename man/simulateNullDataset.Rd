@@ -21,10 +21,10 @@ If \code{NULL}, the full empirical tree from \code{template} is used.}
 
 \item{seed}{Optional integer random seed.}
 
-\item{preserve_predictors}{Logical; if \code{TRUE}, predictor columns stored in the
-template are carried through unchanged for the sampled taxa. This must
-remain \code{TRUE} for templates created from non-intercept workflows, because
-the stored model formula still references those predictor columns.}
+\item{preserve_predictors}{Retained for backward compatibility. Simulation
+studies generated from a template always operate on the response block
+alone, so predictor columns are not carried through into simulated
+datasets.}
 
 \item{...}{Reserved for future extensions. Currently ignored.}
 }
@@ -46,11 +46,10 @@ This function is the package-clean analogue of the manuscript's
 \code{simulate_traits_BM1()} workflow. The core scientific behavior is preserved:
 a new covariance matrix is generated for each replicate from the empirical
 variance/covariance summaries in the template, rather than reusing the fitted
-covariance matrix directly. For formula-based templates, the empirical fitted
-mean structure is added back to the simulated residual process and predictor
-columns are preserved unchanged. To keep the stored formula valid for
-downstream \code{bifrost} searches, non-intercept templates require
-\code{preserve_predictors = TRUE}.
+covariance matrix directly. For templates calibrated from richer global
+models, the empirical fitted mean structure is added back to the simulated
+residual process before the downstream intercept-only search is run on the
+regenerated response block.
 }
 \examples{
 \dontrun{

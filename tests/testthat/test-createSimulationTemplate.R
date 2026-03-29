@@ -53,9 +53,11 @@ test_that("createSimulationTemplate supports numeric formula-based inputs", {
   )
 
   testthat::expect_s3_class(tmpl, "bifrost_simulation_template")
-  testthat::expect_true(tmpl$trait_data_is_matrix)
+  testthat::expect_false(tmpl$trait_data_is_matrix)
   testthat::expect_identical(tmpl$response_columns, 1:2)
   testthat::expect_identical(tmpl$predictor_columns, 3L)
+  testthat::expect_identical(tmpl$formula_mode, "legacy_indexed")
+  testthat::expect_identical(tmpl$formula_normalized, "cbind(y1, y2) ~ mass")
   testthat::expect_equal(dim(tmpl$fitted_values), c(20, 2))
 })
 
@@ -101,15 +103,14 @@ test_that("createSimulationTemplate validates alignment and column inputs", {
   )
 
   rownames(X) <- tr$tip.label
-  testthat::expect_error(
-    createSimulationTemplate(
-      baseline_tree = tr,
-      trait_data = X,
-      formula = "trait_data[, 1:2] ~ trait_data[, 3]",
-      method = "LL"
-    ),
-    "response_columns must be supplied"
+  tmpl <- createSimulationTemplate(
+    baseline_tree = tr,
+    trait_data = X,
+    formula = "trait_data[, 1:2] ~ trait_data[, 3]",
+    method = "LL"
   )
+  testthat::expect_identical(tmpl$response_columns, 1:2)
+  testthat::expect_identical(tmpl$predictor_columns, 3L)
 })
 
 test_that("createSimulationTemplate validates basic inputs and column specifications", {
@@ -203,7 +204,15 @@ test_that("createSimulationTemplate validates basic inputs and column specificat
       tr,
       X,
       formula = "trait_data[, 1:3] ~ trait_data[, 3]",
-      response_columns = 1:3
+      response_columns = integer(0)
+    ),
+    "at least one response column"
+  )
+  testthat::expect_error(
+    createSimulationTemplate(
+      tr,
+      X,
+      formula = "trait_data[, 1:3] ~ trait_data[, 3]"
     ),
     "at least one predictor column"
   )
@@ -228,7 +237,7 @@ test_that("createSimulationTemplate validates phylo coercion failures", {
   )
 })
 
-test_that("createSimulationTemplate covers the missing-column-name character branch", {
+test_that("createSimulationTemplate assigns synthetic names to unnamed matrices", {
   skip_if_simulation_template_deps()
 
   set.seed(41)
@@ -236,22 +245,14 @@ test_that("createSimulationTemplate covers the missing-column-name character bra
   X <- matrix(rnorm(8 * 2), ncol = 2)
   rownames(X) <- tr$tip.label
 
-  create_template_no_colnames <- createSimulationTemplate
-  environment(create_template_no_colnames) <- list2env(
-    list(colnames = function(x) NULL),
-    parent = environment(createSimulationTemplate)
+  tmpl <- createSimulationTemplate(
+    baseline_tree = tr,
+    trait_data = X,
+    formula = "trait_data[, 1:2] ~ 1"
   )
 
-  testthat::expect_error(
-    create_template_no_colnames(
-      baseline_tree = tr,
-      trait_data = X,
-      formula = "trait_data[, 1] ~ trait_data[, 2]",
-      response_columns = "V1",
-      predictor_columns = 2
-    ),
-    "were supplied as names, but trait_data has no column names"
-  )
+  testthat::expect_identical(colnames(tmpl$trait_data), c("V1", "V2"))
+  testthat::expect_identical(tmpl$response_column_names, c("V1", "V2"))
 })
 
 test_that("createSimulationTemplate resolves response and predictor columns by name", {
@@ -278,7 +279,7 @@ test_that("createSimulationTemplate resolves response and predictor columns by n
   testthat::expect_identical(tmpl$predictor_columns, 3L)
 })
 
-test_that("createSimulationTemplate rejects non-numeric formula data frames", {
+test_that("createSimulationTemplate rejects character predictors", {
   skip_if_simulation_template_deps()
 
   set.seed(6)
@@ -300,7 +301,94 @@ test_that("createSimulationTemplate rejects non-numeric formula data frames", {
       predictor_columns = 3,
       method = "LL"
     ),
-    "only numeric columns"
+    "Character predictors are not supported"
+  )
+})
+
+test_that("createSimulationTemplate supports named formulas with factor predictors", {
+  skip_if_simulation_template_deps()
+
+  set.seed(61)
+  tr <- ape::rtree(18)
+  dat <- data.frame(
+    y1 = rnorm(18),
+    y2 = rnorm(18),
+    size = exp(rnorm(18)),
+    grp = factor(rep(c("a", "b"), length.out = 18))
+  )
+  rownames(dat) <- tr$tip.label
+
+  tmpl <- createSimulationTemplate(
+    baseline_tree = tr,
+    trait_data = dat,
+    formula = cbind(y1, y2) ~ log(size) + grp,
+    method = "LL"
+  )
+
+  testthat::expect_identical(tmpl$formula_mode, "named_formula")
+  testthat::expect_identical(tmpl$formula_normalized, "cbind(y1, y2) ~ log(size) + grp")
+  testthat::expect_identical(tmpl$response_column_names, c("y1", "y2"))
+  testthat::expect_identical(tmpl$predictor_column_names, c("size", "grp"))
+  testthat::expect_identical(tmpl$predictor_schema$size$type, "numeric")
+  testthat::expect_identical(tmpl$predictor_schema$grp$type, "factor")
+  testthat::expect_identical(tmpl$predictor_schema$grp$levels, c("a", "b"))
+  testthat::expect_s3_class(tmpl$trait_data, "data.frame")
+  testthat::expect_identical(colnames(tmpl$data_prototype), colnames(dat))
+})
+
+test_that("createSimulationTemplate accepts formula objects", {
+  skip_if_simulation_template_deps()
+
+  set.seed(62)
+  tr <- ape::rtree(14)
+  dat <- data.frame(
+    y1 = rnorm(14),
+    y2 = rnorm(14),
+    size = rnorm(14)
+  )
+  rownames(dat) <- tr$tip.label
+
+  tmpl <- createSimulationTemplate(
+    baseline_tree = tr,
+    trait_data = dat,
+    formula = cbind(y1, y2) ~ size,
+    method = "LL"
+  )
+
+  testthat::expect_s3_class(tmpl$formula_original, "formula")
+  testthat::expect_identical(tmpl$formula_normalized, "cbind(y1, y2) ~ size")
+})
+
+test_that("createSimulationTemplate rejects unsupported formula structures", {
+  skip_if_simulation_template_deps()
+
+  set.seed(63)
+  tr <- ape::rtree(12)
+  dat <- data.frame(
+    y1 = rnorm(12),
+    y2 = rnorm(12),
+    size = exp(rnorm(12))
+  )
+  rownames(dat) <- tr$tip.label
+
+  testthat::expect_error(
+    createSimulationTemplate(
+      baseline_tree = tr,
+      trait_data = dat,
+      formula = log(y1) ~ size,
+      method = "LL"
+    ),
+    "Transformed responses are not supported"
+  )
+
+  testthat::expect_error(
+    createSimulationTemplate(
+      baseline_tree = tr,
+      trait_data = dat,
+      formula = cbind(y1, y2) ~ .,
+      method = "LL"
+    ),
+    "'.' shorthand is not supported"
   )
 })
 

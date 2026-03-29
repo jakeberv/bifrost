@@ -27,14 +27,14 @@
 #'   matrix so that the multivariate response is interpreted correctly by \code{mvgls()}.
 #'   When using more general formulas (e.g., pGLS-style models), a \code{data.frame} with
 #'   named columns can be used instead.
-#' @param formula Character formula passed to \code{mvgls}. Defaults to
+#' @param formula Character string or formula object passed to \code{mvgls}. Defaults to
 #'   \code{"trait_data ~ 1"}, which fits an intercept-only model treating the supplied
 #'   multivariate trait matrix as the response. This is the appropriate choice for most
 #'   morphometric data where there are no predictor variables. For more general models,
 #'   \code{formula} can reference subsets of \code{trait_data} explicitly, for example
 #'   \code{"trait_data[, 1:5] ~ 1"} to treat columns 1–5 as a multivariate response, or
-#'   \code{"trait_data[, 1:5] ~ trait_data[, 6]"} to fit a multivariate pGLS with column 6
-#'   as a predictor.
+#'   \code{cbind(y1, y2) ~ size + grp} to fit a multivariate pGLS with named numeric or
+#'   factor predictors.
 #' @param min_descendant_tips Integer (\eqn{\ge}1). Minimum number of tips required for an internal node
 #'   to be considered as a candidate shift (forwarded to \code{generatePaintedTrees}). Larger values
 #'   reduce the number of candidate shifts by excluding very small clades. For empirical datasets,
@@ -278,6 +278,11 @@ searchOptimalConfiguration <-
 
     # Capture user input
     user_input <- as.list(match.call())
+
+    if (!(inherits(formula, "formula") ||
+          (is.character(formula) && length(formula) == 1L && !is.na(formula)))) {
+      stop("formula must be a single character string or formula object.")
+    }
 
     # Input tree should be painted SIMMAP tree with global state zero
     baseline_tree <- paintSubTree(((as.phylo(baseline_tree))),

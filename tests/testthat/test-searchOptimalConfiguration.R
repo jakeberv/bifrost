@@ -178,6 +178,41 @@ test_that("searchOptimalConfiguration runs end-to-end on simulated data (BIC)", 
   }
 })
 
+# Test: searchOptimalConfiguration accepts formula objects and mixed-type named formulas
+test_that("searchOptimalConfiguration accepts formula objects and mixed-type named formulas", {
+  skip_if_missing_deps()
+
+  set.seed(2026)
+  baseline <- ape::rtree(20)
+  dat <- data.frame(
+    y1 = rnorm(20),
+    y2 = rnorm(20),
+    size = exp(rnorm(20)),
+    grp = factor(rep(c("a", "b"), length.out = 20))
+  )
+  rownames(dat) <- baseline$tip.label
+
+  res <- suppressWarnings(searchOptimalConfiguration(
+    baseline_tree              = baseline,
+    trait_data                 = dat,
+    formula                    = cbind(y1, y2) ~ log(size) * grp,
+    min_descendant_tips        = 5,
+    num_cores                  = 1,
+    shift_acceptance_threshold = 1e9,
+    plot                       = FALSE,
+    IC                         = "GIC",
+    store_model_fit_history    = FALSE,
+    method                     = "LL"
+  ))
+
+  testthat::expect_type(res, "list")
+  testthat::expect_true(res$IC_used == "GIC")
+  expect_numeric_scalar(res$baseline_ic)
+  expect_numeric_scalar(res$optimal_ic)
+  testthat::expect_true(inherits(res$model_no_uncertainty, "mvgls"))
+  testthat::expect_equal(res$optimal_ic, res$baseline_ic, tolerance = 1e-8)
+})
+
 # Group: ic_weights correctness
 # Test: ic_weights are internally consistent when present (rtree(40) with threshold=-Inf; checks delta/evidence_ratio)
 test_that("ic_weights are internally consistent when present", {

@@ -14,3 +14,5 @@ lint.txt
 .lintr
 lintr.R
 experimental/
+vignettes/*_cache/
+vignettes/*_files/

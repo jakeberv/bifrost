@@ -21,10 +21,11 @@ via \code{\link[ape:as.phylo]{ape::as.phylo()}}) whose tip labels match the row 
 used to parameterize the simulations. Row names must match
 \code{baseline_tree$tip.label}.}
 
-\item{formula}{Character scalar passed to \code{\link[mvMORPH:mvgls]{mvMORPH::mvgls()}}. As in
-\code{\link[=searchOptimalConfiguration]{searchOptimalConfiguration()}}, formulas should typically reference
-\code{trait_data} directly (for example, \code{"trait_data ~ 1"} or
-\code{"trait_data[, 1:12] ~ 1"} or \code{"trait_data[, 1:12] ~ trait_data[, 13]"}).}
+\item{formula}{Formula specification passed to \code{\link[mvMORPH:mvgls]{mvMORPH::mvgls()}}. May be a
+single character string or a formula object. Legacy forms that reference
+\code{trait_data} directly remain supported (for example, \code{"trait_data ~ 1"} or
+\code{"trait_data[, 1:12] ~ trait_data[, 13]"}), but named-column formulas such
+as \code{cbind(y1, y2) ~ size + grp} are also accepted.}
 
 \item{response_columns}{Optional column specification identifying the
 multivariate response. May be integer positions, character column names, or
@@ -34,9 +35,11 @@ defaults to all columns. For any workflow where the response is a subset of
 \code{"trait_data[, 1:12] ~ 1"}, this should be supplied explicitly.}
 
 \item{predictor_columns}{Optional column specification identifying predictor
-columns that should be carried through unchanged in simulated datasets. If
-\code{formula} is not intercept-only and \code{predictor_columns} is omitted, the
-complement of \code{response_columns} is used.}
+columns used by the global calibration model. For named-column formulas
+these are usually inferred from the formula itself. For non-intercept
+workflows where \code{predictor_columns} is omitted, the complement of
+\code{response_columns} is used unless the formula identifies raw predictor
+columns directly.}
 
 \item{...}{Additional arguments passed to \code{\link[mvMORPH:mvgls]{mvMORPH::mvgls()}} for the global
 empirical fit (for example \code{method = "LL"} or \code{error = TRUE}).}
@@ -59,7 +62,7 @@ This function ports the manuscript parameterization step into the package as
 closely as possible while cleaning it up for package use. The returned template
 stores:
 \itemize{
-\item the aligned empirical tree and analysis data,
+\item the aligned empirical tree and calibration data,
 \item the fitted global \code{mvgls} model,
 \item evaluated copies of key fit settings (\code{fit_method}, \code{fit_error}) that
 can be reused safely by downstream simulation-study wrappers,
@@ -72,14 +75,20 @@ used by downstream simulation functions to generate a fresh ancestral
 covariance matrix for each replicate.
 }
 
-For intercept-only workflows, the analysis data stored in the template are the
-response columns only, because \code{formula = "trait_data ~ 1"} treats the entire
-supplied object as the multivariate response. This same intercept-only logic
-also applies to subset-response formulas whose right-hand side is just \code{1},
-such as \code{"trait_data[, 1:12] ~ 1"}, provided that \code{response_columns} is used
-to identify the simulated response block. For formula-based workflows with
-predictors, the full aligned \code{trait_data} object is retained so that
-predictors can be carried through unchanged during simulation studies.
+The template is a calibration object, not a full simulation-study design. Its
+formula defines the one global mean model used to estimate fitted values and
+residual covariance structure. Downstream simulation studies then regenerate
+the response block around those fitted means and evaluate intercept-only
+shift-search behavior on the simulated responses. In other words, a richer
+calibration model can still feed the manuscript-style \code{trait_data ~ 1}
+simulation workflow.
+
+Internally, all supported formulas are normalized into a single simulation
+formula specification. Legacy indexed formulas are rewritten onto named
+columns, formula objects are accepted alongside character strings, predictor
+schemas record numeric/logical/factor/ordered predictors, and unsupported
+forms such as transformed responses, \code{.} shorthand, and character predictors
+are rejected early.
 }
 \examples{
 \dontrun{

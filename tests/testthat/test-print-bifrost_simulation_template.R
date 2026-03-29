@@ -19,7 +19,8 @@ test_that("print.bifrost_simulation_template prints the key sections", {
 
   testthat::expect_match(out, "Bifrost Simulation Template")
   testthat::expect_match(out, "Empirical Covariance Summaries")
-  testthat::expect_match(out, "Formula:")
+  testthat::expect_match(out, "Calibration formula:")
+  testthat::expect_match(out, "Simulation search:")
   testthat::expect_match(out, "Tips:")
 })
 

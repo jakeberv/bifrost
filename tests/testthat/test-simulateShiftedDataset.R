@@ -176,7 +176,7 @@ test_that("simulateShiftedDataset returns a proportional shifted replicate", {
   testthat::expect_gte(node_distance, 2)
 })
 
-test_that("simulateShiftedDataset supports the correlation scenario and preserves predictors", {
+test_that("simulateShiftedDataset supports the correlation scenario with response-only output", {
   skip_if_shift_sim_deps()
 
   tmpl <- make_formula_shift_template()
@@ -191,10 +191,8 @@ test_that("simulateShiftedDataset supports the correlation scenario and preserve
   )
 
   testthat::expect_identical(sim$generating_scenario, "correlation")
-  testthat::expect_identical(
-    sim$trait_data[, 3],
-    tmpl$trait_data[sim$sampled_tree$tip.label, 3]
-  )
+  testthat::expect_equal(colnames(sim$trait_data), c("y1", "y2"))
+  testthat::expect_false("mass" %in% colnames(sim$trait_data))
   testthat::expect_equal(dim(sim$simulatedData), c(24, 2))
 })
 
@@ -220,26 +218,6 @@ test_that("simulateShiftedDataset correlation mode is not just proportional resc
   testthat::expect_gt(
     max(abs(stats::cov2cor(derived_sigma) - stats::cov2cor(ancestral_sigma))[lower.tri(ancestral_sigma)]),
     1e-8
-  )
-})
-
-test_that("simulateShiftedDataset requires predictors for formula templates", {
-  skip_if_shift_sim_deps()
-
-  tmpl <- make_formula_shift_template()
-
-  testthat::expect_error(
-    simulateShiftedDataset(
-      tmpl,
-      tree_tip_count = 24,
-      num_shifts = 2,
-      min_shift_tips = 3,
-      max_shift_tips = 7,
-      scale_mode = "correlation",
-      preserve_predictors = FALSE,
-      seed = 5
-    ),
-    "preserve_predictors must be TRUE"
   )
 })
 
@@ -304,10 +282,8 @@ test_that("simulateShiftedDataset preserves data.frame outputs when requested", 
 
   testthat::expect_true(is.data.frame(sim_no_predictor$trait_data))
   testthat::expect_true(is.data.frame(sim_with_predictor$trait_data))
-  testthat::expect_identical(
-    sim_with_predictor$trait_data$mass,
-    template_with_predictor$trait_data[sim_with_predictor$sampled_tree$tip.label, "mass"]
-  )
+  testthat::expect_false("mass" %in% colnames(sim_with_predictor$trait_data))
+  testthat::expect_equal(colnames(sim_with_predictor$trait_data), c("y1", "y2"))
 })
 
 test_that("simulateShiftedDataset fails cleanly when no valid shift configuration exists", {

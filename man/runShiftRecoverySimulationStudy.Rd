@@ -28,12 +28,11 @@ If \code{NULL}, each replicate uses the full empirical tree.}
 \item{simulation_options}{Named list of additional arguments passed to
 \code{\link[=simulateShiftedDataset]{simulateShiftedDataset()}}. For replicated studies,
 \code{simulation_options$seed} is not allowed; use the wrapper-level \code{seed}
-argument instead. For templates with predictor columns,
-\code{preserve_predictors} must remain \code{TRUE}.}
+argument instead.}
 
 \item{search_options}{Named list of arguments passed to
 \code{\link[=searchOptimalConfiguration]{searchOptimalConfiguration()}}. These override the default manuscript-style
-search settings assembled from \code{template}.}
+intercept-only search settings assembled from \code{template}.}
 
 \item{fuzzy_distance}{Integer node distance used for fuzzy matching in
 \code{\link[=evaluateShiftRecovery]{evaluateShiftRecovery()}}.}
@@ -64,6 +63,11 @@ This function is the package-native port of the manuscript's
 possible, the default search configuration uses \code{uncertaintyweights_par = TRUE}
 when \code{weighted = TRUE}, so that shift-recovery summaries can report both
 unweighted and IC-weighted metrics.
+
+Regardless of the global calibration model used to build \code{template}, the
+downstream search is intentionally restricted to intercept-only formulas.
+This keeps the study focused on shift recovery in the simulated response
+block rather than re-estimating predictor effects within each replicate.
 
 Failed search replicates are retained in the output and treated as zero-shift
 recoveries in the per-replicate summary; the corresponding error messages are
