@@ -142,6 +142,30 @@ test_that("runFalsePositiveSimulationStudy uses intercept-only searches for form
   testthat::expect_false("mass" %in% colnames(study$simdata[[1]]$data))
 })
 
+test_that("runFalsePositiveSimulationStudy inherits the default intercept-only search for data.frame templates", {
+  skip_if_fp_study_deps()
+
+  tmpl <- make_formula_fp_template()
+  study <- runFalsePositiveSimulationStudy(
+    tmpl,
+    n_replicates = 1,
+    tree_tip_count = 20,
+    search_options = list(
+      min_descendant_tips = 3,
+      shift_acceptance_threshold = 5,
+      num_cores = 1,
+      IC = "GIC",
+      method = "LL"
+    ),
+    num_cores = 1,
+    seed = 124
+  )
+
+  testthat::expect_identical(study$search_options$formula, "trait_data ~ 1")
+  testthat::expect_identical(study$per_replicate$status, "ok")
+  testthat::expect_true(all(is.na(study$per_replicate$error)))
+})
+
 test_that("runFalsePositiveSimulationStudy rejects non-intercept search formulas", {
   skip_if_fp_study_deps()
 

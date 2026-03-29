@@ -11,16 +11,21 @@ skip_if_tuning_grid_deps <- function() {
 }
 
 local_rebind <- function(name, value, env) {
-  old_value <- get(name, envir = env, inherits = FALSE)
-  was_locked <- bindingIsLocked(name, env)
+  had_local_binding <- exists(name, envir = env, inherits = FALSE)
+  old_value <- get(name, envir = env, inherits = TRUE)
+  was_locked <- had_local_binding && bindingIsLocked(name, env)
   if (was_locked) {
     unlockBinding(name, env)
   }
   assign(name, value, envir = env)
   withr::defer({
-    assign(name, old_value, envir = env)
-    if (was_locked) {
-      lockBinding(name, env)
+    if (had_local_binding) {
+      assign(name, old_value, envir = env)
+      if (was_locked) {
+        lockBinding(name, env)
+      }
+    } else if (exists(name, envir = env, inherits = FALSE)) {
+      rm(list = name, envir = env)
     }
   }, envir = parent.frame())
 }
