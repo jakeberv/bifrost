@@ -11,6 +11,15 @@ skip_if_recovery_study_deps <- function() {
   withr::local_options(list(progressr.enable = FALSE))
 }
 
+.recovery_template_cache <- new.env(parent = emptyenv())
+
+get_cached_recovery_template <- function(key, builder) {
+  if (!exists(key, envir = .recovery_template_cache, inherits = FALSE)) {
+    assign(key, builder(), envir = .recovery_template_cache)
+  }
+  unserialize(serialize(get(key, envir = .recovery_template_cache, inherits = FALSE), NULL))
+}
+
 local_rebind <- function(name, value, env) {
   had_local_binding <- exists(name, envir = env, inherits = FALSE)
   old_value <- get(name, envir = env, inherits = TRUE)
@@ -32,50 +41,56 @@ local_rebind <- function(name, value, env) {
 }
 
 make_recovery_template <- function() {
-  set.seed(40)
-  tr <- ape::rtree(24)
-  X <- matrix(rnorm(24 * 2), ncol = 2)
-  rownames(X) <- tr$tip.label
-  createSimulationTemplate(
-    baseline_tree = tr,
-    trait_data = X,
-    formula = "trait_data ~ 1",
-    method = "LL"
-  )
+  get_cached_recovery_template("recovery_template", function() {
+    set.seed(40)
+    tr <- ape::rtree(24)
+    X <- matrix(rnorm(24 * 2), ncol = 2)
+    rownames(X) <- tr$tip.label
+    createSimulationTemplate(
+      baseline_tree = tr,
+      trait_data = X,
+      formula = "trait_data ~ 1",
+      method = "LL"
+    )
+  })
 }
 
 make_formula_recovery_template <- function() {
-  set.seed(41)
-  tr <- ape::rtree(24)
-  grp <- factor(rep(c("a", "b"), each = 12))
-  size <- rnorm(24)
-  X <- data.frame(
-    y1 = 0.5 * size + ifelse(grp == "b", 1, 0) + rnorm(24),
-    y2 = -0.3 * size + ifelse(grp == "b", -0.5, 0) + rnorm(24),
-    size = size,
-    grp = grp,
-    row.names = tr$tip.label
-  )
-  createSimulationTemplate(
-    baseline_tree = tr,
-    trait_data = X,
-    formula = cbind(y1, y2) ~ size + grp,
-    method = "LL"
-  )
+  get_cached_recovery_template("formula_recovery_template", function() {
+    set.seed(41)
+    tr <- ape::rtree(24)
+    grp <- factor(rep(c("a", "b"), each = 12))
+    size <- rnorm(24)
+    X <- data.frame(
+      y1 = 0.5 * size + ifelse(grp == "b", 1, 0) + rnorm(24),
+      y2 = -0.3 * size + ifelse(grp == "b", -0.5, 0) + rnorm(24),
+      size = size,
+      grp = grp,
+      row.names = tr$tip.label
+    )
+    createSimulationTemplate(
+      baseline_tree = tr,
+      trait_data = X,
+      formula = cbind(y1, y2) ~ size + grp,
+      method = "LL"
+    )
+  })
 }
 
 make_recovery_template_with_error <- function() {
-  set.seed(42)
-  tr <- ape::rtree(20)
-  X <- matrix(rnorm(20 * 2), ncol = 2)
-  rownames(X) <- tr$tip.label
-  createSimulationTemplate(
-    baseline_tree = tr,
-    trait_data = X,
-    formula = "trait_data ~ 1",
-    method = "LL",
-    error = TRUE
-  )
+  get_cached_recovery_template("recovery_template_with_error", function() {
+    set.seed(42)
+    tr <- ape::rtree(20)
+    X <- matrix(rnorm(20 * 2), ncol = 2)
+    rownames(X) <- tr$tip.label
+    createSimulationTemplate(
+      baseline_tree = tr,
+      trait_data = X,
+      formula = "trait_data ~ 1",
+      method = "LL",
+      error = TRUE
+    )
+  })
 }
 
 test_that("runShiftRecoverySimulationStudy supports the proportional scenario", {

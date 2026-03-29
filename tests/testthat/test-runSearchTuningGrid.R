@@ -11,6 +11,15 @@ skip_if_tuning_grid_deps <- function() {
   withr::local_options(list(progressr.enable = FALSE))
 }
 
+.tuning_template_cache <- new.env(parent = emptyenv())
+
+get_cached_tuning_template <- function(key, builder) {
+  if (!exists(key, envir = .tuning_template_cache, inherits = FALSE)) {
+    assign(key, builder(), envir = .tuning_template_cache)
+  }
+  unserialize(serialize(get(key, envir = .tuning_template_cache, inherits = FALSE), NULL))
+}
+
 local_rebind <- function(name, value, env) {
   had_local_binding <- exists(name, envir = env, inherits = FALSE)
   old_value <- get(name, envir = env, inherits = TRUE)
@@ -32,36 +41,40 @@ local_rebind <- function(name, value, env) {
 }
 
 make_tuning_template <- function() {
-  set.seed(60)
-  tr <- ape::rtree(20)
-  X <- matrix(rnorm(20 * 2), ncol = 2)
-  rownames(X) <- tr$tip.label
-  createSimulationTemplate(
-    baseline_tree = tr,
-    trait_data = X,
-    formula = "trait_data ~ 1",
-    method = "LL"
-  )
+  get_cached_tuning_template("tuning_template", function() {
+    set.seed(60)
+    tr <- ape::rtree(20)
+    X <- matrix(rnorm(20 * 2), ncol = 2)
+    rownames(X) <- tr$tip.label
+    createSimulationTemplate(
+      baseline_tree = tr,
+      trait_data = X,
+      formula = "trait_data ~ 1",
+      method = "LL"
+    )
+  })
 }
 
 make_formula_tuning_template <- function() {
-  set.seed(61)
-  tr <- ape::rtree(20)
-  grp <- factor(rep(c("a", "b"), length.out = 20))
-  size <- rnorm(20)
-  X <- data.frame(
-    y1 = 0.3 * size + ifelse(grp == "b", 0.7, 0) + rnorm(20),
-    y2 = -0.25 * size + ifelse(grp == "b", -0.4, 0) + rnorm(20),
-    size = size,
-    grp = grp,
-    row.names = tr$tip.label
-  )
-  createSimulationTemplate(
-    baseline_tree = tr,
-    trait_data = X,
-    formula = cbind(y1, y2) ~ size + grp,
-    method = "LL"
-  )
+  get_cached_tuning_template("formula_tuning_template", function() {
+    set.seed(61)
+    tr <- ape::rtree(20)
+    grp <- factor(rep(c("a", "b"), length.out = 20))
+    size <- rnorm(20)
+    X <- data.frame(
+      y1 = 0.3 * size + ifelse(grp == "b", 0.7, 0) + rnorm(20),
+      y2 = -0.25 * size + ifelse(grp == "b", -0.4, 0) + rnorm(20),
+      size = size,
+      grp = grp,
+      row.names = tr$tip.label
+    )
+    createSimulationTemplate(
+      baseline_tree = tr,
+      trait_data = X,
+      formula = cbind(y1, y2) ~ size + grp,
+      method = "LL"
+    )
+  })
 }
 
 test_that("runSearchTuningGrid returns a fixed-IC tuning grid on a small real run", {
