@@ -29,9 +29,9 @@
 
 .bifrost_fmt_val <- function(v, digits = 2, cutoff = 80) {
   if (is.null(v) || length(v) == 0) return(NULL)
-  if (is.character(v)) return(as.character(v)[1])         # no extra quotes
-  if (is.logical(v))   return(.bifrost_fmt_lgl(v))
-  if (is.numeric(v))   return(.bifrost_fmt_num(v, digits))
+  if (is.character(v)) return(as.character(v)[1])
+  if (is.logical(v)) return(.bifrost_fmt_lgl(v))
+  if (is.numeric(v)) return(.bifrost_fmt_num(v, digits))
   s <- paste(deparse(v, width.cutoff = cutoff), collapse = "")
   if (nchar(s) > cutoff) paste0(substr(s, 1, cutoff - 3), "...")
   else s
@@ -39,13 +39,11 @@
 
 .bifrost_safe_tip_count <- function(tree) {
   if (is.null(tree)) return(NA_integer_)
-  #if (!requireNamespace("ape", quietly = TRUE)) return(NA_integer_)
   tryCatch(ape::Ntip(tree), error = function(e) NA_integer_)
 }
 
 .bifrost_safe_regime_count <- function(tree) {
   if (is.null(tree)) return(NA_integer_)
-  #if (!requireNamespace("phytools", quietly = TRUE)) return(NA_integer_)
   tryCatch({
     st <- phytools::getStates(tree, type = "both")
     length(unique(st))
@@ -242,7 +240,6 @@
   if (!is.null(d$formula)) {
     cat("  Formula: ", d$formula, "\n", sep = "")
   }
-  # NOTE: unconditional call is behavior-preserving (prints nothing if both are absent)
   .bifrost_pack_line(2, .bifrost_kv("Penalty", d$penalty), .bifrost_kv("Target", d$target), sep = "   ")
   cat("\n")
 }
@@ -371,22 +368,147 @@ print.bifrost_search <- function(x, ...) {
   .bifrost_print_header()
   .bifrost_print_ic_block(d)
 
-  # Search summary first, then shift nodes (so "what happened" comes before fit details)
   .bifrost_print_search_block(d)
   .bifrost_print_shift_nodes(d)
-
-  # Fit details next
   .bifrost_print_mvgls_block(d)
-
-  # Optional diagnostics
   .bifrost_print_history_plot(x, d)
   .bifrost_print_weights(x, d)
-
-  # Warnings footer
   .bifrost_print_warnings(x)
 
-  # Citation hint (one-liner)
   cat("\nTo cite this package: citation(\"bifrost\")\n")
+
+  invisible(x)
+}
+
+#' Print method for bifrost simulation templates
+#'
+#' @description
+#' Print a compact summary of a `bifrost_simulation_template`, including the
+#' aligned tree size, response/predictor structure, global calibration formula,
+#' downstream simulation-search formula, and the empirical covariance summaries
+#' used to generate simulation replicates.
+#'
+#' @param x A `bifrost_simulation_template` object returned by
+#'   [createSimulationTemplate()].
+#' @param ... Unused (S3 compatibility).
+#'
+#' @return Invisibly returns `x`. Called for its printing side effects.
+#'
+#' @seealso [createSimulationTemplate()]
+#'
+#' @examples
+#' \dontrun{
+#' set.seed(1)
+#' tr <- ape::rtree(20)
+#' X <- matrix(rnorm(20 * 3), ncol = 3)
+#' rownames(X) <- tr$tip.label
+#' tmpl <- createSimulationTemplate(tr, X, formula = "trait_data ~ 1", method = "LL")
+#' tmpl
+#' }
+#'
+#' @export
+print.bifrost_simulation_template <- function(x, ...) {
+  cat("Bifrost Simulation Template\n")
+  cat("===========================\n\n")
+  cat("Tree\n")
+  cat("  Tips: ", x$n_tips, "\n", sep = "")
+  cat("  Response traits: ", x$n_response_traits, "\n", sep = "")
+  cat("  Predictor columns: ", length(x$predictor_columns), "\n\n", sep = "")
+
+  cat("Model\n")
+  cat("  Calibration formula: ", x$formula, "\n", sep = "")
+  if (!is.null(x$search_formula)) {
+    cat("  Simulation search:   ", x$search_formula, "\n", sep = "")
+  }
+  method_setting <- x$fit_method
+  if (is.null(method_setting) && !is.null(x$global_model$call$method)) {
+    method_setting <- as.character(x$global_model$call$method)
+  }
+  if (!is.null(method_setting)) {
+    cat("  Method: ", as.character(method_setting), "\n", sep = "")
+  }
+  error_setting <- x$fit_error
+  if (is.null(error_setting) && !is.null(x$global_model$call$error)) {
+    error_setting <- tryCatch(
+      eval(x$global_model$call$error),
+      error = function(e) NULL
+    )
+  }
+  if (!is.null(error_setting)) {
+    cat("  Error term: ", as.character(error_setting), "\n", sep = "")
+  }
+  cat("\n")
+
+  cat("Empirical Covariance Summaries\n")
+  cat("  Variance mean: ", formatC(x$variance_mean, format = "f", digits = 6), "\n", sep = "")
+  cat("  Variance sd:   ", formatC(x$variance_sd, format = "f", digits = 6), "\n", sep = "")
+  cat("  Covariance mean: ", formatC(x$covariance_mean, format = "f", digits = 6), "\n", sep = "")
+  cat("  Covariance sd:   ", formatC(x$covariance_sd, format = "f", digits = 6), "\n", sep = "")
+
+  invisible(x)
+}
+
+#' Print method for bifrost simulation studies
+#'
+#' @description
+#' Print a compact summary of a `bifrost_simulation_study`, including the study
+#' type, generating scenario, replicate counts, and the main false-positive or
+#' recovery summaries attached to the study object.
+#'
+#' @param x A `bifrost_simulation_study` object returned by
+#'   [runFalsePositiveSimulationStudy()] or
+#'   [runShiftRecoverySimulationStudy()].
+#' @param ... Unused (S3 compatibility).
+#'
+#' @return Invisibly returns `x`. Called for its printing side effects.
+#'
+#' @seealso [runFalsePositiveSimulationStudy()],
+#'   [runShiftRecoverySimulationStudy()]
+#'
+#' @examples
+#' \dontrun{
+#' # Usually called on the output of a simulation-study wrapper:
+#' # study
+#' }
+#'
+#' @export
+print.bifrost_simulation_study <- function(x, ...) {
+  cat("Bifrost Simulation Study\n")
+  cat("=======================\n\n")
+  cat("Study\n")
+  cat("  Type: ", x$study_type, "\n", sep = "")
+  scenario <- x$generating_scenario
+  if (length(scenario) > 1L) {
+    scenario <- paste(scenario, collapse = ", ")
+  }
+  cat("  Scenario: ", scenario, "\n", sep = "")
+  cat("  Replicates: ", x$study_summary$n_replicates, "\n", sep = "")
+  cat("  Completed: ", x$study_summary$n_completed, "\n", sep = "")
+  cat("  Failed: ", x$study_summary$n_failed, "\n\n", sep = "")
+
+  if (identical(x$study_type, "false_positive")) {
+    cat("False-Positive Summary\n")
+    cat("  Mean FP rate:   ",
+        formatC(x$study_summary$mean_false_positive_rate, format = "f", digits = 4),
+        "\n", sep = "")
+    cat("  Median FP rate: ",
+        formatC(x$study_summary$median_false_positive_rate, format = "f", digits = 4),
+        "\n", sep = "")
+  } else if (identical(x$study_type, "shift_recovery") && !is.null(x$evaluation)) {
+    cat("Recovery Summary\n")
+    cat("  Strict precision: ",
+        formatC(x$evaluation$strict$precision, format = "f", digits = 3),
+        "\n", sep = "")
+    cat("  Strict recall:    ",
+        formatC(x$evaluation$strict$recall, format = "f", digits = 3),
+        "\n", sep = "")
+    cat("  Fuzzy precision:  ",
+        formatC(x$evaluation$fuzzy$precision, format = "f", digits = 3),
+        "\n", sep = "")
+    cat("  Fuzzy recall:     ",
+        formatC(x$evaluation$fuzzy$recall, format = "f", digits = 3),
+        "\n", sep = "")
+  }
 
   invisible(x)
 }
