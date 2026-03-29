@@ -268,6 +268,62 @@ test_that("runFalsePositiveSimulationStudy inherits evaluated template settings"
   testthat::expect_identical(study$per_replicate$status, "ok")
 })
 
+test_that("runFalsePositiveSimulationStudy falls back to template call settings when stored values are missing", {
+  skip_if_fp_study_deps()
+
+  method_value <- "LL"
+  tmpl <- make_fp_template_with_error()
+  tmpl$fit_method <- NULL
+  tmpl$fit_error <- NULL
+  tmpl$global_model$call$method <- method_value
+  tmpl$global_model$call$error <- quote(TRUE)
+  tmpl$search_formula <- NULL
+
+  study <- runFalsePositiveSimulationStudy(
+    tmpl,
+    n_replicates = 1,
+    search_options = list(
+      min_descendant_tips = 3,
+      shift_acceptance_threshold = 5,
+      num_cores = 1,
+      IC = "GIC"
+    ),
+    num_cores = 1,
+    seed = 39
+  )
+
+  testthat::expect_identical(study$search_options$formula, "trait_data ~ 1")
+  testthat::expect_identical(study$search_options$method, "LL")
+  testthat::expect_true(isTRUE(study$search_options$error))
+})
+
+test_that("runFalsePositiveSimulationStudy tolerates unevaluable template error calls", {
+  skip_if_fp_study_deps()
+
+  tmpl <- make_fp_template()
+  tmpl$fit_method <- NULL
+  tmpl$fit_error <- NULL
+  tmpl$global_model$call$method <- "LL"
+  tmpl$global_model$call$error <- quote(missing_error_flag)
+  tmpl$search_formula <- NULL
+
+  study <- runFalsePositiveSimulationStudy(
+    tmpl,
+    n_replicates = 1,
+    search_options = list(
+      min_descendant_tips = 3,
+      shift_acceptance_threshold = 5,
+      num_cores = 1,
+      IC = "GIC"
+    ),
+    num_cores = 1,
+    seed = 40
+  )
+
+  testthat::expect_false("error" %in% names(study$search_options))
+  testthat::expect_identical(study$per_replicate$status, "ok")
+})
+
 test_that("runFalsePositiveSimulationStudy is reproducible with the same seed and workers", {
   skip_if_fp_study_deps()
 
@@ -334,6 +390,93 @@ test_that("runFalsePositiveSimulationStudy warns on nested parallelism", {
     ),
     "nested parallelism"
   )
+})
+
+test_that("runFalsePositiveSimulationStudy validates formula types and can choose multisession plans", {
+  skip_if_fp_study_deps()
+
+  tmpl <- make_fp_template()
+
+  testthat::expect_error(
+    runFalsePositiveSimulationStudy(
+      tmpl,
+      n_replicates = 1,
+      search_options = list(
+        formula = 1,
+        min_descendant_tips = 3,
+        shift_acceptance_threshold = 5,
+        num_cores = 1,
+        IC = "GIC"
+      ),
+      num_cores = 1,
+      seed = 41
+    ),
+    "single character string or a formula object"
+  )
+
+  plans <- list()
+  old_rstudio <- Sys.getenv("RSTUDIO", unset = NA_character_)
+  old_rstudio_init <- Sys.getenv("RSTUDIO_SESSION_INITIALIZED", unset = NA_character_)
+  Sys.setenv(RSTUDIO = "1", RSTUDIO_SESSION_INITIALIZED = "1")
+  on.exit({
+    if (is.na(old_rstudio)) Sys.unsetenv("RSTUDIO") else Sys.setenv(RSTUDIO = old_rstudio)
+    if (is.na(old_rstudio_init)) Sys.unsetenv("RSTUDIO_SESSION_INITIALIZED") else Sys.setenv(RSTUDIO_SESSION_INITIALIZED = old_rstudio_init)
+  }, add = TRUE)
+
+  testthat::local_mocked_bindings(
+    future_lapply = function(X, FUN, ...) lapply(X, FUN),
+    .package = "future.apply"
+  )
+  testthat::local_mocked_bindings(
+    plan = function(strategy, workers = NULL, ...) {
+      if (missing(strategy)) {
+        return("old_plan")
+      }
+      plans[[length(plans) + 1L]] <<- list(strategy = strategy, workers = workers)
+      invisible("mock_plan")
+    },
+    .package = "future"
+  )
+
+  runFalsePositiveSimulationStudy(
+    tmpl,
+    n_replicates = 1,
+    search_options = list(
+      formula = "trait_data ~ 1",
+      min_descendant_tips = 3,
+      shift_acceptance_threshold = 5,
+      num_cores = 1,
+      IC = "GIC",
+      method = "LL"
+    ),
+    num_cores = 2,
+    seed = 42
+  )
+
+  testthat::expect_true(any(vapply(plans, function(x) identical(x$strategy, future::multisession), logical(1))))
+})
+
+test_that("runFalsePositiveSimulationStudy accepts formula objects in search options", {
+  skip_if_fp_study_deps()
+
+  tmpl <- make_fp_template()
+  study <- runFalsePositiveSimulationStudy(
+    tmpl,
+    n_replicates = 1,
+    search_options = list(
+      formula = stats::as.formula("trait_data ~ 1"),
+      min_descendant_tips = 3,
+      shift_acceptance_threshold = 5,
+      num_cores = 1,
+      IC = "GIC",
+      method = "LL"
+    ),
+    num_cores = 1,
+    seed = 43
+  )
+
+  testthat::expect_s3_class(study$search_options$formula, "formula")
+  testthat::expect_identical(study$per_replicate$status, "ok")
 })
 
 test_that("runFalsePositiveSimulationStudy records search fallback errors", {

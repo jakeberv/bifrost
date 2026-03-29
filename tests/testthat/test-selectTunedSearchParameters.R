@@ -89,6 +89,43 @@ test_that("selectTunedSearchParameters can rank weighted metrics and fall back t
   testthat::expect_identical(selected$recommended_search_options$IC, "BIC")
 })
 
+test_that("selectTunedSearchParameters validates scenario weight names and supports liberal tie-breaking", {
+  summary_table <- data.frame(
+    setting_id = 1:2,
+    IC = rep("GIC", 2),
+    shift_acceptance_threshold = c(2, 10),
+    min_descendant_tips = c(3, 8),
+    null_mean_false_positive_rate = c(0.02, 0.02),
+    null_fraction_any_false_positive = c(0.10, 0.10),
+    null_evaluable_fraction = c(1, 1),
+    proportional_evaluable_fraction = c(1, 1),
+    correlation_evaluable_fraction = c(1, 1),
+    proportional_fuzzy_f1 = c(0.80, 0.80),
+    correlation_fuzzy_f1 = c(0.70, 0.70),
+    proportional_fuzzy_recall = c(0.85, 0.85),
+    correlation_fuzzy_recall = c(0.75, 0.75),
+    proportional_strict_f1 = c(0.60, 0.60),
+    correlation_strict_f1 = c(0.50, 0.50),
+    stringsAsFactors = FALSE
+  )
+  tuning_grid <- make_tuning_grid_stub(summary_table)
+
+  testthat::expect_error(
+    selectTunedSearchParameters(
+      tuning_grid,
+      scenario_weights = c(first = 0.5, second = 0.5)
+    ),
+    "named 'proportional' and 'correlation'"
+  )
+
+  selected <- selectTunedSearchParameters(
+    tuning_grid,
+    tie_break = "liberal"
+  )
+
+  testthat::expect_identical(selected$selected_row$setting_id, 1L)
+})
+
 test_that("selectTunedSearchParameters validates its inputs", {
   summary_table <- data.frame(
     setting_id = 1L,

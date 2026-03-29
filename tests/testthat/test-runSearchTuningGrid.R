@@ -255,6 +255,181 @@ test_that("runSearchTuningGrid propagates fixed IC and scenario-specific options
   ) %in% names(grid$summary_table)))
 })
 
+test_that("runSearchTuningGrid inherits template defaults and can choose multisession plans", {
+  skip_if_tuning_grid_deps()
+
+  tmpl <- make_tuning_template()
+  tmpl$search_formula <- NULL
+  mock_env <- new.env(parent = emptyenv())
+  mock_env$null_calls <- list()
+  mock_env$shift_calls <- list()
+  plans <- list()
+
+  old_rstudio <- Sys.getenv("RSTUDIO", unset = NA_character_)
+  old_rstudio_init <- Sys.getenv("RSTUDIO_SESSION_INITIALIZED", unset = NA_character_)
+  Sys.setenv(RSTUDIO = "1", RSTUDIO_SESSION_INITIALIZED = "1")
+  on.exit({
+    if (is.na(old_rstudio)) Sys.unsetenv("RSTUDIO") else Sys.setenv(RSTUDIO = old_rstudio)
+    if (is.na(old_rstudio_init)) Sys.unsetenv("RSTUDIO_SESSION_INITIALIZED") else Sys.setenv(RSTUDIO_SESSION_INITIALIZED = old_rstudio_init)
+  }, add = TRUE)
+
+  testthat::local_mocked_bindings(
+    plan = function(strategy, workers = NULL, ...) {
+      if (missing(strategy)) {
+        return("old_plan")
+      }
+      plans[[length(plans) + 1L]] <<- list(strategy = strategy, workers = workers)
+      invisible("mock_plan")
+    },
+    .package = "future"
+  )
+  testthat::local_mocked_bindings(
+    future_lapply = function(X, FUN, ...) lapply(X, FUN),
+    .package = "future.apply"
+  )
+
+  local_rebind(
+    "runFalsePositiveSimulationStudy",
+    function(template, search_options, seed, ...) {
+      mock_env$null_calls[[length(mock_env$null_calls) + 1L]] <- list(
+        formula = search_options$formula,
+        seed = seed
+      )
+      list(
+        generating_scenario = "null",
+        per_replicate = data.frame(
+          n_inferred_shifts = 0,
+          false_positive_rate = 0,
+          n_candidates = 5,
+          status = "ok"
+        ),
+        study_summary = list(mean_false_positive_rate = 0)
+      )
+    },
+    environment(runSearchTuningGrid)
+  )
+  local_rebind(
+    "runShiftRecoverySimulationStudy",
+    function(template, simulation_options, search_options, seed, ...) {
+      mock_env$shift_calls[[length(mock_env$shift_calls) + 1L]] <- list(
+        formula = search_options$formula,
+        scale_mode = simulation_options$scale_mode,
+        max_shift_tips = simulation_options$max_shift_tips,
+        seed = seed
+      )
+      scenario <- simulation_options$scale_mode
+      list(
+        generating_scenario = scenario,
+        per_replicate = data.frame(
+          n_candidates = 4,
+          n_inferred_shifts = 1,
+          status = "ok"
+        ),
+        evaluation = list(
+          strict = list(f1 = 0.4),
+          fuzzy = list(f1 = 0.6, recall = 0.7),
+          weighted = NULL
+        )
+      )
+    },
+    environment(runSearchTuningGrid)
+  )
+
+  grid <- runSearchTuningGrid(
+    template = tmpl,
+    IC = "GIC",
+    shift_acceptance_thresholds = 5,
+    min_descendant_tips_values = 3,
+    null_replicates = 1,
+    recovery_replicates = 1,
+    proportional_simulation_options = list(
+      num_shifts = 1,
+      min_shift_tips = 2,
+      max_shift_tips = 5
+    ),
+    correlation_simulation_options = list(max_shift_tips = 9),
+    base_search_options = list(method = "LL", num_cores = 1),
+    weighted = FALSE,
+    num_cores = 2,
+    seed = NULL,
+    store_studies = FALSE
+  )
+
+  testthat::expect_identical(mock_env$null_calls[[1]]$formula, "trait_data ~ 1")
+  testthat::expect_identical(mock_env$shift_calls[[1]]$formula, "trait_data ~ 1")
+  testthat::expect_identical(mock_env$shift_calls[[2]]$scale_mode, "correlation")
+  testthat::expect_identical(mock_env$shift_calls[[2]]$max_shift_tips, 9)
+  testthat::expect_null(mock_env$null_calls[[1]]$seed)
+  testthat::expect_true(any(vapply(plans, function(x) identical(x$strategy, future::multisession), logical(1))))
+  testthat::expect_equal(nrow(grid$summary_table), 1)
+})
+
+test_that("runSearchTuningGrid inherits template search formulas when base options omit one", {
+  skip_if_tuning_grid_deps()
+
+  tmpl <- make_tuning_template()
+  mock_env <- new.env(parent = emptyenv())
+  mock_env$null_formula <- NULL
+
+  local_rebind(
+    "runFalsePositiveSimulationStudy",
+    function(template, search_options, ...) {
+      mock_env$null_formula <- search_options$formula
+      list(
+        generating_scenario = "null",
+        per_replicate = data.frame(
+          n_inferred_shifts = 0,
+          false_positive_rate = 0,
+          n_candidates = 5,
+          status = "ok"
+        ),
+        study_summary = list(mean_false_positive_rate = 0)
+      )
+    },
+    environment(runSearchTuningGrid)
+  )
+  local_rebind(
+    "runShiftRecoverySimulationStudy",
+    function(template, simulation_options, ...) {
+      list(
+        generating_scenario = simulation_options$scale_mode,
+        per_replicate = data.frame(
+          n_candidates = 4,
+          n_inferred_shifts = 1,
+          status = "ok"
+        ),
+        evaluation = list(
+          strict = list(f1 = 0.4),
+          fuzzy = list(f1 = 0.6, recall = 0.7),
+          weighted = NULL
+        )
+      )
+    },
+    environment(runSearchTuningGrid)
+  )
+
+  runSearchTuningGrid(
+    template = tmpl,
+    IC = "GIC",
+    shift_acceptance_thresholds = 5,
+    min_descendant_tips_values = 3,
+    null_replicates = 1,
+    recovery_replicates = 1,
+    proportional_simulation_options = list(
+      num_shifts = 1,
+      min_shift_tips = 2,
+      max_shift_tips = 5
+    ),
+    base_search_options = list(method = "LL", num_cores = 1),
+    weighted = FALSE,
+    num_cores = 1,
+    seed = 64,
+    store_studies = FALSE
+  )
+
+  testthat::expect_identical(mock_env$null_formula, "trait_data ~ 1")
+})
+
 test_that("runSearchTuningGrid validates inputs", {
   skip_if_tuning_grid_deps()
 
@@ -319,6 +494,72 @@ test_that("runSearchTuningGrid validates inputs", {
       proportional_simulation_options = list(num_shifts = 1)
     ),
     "must include num_shifts, min_shift_tips, and max_shift_tips"
+  )
+  testthat::expect_error(
+    runSearchTuningGrid(
+      template = tmpl,
+      IC = "GIC",
+      shift_acceptance_thresholds = 5,
+      min_descendant_tips_values = 3,
+      null_replicates = 0,
+      proportional_simulation_options = list(num_shifts = 1, min_shift_tips = 2, max_shift_tips = 5)
+    ),
+    "null_replicates"
+  )
+  testthat::expect_error(
+    runSearchTuningGrid(
+      template = tmpl,
+      IC = "GIC",
+      shift_acceptance_thresholds = 5,
+      min_descendant_tips_values = 3,
+      recovery_replicates = 0,
+      proportional_simulation_options = list(num_shifts = 1, min_shift_tips = 2, max_shift_tips = 5)
+    ),
+    "recovery_replicates"
+  )
+  testthat::expect_error(
+    runSearchTuningGrid(
+      template = tmpl,
+      IC = "GIC",
+      shift_acceptance_thresholds = 5,
+      min_descendant_tips_values = 3,
+      proportional_simulation_options = list(num_shifts = 1, min_shift_tips = 2, max_shift_tips = 5),
+      fuzzy_distance = -1
+    ),
+    "fuzzy_distance"
+  )
+  testthat::expect_error(
+    runSearchTuningGrid(
+      template = tmpl,
+      IC = "GIC",
+      shift_acceptance_thresholds = 5,
+      min_descendant_tips_values = 3,
+      proportional_simulation_options = list(num_shifts = 1, min_shift_tips = 2, max_shift_tips = 5),
+      weighted = NA
+    ),
+    "weighted"
+  )
+  testthat::expect_error(
+    runSearchTuningGrid(
+      template = tmpl,
+      IC = "GIC",
+      shift_acceptance_thresholds = 5,
+      min_descendant_tips_values = 3,
+      proportional_simulation_options = list(num_shifts = 1, min_shift_tips = 2, max_shift_tips = 5),
+      num_cores = 0
+    ),
+    "num_cores"
+  )
+  testthat::expect_error(
+    runSearchTuningGrid(
+      template = tmpl,
+      IC = "GIC",
+      shift_acceptance_thresholds = 5,
+      min_descendant_tips_values = 3,
+      proportional_simulation_options = list(num_shifts = 1, min_shift_tips = 2, max_shift_tips = 5),
+      store_studies = NA
+    ),
+    "store_studies"
   )
 })
 

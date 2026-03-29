@@ -60,3 +60,38 @@ test_that("print.bifrost_simulation_template uses stored evaluated fit settings"
   testthat::expect_match(out, "Method: LL")
   testthat::expect_match(out, "Error term: TRUE")
 })
+
+test_that("print.bifrost_simulation_template falls back to model call settings", {
+  skip_if_print_template_deps()
+
+  set.seed(63)
+  tr <- ape::rtree(16)
+  X <- matrix(rnorm(16 * 2), ncol = 2)
+  rownames(X) <- tr$tip.label
+  tmpl <- createSimulationTemplate(tr, X, formula = "trait_data ~ 1", method = "LL", error = TRUE)
+  tmpl$fit_method <- NULL
+  tmpl$fit_error <- NULL
+
+  out <- paste(capture.output(print(tmpl)), collapse = "\n")
+
+  testthat::expect_match(out, "Method: LL")
+  testthat::expect_match(out, "Error term: TRUE")
+})
+
+test_that("print.bifrost_simulation_template ignores unevaluable model call errors", {
+  skip_if_print_template_deps()
+
+  set.seed(64)
+  tr <- ape::rtree(16)
+  X <- matrix(rnorm(16 * 2), ncol = 2)
+  rownames(X) <- tr$tip.label
+  tmpl <- createSimulationTemplate(tr, X, formula = "trait_data ~ 1", method = "LL")
+  tmpl$fit_method <- NULL
+  tmpl$fit_error <- NULL
+  tmpl$global_model$call$error <- quote(missing_error_flag)
+
+  out <- paste(capture.output(print(tmpl)), collapse = "\n")
+
+  testthat::expect_match(out, "Method: LL")
+  testthat::expect_no_match(out, "Error term:")
+})

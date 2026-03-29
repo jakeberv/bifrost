@@ -127,6 +127,10 @@ test_that("createSimulationTemplate validates basic inputs and column specificat
     "global fit is always BM"
   )
   testthat::expect_error(
+    createSimulationTemplate(tr, X, formula = "trait_data ~ 1", data = list(trait_data = X)),
+    "trait_data is always the empirical data source"
+  )
+  testthat::expect_error(
     createSimulationTemplate(tr, 1:3, formula = "trait_data ~ 1"),
     "matrix or data.frame"
   )
@@ -215,6 +219,22 @@ test_that("createSimulationTemplate validates basic inputs and column specificat
       formula = "trait_data[, 1:3] ~ trait_data[, 3]"
     ),
     "at least one predictor column"
+  )
+
+  dat_bad_response <- data.frame(
+    y1 = letters[1:10],
+    y2 = rnorm(10),
+    mass = rnorm(10),
+    row.names = tr$tip.label
+  )
+  testthat::expect_error(
+    createSimulationTemplate(
+      tr,
+      dat_bad_response,
+      formula = cbind(y1, y2) ~ mass,
+      method = "LL"
+    ),
+    "Response columns in simulation templates must be numeric"
   )
 })
 

@@ -1062,13 +1062,31 @@ test_that("searchOptimalConfiguration records error entries in history and yield
 # Test: searchOptimalConfiguration uses cat() progress path in interactive RStudio plotting (interactive+RSTUDIO=1; plot=TRUE with min_descendant_tips=Ntip)
 test_that("searchOptimalConfiguration uses cat() progress path in interactive RStudio plotting", {
   skip_if_missing_deps()
-  testthat::skip_if_not(interactive())
 
   old_rstudio <- Sys.getenv("RSTUDIO", unset = NA_character_)
   Sys.setenv(RSTUDIO = "1")
   on.exit({
     if (is.na(old_rstudio)) Sys.unsetenv("RSTUDIO") else Sys.setenv(RSTUDIO = old_rstudio)
   }, add = TRUE)
+
+  progress_output <- character(0)
+  flushed <- FALSE
+  search_with_mocked_progress <- searchOptimalConfiguration
+  environment(search_with_mocked_progress) <- list2env(list(
+    interactive = function() TRUE,
+    cat = function(..., file = "", sep = " ", fill = FALSE, labels = NULL, append = FALSE) {
+      progress_output <<- c(progress_output, paste(..., sep = sep, collapse = sep))
+      invisible(NULL)
+    },
+    sink.number = function(type = c("output", "message")) 0
+  ), parent = environment(searchOptimalConfiguration))
+  testthat::local_mocked_bindings(
+    flush.console = function() {
+      flushed <<- TRUE
+      invisible(NULL)
+    },
+    .package = "utils"
+  )
 
   # Null device so plot=TRUE doesn't pop windows
   grDevices::pdf(NULL)
@@ -1084,7 +1102,7 @@ test_that("searchOptimalConfiguration uses cat() progress path in interactive RS
   # That makes candidate_trees_shifts empty => the main loop never runs,
   # so the plot code never calls getStates(shifted_tree,...).
   out <- testthat::capture_output({
-    suppressWarnings(suppressMessages(searchOptimalConfiguration(
+    suppressWarnings(suppressMessages(search_with_mocked_progress(
       baseline_tree              = tr,
       trait_data                 = X,
       formula                    = "trait_data ~ 1",
@@ -1100,7 +1118,31 @@ test_that("searchOptimalConfiguration uses cat() progress path in interactive RS
   })
 
   txt <- paste(out, collapse = "\n")
-  testthat::expect_true(grepl("Generating candidate shift models", txt))
+  testthat::expect_false(grepl("Generating candidate shift models", txt))
+  testthat::expect_true(any(grepl("Generating candidate shift models", progress_output, fixed = TRUE)))
+  testthat::expect_true(flushed)
+})
+
+test_that("searchOptimalConfiguration validates formula input types", {
+  skip_if_missing_deps()
+
+  set.seed(124)
+  tr <- ape::rtree(10)
+  X <- matrix(rnorm(10 * 2), ncol = 2)
+  rownames(X) <- tr$tip.label
+
+  testthat::expect_error(
+    searchOptimalConfiguration(
+      baseline_tree = tr,
+      trait_data = X,
+      formula = 1,
+      min_descendant_tips = 3,
+      num_cores = 1,
+      plot = FALSE,
+      IC = "GIC"
+    ),
+    "single character string or formula object"
+  )
 })
 
 # Test: searchOptimalConfiguration serial ic_weights executes BIC branch (mocks fitMvglsAndExtractBIC.formula; uncertaintyweights=TRUE)
