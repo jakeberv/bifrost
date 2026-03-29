@@ -7,6 +7,7 @@ skip_if_fp_study_deps <- function() {
   testthat::skip_if_not_installed("future")
   testthat::skip_if_not_installed("future.apply")
   testthat::skip_if_not_installed("progressr")
+  withr::local_options(list(progressr.enable = FALSE))
 }
 
 make_fp_template <- function() {

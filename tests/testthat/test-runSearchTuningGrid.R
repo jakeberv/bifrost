@@ -8,6 +8,7 @@ skip_if_tuning_grid_deps <- function() {
   testthat::skip_if_not_installed("future")
   testthat::skip_if_not_installed("future.apply")
   testthat::skip_if_not_installed("progressr")
+  withr::local_options(list(progressr.enable = FALSE))
 }
 
 local_rebind <- function(name, value, env) {
