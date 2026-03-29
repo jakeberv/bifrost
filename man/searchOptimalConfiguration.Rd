@@ -29,9 +29,9 @@ single baseline state and have tip order matching \code{trait_data}.}
 \item{trait_data}{A \code{matrix} or \code{data.frame} of continuous trait values with row
 names matching \code{baseline_tree$tip.label} (same order). For the default
 \code{formula = "trait_data ~ 1"}, \code{trait_data} is typically supplied as a numeric
-matrix so that the multivariate response is interpreted correctly by \code{mvgls()}.
-When using more general formulas (e.g., pGLS-style models), a \code{data.frame} with
-named columns can be used instead.}
+matrix, but a numeric response-only \code{data.frame} is also accepted. When using
+more general formulas (e.g., pGLS-style models), a \code{data.frame} with named
+columns can be used instead.}
 
 \item{formula}{Character string or formula object passed to \code{mvgls}. Defaults to
 \code{"trait_data ~ 1"}, which fits an intercept-only model treating the supplied
@@ -47,10 +47,11 @@ to be considered as a candidate shift (forwarded to \code{generatePaintedTrees})
 reduce the number of candidate shifts by excluding very small clades. For empirical datasets,
 values around \code{10} are a reasonable starting choice and can be tuned in sensitivity analyses.}
 
-\item{num_cores}{Integer. Number of workers for parallel candidate scoring. Uses
+\item{num_cores}{Integer. Number of workers for candidate scoring. Uses plain
+serial evaluation when \code{num_cores = 1}. For \code{num_cores > 1}, uses
 \code{future::plan(multicore)} on Unix outside \code{RStudio}; otherwise uses
-\code{future::plan(multisession)}. During the parallel candidate-scoring blocks, BLAS/OpenMP
-threads are capped to 1 (per worker) to avoid CPU oversubscription.}
+\code{future::plan(multisession)}. During the parallel candidate-scoring blocks,
+BLAS/OpenMP threads are capped to 1 (per worker) to avoid CPU oversubscription.}
 
 \item{ic_uncertainty_threshold}{Numeric (\eqn{\ge}0). Reserved for future development
 in post-search pruning and uncertainty analysis; currently not used by
@@ -146,8 +147,10 @@ with branch lengths interpreted in units of time. An ultrametric tree is not req
 \code{baseline_tree$tip.label} in both names and order; any tips without data should be
 pruned beforehand.
 \item \emph{Data type:} \code{trait_data} is typically a numeric matrix of continuous traits;
-high-dimensional settings (p \eqn{\ge} n) are supported via penalized-likelihood
-\code{mvgls()} fits.
+numeric response-only \code{data.frame}s are also supported for intercept-only
+searches, and named mixed-type \code{data.frame}s are supported for richer
+formulas. High-dimensional settings (p \eqn{\ge} n) are supported via
+penalized-likelihood \code{mvgls()} fits.
 }
 
 \strong{Search outline.}
@@ -164,8 +167,10 @@ is \code{TRUE}, compute an IC weight for each accepted shift by refitting the fi
 shift removed and comparing the two ICs via \code{\link[mvMORPH]{aicw}}.
 }
 
-\strong{Parallelization.} Candidate sub-model fits are distributed with \pkg{future} + \pkg{future.apply}.
-On Unix, \code{multicore} is used; on Windows, \code{multisession}. A sequential plan is restored afterward.
+\strong{Parallelization.} When \code{num_cores = 1}, candidates are scored serially. For
+larger values, candidate sub-model fits are distributed with \pkg{future} +
+\pkg{future.apply}. On Unix outside \code{RStudio}, \code{multicore} is used; otherwise
+\code{multisession} is used. A sequential plan is restored afterward.
 
 \strong{Plotting.} If \code{plot = TRUE}, trees are rendered with
 \code{\link[phytools]{plotSimmap}()}; shift IDs are labeled with \code{\link[ape]{nodelabels}()}.

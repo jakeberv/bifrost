@@ -62,7 +62,8 @@ scenario. If \code{NULL}, the proportional options are reused and only
 grid rows. The tuning helper overwrites \code{IC}, \code{shift_acceptance_threshold},
 and \code{min_descendant_tips} for each row. Simulation-grid searches are
 intentionally intercept-only, so \code{formula} should remain \code{"trait_data ~ 1"}
-(or an equivalent intercept-only response formula).}
+(or an equivalent intercept-only response formula). If omitted, the helper
+inherits \code{template$search_formula}.}
 
 \item{fuzzy_distance}{Integer node distance passed to
 \code{\link[=evaluateShiftRecovery]{evaluateShiftRecovery()}} inside the shifted-study wrappers.}

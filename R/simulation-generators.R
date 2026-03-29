@@ -12,7 +12,9 @@
 #' @param tree_tip_count Optional integer tip count for random subtree sampling.
 #'   If `NULL`, the full empirical tree from `template` is used.
 #' @param seed Optional integer random seed.
-#' @param ... Reserved for future extensions. Currently ignored.
+#' @param ... Reserved for future extensions. Currently ignored. The legacy
+#'   `preserve_predictors` argument has been removed because simulation
+#'   replicates now always contain the response block only.
 #'
 #' @details
 #' This function is the package-clean analogue of the manuscript's
@@ -22,12 +24,14 @@
 #' covariance matrix directly. For templates calibrated from richer global
 #' models, the empirical fitted mean structure is added back to the simulated
 #' residual process before the downstream intercept-only search is run on the
-#' regenerated response block.
+#' regenerated response block. The returned `trait_data` therefore contains only
+#' the simulated response variables, even when the global calibration model
+#' included predictors.
 #'
 #' @return A list of class `bifrost_simulation_replicate_null` containing the
 #'   sampled tree, a single-regime baseline tree, the simulated response matrix,
-#'   the combined `trait_data` object used for downstream model fitting, and the
-#'   generated covariance matrix.
+#'   a response-only `trait_data` object used for downstream model fitting, and
+#'   the generated covariance matrix.
 #'
 #' @seealso [createSimulationTemplate()], [simulateShiftedDataset()],
 #'   [runFalsePositiveSimulationStudy()]
@@ -192,7 +196,9 @@ simulateNullDataset <- function(template,
 #'   excluded from sampled shift scalars.
 #' @param buffer Integer minimum node distance between simulated shifts.
 #' @param seed Optional integer random seed.
-#' @param ... Reserved for future extensions. Currently ignored.
+#' @param ... Reserved for future extensions. Currently ignored. The legacy
+#'   `preserve_predictors` argument has been removed because simulation
+#'   replicates now always contain the response block only.
 #'
 #' @details
 #' This function is a package-clean port of the manuscript's
@@ -215,12 +221,14 @@ simulateNullDataset <- function(template,
 #' off-diagonal correlation structure is changed while variances are adjusted,
 #' mirroring the manuscript's deliberate model-misspecification robustness test.
 #' Downstream simulation studies still evaluate intercept-only shift searches on
-#' the regenerated response block.
+#' the regenerated response block, so the returned `trait_data` contains only
+#' the simulated response variables.
 #'
 #' @return A list of class `bifrost_simulation_replicate_shifted` containing the
 #'   painted generating tree, the true shift nodes, the simulated response
-#'   matrix, the combined `trait_data` object used for downstream model fitting,
-#'   regime covariance matrices, sampled scale factors, and a scenario label.
+#'   matrix, a response-only `trait_data` object used for downstream model
+#'   fitting, regime covariance matrices, sampled scale factors, and a scenario
+#'   label.
 #'
 #' @seealso [simulateNullDataset()], [createSimulationTemplate()],
 #'   [runShiftRecoverySimulationStudy()]

@@ -16,7 +16,9 @@
 #'   is not allowed; use the wrapper-level `seed` argument instead.
 #' @param search_options Named list of arguments passed to
 #'   [searchOptimalConfiguration()]. These override the default manuscript-style
-#'   intercept-only search settings assembled from `template`.
+#'   intercept-only search settings assembled from `template`. If `formula` is
+#'   omitted, the wrapper inherits `template$search_formula`, which is
+#'   intercept-only in the manuscript-style workflow.
 #' @param num_cores Integer number of workers used across replicate analyses.
 #' @param seed Optional integer random seed.
 #'
@@ -31,7 +33,9 @@
 #' Regardless of the global calibration model used to build `template`, the
 #' downstream search is intentionally restricted to intercept-only formulas.
 #' This keeps the simulation study focused on branch-shift detection in the
-#' response block, matching the manuscript-style residual-calibration logic.
+#' response block, matching the manuscript-style residual-calibration logic. The
+#' simulated `trait_data` supplied to each search result therefore contains only
+#' the regenerated response variables.
 #'
 #' Failed search replicates are retained in the output and counted as zero
 #' inferred shifts; the corresponding error messages are recorded in the
@@ -310,7 +314,9 @@ runFalsePositiveSimulationStudy <- function(template,
 #'   argument instead.
 #' @param search_options Named list of arguments passed to
 #'   [searchOptimalConfiguration()]. These override the default manuscript-style
-#'   intercept-only search settings assembled from `template`.
+#'   intercept-only search settings assembled from `template`. If `formula` is
+#'   omitted, the wrapper inherits `template$search_formula`, which is
+#'   intercept-only in the manuscript-style workflow.
 #' @param fuzzy_distance Integer node distance used for fuzzy matching in
 #'   [evaluateShiftRecovery()].
 #' @param weighted Logical; if `TRUE`, compute weighted recovery summaries using
@@ -328,7 +334,9 @@ runFalsePositiveSimulationStudy <- function(template,
 #' Regardless of the global calibration model used to build `template`, the
 #' downstream search is intentionally restricted to intercept-only formulas.
 #' This keeps the study focused on shift recovery in the simulated response
-#' block rather than re-estimating predictor effects within each replicate.
+#' block rather than re-estimating predictor effects within each replicate. The
+#' simulated `trait_data` supplied to each search result therefore contains only
+#' the regenerated response variables.
 #'
 #' Failed search replicates are retained in the output and treated as zero-shift
 #' recoveries in the per-replicate summary; the corresponding error messages are

@@ -56,7 +56,9 @@
 #' the response block around those fitted means and evaluate intercept-only
 #' shift-search behavior on the simulated responses. In other words, a richer
 #' calibration model can still feed the manuscript-style `trait_data ~ 1`
-#' simulation workflow.
+#' simulation workflow. Predictor columns are retained in the template for
+#' calibration provenance, but simulated replicates returned by the study
+#' helpers contain the regenerated response block only.
 #'
 #' Internally, all supported formulas are normalized into a single simulation
 #' formula specification. Legacy indexed formulas are rewritten onto named

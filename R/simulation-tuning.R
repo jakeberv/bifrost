@@ -45,7 +45,8 @@
 #'   grid rows. The tuning helper overwrites `IC`, `shift_acceptance_threshold`,
 #'   and `min_descendant_tips` for each row. Simulation-grid searches are
 #'   intentionally intercept-only, so `formula` should remain `"trait_data ~ 1"`
-#'   (or an equivalent intercept-only response formula).
+#'   (or an equivalent intercept-only response formula). If omitted, the helper
+#'   inherits `template$search_formula`.
 #' @param fuzzy_distance Integer node distance passed to
 #'   [evaluateShiftRecovery()] inside the shifted-study wrappers.
 #' @param weighted Logical; if `TRUE`, request weighted recovery summaries from
