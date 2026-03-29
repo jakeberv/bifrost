@@ -180,58 +180,61 @@ runFalsePositiveSimulationStudy <- function(template,
     do.call(simulate_null_dataset_fn, sim_args)
   })
 
-  old_plan <- future::plan()
-  on.exit(future::plan(old_plan), add = TRUE)
-  use_multicore <- .Platform$OS.type != "windows" &&
-    !identical(Sys.getenv("RSTUDIO"), "1") &&
-    !identical(Sys.getenv("RSTUDIO_SESSION_INITIALIZED"), "1")
+  search_one_replicate <- function(i) {
+    search_args <- utils::modifyList(
+      search_opts,
+      list(
+        baseline_tree = ape::as.phylo(simdata[[i]]$tree),
+        trait_data = simdata[[i]]$data
+      )
+    )
+    tryCatch(
+      do.call(search_optimal_configuration_fn, search_args),
+      error = function(e) {
+        candidate_count <- max(length(generate_painted_trees_fn(
+          ape::as.phylo(simdata[[i]]$tree),
+          min_tips = search_opts$min_descendant_tips
+        )) - 1L, 0L)
+        list(
+          shift_nodes_no_uncertainty = integer(0),
+          num_candidates = candidate_count,
+          ic_weights = data.frame(
+            node = integer(0),
+            ic_with_shift = numeric(0),
+            ic_without_shift = numeric(0),
+            delta_ic = numeric(0),
+            ic_weight_withshift = numeric(0),
+            ic_weight_withoutshift = numeric(0),
+            evidence_ratio = numeric(0)
+          ),
+          error = conditionMessage(e)
+        )
+      }
+    )
+  }
+
   if (num_cores > 1L) {
+    old_plan <- future::plan()
+    on.exit(future::plan(old_plan), add = TRUE)
+    use_multicore <- .Platform$OS.type != "windows" &&
+      !identical(Sys.getenv("RSTUDIO"), "1") &&
+      !identical(Sys.getenv("RSTUDIO_SESSION_INITIALIZED"), "1")
     if (use_multicore) {
       future::plan(future::multicore, workers = num_cores)
     } else {
       future::plan(future::multisession, workers = num_cores)
     }
-  } else {
-    future::plan(future::sequential)
-  }
 
-  results <- progressr::with_progress({
-    progress <- progressr::progressor(along = simdata)
-    future.apply::future_lapply(seq_along(simdata), function(i) {
-      search_args <- utils::modifyList(
-        search_opts,
-        list(
-          baseline_tree = ape::as.phylo(simdata[[i]]$tree),
-          trait_data = simdata[[i]]$data
-        )
-      )
-      out <- tryCatch(
-        do.call(search_optimal_configuration_fn, search_args),
-        error = function(e) {
-          candidate_count <- max(length(generate_painted_trees_fn(
-            ape::as.phylo(simdata[[i]]$tree),
-            min_tips = search_opts$min_descendant_tips
-          )) - 1L, 0L)
-          list(
-            shift_nodes_no_uncertainty = integer(0),
-            num_candidates = candidate_count,
-            ic_weights = data.frame(
-              node = integer(0),
-              ic_with_shift = numeric(0),
-              ic_without_shift = numeric(0),
-              delta_ic = numeric(0),
-              ic_weight_withshift = numeric(0),
-              ic_weight_withoutshift = numeric(0),
-              evidence_ratio = numeric(0)
-            ),
-            error = conditionMessage(e)
-          )
-        }
-      )
-      progress()
-      out
-    }, future.seed = TRUE)
-  })
+    results <- progressr::with_progress({
+      progress <- progressr::progressor(along = simdata)
+      future.apply::future_lapply(seq_along(simdata), function(i) {
+        on.exit(progress(), add = TRUE)
+        search_one_replicate(i)
+      }, future.seed = TRUE)
+    })
+  } else {
+    results <- lapply(seq_along(simdata), search_one_replicate)
+  }
 
   per_replicate <- do.call(rbind, lapply(seq_along(results), function(i) {
     n_candidates <- results[[i]]$num_candidates
@@ -483,78 +486,85 @@ runShiftRecoverySimulationStudy <- function(template,
   search_optimal_configuration_fn <- searchOptimalConfiguration
   generate_painted_trees_fn <- generatePaintedTrees
 
-  old_plan <- future::plan()
-  on.exit(future::plan(old_plan), add = TRUE)
-  use_multicore <- .Platform$OS.type != "windows" &&
-    !identical(Sys.getenv("RSTUDIO"), "1") &&
-    !identical(Sys.getenv("RSTUDIO_SESSION_INITIALIZED"), "1")
+  simulate_one_replicate <- function(i) {
+    sim_args <- utils::modifyList(
+      simulation_options,
+      list(
+        template = template,
+        tree_tip_count = tree_tip_count
+      )
+    )
+    do.call(simulate_shifted_dataset_fn, sim_args)
+  }
+
+  search_one_replicate <- function(i) {
+    search_args <- utils::modifyList(
+      search_opts,
+      list(
+        baseline_tree = ape::as.phylo(simdata[[i]]$paintedTree),
+        trait_data = if (!is.null(simdata[[i]]$trait_data)) {
+          simdata[[i]]$trait_data
+        } else {
+          simdata[[i]]$simulatedData
+        }
+      )
+    )
+    tryCatch(
+      do.call(search_optimal_configuration_fn, search_args),
+      error = function(e) {
+        candidate_count <- max(length(generate_painted_trees_fn(
+          ape::as.phylo(simdata[[i]]$paintedTree),
+          min_tips = search_opts$min_descendant_tips
+        )) - 1L, 0L)
+        list(
+          shift_nodes_no_uncertainty = integer(0),
+          num_candidates = candidate_count,
+          ic_weights = data.frame(
+            node = integer(0),
+            ic_with_shift = numeric(0),
+            ic_without_shift = numeric(0),
+            delta_ic = numeric(0),
+            ic_weight_withshift = numeric(0),
+            ic_weight_withoutshift = numeric(0),
+            evidence_ratio = numeric(0)
+          ),
+          error = conditionMessage(e)
+        )
+      }
+    )
+  }
+
   if (num_cores > 1L) {
+    old_plan <- future::plan()
+    on.exit(future::plan(old_plan), add = TRUE)
+    use_multicore <- .Platform$OS.type != "windows" &&
+      !identical(Sys.getenv("RSTUDIO"), "1") &&
+      !identical(Sys.getenv("RSTUDIO_SESSION_INITIALIZED"), "1")
     if (use_multicore) {
       future::plan(future::multicore, workers = num_cores)
     } else {
       future::plan(future::multisession, workers = num_cores)
     }
+
+    simdata <- progressr::with_progress({
+      progress <- progressr::progressor(steps = n_replicates)
+      future.apply::future_lapply(seq_len(n_replicates), function(i) {
+        on.exit(progress(), add = TRUE)
+        simulate_one_replicate(i)
+      }, future.seed = TRUE)
+    })
+
+    results <- progressr::with_progress({
+      progress <- progressr::progressor(along = simdata)
+      future.apply::future_lapply(seq_along(simdata), function(i) {
+        on.exit(progress(), add = TRUE)
+        search_one_replicate(i)
+      }, future.seed = TRUE)
+    })
   } else {
-    future::plan(future::sequential)
+    simdata <- lapply(seq_len(n_replicates), simulate_one_replicate)
+    results <- lapply(seq_along(simdata), search_one_replicate)
   }
-
-  simdata <- progressr::with_progress({
-    progress <- progressr::progressor(steps = n_replicates)
-    future.apply::future_lapply(seq_len(n_replicates), function(i) {
-      sim_args <- utils::modifyList(
-        simulation_options,
-        list(
-          template = template,
-          tree_tip_count = tree_tip_count
-        )
-      )
-      out <- do.call(simulate_shifted_dataset_fn, sim_args)
-      progress()
-      out
-    }, future.seed = TRUE)
-  })
-
-  results <- progressr::with_progress({
-    progress <- progressr::progressor(along = simdata)
-    future.apply::future_lapply(seq_along(simdata), function(i) {
-      search_args <- utils::modifyList(
-        search_opts,
-        list(
-          baseline_tree = ape::as.phylo(simdata[[i]]$paintedTree),
-          trait_data = if (!is.null(simdata[[i]]$trait_data)) {
-            simdata[[i]]$trait_data
-          } else {
-            simdata[[i]]$simulatedData
-          }
-        )
-      )
-      out <- tryCatch(
-        do.call(search_optimal_configuration_fn, search_args),
-        error = function(e) {
-          candidate_count <- max(length(generate_painted_trees_fn(
-            ape::as.phylo(simdata[[i]]$paintedTree),
-            min_tips = search_opts$min_descendant_tips
-          )) - 1L, 0L)
-          list(
-            shift_nodes_no_uncertainty = integer(0),
-            num_candidates = candidate_count,
-            ic_weights = data.frame(
-              node = integer(0),
-              ic_with_shift = numeric(0),
-              ic_without_shift = numeric(0),
-              delta_ic = numeric(0),
-              ic_weight_withshift = numeric(0),
-              ic_weight_withoutshift = numeric(0),
-              evidence_ratio = numeric(0)
-            ),
-            error = conditionMessage(e)
-          )
-        }
-      )
-      progress()
-      out
-    }, future.seed = TRUE)
-  })
 
   per_replicate <- do.call(rbind, lapply(seq_along(results), function(i) {
     data.frame(

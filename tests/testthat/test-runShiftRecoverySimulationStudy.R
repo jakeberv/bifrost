@@ -129,28 +129,30 @@ test_that("runShiftRecoverySimulationStudy supports the correlation scenario", {
   skip_if_recovery_study_deps()
 
   tmpl <- make_recovery_template()
-  study <- runShiftRecoverySimulationStudy(
-    tmpl,
-    n_replicates = 1,
-    tree_tip_count = 20,
-    simulation_options = list(
-      num_shifts = 2,
-      min_shift_tips = 3,
-      max_shift_tips = 7,
-      scale_mode = "correlation"
-    ),
-    search_options = list(
-      formula = "trait_data ~ 1",
-      min_descendant_tips = 3,
-      shift_acceptance_threshold = 5,
+  study <- suppressWarnings(
+    runShiftRecoverySimulationStudy(
+      tmpl,
+      n_replicates = 1,
+      tree_tip_count = 20,
+      simulation_options = list(
+        num_shifts = 2,
+        min_shift_tips = 3,
+        max_shift_tips = 7,
+        scale_mode = "correlation"
+      ),
+      search_options = list(
+        formula = "trait_data ~ 1",
+        min_descendant_tips = 3,
+        shift_acceptance_threshold = 5,
+        num_cores = 1,
+        IC = "GIC",
+        method = "LL",
+        uncertaintyweights_par = FALSE
+      ),
+      weighted = FALSE,
       num_cores = 1,
-      IC = "GIC",
-      method = "LL",
-      uncertaintyweights_par = FALSE
-    ),
-    weighted = FALSE,
-    num_cores = 1,
-    seed = 8
+      seed = 8
+    )
   )
 
   testthat::expect_identical(study$generating_scenario, "correlation")
@@ -795,20 +797,23 @@ test_that("runShiftRecoverySimulationStudy handles missing trait_data and mixed 
   )
 
   mock_env <- new.env(parent = emptyenv())
-  mock_env$mock_i <- 0L
+  mock_env$sim_i <- 0L
+  mock_env$search_i <- 0L
   mock_env$seen_trait_data <- vector("list", length(sim_stub))
   local_rebind(
     "simulateShiftedDataset",
     function(...) {
-      sim_stub[[get("mock_i", envir = mock_env)]]
+      mock_env$sim_i <- mock_env$sim_i + 1L
+      sim_stub[[mock_env$sim_i]]
     },
     environment(runShiftRecoverySimulationStudy)
   )
   local_rebind(
     "searchOptimalConfiguration",
     function(baseline_tree, trait_data, ...) {
-      mock_i <- get("mock_i", envir = mock_env)
-      mock_env$seen_trait_data[[mock_i]] <- trait_data
+      mock_env$search_i <- mock_env$search_i + 1L
+      search_i <- mock_env$search_i
+      mock_env$seen_trait_data[[search_i]] <- trait_data
       list(
         shift_nodes_no_uncertainty = integer(0),
         num_candidates = 3L,
@@ -837,16 +842,6 @@ test_that("runShiftRecoverySimulationStudy handles missing trait_data and mixed 
     },
     environment(runShiftRecoverySimulationStudy)
   )
-  testthat::local_mocked_bindings(
-    future_lapply = function(X, FUN, ...) {
-      lapply(X, function(i) {
-        mock_env$mock_i <- i
-        FUN(i)
-      })
-    },
-    .package = "future.apply"
-  )
-
   study <- runShiftRecoverySimulationStudy(
     tmpl,
     n_replicates = 2,
@@ -925,32 +920,26 @@ test_that("runShiftRecoverySimulationStudy integrates weighted metrics across mi
   )
 
   mock_env <- new.env(parent = emptyenv())
-  mock_env$mock_i <- 0L
+  mock_env$sim_i <- 0L
+  mock_env$search_i <- 0L
   mock_env$seen_trait_data <- vector("list", length(sim_stub))
   local_rebind(
     "simulateShiftedDataset",
     function(...) {
-      sim_stub[[get("mock_i", envir = mock_env)]]
+      mock_env$sim_i <- mock_env$sim_i + 1L
+      sim_stub[[mock_env$sim_i]]
     },
     environment(runShiftRecoverySimulationStudy)
   )
   local_rebind(
     "searchOptimalConfiguration",
     function(baseline_tree, trait_data, ...) {
-      mock_i <- get("mock_i", envir = mock_env)
-      mock_env$seen_trait_data[[mock_i]] <- trait_data
-      result_stub[[mock_i]]
+      mock_env$search_i <- mock_env$search_i + 1L
+      search_i <- mock_env$search_i
+      mock_env$seen_trait_data[[search_i]] <- trait_data
+      result_stub[[search_i]]
     },
     environment(runShiftRecoverySimulationStudy)
-  )
-  testthat::local_mocked_bindings(
-    future_lapply = function(X, FUN, ...) {
-      lapply(X, function(i) {
-        mock_env$mock_i <- i
-        FUN(i)
-      })
-    },
-    .package = "future.apply"
   )
 
   study <- runShiftRecoverySimulationStudy(

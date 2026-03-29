@@ -353,32 +353,32 @@ runSearchTuningGrid <- function(template,
     )
   }
 
-  old_plan <- future::plan()
-  on.exit(future::plan(old_plan), add = TRUE)
-  use_multicore <- .Platform$OS.type != "windows" &&
-    !identical(Sys.getenv("RSTUDIO"), "1") &&
-    !identical(Sys.getenv("RSTUDIO_SESSION_INITIALIZED"), "1")
   if (num_cores > 1L) {
+    old_plan <- future::plan()
+    on.exit(future::plan(old_plan), add = TRUE)
+    use_multicore <- .Platform$OS.type != "windows" &&
+      !identical(Sys.getenv("RSTUDIO"), "1") &&
+      !identical(Sys.getenv("RSTUDIO_SESSION_INITIALIZED"), "1")
     if (use_multicore) {
       future::plan(future::multicore, workers = num_cores)
     } else {
       future::plan(future::multisession, workers = num_cores)
     }
-  } else {
-    future::plan(future::sequential)
-  }
 
-  setting_results <- progressr::with_progress({
-    progress <- progressr::progressor(along = seq_len(nrow(grid)))
-    future.apply::future_lapply(
-      seq_len(nrow(grid)),
-      function(i) {
-        on.exit(progress(), add = TRUE)
-        evaluate_setting(i)
-      },
-      future.seed = TRUE
-    )
-  })
+    setting_results <- progressr::with_progress({
+      progress <- progressr::progressor(along = seq_len(nrow(grid)))
+      future.apply::future_lapply(
+        seq_len(nrow(grid)),
+        function(i) {
+          on.exit(progress(), add = TRUE)
+          evaluate_setting(i)
+        },
+        future.seed = TRUE
+      )
+    })
+  } else {
+    setting_results <- lapply(seq_len(nrow(grid)), evaluate_setting)
+  }
 
   studies <- if (store_studies) lapply(setting_results, `[[`, "studies") else NULL
   summary_table <- do.call(rbind, lapply(setting_results, `[[`, "summary_row"))
