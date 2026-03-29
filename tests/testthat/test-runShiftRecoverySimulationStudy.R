@@ -41,14 +41,19 @@ make_recovery_template <- function() {
 make_formula_recovery_template <- function() {
   set.seed(41)
   tr <- ape::rtree(24)
-  X <- cbind(y1 = rnorm(24), y2 = rnorm(24), mass = rnorm(24))
-  rownames(X) <- tr$tip.label
+  grp <- factor(rep(c("a", "b"), each = 12))
+  size <- rnorm(24)
+  X <- data.frame(
+    y1 = 0.5 * size + ifelse(grp == "b", 1, 0) + rnorm(24),
+    y2 = -0.3 * size + ifelse(grp == "b", -0.5, 0) + rnorm(24),
+    size = size,
+    grp = grp,
+    row.names = tr$tip.label
+  )
   createSimulationTemplate(
     baseline_tree = tr,
     trait_data = X,
-    formula = "trait_data[, 1:2] ~ trait_data[, 3]",
-    response_columns = 1:2,
-    predictor_columns = 3,
+    formula = cbind(y1, y2) ~ size + grp,
     method = "LL"
   )
 }
@@ -215,6 +220,41 @@ test_that("runShiftRecoverySimulationStudy uses intercept-only searches for form
   testthat::expect_equal(study$per_replicate$n_true_shifts, 1L)
   testthat::expect_equal(colnames(study$simdata[[1]]$trait_data), c("y1", "y2"))
   testthat::expect_false("mass" %in% colnames(study$simdata[[1]]$trait_data))
+})
+
+test_that("runShiftRecoverySimulationStudy works in parallel for formula-calibrated templates", {
+  skip_if_recovery_study_deps()
+
+  tmpl <- make_formula_recovery_template()
+  study <- suppressWarnings(
+    runShiftRecoverySimulationStudy(
+      tmpl,
+      n_replicates = 2,
+      tree_tip_count = 20,
+      simulation_options = list(
+        num_shifts = 1,
+        min_shift_tips = 3,
+        max_shift_tips = 7,
+        scale_mode = "proportional"
+      ),
+      search_options = list(
+        formula = "trait_data ~ 1",
+        min_descendant_tips = 3,
+        shift_acceptance_threshold = 5,
+        num_cores = 1,
+        IC = "GIC",
+        method = "LL",
+        uncertaintyweights_par = FALSE
+      ),
+      weighted = FALSE,
+      num_cores = 2,
+      seed = 124
+    )
+  )
+
+  testthat::expect_true(all(study$per_replicate$status == "ok"))
+  testthat::expect_equal(colnames(study$simdata[[1]]$trait_data), c("y1", "y2"))
+  testthat::expect_true(all(is.na(study$per_replicate$error)))
 })
 
 test_that("runShiftRecoverySimulationStudy rejects non-intercept search formulas", {

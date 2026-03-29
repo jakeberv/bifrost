@@ -251,6 +251,9 @@ runSearchTuningGrid <- function(template,
     NULL
   }
 
+  run_false_positive_study_fn <- runFalsePositiveSimulationStudy
+  run_shift_recovery_study_fn <- runShiftRecoverySimulationStudy
+
   evaluate_setting <- function(i) {
     tuning_search_options <- utils::modifyList(
       base_search_options,
@@ -262,7 +265,7 @@ runSearchTuningGrid <- function(template,
       )
     )
 
-    null_study <- runFalsePositiveSimulationStudy(
+    null_study <- run_false_positive_study_fn(
       template = template,
       n_replicates = null_replicates,
       tree_tip_count = tree_tip_count,
@@ -272,7 +275,7 @@ runSearchTuningGrid <- function(template,
       seed = if (is.null(setting_seeds)) NULL else setting_seeds[i, "null"]
     )
 
-    proportional_study <- runShiftRecoverySimulationStudy(
+    proportional_study <- run_shift_recovery_study_fn(
       template = template,
       n_replicates = recovery_replicates,
       tree_tip_count = tree_tip_count,
@@ -284,7 +287,7 @@ runSearchTuningGrid <- function(template,
       seed = if (is.null(setting_seeds)) NULL else setting_seeds[i, "proportional"]
     )
 
-    correlation_study <- runShiftRecoverySimulationStudy(
+    correlation_study <- run_shift_recovery_study_fn(
       template = template,
       n_replicates = recovery_replicates,
       tree_tip_count = tree_tip_count,
@@ -352,8 +355,15 @@ runSearchTuningGrid <- function(template,
 
   old_plan <- future::plan()
   on.exit(future::plan(old_plan), add = TRUE)
+  use_multicore <- .Platform$OS.type != "windows" &&
+    !identical(Sys.getenv("RSTUDIO"), "1") &&
+    !identical(Sys.getenv("RSTUDIO_SESSION_INITIALIZED"), "1")
   if (num_cores > 1L) {
-    future::plan(future::multisession, workers = num_cores)
+    if (use_multicore) {
+      future::plan(future::multicore, workers = num_cores)
+    } else {
+      future::plan(future::multisession, workers = num_cores)
+    }
   } else {
     future::plan(future::sequential)
   }

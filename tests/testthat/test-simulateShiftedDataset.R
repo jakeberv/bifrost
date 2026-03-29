@@ -176,7 +176,7 @@ test_that("simulateShiftedDataset returns a proportional shifted replicate", {
   testthat::expect_gte(node_distance, 2)
 })
 
-test_that("simulateShiftedDataset supports the correlation scenario with response-only output", {
+test_that("simulateShiftedDataset returns response-only trait blocks in the correlation scenario", {
   skip_if_shift_sim_deps()
 
   tmpl <- make_formula_shift_template()
@@ -259,7 +259,7 @@ test_that("simulateShiftedDataset supports full-tree and single-trait proportion
   testthat::expect_equal(dim(sim$simulatedData), c(tmpl$n_tips, 1))
 })
 
-test_that("simulateShiftedDataset preserves data.frame outputs when requested", {
+test_that("simulateShiftedDataset returns response-only data.frames for compatibility", {
   skip_if_shift_sim_deps()
 
   sim_no_predictor <- simulateShiftedDataset(

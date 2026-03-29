@@ -144,7 +144,7 @@ test_that("simulateNullDataset returns an aligned null replicate", {
   testthat::expect_identical(sim$generating_scenario, "null")
 })
 
-test_that("simulateNullDataset returns response-only data for formula-calibrated templates", {
+test_that("simulateNullDataset returns response-only trait blocks for calibration templates", {
   skip_if_null_sim_deps()
 
   tmpl <- make_formula_null_template()
@@ -195,7 +195,7 @@ test_that("simulateNullDataset supports full-tree and single-trait templates", {
   testthat::expect_equal(dim(sim$covariance_matrix), c(1, 1))
 })
 
-test_that("simulateNullDataset preserves data.frame outputs when requested", {
+test_that("simulateNullDataset returns response-only data.frames for compatibility", {
   skip_if_null_sim_deps()
 
   sim_no_predictor <- simulateNullDataset(make_manual_null_template_df(FALSE), seed = 15)

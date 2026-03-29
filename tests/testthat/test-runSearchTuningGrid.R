@@ -38,6 +38,26 @@ make_tuning_template <- function() {
   )
 }
 
+make_formula_tuning_template <- function() {
+  set.seed(61)
+  tr <- ape::rtree(20)
+  grp <- factor(rep(c("a", "b"), length.out = 20))
+  size <- rnorm(20)
+  X <- data.frame(
+    y1 = 0.3 * size + ifelse(grp == "b", 0.7, 0) + rnorm(20),
+    y2 = -0.25 * size + ifelse(grp == "b", -0.4, 0) + rnorm(20),
+    size = size,
+    grp = grp,
+    row.names = tr$tip.label
+  )
+  createSimulationTemplate(
+    baseline_tree = tr,
+    trait_data = X,
+    formula = cbind(y1, y2) ~ size + grp,
+    method = "LL"
+  )
+}
+
 test_that("runSearchTuningGrid returns a fixed-IC tuning grid on a small real run", {
   skip_if_tuning_grid_deps()
 
@@ -82,6 +102,44 @@ test_that("runSearchTuningGrid returns a fixed-IC tuning grid on a small real ru
   testthat::expect_identical(grid$studies[[1]]$null$generating_scenario, "null")
   testthat::expect_identical(grid$studies[[1]]$proportional$generating_scenario, "proportional")
   testthat::expect_identical(grid$studies[[1]]$correlation$generating_scenario, "correlation")
+})
+
+test_that("runSearchTuningGrid works in parallel for formula-calibrated templates", {
+  skip_if_tuning_grid_deps()
+
+  tmpl <- make_formula_tuning_template()
+  grid <- suppressWarnings(
+    runSearchTuningGrid(
+      template = tmpl,
+      IC = "GIC",
+      shift_acceptance_thresholds = c(5, 7),
+      min_descendant_tips_values = 3,
+      tree_tip_count = 16,
+      null_replicates = 1,
+      recovery_replicates = 1,
+      proportional_simulation_options = list(
+        num_shifts = 1,
+        min_shift_tips = 2,
+        max_shift_tips = 5
+      ),
+      base_search_options = list(
+        formula = "trait_data ~ 1",
+        method = "LL",
+        num_cores = 1
+      ),
+      weighted = FALSE,
+      num_cores = 2,
+      seed = 62,
+      store_studies = TRUE
+    )
+  )
+
+  testthat::expect_true(all(vapply(grid$studies, function(x) {
+    all(x$proportional$per_replicate$status == "ok")
+  }, logical(1))))
+  testthat::expect_true(all(vapply(grid$studies, function(x) {
+    identical(colnames(x$null$simdata[[1]]$data), c("y1", "y2"))
+  }, logical(1))))
 })
 
 test_that("runSearchTuningGrid propagates fixed IC and scenario-specific options", {

@@ -221,19 +221,47 @@ normalizeMvglsFormulaCall <- function(formula, trait_data, args_list, allow_sing
   }
 
   formula_chr <- paste(deparse(formula_obj, width.cutoff = 500), collapse = " ")
-  if (grepl("^\\s*trait_data\\b", formula_chr)) {
-    return(list(
-      formula   = formula_obj,
-      args_list = args_list
-    ))
-  }
-
   data_obj <- if ("data" %in% names(args_list)) args_list$data else trait_data
   if (is.matrix(data_obj)) {
     data_obj <- as.data.frame(data_obj, stringsAsFactors = FALSE)
   }
   if (!is.null(rownames(trait_data)) && nrow(data_obj) == nrow(trait_data)) {
     rownames(data_obj) <- rownames(trait_data)
+  }
+
+  if (grepl("^\\s*trait_data\\b", formula_chr)) {
+    formula_terms <- stats::terms(formula_obj)
+    intercept_only <- length(attr(formula_terms, "term.labels")) == 0L &&
+      identical(attr(formula_terms, "intercept"), 1L)
+    lhs_is_trait_data <- is.symbol(formula_obj[[2L]]) &&
+      identical(as.character(formula_obj[[2L]]), "trait_data")
+    response_only_df <- is.data.frame(data_obj) &&
+      ncol(data_obj) > 0L &&
+      all(vapply(data_obj, is.numeric, logical(1)))
+
+    if (intercept_only && lhs_is_trait_data && response_only_df) {
+      response_names <- colnames(data_obj)
+      if (is.null(response_names) || any(!nzchar(response_names))) {
+        response_names <- paste0("Y", seq_len(ncol(data_obj)))
+        colnames(data_obj) <- response_names
+      }
+      response_names <- make.unique(make.names(response_names))
+      colnames(data_obj) <- response_names
+      formula_obj <- if (length(response_names) == 1L) {
+        stats::as.formula(paste0(response_names, " ~ 1"))
+      } else {
+        stats::as.formula(
+          paste0("cbind(", paste(response_names, collapse = ", "), ") ~ 1")
+        )
+      }
+      args_list$data <- data_obj
+      formula_chr <- paste(deparse(formula_obj, width.cutoff = 500), collapse = " ")
+    } else {
+      return(list(
+        formula   = formula_obj,
+        args_list = args_list
+      ))
+    }
   }
 
   mf <- model.frame(formula_obj, data = data_obj, na.action = na.pass)
@@ -372,7 +400,12 @@ fitMvglsAndExtractGIC.formula <- function(formula, painted_tree, trait_data, ...
   }
 
   args_list <- list(...)
-  normalized_call <- normalizeMvglsFormulaCall(formula, trait_data, args_list)
+  normalized_call <- normalizeMvglsFormulaCall(
+    formula,
+    trait_data,
+    args_list,
+    allow_single_response = TRUE
+  )
   formula_obj <- normalized_call$formula
   args_list <- normalized_call$args_list
 
@@ -463,7 +496,12 @@ fitMvglsAndExtractBIC.formula <- function(formula, painted_tree, trait_data, ...
     args_list$method <- "LL"
   }
 
-  normalized_call <- normalizeMvglsFormulaCall(formula, trait_data, args_list)
+  normalized_call <- normalizeMvglsFormulaCall(
+    formula,
+    trait_data,
+    args_list,
+    allow_single_response = TRUE
+  )
   formula_obj <- normalized_call$formula
   args_list <- normalized_call$args_list
 

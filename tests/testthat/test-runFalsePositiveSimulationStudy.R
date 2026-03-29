@@ -25,14 +25,19 @@ make_fp_template <- function() {
 make_formula_fp_template <- function() {
   set.seed(31)
   tr <- ape::rtree(22)
-  X <- cbind(y1 = rnorm(22), y2 = rnorm(22), mass = rnorm(22))
-  rownames(X) <- tr$tip.label
+  grp <- factor(rep(c("a", "b"), length.out = 22))
+  size <- rnorm(22)
+  X <- data.frame(
+    y1 = 0.4 * size + ifelse(grp == "b", 0.8, 0) + rnorm(22),
+    y2 = -0.2 * size + ifelse(grp == "b", -0.5, 0) + rnorm(22),
+    size = size,
+    grp = grp,
+    row.names = tr$tip.label
+  )
   createSimulationTemplate(
     baseline_tree = tr,
     trait_data = X,
-    formula = "trait_data[, 1:2] ~ trait_data[, 3]",
-    response_columns = 1:2,
-    predictor_columns = 3,
+    formula = cbind(y1, y2) ~ size + grp,
     method = "LL"
   )
 }

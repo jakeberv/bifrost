@@ -973,10 +973,33 @@ runFalsePositiveSimulationStudy <- function(template,
     search_defaults$error <- error_setting
   }
   search_opts <- utils::modifyList(search_defaults, search_options)
-  search_opts$formula <- validateSimulationStudyFormula(search_opts$formula)
+  validate_simulation_study_formula_fn <- function(formula) {
+    formula_obj <- if (inherits(formula, "formula")) {
+      formula
+    } else if (is.character(formula) && length(formula) == 1L && !is.na(formula)) {
+      stats::as.formula(formula)
+    } else {
+      stop("formula must be a single character string or a formula object.")
+    }
+    formula_terms <- stats::terms(formula_obj)
+    intercept_only <- length(attr(formula_terms, "term.labels")) == 0L &&
+      identical(attr(formula_terms, "intercept"), 1L)
+    if (!intercept_only) {
+      stop(
+        "Simulation studies currently support intercept-only search formulas only. ",
+        "Use formula = \"trait_data ~ 1\" (or an equivalent intercept-only response formula)."
+      )
+    }
+    formula
+  }
+  search_opts$formula <- validate_simulation_study_formula_fn(search_opts$formula)
   if (isTRUE(num_cores > 1L) && isTRUE(search_opts$num_cores > 1L)) {
     warning("Both wrapper-level and search-level parallelism are > 1; nested parallelism may be inefficient.")
   }
+
+  simulate_null_dataset_fn <- simulateNullDataset
+  search_optimal_configuration_fn <- searchOptimalConfiguration
+  generate_painted_trees_fn <- generatePaintedTrees
 
   simdata <- lapply(seq_len(n_replicates), function(i) {
     sim_args <- utils::modifyList(
@@ -986,13 +1009,20 @@ runFalsePositiveSimulationStudy <- function(template,
         tree_tip_count = tree_tip_count
       )
     )
-    do.call(simulateNullDataset, sim_args)
+    do.call(simulate_null_dataset_fn, sim_args)
   })
 
   old_plan <- future::plan()
   on.exit(future::plan(old_plan), add = TRUE)
+  use_multicore <- .Platform$OS.type != "windows" &&
+    !identical(Sys.getenv("RSTUDIO"), "1") &&
+    !identical(Sys.getenv("RSTUDIO_SESSION_INITIALIZED"), "1")
   if (num_cores > 1L) {
-    future::plan(future::multisession, workers = num_cores)
+    if (use_multicore) {
+      future::plan(future::multicore, workers = num_cores)
+    } else {
+      future::plan(future::multisession, workers = num_cores)
+    }
   } else {
     future::plan(future::sequential)
   }
@@ -1008,9 +1038,9 @@ runFalsePositiveSimulationStudy <- function(template,
         )
       )
       out <- tryCatch(
-        do.call(searchOptimalConfiguration, search_args),
+        do.call(search_optimal_configuration_fn, search_args),
         error = function(e) {
-          candidate_count <- max(length(generatePaintedTrees(
+          candidate_count <- max(length(generate_painted_trees_fn(
             ape::as.phylo(simdata[[i]]$tree),
             min_tips = search_opts$min_descendant_tips
           )) - 1L, 0L)
@@ -1257,15 +1287,45 @@ runShiftRecoverySimulationStudy <- function(template,
     search_defaults$error <- error_setting
   }
   search_opts <- utils::modifyList(search_defaults, search_options)
-  search_opts$formula <- validateSimulationStudyFormula(search_opts$formula)
+  validate_simulation_study_formula_fn <- function(formula) {
+    formula_obj <- if (inherits(formula, "formula")) {
+      formula
+    } else if (is.character(formula) && length(formula) == 1L && !is.na(formula)) {
+      stats::as.formula(formula)
+    } else {
+      stop("formula must be a single character string or a formula object.")
+    }
+    formula_terms <- stats::terms(formula_obj)
+    intercept_only <- length(attr(formula_terms, "term.labels")) == 0L &&
+      identical(attr(formula_terms, "intercept"), 1L)
+    if (!intercept_only) {
+      stop(
+        "Simulation studies currently support intercept-only search formulas only. ",
+        "Use formula = \"trait_data ~ 1\" (or an equivalent intercept-only response formula)."
+      )
+    }
+    formula
+  }
+  search_opts$formula <- validate_simulation_study_formula_fn(search_opts$formula)
   if (isTRUE(num_cores > 1L) && isTRUE(search_opts$num_cores > 1L)) {
     warning("Both wrapper-level and search-level parallelism are > 1; nested parallelism may be inefficient.")
   }
 
+  simulate_shifted_dataset_fn <- simulateShiftedDataset
+  search_optimal_configuration_fn <- searchOptimalConfiguration
+  generate_painted_trees_fn <- generatePaintedTrees
+
   old_plan <- future::plan()
   on.exit(future::plan(old_plan), add = TRUE)
+  use_multicore <- .Platform$OS.type != "windows" &&
+    !identical(Sys.getenv("RSTUDIO"), "1") &&
+    !identical(Sys.getenv("RSTUDIO_SESSION_INITIALIZED"), "1")
   if (num_cores > 1L) {
-    future::plan(future::multisession, workers = num_cores)
+    if (use_multicore) {
+      future::plan(future::multicore, workers = num_cores)
+    } else {
+      future::plan(future::multisession, workers = num_cores)
+    }
   } else {
     future::plan(future::sequential)
   }
@@ -1280,7 +1340,7 @@ runShiftRecoverySimulationStudy <- function(template,
           tree_tip_count = tree_tip_count
         )
       )
-      out <- do.call(simulateShiftedDataset, sim_args)
+      out <- do.call(simulate_shifted_dataset_fn, sim_args)
       progress()
       out
     }, future.seed = TRUE)
@@ -1301,9 +1361,9 @@ runShiftRecoverySimulationStudy <- function(template,
         )
       )
       out <- tryCatch(
-        do.call(searchOptimalConfiguration, search_args),
+        do.call(search_optimal_configuration_fn, search_args),
         error = function(e) {
-          candidate_count <- max(length(generatePaintedTrees(
+          candidate_count <- max(length(generate_painted_trees_fn(
             ape::as.phylo(simdata[[i]]$paintedTree),
             min_tips = search_opts$min_descendant_tips
           )) - 1L, 0L)
