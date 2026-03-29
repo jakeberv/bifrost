@@ -689,8 +689,9 @@ test_that("searchOptimalConfiguration restores BLAS/OpenMP env vars after candid
   )
   old <- Sys.getenv(thread_vars, unset = NA_character_)
 
-  # Pre-set at least one var so restore hits the else branch
+  # Pre-set one var and explicitly unset another so restore hits both branches.
   Sys.setenv(OMP_NUM_THREADS = "3")
+  Sys.unsetenv("OPENBLAS_NUM_THREADS")
   on.exit({
     for (nm in names(old)) {
       val <- old[[nm]]
@@ -722,6 +723,10 @@ test_that("searchOptimalConfiguration restores BLAS/OpenMP env vars after candid
   )
 
   testthat::expect_identical(Sys.getenv("OMP_NUM_THREADS"), "3")
+  testthat::expect_identical(
+    Sys.getenv("OPENBLAS_NUM_THREADS", unset = NA_character_),
+    NA_character_
+  )
 })
 
 # Test: searchOptimalConfiguration returns consistent ic_weights for serial vs parallel modes (same seed; compares serial vs parallel weights)
