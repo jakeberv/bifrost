@@ -26,7 +26,10 @@
 
 .bifrost_align_focal_test_inputs <- function(tree, trait_data, focal, min_focal_tips) {
   if (!inherits(tree, "phylo")) {
-    tree <- ape::as.phylo(tree)
+    tree <- tryCatch(
+      ape::as.phylo(tree),
+      error = function(e) NULL
+    )
   }
   if (!inherits(tree, "phylo")) {
     stop("tree must be coercible to class 'phylo'.")

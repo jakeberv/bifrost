@@ -31,6 +31,306 @@ pick_internal_node_with_min_tips <- function(tree, min_tips = 3L) {
   candidates[1L]
 }
 
+test_that("focal helper validates logical, numeric, and unsupported selectors", {
+  tree <- ape::rtree(5)
+
+  expect_identical(
+    .bifrost_resolve_focal_tips(tree, tree$tip.label[c(1, 1, 3)]),
+    tree$tip.label[c(1, 3)]
+  )
+  expect_identical(
+    .bifrost_resolve_focal_tips(tree, c(TRUE, FALSE, TRUE, FALSE, FALSE)),
+    tree$tip.label[c(1, 3)]
+  )
+  expect_error(
+    .bifrost_resolve_focal_tips(tree, c(TRUE, FALSE)),
+    "length equal to ape::Ntip"
+  )
+  expect_error(
+    .bifrost_resolve_focal_tips(tree, 1),
+    "not tip indices"
+  )
+  expect_error(
+    .bifrost_resolve_focal_tips(tree, list(tree$tip.label[1])),
+    "focal must be"
+  )
+})
+
+test_that("alignment helper covers coercion, pruning, and validation errors", {
+  set.seed(7)
+  hc <- stats::hclust(stats::dist(matrix(stats::rnorm(25), ncol = 5)))
+  tree <- ape::as.phylo(hc)
+  dat <- data.frame(y1 = stats::rnorm(5), y2 = stats::rnorm(5))
+  rownames(dat) <- tree$tip.label
+
+  aligned <- .bifrost_align_focal_test_inputs(
+    tree = hc,
+    trait_data = dat[1:4, , drop = FALSE],
+    focal = tree$tip.label[1:3],
+    min_focal_tips = 2
+  )
+
+  expect_s3_class(aligned$tree, "phylo")
+  expect_identical(ape::Ntip(aligned$tree), 4L)
+  expect_identical(rownames(aligned$trait_data), aligned$tree$tip.label)
+
+  expect_error(
+    .bifrost_align_focal_test_inputs(tree = tree, trait_data = 1:3, focal = tree$tip.label[1:2], min_focal_tips = 2),
+    "matrix or data.frame"
+  )
+
+  dat_no_rownames <- as.matrix(dat)
+  rownames(dat_no_rownames) <- NULL
+  expect_error(
+    .bifrost_align_focal_test_inputs(tree = tree, trait_data = dat_no_rownames, focal = tree$tip.label[1:2], min_focal_tips = 2),
+    "row names"
+  )
+
+  expect_error(
+    .bifrost_align_focal_test_inputs(tree = tree, trait_data = dat, focal = tree$tip.label[1:2], min_focal_tips = 1),
+    "integer >= 2"
+  )
+
+  expect_error(
+    .bifrost_align_focal_test_inputs(
+      tree = tree,
+      trait_data = dat[1:2, , drop = FALSE],
+      focal = tree$tip.label[1:2],
+      min_focal_tips = 2
+    ),
+    "Fewer than 3 overlapping taxa"
+  )
+
+  expect_error(
+    .bifrost_align_focal_test_inputs(
+      tree = tree,
+      trait_data = dat[3:5, , drop = FALSE],
+      focal = tree$tip.label[1:2],
+      min_focal_tips = 2
+    ),
+    "Need at least 2 focal tips"
+  )
+
+  expect_error(
+    .bifrost_align_focal_test_inputs(tree = "bad-tree", trait_data = dat, focal = rownames(dat)[1:2], min_focal_tips = 2),
+    "coercible to class 'phylo'"
+  )
+})
+
+test_that("metric helpers cover built-in variants and invalid return values", {
+  X <- matrix(
+    c(0, 0,
+      1, 2,
+      3, 1),
+    ncol = 2,
+    byrow = TRUE
+  )
+
+  trace_metric <- .bifrost_make_disparity_metric("trace_cov")
+  pairwise_metric <- .bifrost_make_disparity_metric("mean_pairwise_sqdist")
+
+  expect_identical(trace_metric$label, "trace_cov")
+  expect_identical(pairwise_metric$label, "mean_pairwise_sqdist")
+  expect_true(trace_metric$fun(X) > 0)
+  expect_true(pairwise_metric$fun(X) > 0)
+
+  expect_error(
+    .bifrost_eval_disparity_metric(function(x) c(1, 2), X),
+    "single finite numeric value"
+  )
+  expect_error(
+    .bifrost_eval_disparity_metric(function(x) NA_real_, X),
+    "single finite numeric value"
+  )
+})
+
+test_that("sigma and model helpers cover alternative object shapes", {
+  sigma <- diag(c(1, 2))
+
+  expect_identical(.bifrost_extract_sigma_matrix(list(sigma = sigma)), sigma)
+  expect_identical(.bifrost_extract_sigma_matrix(list(sigma = list(S = sigma))), sigma)
+  expect_identical(.bifrost_extract_sigma_matrix(list(sigma = list(Pinv = sigma))), sigma)
+  expect_error(
+    .bifrost_extract_sigma_matrix(list(sigma = NULL)),
+    "Could not locate a sigma estimate"
+  )
+  expect_error(
+    .bifrost_extract_sigma_matrix(list(sigma = list(foo = sigma))),
+    "usable sigma matrix"
+  )
+
+  expect_identical(.bifrost_resolve_simulation_model("BM"), "BM1")
+  expect_error(
+    .bifrost_resolve_simulation_model("BMM"),
+    "model must be one of"
+  )
+})
+
+test_that("OU and EB expansion helpers cover matrix, vector, scalar, and invalid inputs", {
+  alpha_mat <- diag(c(0.2, 0.4))
+  beta_mat <- diag(c(-0.3, -0.1))
+
+  expect_identical(.bifrost_expand_ou_alpha(alpha_mat, 2L), alpha_mat)
+  expect_identical(.bifrost_expand_ou_alpha(0.5, 2L), diag(0.5, 2))
+  expect_identical(.bifrost_expand_ou_alpha(c(0.2, 0.4), 2L), alpha_mat)
+  expect_error(
+    .bifrost_expand_ou_alpha(diag(3), 2L),
+    "alpha matrix with dimensions"
+  )
+  expect_error(
+    .bifrost_expand_ou_alpha(c(0.1, 0.2, 0.3), 2L),
+    "scalar, length-n_traits vector, or square alpha matrix"
+  )
+
+  expect_identical(.bifrost_expand_eb_beta(beta_mat, 2L), beta_mat)
+  expect_identical(.bifrost_expand_eb_beta(-0.2, 2L), -0.2)
+  expect_identical(.bifrost_expand_eb_beta(c(-0.3, -0.1), 2L), beta_mat)
+  expect_error(
+    .bifrost_expand_eb_beta(diag(3), 2L),
+    "beta matrix with dimensions"
+  )
+  expect_error(
+    .bifrost_expand_eb_beta(c(-0.2, -0.1, 0), 2L),
+    "scalar, length-n_traits vector, or square beta matrix"
+  )
+})
+
+test_that("null-simulation helpers cover OU and EB parameter errors and extraction variants", {
+  sigma <- diag(c(1, 2))
+
+  ou_params <- .bifrost_build_null_simulation_params(
+    fit = list(param = c(0.2, 0.4)),
+    simulation_model = "OU1",
+    n_traits = 2,
+    sigma_hat = sigma
+  )
+  eb_params <- .bifrost_build_null_simulation_params(
+    fit = list(param = c(-0.3, -0.1)),
+    simulation_model = "EB",
+    n_traits = 2,
+    sigma_hat = sigma
+  )
+  bm_params <- .bifrost_build_null_simulation_params(
+    fit = list(param = NULL),
+    simulation_model = "BM1",
+    n_traits = 2,
+    sigma_hat = sigma
+  )
+
+  expect_true(all(c("ntraits", "sigma", "theta", "alpha") %in% names(ou_params)))
+  expect_true(all(c("ntraits", "sigma", "theta", "beta") %in% names(eb_params)))
+  expect_identical(names(bm_params), c("ntraits", "sigma", "theta"))
+
+  expect_error(
+    .bifrost_build_null_simulation_params(list(param = NULL), "OU1", 2, sigma),
+    "Could not extract OU alpha"
+  )
+  expect_error(
+    .bifrost_build_null_simulation_params(list(param = NA_real_), "EB", 2, sigma),
+    "Could not extract EB beta"
+  )
+
+  arr <- array(1:8, dim = c(2, 2, 2))
+  sim_from_list <- .bifrost_extract_simulated_matrix(
+    simulated = list(arr[, , 1, drop = FALSE]),
+    tip_labels = c("t1", "t2"),
+    trait_names = c("a", "b")
+  )
+  sim_from_array <- .bifrost_extract_simulated_matrix(
+    simulated = arr[, , 1, drop = FALSE],
+    tip_labels = c("t1", "t2"),
+    trait_names = c("a", "b")
+  )
+
+  expect_identical(dim(sim_from_list), c(2L, 2L))
+  expect_identical(dim(sim_from_array), c(2L, 2L))
+  expect_identical(rownames(sim_from_array), c("t1", "t2"))
+  expect_identical(colnames(sim_from_array), c("a", "b"))
+
+  expect_identical(
+    .bifrost_get_response_names(
+      fitted_values = matrix(1:4, ncol = 2, dimnames = list(NULL, c("y1", "y2"))),
+      residuals_matrix = matrix(1:4, ncol = 2)
+    ),
+    c("y1", "y2")
+  )
+  expect_identical(
+    .bifrost_get_response_names(
+      fitted_values = matrix(1:4, ncol = 2),
+      residuals_matrix = matrix(1:4, ncol = 2, dimnames = list(NULL, c("r1", "r2")))
+    ),
+    c("r1", "r2")
+  )
+  expect_error(
+    .bifrost_get_response_names(
+      fitted_values = matrix(1:4, ncol = 2),
+      residuals_matrix = matrix(1:4, ncol = 2)
+    ),
+    "Could not determine response column names"
+  )
+})
+
+test_that("bootstrap helper covers sequential and future execution paths", {
+  progressr::handlers("void")
+  sim_one <- function(i, progress = NULL) {
+    if (!is.null(progress)) {
+      progress(sprintf("replicate %d", i))
+    }
+    i * 2
+  }
+
+  old_seed_exists <- exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
+  if (old_seed_exists) {
+    old_seed <- get(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
+  }
+  if (exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)) {
+    rm(".Random.seed", envir = .GlobalEnv)
+  }
+  on.exit({
+    if (exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)) {
+      rm(".Random.seed", envir = .GlobalEnv)
+    }
+    if (old_seed_exists) {
+      assign(".Random.seed", old_seed, envir = .GlobalEnv)
+    }
+  }, add = TRUE)
+
+  expect_identical(
+    .bifrost_run_bootstrap(3, sim_one, seed = 99, show_progress = FALSE, use_future = FALSE),
+    c(2, 4, 6)
+  )
+  expect_false(exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE))
+
+  set.seed(123)
+  current_seed <- get(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
+  expect_identical(
+    .bifrost_run_bootstrap(2, sim_one, seed = 99, show_progress = TRUE, use_future = FALSE),
+    c(2, 4)
+  )
+  expect_identical(get(".Random.seed", envir = .GlobalEnv, inherits = FALSE), current_seed)
+
+  old_plan <- future::plan()
+  on.exit(future::plan(old_plan), add = TRUE)
+  future::plan(future::sequential)
+
+  expect_identical(
+    .bifrost_run_bootstrap(2, sim_one, seed = 99, show_progress = FALSE, use_future = TRUE),
+    c(2, 4)
+  )
+  expect_identical(
+    .bifrost_run_bootstrap(2, sim_one, seed = 99, show_progress = TRUE, use_future = TRUE),
+    c(2, 4)
+  )
+})
+
+test_that("example helper falls back to the nearest clade size when needed", {
+  tree <- ape::rtree(10)
+  node <- .bifrost_find_example_focal_node(tree, min_tips = 20L, max_tips = 25L)
+
+  expect_true(node > ape::Ntip(tree))
+  expect_true(node <= ape::Ntip(tree) + ape::Nnode(tree))
+})
+
 test_that("testFocalDisparity fits a named-column formula workflow", {
   skip_if_not_installed("mvMORPH")
   skip_if_not_installed("phytools")
@@ -306,6 +606,114 @@ test_that("testFocalDisparity rejects unsupported fit models", {
   )
 })
 
+test_that("testFocalDisparity covers validation and progress-related branches", {
+  skip_if_not_installed("mvMORPH")
+  skip_if_not_installed("phytools")
+
+  x <- make_focal_residual_test_data()
+
+  expect_error(
+    do.call(
+      testFocalDisparity,
+      c(
+        list(
+          tree = x$tree,
+          trait_data = x$dat,
+          focal = x$tree$tip.label[1:4],
+          formula = cbind(y1, y2) ~ size,
+          nsim = 2,
+          method = "LL",
+          workers = 1,
+          future_plan = "sequential",
+          show_progress = FALSE
+        ),
+        list(data = x$dat)
+      )
+    ),
+    "reserved mvgls arguments"
+  )
+
+  expect_error(
+    testFocalDisparity(
+      tree = x$tree,
+      trait_data = x$dat,
+      focal = x$tree$tip.label[1:4],
+      formula = cbind(y1, y2) ~ size,
+      nsim = 0,
+      method = "LL",
+      workers = 1,
+      future_plan = "sequential",
+      show_progress = FALSE
+    ),
+    "nsim must be"
+  )
+
+  expect_error(
+    testFocalDisparity(
+      tree = x$tree,
+      trait_data = x$dat,
+      focal = x$tree$tip.label[1:4],
+      formula = cbind(y1, y2) ~ size,
+      nsim = 1,
+      method = "LL",
+      workers = 0,
+      future_plan = "sequential",
+      show_progress = FALSE
+    ),
+    "workers must be"
+  )
+
+  res_default_plan <- testFocalDisparity(
+    tree = x$tree,
+    trait_data = x$dat,
+    focal = x$tree$tip.label[1:4],
+    formula = cbind(y1, y2) ~ size,
+    nsim = 2,
+    method = "LL",
+    workers = 1,
+    show_progress = FALSE
+  )
+  expect_s3_class(res_default_plan, "bifrost_focal_disparity_test")
+
+  progressr::handlers("void")
+  res_with_progress <- testFocalDisparity(
+    tree = x$tree,
+    trait_data = x$dat,
+    focal = x$tree$tip.label[1:4],
+    formula = cbind(y1, y2) ~ size,
+    nsim = 2,
+    method = "LL",
+    workers = 1,
+    future_plan = "sequential",
+    show_progress = TRUE
+  )
+  expect_length(res_with_progress$null_statistics, 2L)
+
+  testthat::local_mocked_bindings(
+    normalizeMvglsFormulaCall = function(...) {
+      list(
+        formula = stats::as.formula("cbind(y1, y2) ~ 1"),
+        args_list = list(data = NULL)
+      )
+    },
+    .package = "bifrost"
+  )
+  expect_error(
+    testFocalDisparity(
+      tree = x$tree,
+      trait_data = x$dat,
+      focal = x$tree$tip.label[1:4],
+      formula = cbind(y1, y2) ~ size,
+      nsim = 1,
+      method = "LL",
+      workers = 1,
+      future_plan = "sequential",
+      show_progress = FALSE
+    ),
+    "Could not construct a data argument"
+  )
+})
+
 test_that("testFocalDisparity supports OU fits with multisession bootstrap", {
   skip_on_cran()
   skip_if_not_installed("mvMORPH")
@@ -332,6 +740,33 @@ test_that("testFocalDisparity supports OU fits with multisession bootstrap", {
   expect_length(res$null_statistics, 3L)
   expect_true(all(is.finite(res$null_statistics)))
   expect_gt(res$null_sd, 0)
+})
+
+test_that("testFocalDisparity supports BM fits with multicore bootstrap", {
+  skip_if_not_installed("mvMORPH")
+  skip_if_not_installed("phytools")
+  skip_on_os("windows")
+  skip_if(future::availableCores() < 2L)
+
+  ex <- focalDisparityExampleData(seed = 2)
+  res <- testFocalDisparity(
+    tree = ex$tree,
+    trait_data = ex$trait_data,
+    focal = ex$focal_tips,
+    formula = cbind(y1, y2, y3) ~ size,
+    metric = "centroid_msd",
+    nsim = 2,
+    model = "BM",
+    method = "LL",
+    workers = 2,
+    future_plan = "multicore",
+    show_progress = FALSE,
+    seed = 2
+  )
+
+  expect_s3_class(res, "bifrost_focal_disparity_test")
+  expect_length(res$null_statistics, 2L)
+  expect_true(all(is.finite(res$null_statistics)))
 })
 
 test_that("plot method expands x-axis so the observed line remains visible", {
@@ -366,6 +801,63 @@ test_that("plot method expands x-axis so the observed line remains visible", {
   usr <- graphics::par("usr")
   expect_lte(usr[1], res$observed_statistic)
   expect_gte(usr[2], res$observed_statistic)
+})
+
+test_that("print and plot methods cover normalized-formula and xlim edge branches", {
+  skip_if_not_installed("mvMORPH")
+  skip_if_not_installed("phytools")
+
+  set.seed(1)
+  tree <- ape::rtree(12)
+  dat <- data.frame(
+    y1 = stats::rnorm(12),
+    y2 = stats::rnorm(12),
+    grp = factor(rep(c("a", "b"), each = 6))
+  )
+  rownames(dat) <- tree$tip.label
+
+  res <- testFocalDisparity(
+    tree = tree,
+    trait_data = dat,
+    focal = tree$tip.label[1:4],
+    formula = cbind(y1, y2) ~ grp,
+    nsim = 2,
+    method = "LL",
+    workers = 1,
+    future_plan = "sequential",
+    show_progress = FALSE
+  )
+
+  printed <- capture.output(print(res))
+  expect_true(any(grepl("Fit formula:", printed, fixed = TRUE)))
+
+  custom_plot_obj <- structure(
+    list(
+      null_statistics = c(1, 1.5, 2),
+      observed_statistic = 1,
+      metric = "user_function"
+    ),
+    class = "bifrost_focal_disparity_test"
+  )
+
+  tmp <- tempfile(fileext = ".pdf")
+  grDevices::pdf(tmp)
+  on.exit({
+    grDevices::dev.off()
+    unlink(tmp)
+  }, add = TRUE)
+
+  expect_invisible(plot(custom_plot_obj, xlim = c(1, 1)))
+  usr <- graphics::par("usr")
+  expect_lte(usr[1], custom_plot_obj$observed_statistic)
+  expect_gte(usr[2], custom_plot_obj$observed_statistic)
+
+  suppressWarnings(
+    expect_error(
+      plot(custom_plot_obj, xlim = c(NA_real_, NA_real_)),
+      "xlim must contain two finite numeric values"
+    )
+  )
 })
 
 test_that("plot method widens a user-supplied xlim when needed", {
