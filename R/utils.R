@@ -264,8 +264,8 @@ normalizeMvglsFormulaCall <- function(formula, trait_data, args_list, allow_sing
     }
   }
 
-  mf <- model.frame(formula_obj, data = data_obj, na.action = na.pass)
-  response_block <- model.response(mf)
+  mf <- stats::model.frame(formula_obj, data = data_obj, na.action = stats::na.pass)
+  response_block <- stats::model.response(mf)
   response_dim <- if (is.null(dim(response_block))) 1L else ncol(response_block)
 
   if (response_dim < 2L && !allow_single_response) {
@@ -294,8 +294,8 @@ normalizeMvglsFormulaCall <- function(formula, trait_data, args_list, allow_sing
     colnames(response_block) <- response_names
   }
 
-  rhs_terms <- delete.response(attr(mf, "terms"))
-  xmat <- model.matrix(rhs_terms, mf)
+  rhs_terms <- stats::delete.response(attr(mf, "terms"))
+  xmat <- stats::model.matrix(rhs_terms, mf)
   if ("(Intercept)" %in% colnames(xmat)) {
     xmat <- xmat[, colnames(xmat) != "(Intercept)", drop = FALSE]
   }

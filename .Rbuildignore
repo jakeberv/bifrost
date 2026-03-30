@@ -17,6 +17,11 @@
 ^vignettes/theoretical-background-vignette\.html$
 ^vignettes/pca-model-selection-and-bifrost-vignette\.Rmd$
 ^vignettes/pca-model-selection-and-bifrost-vignette\.html$
+^vignettes/ou-to-mvou-vignette\.Rmd$
+^vignettes/ou-to-mvou-vignette\.html$
+^vignettes/avian-skeleton-vignette\.Rmd$
+^vignettes/avian-skeleton-vignette\.html$
+^vignettes/avian-skeleton($|/).*
 \.DS_Store
 .*\.log
 \.Rd2pdf
@@ -24,6 +29,9 @@
 ^cran_.*\.log$
 ^check\.log$
 ^CRAN-SUBMISSION$
+^data-raw$
+^vignettes/.*_cache$
+^vignettes/.*_files$
 ^dev-notes\.md$
 ^CI-notes\.txt$
 ^lint\.txt$

@@ -184,19 +184,19 @@ runFalsePositiveSimulationStudy <- function(template,
     do.call(simulate_null_dataset_fn, sim_args)
   })
 
-  search_one_replicate <- function(i) {
+  search_one_replicate <- function(sim) {
     search_args <- utils::modifyList(
       search_opts,
       list(
-        baseline_tree = ape::as.phylo(simdata[[i]]$tree),
-        trait_data = simdata[[i]]$data
+        baseline_tree = ape::as.phylo(sim$tree),
+        trait_data = sim$data
       )
     )
     tryCatch(
       do.call(search_optimal_configuration_fn, search_args),
       error = function(e) {
         candidate_count <- max(length(generate_painted_trees_fn(
-          ape::as.phylo(simdata[[i]]$tree),
+          ape::as.phylo(sim$tree),
           min_tips = search_opts$min_descendant_tips
         )) - 1L, 0L)
         list(
@@ -231,13 +231,13 @@ runFalsePositiveSimulationStudy <- function(template,
 
     results <- progressr::with_progress({
       progress <- progressr::progressor(along = simdata)
-      future.apply::future_lapply(seq_along(simdata), function(i) {
+      future.apply::future_lapply(simdata, function(sim) {
         on.exit(progress(), add = TRUE)
-        search_one_replicate(i)
+        search_one_replicate(sim)
       }, future.seed = TRUE)
     })
   } else {
-    results <- lapply(seq_along(simdata), search_one_replicate)
+    results <- lapply(simdata, search_one_replicate)
   }
 
   per_replicate <- do.call(rbind, lapply(seq_along(results), function(i) {
@@ -505,15 +505,15 @@ runShiftRecoverySimulationStudy <- function(template,
     do.call(simulate_shifted_dataset_fn, sim_args)
   }
 
-  search_one_replicate <- function(i) {
+  search_one_replicate <- function(sim) {
     search_args <- utils::modifyList(
       search_opts,
       list(
-        baseline_tree = ape::as.phylo(simdata[[i]]$paintedTree),
-        trait_data = if (!is.null(simdata[[i]]$trait_data)) {
-          simdata[[i]]$trait_data
+        baseline_tree = ape::as.phylo(sim$paintedTree),
+        trait_data = if (!is.null(sim$trait_data)) {
+          sim$trait_data
         } else {
-          simdata[[i]]$simulatedData
+          sim$simulatedData
         }
       )
     )
@@ -521,7 +521,7 @@ runShiftRecoverySimulationStudy <- function(template,
       do.call(search_optimal_configuration_fn, search_args),
       error = function(e) {
         candidate_count <- max(length(generate_painted_trees_fn(
-          ape::as.phylo(simdata[[i]]$paintedTree),
+          ape::as.phylo(sim$paintedTree),
           min_tips = search_opts$min_descendant_tips
         )) - 1L, 0L)
         list(
@@ -564,14 +564,14 @@ runShiftRecoverySimulationStudy <- function(template,
 
     results <- progressr::with_progress({
       progress <- progressr::progressor(along = simdata)
-      future.apply::future_lapply(seq_along(simdata), function(i) {
+      future.apply::future_lapply(simdata, function(sim) {
         on.exit(progress(), add = TRUE)
-        search_one_replicate(i)
+        search_one_replicate(sim)
       }, future.seed = TRUE)
     })
   } else {
     simdata <- lapply(seq_len(n_replicates), simulate_one_replicate)
-    results <- lapply(seq_along(simdata), search_one_replicate)
+    results <- lapply(simdata, search_one_replicate)
   }
 
   per_replicate <- do.call(rbind, lapply(seq_along(results), function(i) {

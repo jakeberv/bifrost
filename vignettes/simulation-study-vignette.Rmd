@@ -553,7 +553,7 @@ bodyplan_template <- createSimulationTemplate(
 )
 ```
 
-```{r create_template_live, echo = FALSE, message = FALSE, warning = FALSE, cache = TRUE}
+```{r create_template_live, echo = FALSE, message = FALSE, warning = FALSE}
 bodyplan_template_live <- createSimulationTemplate(
   baseline_tree = bird_tree,
   trait_data = bodyplan_data,
@@ -597,8 +597,17 @@ build_simulation_scenario_figure(
 
 In the proportional panels, the covariance structure keeps the same shape and simply expands or contracts. In the reduced-correlation panels, the diagonals widen as off-diagonal correlations weaken, so the matrix changes shape as well as scale. The passerine examples below use these same two simulation styles under repeated subtree resampling from the full tree.
 
-```{r preview_template_setup, echo = FALSE, message = FALSE, warning = FALSE, cache = TRUE}
+```{r preview_template_setup, echo = FALSE, message = FALSE, warning = FALSE}
 preview_template <- bodyplan_template_live
+```
+
+```{r preview_results_setup, echo = FALSE, message = FALSE, warning = FALSE}
+preview_tables_path <- pkg_file(
+  "extdata",
+  "simulation-study-cache",
+  "passerine_preview_tables.rds"
+)
+preview_tables <- readRDS(preview_tables_path)
 ```
 
 ## Calibration guardrails
@@ -621,7 +630,9 @@ This worked example keeps the search settings fixed and asks a simple question: 
 
 The search is intentionally conservative: `shift_acceptance_threshold = 10`, `min_descendant_tips = 10`, and five simulated shifts ranging from 10 to 20 descendant tips. These settings are not being optimized yet. They provide a stable baseline for understanding how null and shifted datasets behave.
 
-```{r medium_case_study_setup, echo = FALSE, message = FALSE, warning = FALSE, cache = TRUE}
+The tables below are rendered from packaged precomputed preview tables generated from a validated vignette render. That keeps package builds stable while preserving the exact preview workflow.
+
+```{r medium_case_study_setup, eval = FALSE}
 if (requireNamespace("RhpcBLASctl", quietly = TRUE)) {
   RhpcBLASctl::blas_set_num_threads(1)
   RhpcBLASctl::omp_set_num_threads(1)
@@ -728,35 +739,43 @@ bic_case_corr <- runShiftRecoverySimulationStudy(
 )
 ```
 
+```{r medium_case_study_cached, echo = FALSE, message = FALSE, warning = FALSE}
+null_case_table <- preview_tables$medium_case$null
+gic_case_prop_table <- preview_tables$medium_case$gic_proportional
+bic_case_prop_table <- preview_tables$medium_case$bic_proportional
+gic_case_corr_table <- preview_tables$medium_case$gic_correlation
+bic_case_corr_table <- preview_tables$medium_case$bic_correlation
+```
+
 Blank cells in the weighted columns for specificity, false-positive rate, and balanced accuracy are expected. Weighted summaries are defined only for precision, recall, and F1 because the weights apply to inferred shifts rather than to true negatives.
 
 ```{r medium_case_study_tables, echo = FALSE, results = "asis"}
 render_preview_table(
-  build_null_summary_table(list(GIC = gic_case_null, BIC = bic_case_null)),
+  null_case_table,
   caption = "Fixed-setting case study with 20 repeated 200-tip subsamples. In this preview, both GIC and BIC remain fully conservative under the null, with no inferred false positives.",
   digits = c(0, 3, 3, 3, 3, 0)
 )
 
 render_preview_table(
-  build_performance_table(gic_case_prop$evaluation),
+  gic_case_prop_table,
   caption = "Fixed-setting case study with 20 repeated 200-tip subsamples. Under proportional scaling, GIC recovers shifts well, especially under fuzzy matching.",
   digits = c(0, 3, 3, 3, 3)
 )
 
 render_preview_table(
-  build_performance_table(bic_case_prop$evaluation),
+  bic_case_prop_table,
   caption = "Fixed-setting case study with 20 repeated 200-tip subsamples. Under proportional scaling, BIC stays a bit more conservative while retaining strong recovery.",
   digits = c(0, 3, 3, 3, 3)
 )
 
 render_preview_table(
-  build_performance_table(gic_case_corr$evaluation),
+  gic_case_corr_table,
   caption = "Fixed-setting case study with 20 repeated 200-tip subsamples. Under correlation change, GIC still recovers many shifts, with fuzzy matching outperforming strict matching.",
   digits = c(0, 3, 3, 3, 3)
 )
 
 render_preview_table(
-  build_performance_table(bic_case_corr$evaluation),
+  bic_case_corr_table,
   caption = "Fixed-setting case study with 20 repeated 200-tip subsamples. Under correlation change, BIC becomes more conservative and recovery drops most clearly under strict matching.",
   digits = c(0, 3, 3, 3, 3)
 )
@@ -898,7 +917,7 @@ In practice, this usually means running one grid for GIC and a second grid for B
 
 For a compact example, the grid varies three acceptance thresholds (`10`, `20`, `30`) and two minimum clade sizes (`10`, `20`). Five null and five recovery replicates per setting are enough to show the tuning logic, and the same grid scales directly to larger replicate counts.
 
-```{r preview_tuning_setup, echo = FALSE, message = FALSE, warning = FALSE, cache = TRUE}
+```{r preview_tuning_setup, eval = FALSE}
 preview_grid_args <- list(
   shift_acceptance_thresholds = c(10, 20, 30),
   min_descendant_tips_values = c(10, 20),
@@ -975,15 +994,20 @@ preview_recommendations <- rbind(
 )
 ```
 
+```{r preview_tuning_cached, echo = FALSE, message = FALSE, warning = FALSE}
+gic_preview_table <- preview_tables$tuning$gic
+bic_preview_table <- preview_tables$tuning$bic
+preview_recommendations <- preview_tables$tuning$selected
+```
+
 Each row represents one threshold/clade-size combination evaluated under repeated subtree resampling.
 
 ### GIC
 
 ```{r preview_tuning_gic_table, echo = FALSE, results = "asis"}
 render_preview_table(
-  gic_preview_grid$summary_table[, preview_cols],
+  gic_preview_table,
   caption = "Preview tuning grid with 5 repeated 200-tip subsamples per setting. In this GIC preview, all settings keep null false positives at zero, and recovery is strongest at threshold 10 with a minimum clade size of 10.",
-  col_names = preview_labels,
   digits = c(0, 0, 3, 3, 3)
 )
 ```
@@ -992,9 +1016,8 @@ render_preview_table(
 
 ```{r preview_tuning_bic_table, echo = FALSE, results = "asis"}
 render_preview_table(
-  bic_preview_grid$summary_table[, preview_cols],
+  bic_preview_table,
   caption = "Preview tuning grid with 5 repeated 200-tip subsamples per setting. In this BIC preview, all settings also remain conservative under the null, with the strongest recovery at threshold 10 and a minimum clade size of 10.",
-  col_names = preview_labels,
   digits = c(0, 0, 3, 3, 3)
 )
 ```
@@ -1005,7 +1028,6 @@ render_preview_table(
 render_preview_table(
   preview_recommendations,
   caption = "Selected settings from the repeated-subsampling GIC and BIC preview grids. In this preview, both IC families choose threshold 10 and a minimum clade size of 10 because that combination preserves null conservatism while maximizing fuzzy recovery.",
-  col_names = c("IC", preview_labels),
   digits = c(0, 0, 0, 3, 3, 3)
 )
 ```
