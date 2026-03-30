@@ -30,3 +30,8 @@ Invisibly returns \code{x}.
 \description{
 Plot method for focal disparity bootstrap tests
 }
+\details{
+The x-axis is expanded automatically when needed so the observed disparity
+reference line remains visible. If \code{xlim} is supplied through \code{...}, it is
+widened only when necessary to include the observed value.
+}

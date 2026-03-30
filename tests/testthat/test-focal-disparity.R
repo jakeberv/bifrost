@@ -55,7 +55,6 @@ test_that("testFocalDisparity fits a named-column formula workflow", {
   expect_true(all(res$null_statistics >= 0))
   expect_identical(res$metric, "centroid_msd")
   expect_identical(res$fit_model, "BM")
-  expect_identical(res$null_model, "BM")
   expect_identical(res$simulation_model, "BM1")
   expect_true(res$p_upper >= 0 && res$p_upper <= 1)
   expect_true(res$p_lower >= 0 && res$p_lower <= 1)
@@ -89,7 +88,7 @@ test_that("testFocalDisparity resolves focal clades from node numbers", {
   expect_setequal(res$focal_tips, expected_tips)
 })
 
-test_that("testFocalDisparity accepts custom statistic functions", {
+test_that("testFocalDisparity accepts custom metric functions", {
   skip_if_not_installed("mvMORPH")
   skip_if_not_installed("phytools")
 
@@ -101,7 +100,7 @@ test_that("testFocalDisparity accepts custom statistic functions", {
     trait_data = x$Y,
     focal = c(TRUE, TRUE, TRUE, rep(FALSE, ape::Ntip(x$tree) - 3L)),
     formula = "trait_data ~ 1",
-    statistic = custom_stat,
+    metric = custom_stat,
     nsim = 3,
     method = "LL",
     workers = 1,
@@ -109,10 +108,46 @@ test_that("testFocalDisparity accepts custom statistic functions", {
     show_progress = FALSE
   )
 
-  expect_identical(res$statistic, "user_function")
   expect_identical(res$metric, "user_function")
   expect_length(res$null_statistics, 3L)
   expect_true(is.numeric(res$observed_statistic))
+})
+
+test_that("testFocalDisparity handles OU fits with factor and numeric predictors", {
+  skip_if_not_installed("mvMORPH")
+  skip_if_not_installed("phytools")
+
+  set.seed(11)
+  tree <- ape::rtree(18)
+  size <- stats::rnorm(18)
+  grp <- factor(rep(c("a", "b", "c"), each = 6))
+  dat <- data.frame(
+    y1 = 0.5 * size + rep(c(-0.2, 0.1, 0.3), each = 6) + stats::rnorm(18, sd = 0.2),
+    y2 = -0.3 * size + rep(c(0.1, -0.15, 0.2), each = 6) + stats::rnorm(18, sd = 0.25),
+    size = size,
+    grp = grp
+  )
+  rownames(dat) <- tree$tip.label
+
+  res <- testFocalDisparity(
+    tree = tree,
+    trait_data = dat,
+    focal = tree$tip.label[1:6],
+    formula = cbind(y1, y2) ~ size + grp,
+    nsim = 3,
+    model = "OU",
+    method = "LL",
+    workers = 1,
+    future_plan = "sequential",
+    show_progress = FALSE,
+    seed = 11
+  )
+
+  expect_s3_class(res, "bifrost_focal_disparity_test")
+  expect_identical(res$fit_model, "OU")
+  expect_identical(res$simulation_model, "OU1")
+  expect_true(all(c("size", "grpb", "grpc") %in% colnames(res$fit_data)))
+  expect_true(all(is.finite(res$null_statistics)))
 })
 
 test_that("testFocalDisparity stores fit-ready formula/data for factor predictors", {
@@ -215,7 +250,6 @@ test_that("testFocalDisparity produces a non-degenerate OU null on example data"
     seed = 2
   )
 
-  expect_identical(res$null_model, "OU")
   expect_identical(res$simulation_model, "OU1")
   expect_gt(length(unique(signif(res$null_statistics, 12))), 1L)
   expect_true(is.finite(res$null_sd))
@@ -243,7 +277,6 @@ test_that("testFocalDisparity supports EB fits on example data", {
   )
 
   expect_s3_class(res, "bifrost_focal_disparity_test")
-  expect_identical(res$null_model, "EB")
   expect_identical(res$simulation_model, "EB")
   expect_length(res$null_statistics, 5L)
   expect_true(all(is.finite(res$null_statistics)))
@@ -299,4 +332,73 @@ test_that("testFocalDisparity supports OU fits with multisession bootstrap", {
   expect_length(res$null_statistics, 3L)
   expect_true(all(is.finite(res$null_statistics)))
   expect_gt(res$null_sd, 0)
+})
+
+test_that("plot method expands x-axis so the observed line remains visible", {
+  skip_if_not_installed("mvMORPH")
+  skip_if_not_installed("phytools")
+
+  ex <- focalDisparityExampleData(seed = 2)
+  res <- testFocalDisparity(
+    tree = ex$tree,
+    trait_data = ex$trait_data,
+    focal = ex$focal_tips,
+    formula = cbind(y1, y2, y3) ~ size,
+    metric = "centroid_msd",
+    nsim = 5,
+    model = "BM",
+    method = "LL",
+    workers = 1,
+    future_plan = "sequential",
+    show_progress = FALSE,
+    seed = 2
+  )
+
+  res$observed_statistic <- max(res$null_statistics) + 1
+  tmp <- tempfile(fileext = ".pdf")
+  grDevices::pdf(tmp)
+  on.exit({
+    grDevices::dev.off()
+    unlink(tmp)
+  }, add = TRUE)
+
+  plot(res)
+  usr <- graphics::par("usr")
+  expect_lte(usr[1], res$observed_statistic)
+  expect_gte(usr[2], res$observed_statistic)
+})
+
+test_that("plot method widens a user-supplied xlim when needed", {
+  skip_if_not_installed("mvMORPH")
+  skip_if_not_installed("phytools")
+
+  ex <- focalDisparityExampleData(seed = 2)
+  res <- testFocalDisparity(
+    tree = ex$tree,
+    trait_data = ex$trait_data,
+    focal = ex$focal_tips,
+    formula = cbind(y1, y2, y3) ~ size,
+    metric = "centroid_msd",
+    nsim = 5,
+    model = "BM",
+    method = "LL",
+    workers = 1,
+    future_plan = "sequential",
+    show_progress = FALSE,
+    seed = 2
+  )
+
+  forced_xmax <- max(res$null_statistics)
+  res$observed_statistic <- forced_xmax + 0.75
+  tmp <- tempfile(fileext = ".pdf")
+  grDevices::pdf(tmp)
+  on.exit({
+    grDevices::dev.off()
+    unlink(tmp)
+  }, add = TRUE)
+
+  plot(res, xlim = c(min(res$null_statistics), forced_xmax))
+  usr <- graphics::par("usr")
+  expect_lte(usr[1], res$observed_statistic)
+  expect_gte(usr[2], res$observed_statistic)
 })

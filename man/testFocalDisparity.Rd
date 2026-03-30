@@ -10,7 +10,6 @@ testFocalDisparity(
   focal,
   formula = "trait_data ~ 1",
   metric = c("centroid_msd", "trace_cov", "mean_pairwise_sqdist"),
-  statistic = NULL,
   nsim = 999,
   model = "BM",
   method = "PL-LOOCV",
@@ -41,9 +40,6 @@ matrix workflows such as \code{"trait_data ~ 1"}.}
 \code{"mean_pairwise_sqdist"}, or a function that accepts the focal residual
 matrix and returns a single numeric value. The built-in options are all
 disparity/dispersion summaries.}
-
-\item{statistic}{Deprecated alias for \code{metric}. Kept for backward
-compatibility.}
 
 \item{nsim}{Integer number of bootstrap replicates.}
 
@@ -106,6 +102,7 @@ res <- testFocalDisparity(
   formula = cbind(y1, y2, y3) ~ size,
   metric = "centroid_msd",
   nsim = 100,
+  model = "BM",
   method = "LL",
   workers = 1,
   future_plan = "sequential",

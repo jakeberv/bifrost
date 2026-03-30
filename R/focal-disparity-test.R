@@ -449,8 +449,6 @@ focalDisparityExampleData <- function(seed = 2L) {
 #'   `"mean_pairwise_sqdist"`, or a function that accepts the focal residual
 #'   matrix and returns a single numeric value. The built-in options are all
 #'   disparity/dispersion summaries.
-#' @param statistic Deprecated alias for `metric`. Kept for backward
-#'   compatibility.
 #' @param nsim Integer number of bootstrap replicates.
 #' @param model Character `mvgls` fit-model code used for the observed fit,
 #'   bootstrap simulations, and each bootstrap refit. Supported values are
@@ -500,6 +498,7 @@ focalDisparityExampleData <- function(seed = 2L) {
 #'   formula = cbind(y1, y2, y3) ~ size,
 #'   metric = "centroid_msd",
 #'   nsim = 100,
+#'   model = "BM",
 #'   method = "LL",
 #'   workers = 1,
 #'   future_plan = "sequential",
@@ -519,7 +518,6 @@ testFocalDisparity <- function(tree,
                                focal,
                                formula = "trait_data ~ 1",
                                metric = c("centroid_msd", "trace_cov", "mean_pairwise_sqdist"),
-                               statistic = NULL,
                                nsim = 999,
                                model = "BM",
                                method = "PL-LOOCV",
@@ -529,7 +527,6 @@ testFocalDisparity <- function(tree,
                                show_progress = TRUE,
                                min_focal_tips = 3L,
                                ...) {
-  metric_supplied <- !missing(metric)
   extra_args <- list(...)
   reserved_args <- intersect(
     c("formula", "tree", "model", "data", "method"),
@@ -541,13 +538,6 @@ testFocalDisparity <- function(tree,
       paste(reserved_args, collapse = ", "),
       "."
     )
-  }
-
-  if (!is.null(statistic)) {
-    if (metric_supplied) {
-      stop("Specify only one of 'metric' and 'statistic'.")
-    }
-    metric <- statistic
   }
 
   if (!is.numeric(nsim) || length(nsim) != 1L || is.na(nsim) || nsim < 1) {
@@ -736,7 +726,6 @@ testFocalDisparity <- function(tree,
     formula_normalized = fit_formula_chr,
     fit_formula = fit_formula_chr,
     metric = metric_spec$label,
-    statistic = metric_spec$label,
     observed_statistic = summary_stats$observed,
     null_statistics = null_statistics,
     null_mean = summary_stats$null_mean,
@@ -748,21 +737,14 @@ testFocalDisparity <- function(tree,
     nsim = nsim,
     fit_model = model,
     model = model,
-    null_model = model,
     simulation_model = simulation_model,
     method = method,
     workers = workers,
-    seed = seed,
-    bootstrap_model = simulation_model
+    seed = seed
   )
 
   class(out) <- c("bifrost_focal_disparity_test", class(out))
   out
-}
-
-# Backward-compatible alias kept unexported while this API settles.
-testFocalResidualStatistic <- function(...) {
-  testFocalDisparity(...)
 }
 
 #' Print method for focal disparity bootstrap tests
@@ -784,7 +766,7 @@ print.bifrost_focal_disparity_test <- function(x, ...) {
   }
   cat("  Fit model: ", x$fit_model, "\n", sep = "")
   cat("  Fit method: ", x$method, "\n", sep = "")
-  cat("  Bootstrap model: ", x$null_model, "\n", sep = "")
+  cat("  Bootstrap model: ", x$fit_model, "\n", sep = "")
   cat("  Simulation code: ", x$simulation_model, "\n\n", sep = "")
 
   cat("Focal Set\n")
@@ -813,6 +795,11 @@ print.bifrost_focal_disparity_test <- function(x, ...) {
 #' @param xlab X-axis label. Defaults to a metric-aware label.
 #' @param ... Additional graphical parameters passed to [graphics::hist()].
 #'
+#' @details
+#' The x-axis is expanded automatically when needed so the observed disparity
+#' reference line remains visible. If `xlim` is supplied through `...`, it is
+#' widened only when necessary to include the observed value.
+#'
 #' @return Invisibly returns `x`.
 #'
 #' @export
@@ -821,6 +808,8 @@ plot.bifrost_focal_disparity_test <- function(x,
                                               main = "Null Distribution of Focal Disparity",
                                               xlab = NULL,
                                               ...) {
+  dots <- list(...)
+
   if (is.null(xlab)) {
     xlab <- if (!is.null(x$metric) && !identical(x$metric, "user_function")) {
       paste0("Bootstrap metric: ", x$metric)
@@ -829,12 +818,47 @@ plot.bifrost_focal_disparity_test <- function(x,
     }
   }
 
-  graphics::hist(
+  hist_template <- graphics::hist(
     x$null_statistics,
     breaks = breaks,
-    main = main,
-    xlab = xlab,
-    ...
+    plot = FALSE
+  )
+
+  xlim <- if ("xlim" %in% names(dots)) {
+    range(as.numeric(dots$xlim), finite = TRUE)
+  } else {
+    range(hist_template$breaks, finite = TRUE)
+  }
+
+  if (!all(is.finite(xlim)) || length(xlim) != 2L) {
+    stop("xlim must contain two finite numeric values.")
+  }
+
+  observed <- as.numeric(x$observed_statistic)
+  if (observed <= xlim[1L] || observed >= xlim[2L]) {
+    xlim <- range(c(xlim, observed), finite = TRUE)
+    span <- diff(xlim)
+    pad <- if (is.finite(span) && span > 0) {
+      0.04 * span
+    } else {
+      max(1e-8, abs(observed) * 0.04, 1)
+    }
+    xlim <- c(xlim[1L] - pad, xlim[2L] + pad)
+  }
+
+  dots$xlim <- xlim
+
+  do.call(
+    graphics::hist,
+    c(
+      list(
+        x = x$null_statistics,
+        breaks = hist_template$breaks,
+        main = main,
+        xlab = xlab
+      ),
+      dots
+    )
   )
   graphics::abline(v = x$observed_statistic, lwd = 2)
   invisible(x)
