@@ -1,4 +1,385 @@
-.bifrost_resolve_focal_tips <- function(tree, focal) {
+#!/usr/bin/env Rscript
+
+# Standalone focal disparity bootstrap script
+# -------------------------------------------
+# This file is intentionally self-contained so it can be shared and sourced
+# outside the bifrost package. Public entry points are suffixed with
+# `Standalone` to avoid colliding with the package API while this file lives as
+# a shareable script.
+
+checkFocalDisparityStandalonePackages <- function() {
+  required_pkgs <- c("ape", "mvMORPH", "future", "future.apply", "progressr")
+  missing_pkgs <- required_pkgs[!vapply(required_pkgs, requireNamespace, logical(1), quietly = TRUE)]
+
+  if (length(missing_pkgs) > 0L) {
+    stop(
+      "Missing required package(s): ",
+      paste(missing_pkgs, collapse = ", "),
+      "\nInstall with:\ninstall.packages(c(",
+      paste(sprintf('"%s"', missing_pkgs), collapse = ", "),
+      "))"
+    )
+  }
+
+  invisible(TRUE)
+}
+
+isLegacyTraitDataReferenceStandalone <- function(expr) {
+  is.symbol(expr) && identical(as.character(expr), "trait_data")
+}
+
+isLegacyTraitDataSubsetStandalone <- function(expr) {
+  is.call(expr) &&
+    identical(expr[[1L]], as.name("[")) &&
+    length(expr) >= 2L &&
+    is.symbol(expr[[2L]]) &&
+    identical(as.character(expr[[2L]]), "trait_data")
+}
+
+collectLegacyTraitDataColumnsStandalone <- function(expr, data_names) {
+  if (isLegacyTraitDataSubsetStandalone(expr)) {
+    return(resolveLegacyTraitDataColumnsStandalone(expr, data_names))
+  }
+  if (!is.call(expr)) {
+    return(integer(0))
+  }
+  unique(unlist(lapply(
+    as.list(expr)[-1L],
+    collectLegacyTraitDataColumnsStandalone,
+    data_names = data_names
+  )))
+}
+
+resolveLegacyTraitDataColumnsStandalone <- function(expr, data_names) {
+  placeholder <- as.data.frame(
+    setNames(
+      lapply(seq_along(data_names), function(i) rep.int(i, 3L)),
+      data_names
+    ),
+    check.names = FALSE,
+    stringsAsFactors = FALSE
+  )
+  value <- tryCatch(
+    eval(expr, envir = list(trait_data = placeholder)),
+    error = function(e) e
+  )
+  if (inherits(value, "error")) {
+    stop("Legacy trait_data indexing could not be resolved from the supplied formula.")
+  }
+
+  if (is.data.frame(value) || is.matrix(value)) {
+    cols <- colnames(value)
+    if (is.null(cols) || !all(cols %in% data_names)) {
+      stop("Legacy trait_data indexing could not be resolved to named columns.")
+    }
+    return(match(cols, data_names))
+  }
+
+  unique_vals <- unique(as.integer(value))
+  unique_vals <- unique_vals[!is.na(unique_vals)]
+  if (length(unique_vals) == 0L || any(unique_vals < 1L) || any(unique_vals > length(data_names))) {
+    stop("Legacy trait_data indexing could not be resolved to valid columns.")
+  }
+  unique_vals
+}
+
+rewriteLegacyTraitDataExprStandalone <- function(expr, data_names, side = c("lhs", "rhs")) {
+  side <- match.arg(side)
+
+  if (isLegacyTraitDataReferenceStandalone(expr)) {
+    if (side == "lhs") {
+      cols <- seq_along(data_names)
+      names <- data_names[cols]
+      if (length(names) == 1L) {
+        return(as.name(names))
+      }
+      return(as.call(c(as.name("cbind"), lapply(names, as.name))))
+    }
+    return(expr)
+  }
+
+  if (isLegacyTraitDataSubsetStandalone(expr)) {
+    cols <- resolveLegacyTraitDataColumnsStandalone(expr, data_names)
+    names <- data_names[cols]
+    if (side == "rhs" && length(names) != 1L) {
+      stop("Legacy indexed predictors must resolve to single raw columns.")
+    }
+    if (length(names) == 1L) {
+      return(as.name(names))
+    }
+    return(as.call(c(as.name("cbind"), lapply(names, as.name))))
+  }
+
+  if (!is.call(expr)) {
+    return(expr)
+  }
+
+  as.call(lapply(
+    as.list(expr),
+    rewriteLegacyTraitDataExprStandalone,
+    data_names = data_names,
+    side = side
+  ))
+}
+
+isSupportedNamedResponseStandalone <- function(expr) {
+  if (is.symbol(expr) && !identical(as.character(expr), "trait_data")) {
+    return(TRUE)
+  }
+  if (is.call(expr) && identical(expr[[1L]], as.name("cbind"))) {
+    args <- as.list(expr)[-1L]
+    return(length(args) > 0L && all(vapply(args, is.symbol, logical(1))))
+  }
+  FALSE
+}
+
+extractNamedResponseNamesStandalone <- function(lhs_expr, data_names) {
+  if (is.symbol(lhs_expr)) {
+    nm <- as.character(lhs_expr)
+    if (!nm %in% data_names) {
+      stop("Response variable referenced in formula was not found in trait_data.")
+    }
+    return(nm)
+  }
+
+  if (is.call(lhs_expr) && identical(lhs_expr[[1L]], as.name("cbind"))) {
+    response_names <- vapply(as.list(lhs_expr)[-1L], as.character, character(1))
+    if (!all(response_names %in% data_names)) {
+      stop("One or more response variables referenced in formula were not found in trait_data.")
+    }
+    if (anyDuplicated(response_names)) {
+      stop("Response variables in formula must be unique.")
+    }
+    return(response_names)
+  }
+
+  stop("Unsupported response form in formula.")
+}
+
+normalizeMvglsFormulaCallStandalone <- function(formula,
+                                                trait_data,
+                                                args_list,
+                                                allow_single_response = FALSE) {
+  if (missing(formula)) {
+    stop("A character formula or formula object must be provided.")
+  }
+
+  if (inherits(formula, "formula")) {
+    formula_obj <- formula
+  } else if (is.character(formula) && length(formula) == 1L && !is.na(formula)) {
+    formula_obj <- stats::as.formula(formula)
+  } else {
+    stop("A character formula or formula object must be provided.")
+  }
+
+  formula_chr <- paste(deparse(formula_obj, width.cutoff = 500), collapse = " ")
+  data_obj <- if ("data" %in% names(args_list)) args_list$data else trait_data
+  if (is.matrix(data_obj)) {
+    data_obj <- as.data.frame(data_obj, stringsAsFactors = FALSE)
+  }
+  if (!is.null(rownames(trait_data)) && nrow(data_obj) == nrow(trait_data)) {
+    rownames(data_obj) <- rownames(trait_data)
+  }
+
+  if (grepl("\\btrait_data\\b", formula_chr)) {
+    formula_terms <- stats::terms(formula_obj)
+    intercept_only <- length(attr(formula_terms, "term.labels")) == 0L &&
+      identical(attr(formula_terms, "intercept"), 1L)
+    lhs_is_trait_data <- is.symbol(formula_obj[[2L]]) &&
+      identical(as.character(formula_obj[[2L]]), "trait_data")
+    response_only_df <- is.data.frame(data_obj) &&
+      ncol(data_obj) > 0L &&
+      all(vapply(data_obj, is.numeric, logical(1)))
+
+    if (intercept_only && lhs_is_trait_data && response_only_df) {
+      response_names <- colnames(data_obj)
+      if (is.null(response_names) || any(!nzchar(response_names))) {
+        response_names <- paste0("Y", seq_len(ncol(data_obj)))
+        colnames(data_obj) <- response_names
+      }
+      response_names <- make.unique(make.names(response_names))
+      colnames(data_obj) <- response_names
+      formula_obj <- if (length(response_names) == 1L) {
+        stats::as.formula(paste0(response_names, " ~ 1"))
+      } else {
+        stats::as.formula(
+          paste0("cbind(", paste(response_names, collapse = ", "), ") ~ 1")
+        )
+      }
+      args_list$data <- data_obj
+      formula_chr <- paste(deparse(formula_obj, width.cutoff = 500), collapse = " ")
+    } else if (intercept_only && lhs_is_trait_data) {
+      return(list(
+        formula = formula_obj,
+        args_list = args_list
+      ))
+    } else {
+      data_names <- colnames(data_obj)
+      has_missing_names <- is.null(data_names) || any(!nzchar(data_names))
+
+      if (has_missing_names) {
+        if (is.null(data_names)) {
+          data_names <- rep("", ncol(data_obj))
+        }
+        missing_idx <- which(!nzchar(data_names))
+        data_names[missing_idx] <- paste0("V", seq_along(missing_idx))
+        data_names <- make.unique(make.names(data_names))
+        colnames(data_obj) <- data_names
+      }
+
+      lhs_expr <- formula_obj[[2L]]
+      rhs_expr <- formula_obj[[3L]]
+      has_legacy_refs <- isLegacyTraitDataReferenceStandalone(lhs_expr) ||
+        isLegacyTraitDataSubsetStandalone(lhs_expr) ||
+        length(collectLegacyTraitDataColumnsStandalone(rhs_expr, colnames(data_obj))) > 0L
+
+      if (!has_legacy_refs) {
+        return(list(
+          formula = formula_obj,
+          args_list = args_list
+        ))
+      }
+
+      if (intercept_only) {
+        if (lhs_is_trait_data) {
+          response_names <- colnames(data_obj)
+        } else if (isLegacyTraitDataSubsetStandalone(lhs_expr)) {
+          response_names <- colnames(data_obj)[resolveLegacyTraitDataColumnsStandalone(lhs_expr, colnames(data_obj))]
+        } else if (isSupportedNamedResponseStandalone(lhs_expr)) {
+          response_names <- extractNamedResponseNamesStandalone(lhs_expr, colnames(data_obj))
+        } else {
+          stop("Unsupported response form in intercept-only formula.")
+        }
+
+        data_obj <- data_obj[, response_names, drop = FALSE]
+        rownames(data_obj) <- rownames(trait_data)
+        args_list$data <- data_obj
+        formula_obj <- stats::as.formula("trait_data ~ 1")
+        formula_chr <- paste(deparse(formula_obj, width.cutoff = 500), collapse = " ")
+
+        response_only_df <- is.data.frame(data_obj) &&
+          ncol(data_obj) > 0L &&
+          all(vapply(data_obj, is.numeric, logical(1)))
+
+        if (response_only_df) {
+          response_names <- colnames(data_obj)
+          if (is.null(response_names) || any(!nzchar(response_names))) {
+            response_names <- paste0("Y", seq_len(ncol(data_obj)))
+            colnames(data_obj) <- response_names
+          }
+          response_names <- make.unique(make.names(response_names))
+          colnames(data_obj) <- response_names
+          formula_obj <- if (length(response_names) == 1L) {
+            stats::as.formula(paste0(response_names, " ~ 1"))
+          } else {
+            stats::as.formula(
+              paste0("cbind(", paste(response_names, collapse = ", "), ") ~ 1")
+            )
+          }
+          args_list$data <- data_obj
+          formula_chr <- paste(deparse(formula_obj, width.cutoff = 500), collapse = " ")
+        }
+      } else {
+        if (isLegacyTraitDataReferenceStandalone(lhs_expr)) {
+          stop("Legacy non-intercept formulas using bare 'trait_data' on the left-hand side are not supported. Use trait_data[, cols] or named columns.")
+        }
+
+        if (isLegacyTraitDataSubsetStandalone(lhs_expr)) {
+          response_names <- colnames(data_obj)[resolveLegacyTraitDataColumnsStandalone(lhs_expr, colnames(data_obj))]
+        } else if (isSupportedNamedResponseStandalone(lhs_expr)) {
+          response_names <- extractNamedResponseNamesStandalone(lhs_expr, colnames(data_obj))
+        } else {
+          stop("Unsupported response form in formula.")
+        }
+
+        lhs_rewritten <- if (length(response_names) == 1L) {
+          as.name(response_names)
+        } else {
+          as.call(c(as.name("cbind"), lapply(response_names, as.name)))
+        }
+        rhs_rewritten <- rewriteLegacyTraitDataExprStandalone(rhs_expr, colnames(data_obj), side = "rhs")
+        formula_obj <- stats::as.formula(
+          call("~", lhs_rewritten, rhs_rewritten),
+          env = parent.frame()
+        )
+        formula_chr <- paste(deparse(formula_obj, width.cutoff = 500), collapse = " ")
+        args_list$data <- data_obj
+      }
+    }
+  }
+
+  mf <- stats::model.frame(formula_obj, data = data_obj, na.action = stats::na.pass)
+  response_block <- stats::model.response(mf)
+  response_dim <- if (is.null(dim(response_block))) 1L else ncol(response_block)
+
+  if (response_dim < 2L && !allow_single_response) {
+    stop("Named formulas require a multivariate response for mvgls.")
+  }
+
+  if (response_dim >= 2L) {
+    response_names <- colnames(response_block)
+    if (is.null(response_names) || any(!nzchar(response_names))) {
+      response_names <- paste0("Y", seq_len(response_dim))
+    }
+    response_names <- make.unique(make.names(response_names))
+    colnames(response_block) <- response_names
+  } else {
+    lhs_expr <- formula_obj[[2L]]
+    response_names <- if (is.symbol(lhs_expr)) as.character(lhs_expr) else NULL
+    if (is.null(response_names) || any(!nzchar(response_names))) {
+      response_names <- "Y1"
+    }
+    response_names <- make.unique(make.names(response_names))
+    response_block <- as.matrix(response_block)
+    colnames(response_block) <- response_names
+  }
+
+  rhs_terms <- stats::delete.response(attr(mf, "terms"))
+  xmat <- stats::model.matrix(rhs_terms, mf)
+  if ("(Intercept)" %in% colnames(xmat)) {
+    xmat <- xmat[, colnames(xmat) != "(Intercept)", drop = FALSE]
+  }
+
+  if (ncol(xmat) > 0L) {
+    predictor_names <- make.unique(make.names(colnames(xmat)))
+    colnames(xmat) <- predictor_names
+    working_data <- data.frame(
+      response_block,
+      xmat,
+      check.names = FALSE,
+      stringsAsFactors = FALSE
+    )
+    formula_fit <- stats::as.formula(
+      paste0(
+        "cbind(",
+        paste(response_names, collapse = ", "),
+        ") ~ ",
+        paste(predictor_names, collapse = " + ")
+      )
+    )
+  } else {
+    working_data <- data.frame(
+      response_block,
+      check.names = FALSE,
+      stringsAsFactors = FALSE
+    )
+    formula_fit <- stats::as.formula(
+      paste0("cbind(", paste(response_names, collapse = ", "), ") ~ 1")
+    )
+  }
+
+  rownames(working_data) <- rownames(data_obj)
+
+  list(
+    formula = formula_fit,
+    args_list = {
+      args_list$data <- working_data
+      args_list
+    }
+  )
+}
+
+.standalone_resolve_focal_tips <- function(tree, focal) {
   if (is.character(focal)) {
     return(unique(focal))
   }
@@ -24,7 +405,7 @@
   stop("focal must be a character vector of tip labels, a logical tip selector, or a single internal node number.")
 }
 
-.bifrost_align_focal_test_inputs <- function(tree, trait_data, focal, min_focal_tips) {
+.standalone_align_inputs <- function(tree, trait_data, focal, min_focal_tips) {
   if (!inherits(tree, "phylo")) {
     tree <- tryCatch(
       ape::as.phylo(tree),
@@ -46,7 +427,7 @@
   }
   min_focal_tips <- as.integer(min_focal_tips)
 
-  focal_tips_full <- .bifrost_resolve_focal_tips(tree, focal)
+  focal_tips_full <- .standalone_resolve_focal_tips(tree, focal)
   keep <- intersect(tree$tip.label, rownames(trait_data))
   if (length(keep) < 3L) {
     stop("Fewer than 3 overlapping taxa between tree and trait_data.")
@@ -77,7 +458,7 @@
   )
 }
 
-.bifrost_make_disparity_metric <- function(metric) {
+.standalone_make_metric <- function(metric) {
   if (is.function(metric)) {
     return(list(fun = metric, label = "user_function"))
   }
@@ -114,7 +495,7 @@
   if (identical(metric, "log_det_cov")) {
     return(list(
       fun = function(X) {
-        eigenvalues <- .bifrost_cov_eigenvalues(X)
+        eigenvalues <- .standalone_cov_eigenvalues(X)
         sum(log(pmax(eigenvalues, .Machine$double.eps)))
       },
       label = metric
@@ -123,7 +504,7 @@
 
   if (identical(metric, "max_eigenvalue")) {
     return(list(
-      fun = function(X) max(.bifrost_cov_eigenvalues(X)),
+      fun = function(X) max(.standalone_cov_eigenvalues(X)),
       label = metric
     ))
   }
@@ -131,7 +512,7 @@
   if (identical(metric, "eigenvalue_evenness")) {
     return(list(
       fun = function(X) {
-        eigenvalues <- .bifrost_cov_eigenvalues(X)
+        eigenvalues <- .standalone_cov_eigenvalues(X)
         total <- sum(eigenvalues)
         if (!is.finite(total) || total <= 0) {
           return(0)
@@ -157,7 +538,7 @@
   )
 }
 
-.bifrost_cov_eigenvalues <- function(X) {
+.standalone_cov_eigenvalues <- function(X) {
   eigenvalues <- eigen(
     stats::cov(as.matrix(X)),
     symmetric = TRUE,
@@ -168,7 +549,7 @@
   eigenvalues
 }
 
-.bifrost_eval_disparity_metric <- function(metric_fun, X) {
+.standalone_eval_metric <- function(metric_fun, X) {
   value <- metric_fun(as.matrix(X))
   if (!is.numeric(value) || length(value) != 1L || !is.finite(value)) {
     stop("metric must return a single finite numeric value.")
@@ -176,7 +557,7 @@
   as.numeric(value)
 }
 
-.bifrost_extract_sigma_matrix <- function(fit) {
+.standalone_extract_sigma_matrix <- function(fit) {
   sigma_hat <- fit$sigma
 
   if (is.null(sigma_hat)) {
@@ -195,7 +576,7 @@
   stop("Could not extract a usable sigma matrix from the fitted mvgls object.")
 }
 
-.bifrost_resolve_simulation_model <- function(fit_model) {
+.standalone_resolve_simulation_model <- function(fit_model) {
   switch(
     fit_model,
     BM = "BM1",
@@ -205,7 +586,7 @@
   )
 }
 
-.bifrost_expand_ou_alpha <- function(alpha, n_traits) {
+.standalone_expand_ou_alpha <- function(alpha, n_traits) {
   if (is.matrix(alpha)) {
     if (!identical(dim(alpha), c(n_traits, n_traits))) {
       stop("OU null simulation requires an alpha matrix with dimensions n_traits x n_traits.")
@@ -224,7 +605,7 @@
   stop("OU null simulation currently requires a scalar, length-n_traits vector, or square alpha matrix.")
 }
 
-.bifrost_expand_eb_beta <- function(beta, n_traits) {
+.standalone_expand_eb_beta <- function(beta, n_traits) {
   if (is.matrix(beta)) {
     if (!identical(dim(beta), c(n_traits, n_traits))) {
       stop("EB null simulation requires a beta matrix with dimensions n_traits x n_traits.")
@@ -243,7 +624,7 @@
   stop("EB null simulation currently requires a scalar, length-n_traits vector, or square beta matrix.")
 }
 
-.bifrost_build_null_simulation_params <- function(fit, simulation_model, n_traits, sigma_hat) {
+.standalone_build_simulation_params <- function(fit, simulation_model, n_traits, sigma_hat) {
   params <- list(
     ntraits = n_traits,
     sigma = sigma_hat,
@@ -255,7 +636,7 @@
     if (is.null(fit_param) || anyNA(fit_param)) {
       stop("Could not extract OU alpha from the fitted mvgls object.")
     }
-    params$alpha <- .bifrost_expand_ou_alpha(fit_param, n_traits)
+    params$alpha <- .standalone_expand_ou_alpha(fit_param, n_traits)
     return(params)
   }
 
@@ -263,14 +644,14 @@
     if (is.null(fit_param) || anyNA(fit_param)) {
       stop("Could not extract EB beta from the fitted mvgls object.")
     }
-    params$beta <- .bifrost_expand_eb_beta(fit_param, n_traits)
+    params$beta <- .standalone_expand_eb_beta(fit_param, n_traits)
     return(params)
   }
 
   params
 }
 
-.bifrost_extract_simulated_matrix <- function(simulated, tip_labels, trait_names) {
+.standalone_extract_simulated_matrix <- function(simulated, tip_labels, trait_names) {
   Ysim <- simulated
   if (is.list(Ysim)) {
     Ysim <- Ysim[[1L]]
@@ -285,7 +666,7 @@
   Ysim
 }
 
-.bifrost_get_response_names <- function(fitted_values, residuals_matrix) {
+.standalone_get_response_names <- function(fitted_values, residuals_matrix) {
   fitted_names <- colnames(fitted_values)
   if (!is.null(fitted_names) && length(fitted_names) > 0L) {
     return(as.character(fitted_names))
@@ -299,7 +680,7 @@
   stop("Could not determine response column names from the fitted mvgls object.")
 }
 
-.bifrost_replace_response_block <- function(data, response_names, response_matrix) {
+.standalone_replace_response_block <- function(data, response_names, response_matrix) {
   out <- as.data.frame(data, check.names = FALSE, stringsAsFactors = FALSE)
   response_df <- as.data.frame(response_matrix, check.names = FALSE, stringsAsFactors = FALSE)
   colnames(response_df) <- response_names
@@ -307,13 +688,13 @@
   out
 }
 
-.bifrost_build_mvgls_call_args <- function(formula,
-                                           data,
-                                           tree,
-                                           model,
-                                           method,
-                                           normalized_extra_args,
-                                           extra_args) {
+.standalone_build_mvgls_call_args <- function(formula,
+                                              data,
+                                              tree,
+                                              model,
+                                              method,
+                                              normalized_extra_args,
+                                              extra_args) {
   c(
     list(
       formula = formula,
@@ -327,21 +708,21 @@
   )
 }
 
-.bifrost_formula_from_string <- function(formula_chr) {
+.standalone_formula_from_string <- function(formula_chr) {
   stats::as.formula(formula_chr, env = baseenv())
 }
 
-.bifrost_call_mvgls <- function(call_args) {
+.standalone_call_mvgls <- function(call_args) {
   call <- as.call(c(list(quote(mvMORPH::mvgls)), unname(call_args)))
   names(call)[-1] <- names(call_args)
   eval(call, envir = parent.frame())
 }
 
-.bifrost_run_bootstrap <- function(nsim,
-                                   sim_one,
-                                   seed,
-                                   show_progress,
-                                   use_future) {
+.standalone_run_bootstrap <- function(nsim,
+                                      sim_one,
+                                      seed,
+                                      show_progress,
+                                      use_future) {
   if (isTRUE(use_future)) {
     if (isTRUE(show_progress)) {
       return(progressr::with_progress({
@@ -392,7 +773,7 @@
   )
 }
 
-.bifrost_summarize_null <- function(observed, null_statistics) {
+.standalone_summarize_null <- function(observed, null_statistics) {
   null_mean <- mean(null_statistics)
   null_sd <- stats::sd(null_statistics)
   ses <- if (is.finite(null_sd) && null_sd > 0) {
@@ -415,7 +796,7 @@
   )
 }
 
-.bifrost_find_example_focal_node <- function(tree, min_tips = 8L, max_tips = 15L) {
+.standalone_find_example_focal_node <- function(tree, min_tips = 8L, max_tips = 15L) {
   nodes <- seq.int(ape::Ntip(tree) + 1L, ape::Ntip(tree) + ape::Nnode(tree))
   tip_counts <- vapply(
     nodes,
@@ -431,11 +812,27 @@
   nodes[order(abs(tip_counts - round((min_tips + max_tips) / 2)))[1L]]
 }
 
-.bifrost_make_significant_focal_disparity_example <- function(seed = 2L) {
+#' Create Reproducible Example Data for `testFocalDisparityStandalone()`
+#'
+#' @description
+#' Generate a small synthetic example designed to yield elevated focal disparity
+#' for a chosen subclade after accounting for a size covariate.
+#'
+#' @param seed Integer random seed controlling the tree, focal node, and data.
+#'
+#' @return A list with components `tree`, `trait_data`, `focal_node`, and
+#'   `focal_tips`, suitable for passing directly to
+#'   `testFocalDisparityStandalone()`.
+#'
+#' @examples
+#' ex <- focalDisparityExampleDataStandalone(seed = 2)
+#' names(ex)
+#' length(ex$focal_tips)
+focalDisparityExampleDataStandalone <- function(seed = 2L) {
   set.seed(seed)
 
   tree <- ape::rtree(40)
-  focal_node <- .bifrost_find_example_focal_node(tree, min_tips = 8L, max_tips = 14L)
+  focal_node <- .standalone_find_example_focal_node(tree, min_tips = 8L, max_tips = 14L)
   focal_tips <- ape::extract.clade(tree, node = focal_node)$tip.label
 
   n_tips <- ape::Ntip(tree)
@@ -465,34 +862,13 @@
   )
 }
 
-#' Create Reproducible Example Data for `testFocalDisparity()`
-#'
-#' @description
-#' Generate a small synthetic example designed to yield elevated focal disparity
-#' for a chosen subclade after accounting for a size covariate.
-#'
-#' @param seed Integer random seed controlling the tree, focal node, and data.
-#'
-#' @return A list with components `tree`, `trait_data`, `focal_node`, and
-#'   `focal_tips`, suitable for passing directly to [testFocalDisparity()].
-#'
-#' @examples
-#' ex <- focalDisparityExampleData(seed = 2)
-#' names(ex)
-#' length(ex$focal_tips)
-#'
-#' @export
-focalDisparityExampleData <- function(seed = 2L) {
-  .bifrost_make_significant_focal_disparity_example(seed = seed)
-}
-
-.bifrost_fit_prepared_data <- function(tree,
-                                       trait_data,
-                                       formula,
-                                       model,
-                                       method,
-                                       extra_args) {
-  normalized <- normalizeMvglsFormulaCall(
+.standalone_fit_prepared_data <- function(tree,
+                                          trait_data,
+                                          formula,
+                                          model,
+                                          method,
+                                          extra_args) {
+  normalized <- normalizeMvglsFormulaCallStandalone(
     formula = formula,
     trait_data = trait_data,
     args_list = list(data = trait_data),
@@ -515,8 +891,8 @@ focalDisparityExampleData <- function(seed = 2L) {
   fit_formula_chr <- paste(deparse(fit_formula, width.cutoff = 500), collapse = " ")
 
   normalized_extra_args <- normalized$args_list[setdiff(names(normalized$args_list), "data")]
-  fit_call_args <- .bifrost_build_mvgls_call_args(
-    formula = .bifrost_formula_from_string(fit_formula_chr),
+  fit_call_args <- .standalone_build_mvgls_call_args(
+    formula = .standalone_formula_from_string(fit_formula_chr),
     data = fit_data,
     tree = tree,
     model = model,
@@ -525,13 +901,13 @@ focalDisparityExampleData <- function(seed = 2L) {
     extra_args = extra_args
   )
 
-  fit <- .bifrost_call_mvgls(fit_call_args)
+  fit <- .standalone_call_mvgls(fit_call_args)
 
   residuals_matrix <- as.matrix(stats::residuals(fit))
   rownames(residuals_matrix) <- tree$tip.label
   fitted_values <- as.matrix(fit$fitted)
   rownames(fitted_values) <- tree$tip.label
-  response_names <- .bifrost_get_response_names(
+  response_names <- .standalone_get_response_names(
     fitted_values = fitted_values,
     residuals_matrix = residuals_matrix
   )
@@ -552,22 +928,22 @@ focalDisparityExampleData <- function(seed = 2L) {
   )
 }
 
-.bifrost_prepare_focal_fit <- function(tree,
-                                       trait_data,
-                                       focal,
-                                       formula,
-                                       model,
-                                       method,
-                                       min_focal_tips,
-                                       extra_args) {
-  aligned <- .bifrost_align_focal_test_inputs(
+.standalone_prepare_focal_fit <- function(tree,
+                                          trait_data,
+                                          focal,
+                                          formula,
+                                          model,
+                                          method,
+                                          min_focal_tips,
+                                          extra_args) {
+  aligned <- .standalone_align_inputs(
     tree = tree,
     trait_data = trait_data,
     focal = focal,
     min_focal_tips = min_focal_tips
   )
 
-  prepared <- .bifrost_fit_prepared_data(
+  prepared <- .standalone_fit_prepared_data(
     tree = aligned$tree,
     trait_data = aligned$trait_data,
     formula = formula,
@@ -579,15 +955,15 @@ focalDisparityExampleData <- function(seed = 2L) {
   prepared
 }
 
-.bifrost_prepare_subtree_fit <- function(tree,
-                                         trait_data,
-                                         tips,
-                                         formula,
-                                         model,
-                                         method,
-                                         min_subtree_tips,
-                                         extra_args,
-                                         subset_label) {
+.standalone_prepare_subtree_fit <- function(tree,
+                                            trait_data,
+                                            tips,
+                                            formula,
+                                            model,
+                                            method,
+                                            min_subtree_tips,
+                                            extra_args,
+                                            subset_label) {
   tips <- unique(intersect(tips, intersect(tree$tip.label, rownames(trait_data))))
   if (length(tips) < min_subtree_tips) {
     stop(
@@ -604,7 +980,7 @@ focalDisparityExampleData <- function(seed = 2L) {
   subtree <- ape::reorder.phylo(subtree, order = "postorder")
   subtree_data <- trait_data[subtree$tip.label, , drop = FALSE]
 
-  prepared <- .bifrost_fit_prepared_data(
+  prepared <- .standalone_fit_prepared_data(
     tree = subtree,
     trait_data = subtree_data,
     formula = formula,
@@ -616,7 +992,7 @@ focalDisparityExampleData <- function(seed = 2L) {
   prepared
 }
 
-.bifrost_sigma_to_correlation <- function(sigma_matrix) {
+.standalone_sigma_to_correlation <- function(sigma_matrix) {
   sigma_matrix <- as.matrix(sigma_matrix)
   sd_vec <- sqrt(diag(sigma_matrix))
   denom <- outer(sd_vec, sd_vec, "*")
@@ -626,7 +1002,7 @@ focalDisparityExampleData <- function(seed = 2L) {
   corr
 }
 
-.bifrost_correlation_dendrogram <- function(corr_matrix) {
+.standalone_correlation_dendrogram <- function(corr_matrix) {
   corr_matrix <- as.matrix(corr_matrix)
   corr_matrix[!is.finite(corr_matrix)] <- 0
   corr_matrix <- pmin(pmax(corr_matrix, -1), 1)
@@ -636,17 +1012,17 @@ focalDisparityExampleData <- function(seed = 2L) {
   stats::as.dendrogram(stats::hclust(stats::as.dist(dist_matrix)))
 }
 
-.bifrost_plot_matrix_heatmap <- function(matrix_data,
-                                         main,
-                                         palette,
-                                         row_dendrogram,
-                                         zlim = NULL,
-                                         cexRow = 0.7,
-                                         cexCol = 0.7,
-                                         margins = c(8, 8),
-                                         summary_text = NULL,
-                                         show_values = TRUE,
-                                         value_digits = 2) {
+.standalone_plot_matrix_heatmap <- function(matrix_data,
+                                            main,
+                                            palette,
+                                            row_dendrogram,
+                                            zlim = NULL,
+                                            cexRow = 0.7,
+                                            cexCol = 0.7,
+                                            margins = c(8, 8),
+                                            summary_text = NULL,
+                                            show_values = TRUE,
+                                            value_digits = 2) {
   heatmap_args <- list(
     x = matrix_data,
     Rowv = row_dendrogram,
@@ -694,7 +1070,7 @@ focalDisparityExampleData <- function(seed = 2L) {
   }
 }
 
-.bifrost_matrix_eigenvalues <- function(matrix_data) {
+.standalone_matrix_eigenvalues <- function(matrix_data) {
   eigenvalues <- eigen(
     as.matrix(matrix_data),
     symmetric = TRUE,
@@ -705,7 +1081,7 @@ focalDisparityExampleData <- function(seed = 2L) {
   eigenvalues
 }
 
-.bifrost_eigenvalue_evenness_from_values <- function(eigenvalues) {
+.standalone_eigenvalue_evenness_from_values <- function(eigenvalues) {
   total <- sum(eigenvalues)
   if (!is.finite(total) || total <= 0) {
     return(0)
@@ -719,7 +1095,7 @@ focalDisparityExampleData <- function(seed = 2L) {
   -sum(weights * log(weights)) / log(length(eigenvalues))
 }
 
-.bifrost_offdiag_values <- function(matrix_data) {
+.standalone_offdiag_values <- function(matrix_data) {
   matrix_data <- as.matrix(matrix_data)
   if (nrow(matrix_data) < 2L || ncol(matrix_data) < 2L) {
     return(numeric())
@@ -727,24 +1103,24 @@ focalDisparityExampleData <- function(seed = 2L) {
   matrix_data[upper.tri(matrix_data)]
 }
 
-.bifrost_safe_ratio <- function(numerator, denominator) {
+.standalone_safe_ratio <- function(numerator, denominator) {
   if (!is.finite(numerator) || !is.finite(denominator) || denominator == 0) {
     return(NA_real_)
   }
   numerator / denominator
 }
 
-.bifrost_summarize_subtree_matrices <- function(covariance,
-                                                correlation,
-                                                fit_model,
-                                                subset,
-                                                tip_labels) {
-  eigenvalues <- .bifrost_matrix_eigenvalues(covariance)
+.standalone_summarize_subtree_matrices <- function(covariance,
+                                                   correlation,
+                                                   fit_model,
+                                                   subset,
+                                                   tip_labels) {
+  eigenvalues <- .standalone_matrix_eigenvalues(covariance)
   trace_cov <- sum(diag(covariance))
   log_det_cov <- sum(log(pmax(eigenvalues, .Machine$double.eps)))
   max_eigenvalue <- if (length(eigenvalues) > 0L) max(eigenvalues) else NA_real_
-  lead_eigenvalue_prop <- .bifrost_safe_ratio(max_eigenvalue, sum(eigenvalues))
-  offdiag_corr <- .bifrost_offdiag_values(correlation)
+  lead_eigenvalue_prop <- .standalone_safe_ratio(max_eigenvalue, sum(eigenvalues))
+  offdiag_corr <- .standalone_offdiag_values(correlation)
 
   data.frame(
     model = fit_model,
@@ -755,7 +1131,7 @@ focalDisparityExampleData <- function(seed = 2L) {
     log_det_cov = as.numeric(log_det_cov),
     max_eigenvalue = as.numeric(max_eigenvalue),
     lead_eigenvalue_prop = as.numeric(lead_eigenvalue_prop),
-    eigenvalue_evenness = as.numeric(.bifrost_eigenvalue_evenness_from_values(eigenvalues)),
+    eigenvalue_evenness = as.numeric(.standalone_eigenvalue_evenness_from_values(eigenvalues)),
     mean_abs_correlation = if (length(offdiag_corr) > 0L) {
       mean(abs(offdiag_corr), na.rm = TRUE)
     } else {
@@ -770,7 +1146,7 @@ focalDisparityExampleData <- function(seed = 2L) {
   )
 }
 
-.bifrost_build_subtree_contrast_table <- function(summary_table) {
+.standalone_build_subtree_contrast_table <- function(summary_table) {
   if (is.null(summary_table) || nrow(summary_table) == 0L) {
     return(data.frame())
   }
@@ -797,9 +1173,9 @@ focalDisparityExampleData <- function(seed = 2L) {
       model = model_i,
       focal_tips = focal_row$n_tips,
       background_tips = background_row$n_tips,
-      trace_cov_ratio = .bifrost_safe_ratio(focal_row$trace_cov, background_row$trace_cov),
+      trace_cov_ratio = .standalone_safe_ratio(focal_row$trace_cov, background_row$trace_cov),
       log_det_cov_diff = focal_row$log_det_cov - background_row$log_det_cov,
-      max_eigenvalue_ratio = .bifrost_safe_ratio(
+      max_eigenvalue_ratio = .standalone_safe_ratio(
         focal_row$max_eigenvalue,
         background_row$max_eigenvalue
       ),
@@ -825,7 +1201,7 @@ focalDisparityExampleData <- function(seed = 2L) {
   out
 }
 
-.bifrost_print_subtree_covariance_table <- function(df, digits = 4) {
+.standalone_print_subtree_covariance_table <- function(df, digits = 4) {
   df <- as.data.frame(df, stringsAsFactors = FALSE)
   num_cols <- vapply(df, is.numeric, logical(1))
   df[num_cols] <- lapply(df[num_cols], function(x) signif(x, digits = digits))
@@ -835,18 +1211,19 @@ focalDisparityExampleData <- function(seed = 2L) {
 #' Test Focal Disparity by Parametric Bootstrap
 #'
 #' @description
-#' Fit a multivariate phylogenetic GLS model with [mvMORPH::mvgls()], compute a
-#' focal disparity statistic on the residuals of a focal set of tips, and
-#' compare that observed value to a parametric bootstrap null distribution.
+#' Standalone counterpart of `testFocalDisparity()`. It fits a multivariate
+#' phylogenetic GLS model with `mvMORPH::mvgls()`, computes a focal disparity
+#' statistic on the residuals of a focal set of tips, and compares that
+#' observed value to a parametric bootstrap null distribution.
 #'
 #' @param tree A rooted phylogeny of class `phylo` or coercible with
-#'   [ape::as.phylo()].
+#'   `ape::as.phylo()`.
 #' @param trait_data A numeric matrix or data frame with row names matching tip
 #'   labels in `tree`. Extra rows or tree tips are dropped by intersection.
 #' @param focal Focal definition. Supply either a character vector of tip labels,
 #'   a logical selector of length `ape::Ntip(tree)`, or a single internal node
 #'   number whose descendant tips define the focal clade.
-#' @param formula Formula passed to [mvMORPH::mvgls()]. Named-column formulas
+#' @param formula Formula passed to `mvMORPH::mvgls()`. Named-column formulas
 #'   such as `cbind(y1, y2) ~ size + group` are supported, as are response-only
 #'   matrix workflows such as `"trait_data ~ 1"`. Legacy indexed formulas that
 #'   reference subsets of `trait_data` directly are also supported and are
@@ -857,12 +1234,11 @@ focalDisparityExampleData <- function(seed = 2L) {
 #'   `"eigenvalue_evenness"`, or a function that accepts the focal residual
 #'   matrix and returns a single numeric value. The built-in options are all
 #'   disparity/dispersion summaries, including covariance-volume and
-#'   eigenspectrum-based measures:
-#'   `"centroid_msd"` is mean squared Euclidean distance from the centroid;
-#'   `"trace_cov"` is total variance (the covariance trace);
-#'   `"mean_pairwise_sqdist"` is mean squared pairwise Euclidean distance;
-#'   `"log_det_cov"` is the log generalized variance; `"max_eigenvalue"`
-#'   emphasizes the dominant axis of variation; and
+#'   eigenspectrum-based measures: `"centroid_msd"` is mean squared Euclidean
+#'   distance from the centroid; `"trace_cov"` is total variance (the
+#'   covariance trace); `"mean_pairwise_sqdist"` is mean squared pairwise
+#'   Euclidean distance; `"log_det_cov"` is the log generalized variance;
+#'   `"max_eigenvalue"` emphasizes the dominant axis of variation; and
 #'   `"eigenvalue_evenness"` summarizes how evenly variance is distributed
 #'   across axes on a 0 to 1 scale.
 #' @param nsim Integer number of bootstrap replicates.
@@ -872,7 +1248,7 @@ focalDisparityExampleData <- function(seed = 2L) {
 #'   `"OU"` is a single-regime Ornstein-Uhlenbeck model, and `"EB"` is an
 #'   early-burst model with exponentially changing evolutionary rates through
 #'   time.
-#' @param method Character fitting method passed to [mvMORPH::mvgls()].
+#' @param method Character fitting method passed to `mvMORPH::mvgls()`.
 #' @param workers Integer number of workers used when `future_plan` is
 #'   `"multisession"` or `"multicore"`.
 #' @param seed Integer seed passed to `future.apply` for reproducible bootstrap
@@ -882,10 +1258,10 @@ focalDisparityExampleData <- function(seed = 2L) {
 #'   function uses `"sequential"` when `workers = 1` and `"multisession"`
 #'   otherwise.
 #' @param show_progress Logical; if `TRUE`, wrap bootstrap evaluation in
-#'   [progressr::with_progress()]. Users can set their preferred progress
+#'   `progressr::with_progress()`. Users can set their preferred progress
 #'   handler with `progressr::handlers()`.
 #' @param min_focal_tips Minimum number of focal tips required after alignment.
-#' @param ... Additional arguments passed to [mvMORPH::mvgls()] for both the
+#' @param ... Additional arguments passed to `mvMORPH::mvgls()` for both the
 #'   observed fit and bootstrap refits.
 #'
 #' @details
@@ -910,18 +1286,16 @@ focalDisparityExampleData <- function(seed = 2L) {
 #' resolved on the original tree before overlap pruning, so the focal definition
 #' remains stable when non-overlapping taxa are dropped during alignment.
 #'
-#' @return A list of class `bifrost_focal_disparity_test` containing the aligned
-#'   data, the fitted `mvgls` object, the focal tip set, the observed statistic,
-#'   the bootstrap null distribution, and standardized effect-size and p-value
-#'   summaries.
-#'
-#' @seealso [createSimulationTemplate()]
+#' @return A list of class `bifrost_focal_disparity_test_standalone` containing
+#'   the aligned data, the fitted `mvgls` object, the focal tip set, the
+#'   observed statistic, the bootstrap null distribution, and standardized
+#'   effect-size and p-value summaries.
 #'
 #' @examples
 #' \dontrun{
-#' ex <- focalDisparityExampleData(seed = 2)
+#' ex <- focalDisparityExampleDataStandalone(seed = 2)
 #'
-#' res <- testFocalDisparity(
+#' res <- testFocalDisparityStandalone(
 #'   tree = ex$tree,
 #'   trait_data = ex$trait_data,
 #'   focal = ex$focal_tips,
@@ -936,34 +1310,32 @@ focalDisparityExampleData <- function(seed = 2L) {
 #'   seed = 2
 #' )
 #'
-#' ex$focal_node
-#' length(ex$focal_tips)
 #' print(res)
 #' plot(res)
 #' }
-#'
-#' @export
-testFocalDisparity <- function(tree,
-                               trait_data,
-                               focal,
-                               formula = "trait_data ~ 1",
-                               metric = c(
-                                 "centroid_msd",
-                                 "trace_cov",
-                                 "mean_pairwise_sqdist",
-                                 "log_det_cov",
-                                 "max_eigenvalue",
-                                 "eigenvalue_evenness"
-                               ),
-                               nsim = 999,
-                               model = "BM",
-                               method = "PL-LOOCV",
-                               workers = future::availableCores(),
-                               seed = 1,
-                               future_plan = NULL,
-                               show_progress = TRUE,
-                               min_focal_tips = 3L,
-                               ...) {
+testFocalDisparityStandalone <- function(tree,
+                                         trait_data,
+                                         focal,
+                                         formula = "trait_data ~ 1",
+                                         metric = c(
+                                           "centroid_msd",
+                                           "trace_cov",
+                                           "mean_pairwise_sqdist",
+                                           "log_det_cov",
+                                           "max_eigenvalue",
+                                           "eigenvalue_evenness"
+                                         ),
+                                         nsim = 999,
+                                         model = "BM",
+                                         method = "PL-LOOCV",
+                                         workers = future::availableCores(),
+                                         seed = 1,
+                                         future_plan = NULL,
+                                         show_progress = TRUE,
+                                         min_focal_tips = 3L,
+                                         ...) {
+  checkFocalDisparityStandalonePackages()
+
   extra_args <- list(...)
   reserved_args <- intersect(
     c("formula", "tree", "model", "data", "method"),
@@ -994,7 +1366,7 @@ testFocalDisparity <- function(tree,
     future_plan <- match.arg(future_plan, choices = c("multisession", "multicore", "sequential"))
   }
 
-  prepared <- .bifrost_prepare_focal_fit(
+  prepared <- .standalone_prepare_focal_fit(
     tree = tree,
     trait_data = trait_data,
     focal = focal,
@@ -1016,27 +1388,28 @@ testFocalDisparity <- function(tree,
   fit_formula_chr <- prepared$fit_formula_chr
   normalized_extra_args <- prepared$normalized_extra_args
 
-  metric_spec <- .bifrost_make_disparity_metric(metric)
-  observed_statistic <- .bifrost_eval_disparity_metric(
+  metric_spec <- .standalone_make_metric(metric)
+  observed_statistic <- .standalone_eval_metric(
     metric_fun = metric_spec$fun,
     X = residuals_observed[focal_tips, , drop = FALSE]
   )
 
-  simulation_model <- .bifrost_resolve_simulation_model(model)
-  sigma_hat <- .bifrost_extract_sigma_matrix(fit)
-  null_simulation_params <- .bifrost_build_null_simulation_params(
+  simulation_model <- .standalone_resolve_simulation_model(model)
+  sigma_hat <- .standalone_extract_sigma_matrix(fit)
+  null_simulation_params <- .standalone_build_simulation_params(
     fit = fit,
     simulation_model = simulation_model,
     n_traits = ncol(fitted_values),
     sigma_hat = sigma_hat
   )
+
   sim_tree <- ape::reorder.phylo(ape::as.phylo(tree), order = "postorder")
-  extract_simulated_matrix <- .bifrost_extract_simulated_matrix
-  replace_response_block <- .bifrost_replace_response_block
-  build_mvgls_call_args <- .bifrost_build_mvgls_call_args
-  formula_from_string <- .bifrost_formula_from_string
-  call_mvgls <- .bifrost_call_mvgls
-  eval_disparity_metric <- .bifrost_eval_disparity_metric
+  extract_simulated_matrix <- .standalone_extract_simulated_matrix
+  replace_response_block <- .standalone_replace_response_block
+  build_mvgls_call_args <- .standalone_build_mvgls_call_args
+  formula_from_string <- .standalone_formula_from_string
+  call_mvgls <- .standalone_call_mvgls
+  eval_metric <- .standalone_eval_metric
   metric_fun <- metric_spec$fun
 
   sim_one <- function(i, progress = NULL) {
@@ -1059,6 +1432,7 @@ testFocalDisparity <- function(tree,
     simulated_response <- fitted_values + simulated_residuals
     rownames(simulated_response) <- tree$tip.label
     colnames(simulated_response) <- response_names
+
     simulated_data <- replace_response_block(
       data = fit_data,
       response_names = response_names,
@@ -1083,9 +1457,9 @@ testFocalDisparity <- function(tree,
       )
     )
 
-    residuals_simulated <- as.matrix(residuals(sim_fit))
+    residuals_simulated <- as.matrix(stats::residuals(sim_fit))
     rownames(residuals_simulated) <- tree$tip.label
-    eval_disparity_metric(
+    eval_metric(
       metric_fun = metric_fun,
       X = residuals_simulated[focal_tips, , drop = FALSE]
     )
@@ -1102,7 +1476,7 @@ testFocalDisparity <- function(tree,
     future::plan(future::sequential)
   }
 
-  null_statistics <- .bifrost_run_bootstrap(
+  null_statistics <- .standalone_run_bootstrap(
     nsim = nsim,
     sim_one = sim_one,
     seed = seed,
@@ -1111,7 +1485,7 @@ testFocalDisparity <- function(tree,
   )
 
   null_statistics <- unname(as.numeric(null_statistics))
-  summary_stats <- .bifrost_summarize_null(
+  summary_stats <- .standalone_summarize_null(
     observed = observed_statistic,
     null_statistics = null_statistics
   )
@@ -1122,12 +1496,9 @@ testFocalDisparity <- function(tree,
     tree = tree,
     focal_input = focal,
     trait_data = trait_data,
-    aligned_trait_data = trait_data,
     fit_data = fit_data,
     focal_tips = focal_tips,
-    formula = formula_input_chr,
     formula_input = formula_input_chr,
-    formula_normalized = fit_formula_chr,
     fit_formula = fit_formula_chr,
     metric = metric_spec$label,
     observed_statistic = summary_stats$observed,
@@ -1140,18 +1511,117 @@ testFocalDisparity <- function(tree,
     p_two_tailed = summary_stats$p_two_tailed,
     nsim = nsim,
     fit_model = model,
-    model = model,
     simulation_model = simulation_model,
     method = method,
     workers = workers,
     seed = seed
   )
 
-  class(out) <- c("bifrost_focal_disparity_test", class(out))
+  class(out) <- c("bifrost_focal_disparity_test_standalone", class(out))
   out
 }
 
-.bifrost_residual_pca_panel_layout <- function(n_panels) {
+#' Plot Residual Morphospace for a Focal Disparity Model
+#'
+#' @description
+#' Standalone counterpart of `plotFocalResidualPCA()`. It fits the same
+#' multivariate phylogenetic GLS model used by
+#' `testFocalDisparityStandalone()`, performs an ordinary PCA on the fitted
+#' residual matrix with `stats::prcomp()`, and plots focal versus background
+#' taxa in the chosen residual morphospace dimensions.
+#'
+#' @param tree A rooted phylogeny of class `phylo` or coercible with
+#'   `ape::as.phylo()`.
+#' @param trait_data A numeric matrix or data frame with row names matching tip
+#'   labels in `tree`.
+#' @param focal Focal definition. Supply either a character vector of tip
+#'   labels, a logical selector of length `ape::Ntip(tree)`, or a single
+#'   internal node number.
+#' @param formula Formula passed to `mvMORPH::mvgls()`. Supports the same named,
+#'   response-only, and legacy indexed styles as
+#'   `testFocalDisparityStandalone()`.
+#' @param model Character fit-model code or vector of fit-model codes.
+#'   Supported values are `"BM"`, `"OU"`, and `"EB"`. Supply multiple
+#'   models, such as `c("BM", "OU", "EB")`, to draw one residual morphospace
+#'   panel per model.
+#' @param method Character fitting method passed to `mvMORPH::mvgls()`.
+#' @param pc_x Integer principal-component index for the x-axis.
+#' @param pc_y Integer principal-component index for the y-axis.
+#' @param center Logical; passed to `stats::prcomp()`.
+#' @param scale. Logical; passed to `stats::prcomp()`.
+#' @param focal_col Color for focal taxa.
+#' @param background_col Color for non-focal taxa.
+#' @param focal_pch Plotting symbol for focal taxa.
+#' @param background_pch Plotting symbol for non-focal taxa.
+#' @param point_cex Point size passed to `graphics::plot()`.
+#' @param show_legend Logical; if `TRUE`, draw a legend.
+#' @param legend_position Legend position passed to `graphics::legend()`.
+#' @param focal_label Legend label for focal taxa.
+#' @param background_label Legend label for non-focal taxa.
+#' @param use_shared_limits Logical; if `TRUE` and multiple models are drawn,
+#'   use shared x- and y-axis limits across all panels.
+#' @param show_centroids Logical; if `TRUE`, draw group centroids.
+#' @param centroid_cex Point size for centroid markers.
+#' @param centroid_pch Plotting symbol used for centroid markers.
+#' @param centroid_lwd Line width for centroid markers.
+#' @param show_hulls Logical; if `TRUE`, draw convex hulls for focal and
+#'   background groups when enough points are available.
+#' @param hull_alpha Alpha transparency used for hull fill colors.
+#' @param hull_lwd Line width for hull borders.
+#' @param layout Optional length-2 numeric vector giving the panel layout passed
+#'   to `graphics::par()` as `mfrow` when multiple models are supplied. If
+#'   `NULL`, a sensible layout is chosen automatically.
+#' @param main Plot title. Defaults to a model-aware residual morphospace title.
+#'   A single value is recycled across panels; a character vector of the same
+#'   length as `model` can supply panel-specific titles.
+#' @param xlab X-axis label. Defaults to `PCk` plus explained variance. A single
+#'   value is recycled across panels; a character vector of the same length as
+#'   `model` can supply panel-specific labels.
+#' @param ylab Y-axis label. Defaults to `PCk` plus explained variance. A single
+#'   value is recycled across panels; a character vector of the same length as
+#'   `model` can supply panel-specific labels.
+#' @param min_focal_tips Minimum number of focal tips required after alignment.
+#' @param ... Additional arguments passed to `mvMORPH::mvgls()`.
+#'
+#' @details
+#' This helper is intended as a descriptive follow-up to the focal disparity
+#' test. It does not use `mvgls.pca`; instead it applies ordinary PCA to the
+#' fitted residual matrix so the plotted point cloud corresponds directly to the
+#' residual disparity space being tested. When multiple models are plotted, the
+#' default behavior is to use shared axis limits so focal/background separation
+#' can be compared directly across panels.
+#'
+#' @return For a single model, invisibly returns a list containing the fitted
+#'   `mvgls` object, the residual matrix, the `prcomp` result, the PC scores, a
+#'   logical focal-tip indicator, and the variance explained by each PC. For
+#'   multiple models, invisibly returns a named list of that same structure, one
+#'   entry per model.
+#'
+#' @examples
+#' \dontrun{
+#' ex <- focalDisparityExampleDataStandalone(seed = 2)
+#'
+#' pca_plot <- plotFocalResidualPCAStandalone(
+#'   tree = ex$tree,
+#'   trait_data = ex$trait_data,
+#'   focal = ex$focal_tips,
+#'   formula = cbind(y1, y2, y3) ~ size,
+#'   model = "OU",
+#'   method = "LL"
+#' )
+#'
+#' head(pca_plot$scores)
+#'
+#' pca_panels <- plotFocalResidualPCAStandalone(
+#'   tree = ex$tree,
+#'   trait_data = ex$trait_data,
+#'   focal = ex$focal_tips,
+#'   formula = cbind(y1, y2, y3) ~ size,
+#'   model = c("BM", "OU", "EB"),
+#'   method = "LL"
+#' )
+#' }
+.standalone_residual_pca_panel_layout <- function(n_panels) {
   if (n_panels <= 0L) {
     stop("n_panels must be >= 1.")
   }
@@ -1163,7 +1633,7 @@ testFocalDisparity <- function(tree,
   c(n_row, n_col)
 }
 
-.bifrost_expand_numeric_range <- function(values, frac = 0.08) {
+.standalone_expand_numeric_range <- function(values, frac = 0.08) {
   values <- as.numeric(values)
   values <- values[is.finite(values)]
   if (length(values) == 0L) {
@@ -1179,7 +1649,7 @@ testFocalDisparity <- function(tree,
   c(out[1L] - pad, out[2L] + pad)
 }
 
-.bifrost_convex_hull_indices <- function(coords) {
+.standalone_convex_hull_indices <- function(coords) {
   coords <- as.matrix(coords)
   if (nrow(coords) < 3L) {
     return(integer())
@@ -1195,24 +1665,24 @@ testFocalDisparity <- function(tree,
   )
 }
 
-.bifrost_plot_focal_residual_pca_single <- function(tree,
-                                                    trait_data,
-                                                    focal,
-                                                    formula,
-                                                    model,
-                                                    method,
-                                                    pc_x,
-                                                    pc_y,
-                                                    center,
-                                                    scale.,
-                                                    focal_col,
-                                                    background_col,
-                                                    focal_pch,
-                                                    background_pch,
-                                                    point_cex,
-                                                    min_focal_tips,
-                                                    extra_args) {
-  prepared <- .bifrost_prepare_focal_fit(
+.standalone_plot_focal_residual_pca_single <- function(tree,
+                                                       trait_data,
+                                                       focal,
+                                                       formula,
+                                                       model,
+                                                       method,
+                                                       pc_x,
+                                                       pc_y,
+                                                       center,
+                                                       scale.,
+                                                       focal_col,
+                                                       background_col,
+                                                       focal_pch,
+                                                       background_pch,
+                                                       point_cex,
+                                                       min_focal_tips,
+                                                       extra_args) {
+  prepared <- .standalone_prepare_focal_fit(
     tree = tree,
     trait_data = trait_data,
     focal = focal,
@@ -1257,28 +1727,28 @@ testFocalDisparity <- function(tree,
   )
 }
 
-.bifrost_draw_focal_residual_pca_panel <- function(output,
-                                                   main,
-                                                   xlab,
-                                                   ylab,
-                                                   xlim,
-                                                   ylim,
-                                                   focal_col,
-                                                   background_col,
-                                                   focal_pch,
-                                                   background_pch,
-                                                   point_cex,
-                                                   show_legend,
-                                                   legend_position,
-                                                   focal_label,
-                                                   background_label,
-                                                   show_centroids,
-                                                   centroid_cex,
-                                                   centroid_pch,
-                                                   centroid_lwd,
-                                                   show_hulls,
-                                                   hull_alpha,
-                                                   hull_lwd) {
+.standalone_draw_focal_residual_pca_panel <- function(output,
+                                                      main,
+                                                      xlab,
+                                                      ylab,
+                                                      xlim,
+                                                      ylim,
+                                                      focal_col,
+                                                      background_col,
+                                                      focal_pch,
+                                                      background_pch,
+                                                      point_cex,
+                                                      show_legend,
+                                                      legend_position,
+                                                      focal_label,
+                                                      background_label,
+                                                      show_centroids,
+                                                      centroid_cex,
+                                                      centroid_pch,
+                                                      centroid_lwd,
+                                                      show_hulls,
+                                                      hull_alpha,
+                                                      hull_lwd) {
   scores <- output$scores
   focal_indicator <- output$focal_indicator
   point_cols <- ifelse(focal_indicator, focal_col, background_col)
@@ -1298,8 +1768,8 @@ testFocalDisparity <- function(tree,
   )
 
   group_draw_specs <- list(
-    list(mask = !focal_indicator, col = background_col, label = background_label),
-    list(mask = focal_indicator, col = focal_col, label = focal_label)
+    list(mask = !focal_indicator, col = background_col),
+    list(mask = focal_indicator, col = focal_col)
   )
 
   for (spec in group_draw_specs) {
@@ -1308,7 +1778,7 @@ testFocalDisparity <- function(tree,
       scores[spec$mask, output$pc_y, drop = TRUE]
     )
     if (isTRUE(show_hulls)) {
-      hull_idx <- .bifrost_convex_hull_indices(coords)
+      hull_idx <- .standalone_convex_hull_indices(coords)
       if (length(hull_idx) >= 3L) {
         hull_coords <- coords[hull_idx, , drop = FALSE]
         graphics::polygon(
@@ -1353,138 +1823,41 @@ testFocalDisparity <- function(tree,
   }
 }
 
-#' Plot Residual Morphospace for a Focal Disparity Model
-#'
-#' @description
-#' Fit the same multivariate phylogenetic GLS model used by
-#' [testFocalDisparity()], perform an ordinary PCA on the fitted residual
-#' matrix with [stats::prcomp()], and plot focal versus background taxa in the
-#' chosen residual morphospace dimensions.
-#'
-#' @param tree A rooted phylogeny of class `phylo` or coercible with
-#'   [ape::as.phylo()].
-#' @param trait_data A numeric matrix or data frame with row names matching tip
-#'   labels in `tree`.
-#' @param focal Focal definition. Supply either a character vector of tip
-#'   labels, a logical selector of length `ape::Ntip(tree)`, or a single
-#'   internal node number.
-#' @param formula Formula passed to [mvMORPH::mvgls()]. Supports the same named,
-#'   response-only, and legacy indexed styles as [testFocalDisparity()].
-#' @param model Character fit-model code or vector of fit-model codes. Supported
-#'   values are `"BM"`, `"OU"`, and `"EB"`. Supply multiple models, such as
-#'   `c("BM", "OU", "EB")`, to draw one residual morphospace panel per model.
-#' @param method Character fitting method passed to [mvMORPH::mvgls()].
-#' @param pc_x Integer principal-component index for the x-axis.
-#' @param pc_y Integer principal-component index for the y-axis.
-#' @param center Logical; passed to [stats::prcomp()].
-#' @param scale. Logical; passed to [stats::prcomp()].
-#' @param focal_col Color for focal taxa.
-#' @param background_col Color for non-focal taxa.
-#' @param focal_pch Plotting symbol for focal taxa.
-#' @param background_pch Plotting symbol for non-focal taxa.
-#' @param point_cex Point size passed to [graphics::plot()].
-#' @param show_legend Logical; if `TRUE`, draw a legend.
-#' @param legend_position Legend position passed to [graphics::legend()].
-#' @param focal_label Legend label for focal taxa.
-#' @param background_label Legend label for non-focal taxa.
-#' @param use_shared_limits Logical; if `TRUE` and multiple models are drawn,
-#'   use shared x- and y-axis limits across all panels.
-#' @param show_centroids Logical; if `TRUE`, draw group centroids.
-#' @param centroid_cex Point size for centroid markers.
-#' @param centroid_pch Plotting symbol used for centroid markers.
-#' @param centroid_lwd Line width for centroid markers.
-#' @param show_hulls Logical; if `TRUE`, draw convex hulls for focal and
-#'   background groups when enough points are available.
-#' @param hull_alpha Alpha transparency used for hull fill colors.
-#' @param hull_lwd Line width for hull borders.
-#' @param layout Optional length-2 numeric vector giving the panel layout passed
-#'   to [graphics::par()] as `mfrow` when multiple models are supplied. If
-#'   `NULL`, a sensible layout is chosen automatically.
-#' @param main Plot title. Defaults to a model-aware residual morphospace title.
-#'   A single value is recycled across panels; a character vector of the same
-#'   length as `model` can supply panel-specific titles.
-#' @param xlab X-axis label. Defaults to `PCk` plus explained variance. A single
-#'   value is recycled across panels; a character vector of the same length as
-#'   `model` can supply panel-specific labels.
-#' @param ylab Y-axis label. Defaults to `PCk` plus explained variance. A single
-#'   value is recycled across panels; a character vector of the same length as
-#'   `model` can supply panel-specific labels.
-#' @param min_focal_tips Minimum number of focal tips required after alignment.
-#' @param ... Additional arguments passed to [mvMORPH::mvgls()].
-#'
-#' @details
-#' This helper is intended as a descriptive follow-up to the focal disparity
-#' test. It does not use `mvgls.pca`; instead it applies ordinary PCA to the
-#' fitted residual matrix so the plotted point cloud corresponds directly to the
-#' residual disparity space being tested. When multiple models are plotted, the
-#' default behavior is to use shared axis limits so focal/background separation
-#' can be compared directly across panels.
-#'
-#' @return For a single model, invisibly returns a list containing the fitted
-#'   `mvgls` object, the residual matrix, the `prcomp` result, the PC scores, a
-#'   logical focal-tip indicator, and the variance explained by each PC. For
-#'   multiple models, invisibly returns a named list of that same structure, one
-#'   entry per model.
-#'
-#' @examples
-#' \dontrun{
-#' ex <- focalDisparityExampleData(seed = 2)
-#'
-#' pca_plot <- plotFocalResidualPCA(
-#'   tree = ex$tree,
-#'   trait_data = ex$trait_data,
-#'   focal = ex$focal_tips,
-#'   formula = cbind(y1, y2, y3) ~ size,
-#'   model = "OU",
-#'   method = "LL"
-#' )
-#'
-#' head(pca_plot$scores)
-#'
-#' pca_panels <- plotFocalResidualPCA(
-#'   tree = ex$tree,
-#'   trait_data = ex$trait_data,
-#'   focal = ex$focal_tips,
-#'   formula = cbind(y1, y2, y3) ~ size,
-#'   model = c("BM", "OU", "EB"),
-#'   method = "LL"
-#' )
-#' }
-#'
-#' @export
-plotFocalResidualPCA <- function(tree,
-                                 trait_data,
-                                 focal,
-                                 formula = "trait_data ~ 1",
-                                 model = "BM",
-                                 method = "PL-LOOCV",
-                                 pc_x = 1L,
-                                 pc_y = 2L,
-                                 center = TRUE,
-                                 scale. = FALSE,
-                                 focal_col = "#c44e52",
-                                 background_col = "#4c72b0",
-                                 focal_pch = 19,
-                                 background_pch = 1,
-                                 point_cex = 1,
-                                 show_legend = TRUE,
-                                 legend_position = "topright",
-                                 focal_label = "Focal clade",
-                                 background_label = "Background",
-                                 use_shared_limits = TRUE,
-                                 show_centroids = TRUE,
-                                 centroid_cex = 1.6,
-                                 centroid_pch = 4,
-                                 centroid_lwd = 2,
-                                 show_hulls = TRUE,
-                                 hull_alpha = 0.12,
-                                 hull_lwd = 1.2,
-                                 layout = NULL,
-                                 main = NULL,
-                                 xlab = NULL,
-                                 ylab = NULL,
-                                 min_focal_tips = 3L,
-                                 ...) {
+plotFocalResidualPCAStandalone <- function(tree,
+                                           trait_data,
+                                           focal,
+                                           formula = "trait_data ~ 1",
+                                           model = "BM",
+                                           method = "PL-LOOCV",
+                                           pc_x = 1L,
+                                           pc_y = 2L,
+                                           center = TRUE,
+                                           scale. = FALSE,
+                                           focal_col = "#c44e52",
+                                           background_col = "#4c72b0",
+                                           focal_pch = 19,
+                                           background_pch = 1,
+                                           point_cex = 1,
+                                           show_legend = TRUE,
+                                           legend_position = "topright",
+                                           focal_label = "Focal clade",
+                                           background_label = "Background",
+                                           use_shared_limits = TRUE,
+                                           show_centroids = TRUE,
+                                           centroid_cex = 1.6,
+                                           centroid_pch = 4,
+                                           centroid_lwd = 2,
+                                           show_hulls = TRUE,
+                                           hull_alpha = 0.12,
+                                           hull_lwd = 1.2,
+                                           layout = NULL,
+                                           main = NULL,
+                                           xlab = NULL,
+                                           ylab = NULL,
+                                           min_focal_tips = 3L,
+                                           ...) {
+  checkFocalDisparityStandalonePackages()
+
   extra_args <- list(...)
   reserved_args <- intersect(
     c("formula", "tree", "model", "data", "method"),
@@ -1519,7 +1892,7 @@ plotFocalResidualPCA <- function(tree,
     }
     layout <- as.integer(layout)
   } else if (n_models > 1L) {
-    layout <- .bifrost_residual_pca_panel_layout(n_models)
+    layout <- .standalone_residual_pca_panel_layout(n_models)
   }
 
   resolve_panel_arg <- function(arg, name) {
@@ -1543,7 +1916,7 @@ plotFocalResidualPCA <- function(tree,
   names(outputs) <- model
 
   for (i in seq_along(model)) {
-    outputs[[i]] <- .bifrost_plot_focal_residual_pca_single(
+    outputs[[i]] <- .standalone_plot_focal_residual_pca_single(
       tree = tree,
       trait_data = trait_data,
       focal = focal,
@@ -1567,10 +1940,10 @@ plotFocalResidualPCA <- function(tree,
   shared_x <- NULL
   shared_y <- NULL
   if (isTRUE(use_shared_limits) && n_models > 1L) {
-    shared_x <- .bifrost_expand_numeric_range(
+    shared_x <- .standalone_expand_numeric_range(
       unlist(lapply(outputs, function(x) x$scores[, x$pc_x]))
     )
-    shared_y <- .bifrost_expand_numeric_range(
+    shared_y <- .standalone_expand_numeric_range(
       unlist(lapply(outputs, function(x) x$scores[, x$pc_y]))
     )
   }
@@ -1612,15 +1985,15 @@ plotFocalResidualPCA <- function(tree,
     xlim_i <- if (!is.null(shared_x)) {
       shared_x
     } else {
-      .bifrost_expand_numeric_range(output_i$scores[, output_i$pc_x])
+      .standalone_expand_numeric_range(output_i$scores[, output_i$pc_x])
     }
     ylim_i <- if (!is.null(shared_y)) {
       shared_y
     } else {
-      .bifrost_expand_numeric_range(output_i$scores[, output_i$pc_y])
+      .standalone_expand_numeric_range(output_i$scores[, output_i$pc_y])
     }
 
-    .bifrost_draw_focal_residual_pca_panel(
+    .standalone_draw_focal_residual_pca_panel(
       output = output_i,
       main = main_i,
       xlab = xlab_i,
@@ -1658,22 +2031,24 @@ plotFocalResidualPCA <- function(tree,
 #' Plot Post-hoc Subtree Covariance and Correlation Heatmaps
 #'
 #' @description
-#' Fit post-hoc `mvgls` models on the focal and/or background pruned trees,
-#' extract the inferred residual variance-covariance (`sigma`) matrices, convert
-#' them to correlation matrices, and draw clustered heatmaps with dendrograms.
+#' Standalone counterpart of `plotSubtreeCovarianceHeatmaps()`. It fits post-hoc
+#' `mvgls` models on the focal and/or background pruned trees, extracts the
+#' inferred residual variance-covariance (`sigma`) matrices, converts them to
+#' correlation matrices, and draws clustered heatmaps with dendrograms.
 #'
 #' @param tree A rooted phylogeny of class `phylo` or coercible with
-#'   [ape::as.phylo()].
+#'   `ape::as.phylo()`.
 #' @param trait_data A numeric matrix or data frame with row names matching tip
 #'   labels in `tree`.
 #' @param focal Focal definition. Supply either a character vector of tip
 #'   labels, a logical selector of length `ape::Ntip(tree)`, or a single
 #'   internal node number.
-#' @param formula Formula passed to [mvMORPH::mvgls()]. Supports the same named,
-#'   response-only, and legacy indexed styles as [testFocalDisparity()].
-#' @param model Character fit-model code or vector of fit-model codes. Supported
-#'   values are `"BM"`, `"OU"`, and `"EB"`.
-#' @param method Character fitting method passed to [mvMORPH::mvgls()].
+#' @param formula Formula passed to `mvMORPH::mvgls()`. Supports the same named,
+#'   response-only, and legacy indexed styles as
+#'   `testFocalDisparityStandalone()`.
+#' @param model Character fit-model code or vector of fit-model codes.
+#'   Supported values are `"BM"`, `"OU"`, and `"EB"`.
+#' @param method Character fitting method passed to `mvMORPH::mvgls()`.
 #' @param subsets Which post-hoc subsets to fit. One or both of `"focal"` and
 #'   `"background"`. The background subset is the pruned tree obtained after
 #'   removing focal tips.
@@ -1692,8 +2067,8 @@ plotFocalResidualPCA <- function(tree,
 #'   when plotting covariance matrices. Defaults to `NULL`.
 #' @param cexRow Character expansion for row labels in the heatmaps.
 #' @param cexCol Character expansion for column labels in the heatmaps.
-#' @param margins Margins passed to [stats::heatmap()].
-#' @param ... Additional arguments passed to [mvMORPH::mvgls()].
+#' @param margins Margins passed to `stats::heatmap()`.
+#' @param ... Additional arguments passed to `mvMORPH::mvgls()`.
 #'
 #' @details
 #' Clustering is performed on the inferred correlation matrix for each fitted
@@ -1707,20 +2082,20 @@ plotFocalResidualPCA <- function(tree,
 #' all requested covariance matrices.
 #'
 #' @return Invisibly returns an object of class
-#'   `bifrost_subtree_covariance_heatmaps`. The object behaves like a nested
-#'   named list indexed by model and subset, so existing access patterns such as
-#'   `x$OU$focal$correlation` continue to work. Each leaf contains the fitted
-#'   `mvgls` object, the pruned tree, the tip set, the inferred covariance
-#'   matrix, the derived correlation matrix, the dendrogram used for plotting,
-#'   and a one-row summary table. A model-by-subset summary table and a
-#'   focal-vs-background contrast table are stored on the object and returned by
-#'   [summary()].
+#'   `bifrost_subtree_covariance_heatmaps_standalone`. The object behaves like a
+#'   nested named list indexed by model and subset, so existing access patterns
+#'   such as `x$OU$focal$correlation` continue to work. Each leaf contains the
+#'   fitted `mvgls` object, the pruned tree, the tip set, the inferred
+#'   covariance matrix, the derived correlation matrix, the dendrogram used for
+#'   plotting, and a one-row summary table. A model-by-subset summary table and
+#'   a focal-vs-background contrast table are stored on the object and returned
+#'   by `summary()`.
 #'
 #' @examples
 #' \dontrun{
-#' ex <- focalDisparityExampleData(seed = 2)
+#' ex <- focalDisparityExampleDataStandalone(seed = 2)
 #'
-#' subtree_mats <- plotSubtreeCovarianceHeatmaps(
+#' subtree_mats <- plotSubtreeCovarianceHeatmapsStandalone(
 #'   tree = ex$tree,
 #'   trait_data = ex$trait_data,
 #'   focal = ex$focal_tips,
@@ -1736,27 +2111,27 @@ plotFocalResidualPCA <- function(tree,
 #'
 #' subtree_mats$OU$focal$correlation
 #' }
-#'
-#' @export
-plotSubtreeCovarianceHeatmaps <- function(tree,
-                                          trait_data,
-                                          focal,
-                                          formula = "trait_data ~ 1",
-                                          model = "BM",
-                                          method = "PL-LOOCV",
-                                          subsets = c("focal", "background"),
-                                          matrix_type = c("covariance", "correlation"),
-                                          min_subtree_tips = 3L,
-                                          draw = TRUE,
-                                          palette = grDevices::colorRampPalette(
-                                            c("#3b4cc0", "#f7f7f7", "#b40426")
-                                          )(101),
-                                          correlation_zlim = c(-1, 1),
-                                          covariance_zlim = NULL,
-                                          cexRow = 0.7,
-                                          cexCol = 0.7,
-                                          margins = c(8, 8),
-                                          ...) {
+plotSubtreeCovarianceHeatmapsStandalone <- function(tree,
+                                                    trait_data,
+                                                    focal,
+                                                    formula = "trait_data ~ 1",
+                                                    model = "BM",
+                                                    method = "PL-LOOCV",
+                                                    subsets = c("focal", "background"),
+                                                    matrix_type = c("covariance", "correlation"),
+                                                    min_subtree_tips = 3L,
+                                                    draw = TRUE,
+                                                    palette = grDevices::colorRampPalette(
+                                                      c("#3b4cc0", "#f7f7f7", "#b40426")
+                                                    )(101),
+                                                    correlation_zlim = c(-1, 1),
+                                                    covariance_zlim = NULL,
+                                                    cexRow = 0.7,
+                                                    cexCol = 0.7,
+                                                    margins = c(8, 8),
+                                                    ...) {
+  checkFocalDisparityStandalonePackages()
+
   extra_args <- list(...)
   reserved_args <- intersect(
     c("formula", "tree", "model", "data", "method"),
@@ -1789,7 +2164,7 @@ plotSubtreeCovarianceHeatmaps <- function(tree,
   }
   min_subtree_tips <- as.integer(min_subtree_tips)
 
-  aligned <- .bifrost_align_focal_test_inputs(
+  aligned <- .standalone_align_inputs(
     tree = tree,
     trait_data = trait_data,
     focal = focal,
@@ -1832,7 +2207,7 @@ plotSubtreeCovarianceHeatmaps <- function(tree,
 
     for (subset_i in subsets) {
       tip_set <- if (identical(subset_i, "focal")) focal_tips else background_tips
-      prepared <- .bifrost_prepare_subtree_fit(
+      prepared <- .standalone_prepare_subtree_fit(
         tree = aligned_tree,
         trait_data = aligned_data,
         tips = tip_set,
@@ -1844,12 +2219,12 @@ plotSubtreeCovarianceHeatmaps <- function(tree,
         subset_label = subset_i
       )
 
-      sigma_matrix <- .bifrost_extract_sigma_matrix(prepared$fit)
-      corr_matrix <- .bifrost_sigma_to_correlation(sigma_matrix)
+      sigma_matrix <- .standalone_extract_sigma_matrix(prepared$fit)
+      corr_matrix <- .standalone_sigma_to_correlation(sigma_matrix)
       rownames(sigma_matrix) <- colnames(sigma_matrix) <- prepared$response_names
       rownames(corr_matrix) <- colnames(corr_matrix) <- prepared$response_names
-      dendrogram <- .bifrost_correlation_dendrogram(corr_matrix)
-      matrix_summary <- .bifrost_summarize_subtree_matrices(
+      dendrogram <- .standalone_correlation_dendrogram(corr_matrix)
+      matrix_summary <- .standalone_summarize_subtree_matrices(
         covariance = sigma_matrix,
         correlation = corr_matrix,
         fit_model = model_i,
@@ -1880,7 +2255,7 @@ plotSubtreeCovarianceHeatmaps <- function(tree,
 
   summary_table <- do.call(rbind, summary_rows)
   rownames(summary_table) <- NULL
-  contrast_table <- .bifrost_build_subtree_contrast_table(summary_table)
+  contrast_table <- .standalone_build_subtree_contrast_table(summary_table)
 
   attr(outputs, "summary_table") <- summary_table
   attr(outputs, "contrast_table") <- contrast_table
@@ -1888,7 +2263,7 @@ plotSubtreeCovarianceHeatmaps <- function(tree,
   attr(outputs, "models") <- model
   attr(outputs, "subsets") <- subsets
   attr(outputs, "matrix_type") <- matrix_type
-  class(outputs) <- c("bifrost_subtree_covariance_heatmaps", class(outputs))
+  class(outputs) <- c("bifrost_subtree_covariance_heatmaps_standalone", class(outputs))
 
   resolved_covariance_zlim <- covariance_zlim
   if (is.null(resolved_covariance_zlim) && "covariance" %in% matrix_type) {
@@ -1926,7 +2301,7 @@ plotSubtreeCovarianceHeatmaps <- function(tree,
           } else {
             resolved_covariance_zlim
           }
-          .bifrost_plot_matrix_heatmap(
+          .standalone_plot_matrix_heatmap(
             matrix_data = matrix_to_plot,
             main = paste0(
               model_i,
@@ -1951,83 +2326,12 @@ plotSubtreeCovarianceHeatmaps <- function(tree,
   invisible(outputs)
 }
 
-#' Print method for subtree covariance heatmap summaries
-#'
-#' @param x A `bifrost_subtree_covariance_heatmaps` object returned by
-#'   [plotSubtreeCovarianceHeatmaps()].
-#' @param ... Unused (S3 compatibility).
-#'
-#' @return Invisibly returns `x`.
-#' @export
-print.bifrost_subtree_covariance_heatmaps <- function(x, ...) {
-  summary_table <- attr(x, "summary_table")
-  contrast_table <- attr(x, "contrast_table")
-
-  cat("Subtree Covariance Heatmaps\n")
-  cat("===========================\n\n")
-  cat("Request\n")
-  cat("  Formula: ", attr(x, "formula_input"), "\n", sep = "")
-  cat("  Models: ", paste(attr(x, "models"), collapse = ", "), "\n", sep = "")
-  cat("  Subsets: ", paste(attr(x, "subsets"), collapse = ", "), "\n", sep = "")
-  cat("  Heatmaps: ", paste(attr(x, "matrix_type"), collapse = ", "), "\n\n", sep = "")
-
-  if (!is.null(summary_table) && nrow(summary_table) > 0L) {
-    cat("Summary\n")
-    .bifrost_print_subtree_covariance_table(
-      summary_table[, c(
-        "model",
-        "subset",
-        "n_tips",
-        "n_traits",
-        "trace_cov",
-        "log_det_cov",
-        "max_eigenvalue",
-        "eigenvalue_evenness",
-        "mean_abs_correlation",
-        "max_abs_correlation"
-      ), drop = FALSE]
-    )
-  }
-
-  if (!is.null(contrast_table) && nrow(contrast_table) > 0L) {
-    cat("\nFocal vs Background Contrasts\n")
-    .bifrost_print_subtree_covariance_table(
-      contrast_table[, c(
-        "model",
-        "trace_cov_ratio",
-        "log_det_cov_diff",
-        "max_eigenvalue_ratio",
-        "lead_eigenvalue_prop_diff",
-        "eigenvalue_evenness_diff",
-        "mean_abs_correlation_diff"
-      ), drop = FALSE]
-    )
-  }
-
-  invisible(x)
-}
-
-#' Summary method for subtree covariance heatmap summaries
-#'
-#' @param object A `bifrost_subtree_covariance_heatmaps` object returned by
-#'   [plotSubtreeCovarianceHeatmaps()].
-#' @param ... Unused (S3 compatibility).
-#'
-#' @return A list with `summary_table` and `contrast_table` data frames.
-#' @export
-summary.bifrost_subtree_covariance_heatmaps <- function(object, ...) {
-  list(
-    summary_table = attr(object, "summary_table"),
-    contrast_table = attr(object, "contrast_table")
-  )
-}
-
-.bifrost_draw_focal_grid_summary <- function(summary_df,
-                                             stat = c("ses", "p_upper", "p_lower", "p_two_tailed"),
-                                             main = NULL,
-                                             show_text = TRUE,
-                                             p_cutoff = 0.05,
-                                             digits = 2) {
+.standalone_draw_focal_grid_summary <- function(summary_df,
+                                                stat = c("ses", "p_upper", "p_lower", "p_two_tailed"),
+                                                main = NULL,
+                                                show_text = TRUE,
+                                                p_cutoff = 0.05,
+                                                digits = 2) {
   stat <- match.arg(stat)
   metrics <- unique(summary_df$metric)
   models <- unique(summary_df$model)
@@ -2162,28 +2466,30 @@ summary.bifrost_subtree_covariance_heatmaps <- function(object, ...) {
 #' Run a Full Focal Disparity Grid Across Models and Metrics
 #'
 #' @description
-#' Evaluate [testFocalDisparity()] across all requested combinations of
+#' Standalone counterpart of `runFocalDisparityGrid()`. It evaluates
+#' `testFocalDisparityStandalone()` across all requested combinations of
 #' supported single-regime models and focal disparity metrics for a shared data
 #' bundle.
 #'
 #' @param data_bundle A list with components `tree`, `data`, and `focal_tips`.
 #'   `data` should be a matrix or data frame with row names matching tree tip
 #'   labels.
+#' @param berv_data Backward-compatible alias for `data_bundle`.
 #' @param predictor_col Integer index of the predictor column used on the right
 #'   side of the generated `mvgls` formula.
 #' @param response_cols Integer vector of response columns used on the left side
 #'   of the generated `cbind(...)` formula.
 #' @param metrics Character vector of metric names passed to
-#'   [testFocalDisparity()].
+#'   `testFocalDisparityStandalone()`.
 #' @param models Character vector of supported fit/simulation models passed to
-#'   [testFocalDisparity()].
+#'   `testFocalDisparityStandalone()`.
 #' @param nsim Integer number of bootstrap replicates per model-metric
 #'   combination.
-#' @param method Character fitting method passed to [mvMORPH::mvgls()].
+#' @param method Character fitting method passed to `mvMORPH::mvgls()`.
 #' @param workers Integer number of bootstrap workers.
 #' @param seed Integer seed passed through to each grid cell run.
 #' @param future_plan Future backend used for each grid cell. If `NULL`, the
-#'   same defaulting logic as [testFocalDisparity()] is used.
+#'   same defaulting logic as `testFocalDisparityStandalone()` is used.
 #' @param show_progress Logical; if `TRUE`, show per-run bootstrap progress.
 #' @param min_focal_tips Minimum number of focal tips required after alignment.
 #' @param output_dir Optional directory for saving a CSV summary, an `.rds`
@@ -2192,8 +2498,8 @@ summary.bifrost_subtree_covariance_heatmaps <- function(object, ...) {
 #' @param plot_width Plot width in inches for saved PNG outputs.
 #' @param plot_height Plot height in inches for saved PNG outputs.
 #' @param plot_dpi Plot resolution for saved PNG outputs.
-#' @param ... Additional arguments passed to [testFocalDisparity()] and onward
-#'   to [mvMORPH::mvgls()].
+#' @param ... Additional arguments passed to `testFocalDisparityStandalone()`
+#'   and onward to `mvMORPH::mvgls()`.
 #'
 #' @details
 #' The generated formula has the form
@@ -2201,17 +2507,17 @@ summary.bifrost_subtree_covariance_heatmaps <- function(object, ...) {
 #' responses are selected from `data_bundle$data` using `predictor_col` and
 #' `response_cols`.
 #'
-#' @return An object of class `bifrost_focal_disparity_grid` containing the
-#'   constructed formula, the chosen predictor and responses, a summary data
-#'   frame ordered by upper-tail p-value, the raw list of
-#'   [testFocalDisparity()] result objects, and the normalized output directory
-#'   path when files are written.
+#' @return An object of class `bifrost_focal_disparity_grid_standalone`
+#'   containing the constructed formula, the chosen predictor and responses, a
+#'   summary data frame ordered by upper-tail p-value, the raw list of
+#'   `testFocalDisparityStandalone()` result objects, and the normalized output
+#'   directory path when files are written.
 #'
 #' @examples
 #' \dontrun{
-#' ex <- focalDisparityExampleData(seed = 2)
+#' ex <- focalDisparityExampleDataStandalone(seed = 2)
 #'
-#' grid <- runFocalDisparityGrid(
+#' grid <- runFocalDisparityGridStandalone(
 #'   data_bundle = list(
 #'     tree = ex$tree,
 #'     data = ex$trait_data,
@@ -2229,32 +2535,37 @@ summary.bifrost_subtree_covariance_heatmaps <- function(object, ...) {
 #'
 #' grid$summary
 #' }
-#'
-#' @export
-runFocalDisparityGrid <- function(data_bundle,
-                                  predictor_col = 1L,
-                                  response_cols = 2:12,
-                                  metrics = c(
-                                    "centroid_msd",
-                                    "trace_cov",
-                                    "mean_pairwise_sqdist",
-                                    "log_det_cov",
-                                    "max_eigenvalue",
-                                    "eigenvalue_evenness"
-                                  ),
-                                  models = c("BM", "OU", "EB"),
-                                  nsim = 1000L,
-                                  method = "LL",
-                                  workers = 1L,
-                                  seed = 2L,
-                                  future_plan = NULL,
-                                  show_progress = TRUE,
-                                  min_focal_tips = 3L,
-                                  output_dir = NULL,
-                                  plot_width = 7,
-                                  plot_height = 5,
-                                  plot_dpi = 150,
-                                  ...) {
+runFocalDisparityGridStandalone <- function(data_bundle = NULL,
+                                            berv_data = NULL,
+                                            predictor_col = 1L,
+                                            response_cols = 2:12,
+                                            metrics = c(
+                                              "centroid_msd",
+                                              "trace_cov",
+                                              "mean_pairwise_sqdist",
+                                              "log_det_cov",
+                                              "max_eigenvalue",
+                                              "eigenvalue_evenness"
+                                            ),
+                                            models = c("BM", "OU", "EB"),
+                                            nsim = 1000L,
+                                            method = "LL",
+                                            workers = 1L,
+                                            seed = 2L,
+                                            future_plan = NULL,
+                                            show_progress = TRUE,
+                                            min_focal_tips = 3L,
+                                            output_dir = NULL,
+                                            plot_width = 7,
+                                            plot_height = 5,
+                                            plot_dpi = 150,
+                                            ...) {
+  checkFocalDisparityStandalonePackages()
+
+  if (is.null(data_bundle)) {
+    data_bundle <- berv_data
+  }
+
   if (!is.list(data_bundle) ||
       !all(c("tree", "data", "focal_tips") %in% names(data_bundle))) {
     stop("`data_bundle` must be a list with elements: tree, data, focal_tips.")
@@ -2322,7 +2633,7 @@ runFocalDisparityGrid <- function(data_bundle,
 
     message(sprintf("[%d/%d] model=%s metric=%s", i, nrow(grid), model_i, metric_i))
 
-    result_i <- testFocalDisparity(
+    result_i <- testFocalDisparityStandalone(
       tree = data_bundle$tree,
       trait_data = trait_data,
       focal = data_bundle$focal_tips,
@@ -2398,7 +2709,7 @@ runFocalDisparityGrid <- function(data_bundle,
     results = results,
     output_dir = NULL
   )
-  class(grid_out) <- c("bifrost_focal_disparity_grid", class(grid_out))
+  class(grid_out) <- c("bifrost_focal_disparity_grid_standalone", class(grid_out))
 
   if (!is.null(output_dir)) {
     summary_path <- file.path(output_dir, "focal-disparity-grid-summary.csv")
@@ -2425,19 +2736,18 @@ runFocalDisparityGrid <- function(data_bundle,
   invisible(grid_out)
 }
 
-#' Print method for focal disparity grid runs
+#' Print method for standalone focal disparity grid runs
 #'
-#' @param x A `bifrost_focal_disparity_grid` object returned by
-#'   [runFocalDisparityGrid()].
+#' @param x A `bifrost_focal_disparity_grid_standalone` object returned by
+#'   `runFocalDisparityGridStandalone()`.
 #' @param top_n Number of top-ranked rows from `x$summary` to display.
 #' @param ... Unused (S3 compatibility).
 #'
 #' @return Invisibly returns `x`.
-#' @export
-print.bifrost_focal_disparity_grid <- function(x, top_n = 6L, ...) {
+print.bifrost_focal_disparity_grid_standalone <- function(x, top_n = 6L, ...) {
   top_n <- max(1L, as.integer(top_n))
-  cat("Focal Disparity Grid\n")
-  cat("====================\n\n")
+  cat("Standalone Focal Disparity Grid\n")
+  cat("===============================\n\n")
   cat("Formula\n")
   cat("  ", paste(deparse(x$formula, width.cutoff = 500), collapse = " "), "\n", sep = "")
   cat("  Predictor: ", x$predictor, "\n", sep = "")
@@ -2457,10 +2767,10 @@ print.bifrost_focal_disparity_grid <- function(x, top_n = 6L, ...) {
   invisible(x)
 }
 
-#' Plot method for focal disparity grid runs
+#' Plot method for standalone focal disparity grid runs
 #'
-#' @param x A `bifrost_focal_disparity_grid` object returned by
-#'   [runFocalDisparityGrid()].
+#' @param x A `bifrost_focal_disparity_grid_standalone` object returned by
+#'   `runFocalDisparityGridStandalone()`.
 #' @param stat Which summary statistic to visualize. One of `"ses"`,
 #'   `"p_upper"`, `"p_lower"`, or `"p_two_tailed"`.
 #' @param main Plot title.
@@ -2471,17 +2781,16 @@ print.bifrost_focal_disparity_grid <- function(x, top_n = 6L, ...) {
 #' @param ... Unused (S3 compatibility).
 #'
 #' @return Invisibly returns `x`.
-#' @export
-plot.bifrost_focal_disparity_grid <- function(x,
-                                              stat = c("ses", "p_upper", "p_lower", "p_two_tailed"),
-                                              main = NULL,
-                                              show_text = TRUE,
-                                              p_cutoff = 0.05,
-                                              digits = 2,
-                                              ...) {
+plot.bifrost_focal_disparity_grid_standalone <- function(x,
+                                                         stat = c("ses", "p_upper", "p_lower", "p_two_tailed"),
+                                                         main = NULL,
+                                                         show_text = TRUE,
+                                                         p_cutoff = 0.05,
+                                                         digits = 2,
+                                                         ...) {
   old_par <- graphics::par(no.readonly = TRUE)
   on.exit(graphics::par(old_par), add = TRUE)
-  .bifrost_draw_focal_grid_summary(
+  .standalone_draw_focal_grid_summary(
     summary_df = x$summary,
     stat = match.arg(stat),
     main = main,
@@ -2492,18 +2801,85 @@ plot.bifrost_focal_disparity_grid <- function(x,
   invisible(x)
 }
 
-#' Print method for focal disparity bootstrap tests
+#' Print method for standalone subtree covariance heatmap summaries
 #'
-#' @param x A `bifrost_focal_disparity_test` object returned by
-#'   `testFocalDisparity()`.
+#' @param x A `bifrost_subtree_covariance_heatmaps_standalone` object returned
+#'   by `plotSubtreeCovarianceHeatmapsStandalone()`.
 #' @param ... Unused (S3 compatibility).
 #'
 #' @return Invisibly returns `x`.
+print.bifrost_subtree_covariance_heatmaps_standalone <- function(x, ...) {
+  summary_table <- attr(x, "summary_table")
+  contrast_table <- attr(x, "contrast_table")
+
+  cat("Standalone Subtree Covariance Heatmaps\n")
+  cat("======================================\n\n")
+  cat("Request\n")
+  cat("  Formula: ", attr(x, "formula_input"), "\n", sep = "")
+  cat("  Models: ", paste(attr(x, "models"), collapse = ", "), "\n", sep = "")
+  cat("  Subsets: ", paste(attr(x, "subsets"), collapse = ", "), "\n", sep = "")
+  cat("  Heatmaps: ", paste(attr(x, "matrix_type"), collapse = ", "), "\n\n", sep = "")
+
+  if (!is.null(summary_table) && nrow(summary_table) > 0L) {
+    cat("Summary\n")
+    .standalone_print_subtree_covariance_table(
+      summary_table[, c(
+        "model",
+        "subset",
+        "n_tips",
+        "n_traits",
+        "trace_cov",
+        "log_det_cov",
+        "max_eigenvalue",
+        "eigenvalue_evenness",
+        "mean_abs_correlation",
+        "max_abs_correlation"
+      ), drop = FALSE]
+    )
+  }
+
+  if (!is.null(contrast_table) && nrow(contrast_table) > 0L) {
+    cat("\nFocal vs Background Contrasts\n")
+    .standalone_print_subtree_covariance_table(
+      contrast_table[, c(
+        "model",
+        "trace_cov_ratio",
+        "log_det_cov_diff",
+        "max_eigenvalue_ratio",
+        "lead_eigenvalue_prop_diff",
+        "eigenvalue_evenness_diff",
+        "mean_abs_correlation_diff"
+      ), drop = FALSE]
+    )
+  }
+
+  invisible(x)
+}
+
+#' Summary method for standalone subtree covariance heatmap summaries
 #'
-#' @export
-print.bifrost_focal_disparity_test <- function(x, ...) {
-  cat("Bifrost Focal Disparity Test\n")
-  cat("============================\n\n")
+#' @param object A `bifrost_subtree_covariance_heatmaps_standalone` object
+#'   returned by `plotSubtreeCovarianceHeatmapsStandalone()`.
+#' @param ... Unused (S3 compatibility).
+#'
+#' @return A list with `summary_table` and `contrast_table` data frames.
+summary.bifrost_subtree_covariance_heatmaps_standalone <- function(object, ...) {
+  list(
+    summary_table = attr(object, "summary_table"),
+    contrast_table = attr(object, "contrast_table")
+  )
+}
+
+#' Print method for standalone focal disparity bootstrap tests
+#'
+#' @param x A `bifrost_focal_disparity_test_standalone` object returned by
+#'   `testFocalDisparityStandalone()`.
+#' @param ... Unused (S3 compatibility).
+#'
+#' @return Invisibly returns `x`.
+print.bifrost_focal_disparity_test_standalone <- function(x, ...) {
+  cat("Standalone Focal Disparity Test\n")
+  cat("================================\n\n")
   cat("Model\n")
   cat("  Input formula: ", x$formula_input, "\n", sep = "")
   if (!identical(x$formula_input, x$fit_formula)) {
@@ -2531,14 +2907,14 @@ print.bifrost_focal_disparity_test <- function(x, ...) {
   invisible(x)
 }
 
-#' Plot method for focal disparity bootstrap tests
+#' Plot method for standalone focal disparity bootstrap tests
 #'
-#' @param x A `bifrost_focal_disparity_test` object returned by
-#'   `testFocalDisparity()`.
-#' @param breaks Histogram break specification passed to [graphics::hist()].
+#' @param x A `bifrost_focal_disparity_test_standalone` object returned by
+#'   `testFocalDisparityStandalone()`.
+#' @param breaks Histogram break specification passed to `graphics::hist()`.
 #' @param main Plot title. Defaults to `"Null Distribution of Focal Disparity"`.
 #' @param xlab X-axis label. Defaults to a metric-aware label.
-#' @param ... Additional graphical parameters passed to [graphics::hist()].
+#' @param ... Additional graphical parameters passed to `graphics::hist()`.
 #'
 #' @details
 #' The x-axis is expanded automatically when needed so the observed disparity
@@ -2546,13 +2922,11 @@ print.bifrost_focal_disparity_test <- function(x, ...) {
 #' widened only when necessary to include the observed value.
 #'
 #' @return Invisibly returns `x`.
-#'
-#' @export
-plot.bifrost_focal_disparity_test <- function(x,
-                                              breaks = 30,
-                                              main = "Null Distribution of Focal Disparity",
-                                              xlab = NULL,
-                                              ...) {
+plot.bifrost_focal_disparity_test_standalone <- function(x,
+                                                         breaks = 30,
+                                                         main = "Null Distribution of Focal Disparity",
+                                                         xlab = NULL,
+                                                         ...) {
   dots <- list(...)
 
   if (is.null(xlab)) {
@@ -2626,3 +3000,52 @@ plot.bifrost_focal_disparity_test <- function(x,
   )
   invisible(x)
 }
+
+# Example usage:
+#
+# source("experimental/scripts/focal-disparity-standalone.Rscript")
+# # or, if the script has been copied elsewhere:
+# source("focal-disparity-standalone.Rscript")
+# ex <- focalDisparityExampleDataStandalone(seed = 2)
+# res <- testFocalDisparityStandalone(
+#   tree = ex$tree,
+#   trait_data = ex$trait_data,
+#   focal = ex$focal_tips,
+#   formula = cbind(y1, y2, y3) ~ size,
+#   metric = "centroid_msd",
+#   nsim = 100,
+#   model = "BM",
+#   method = "LL",
+#   workers = 1,
+#   future_plan = "sequential",
+#   show_progress = FALSE,
+#   seed = 2
+# )
+# print(res)
+# plot(res)
+# pca_plot <- plotFocalResidualPCAStandalone(
+#   tree = ex$tree,
+#   trait_data = ex$trait_data,
+#   focal = ex$focal_tips,
+#   formula = cbind(y1, y2, y3) ~ size,
+#   model = "OU",
+#   method = "LL"
+# )
+# head(pca_plot$scores)
+#
+# grid <- runFocalDisparityGridStandalone(
+#   data_bundle = list(
+#     tree = ex$tree,
+#     data = ex$trait_data,
+#     focal_tips = ex$focal_tips
+#   ),
+#   predictor_col = 4,
+#   response_cols = 1:3,
+#   nsim = 25,
+#   models = c("BM", "OU"),
+#   metrics = c("centroid_msd", "mean_pairwise_sqdist"),
+#   workers = 1,
+#   future_plan = "sequential",
+#   show_progress = FALSE
+# )
+# grid$summary

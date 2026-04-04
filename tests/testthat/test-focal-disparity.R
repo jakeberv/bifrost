@@ -128,11 +128,26 @@ test_that("metric helpers cover built-in variants and invalid return values", {
 
   trace_metric <- .bifrost_make_disparity_metric("trace_cov")
   pairwise_metric <- .bifrost_make_disparity_metric("mean_pairwise_sqdist")
+  log_det_metric <- .bifrost_make_disparity_metric("log_det_cov")
+  max_eigen_metric <- .bifrost_make_disparity_metric("max_eigenvalue")
+  evenness_metric <- .bifrost_make_disparity_metric("eigenvalue_evenness")
+  singular_X <- cbind(1:4, 2 * (1:4), 3 * (1:4))
+  singular_eigenvalues <- .bifrost_cov_eigenvalues(singular_X)
 
   expect_identical(trace_metric$label, "trace_cov")
   expect_identical(pairwise_metric$label, "mean_pairwise_sqdist")
+  expect_identical(log_det_metric$label, "log_det_cov")
+  expect_identical(max_eigen_metric$label, "max_eigenvalue")
+  expect_identical(evenness_metric$label, "eigenvalue_evenness")
   expect_true(trace_metric$fun(X) > 0)
   expect_true(pairwise_metric$fun(X) > 0)
+  expect_true(is.finite(log_det_metric$fun(X)))
+  expect_true(is.finite(log_det_metric$fun(singular_X)))
+  expect_true(max_eigen_metric$fun(X) > 0)
+  expect_gte(evenness_metric$fun(X), 0)
+  expect_lte(evenness_metric$fun(X), 1)
+  expect_identical(length(singular_eigenvalues), 3L)
+  expect_true(all(singular_eigenvalues >= 0))
 
   expect_error(
     .bifrost_eval_disparity_metric(function(x) c(1, 2), X),
@@ -142,6 +157,175 @@ test_that("metric helpers cover built-in variants and invalid return values", {
     .bifrost_eval_disparity_metric(function(x) NA_real_, X),
     "single finite numeric value"
   )
+})
+
+test_that("testFocalDisparity supports additional covariance-based metrics", {
+  skip_if_not_installed("mvMORPH")
+  skip_if_not_installed("phytools")
+
+  x <- make_focal_residual_test_data()
+  metrics <- c("log_det_cov", "max_eigenvalue", "eigenvalue_evenness")
+
+  for (metric_name in metrics) {
+    res <- testFocalDisparity(
+      tree = x$tree,
+      trait_data = x$dat,
+      focal = x$tree$tip.label[1:4],
+      formula = cbind(y1, y2) ~ size,
+      metric = metric_name,
+      nsim = 2,
+      method = "LL",
+      workers = 1,
+      future_plan = "sequential",
+      show_progress = FALSE,
+      seed = 2026
+    )
+
+    expect_identical(res$metric, metric_name)
+    expect_true(is.finite(res$observed_statistic))
+    expect_true(all(is.finite(res$null_statistics)))
+  }
+})
+
+test_that("runFocalDisparityGrid evaluates combinations and optionally writes outputs", {
+  skip_if_not_installed("mvMORPH")
+
+  ex <- focalDisparityExampleData(seed = 2)
+  out_dir <- file.path(tempdir(), "focal-disparity-grid-test")
+
+  grid <- runFocalDisparityGrid(
+    data_bundle = list(
+      tree = ex$tree,
+      data = ex$trait_data,
+      focal_tips = ex$focal_tips
+    ),
+    predictor_col = 4,
+    response_cols = 1:3,
+    metrics = c("centroid_msd", "mean_pairwise_sqdist"),
+    models = c("BM", "OU"),
+    nsim = 1,
+    method = "LL",
+    workers = 1,
+    seed = 2,
+    future_plan = "sequential",
+    show_progress = FALSE,
+    output_dir = out_dir
+  )
+
+  expect_s3_class(grid$formula, "formula")
+  expect_s3_class(grid, "bifrost_focal_disparity_grid")
+  expect_identical(grid$predictor, "size")
+  expect_identical(grid$responses, c("y1", "y2", "y3"))
+  expect_equal(nrow(grid$summary), 4L)
+  expect_length(grid$results, 4L)
+  expect_true(all(c("model", "metric", "p_upper") %in% colnames(grid$summary)))
+  expect_true(file.exists(file.path(out_dir, "focal-disparity-grid-summary.csv")))
+  expect_true(file.exists(file.path(out_dir, "focal-disparity-grid-results.rds")))
+  expect_true(file.exists(file.path(out_dir, "focal-disparity-grid-summary.png")))
+  expect_length(list.files(out_dir, pattern = "\\.png$", full.names = TRUE), 5L)
+
+  printed <- paste(capture.output(print(grid)), collapse = "\n")
+  expect_match(printed, "Focal Disparity Grid")
+
+  plot_file <- tempfile(fileext = ".pdf")
+  grDevices::pdf(plot_file)
+  plot(grid)
+  grDevices::dev.off()
+  expect_true(file.exists(plot_file))
+})
+
+test_that("plotFocalResidualPCA returns residual ordination data and draws a plot", {
+  skip_if_not_installed("mvMORPH")
+
+  ex <- focalDisparityExampleData(seed = 2)
+  plot_file <- tempfile(fileext = ".pdf")
+
+  grDevices::pdf(plot_file)
+  pca_plot <- plotFocalResidualPCA(
+    tree = ex$tree,
+    trait_data = ex$trait_data,
+    focal = ex$focal_tips,
+    formula = cbind(y1, y2, y3) ~ size,
+    model = "OU",
+    method = "LL"
+  )
+  grDevices::dev.off()
+
+  expect_true(file.exists(plot_file))
+  expect_s3_class(pca_plot$pca, "prcomp")
+  expect_equal(nrow(pca_plot$scores), ape::Ntip(ex$tree))
+  expect_equal(length(pca_plot$focal_indicator), ape::Ntip(ex$tree))
+  expect_true(all(pca_plot$focal_indicator == (rownames(pca_plot$scores) %in% ex$focal_tips)))
+  expect_equal(length(pca_plot$variance_explained), ncol(ex$trait_data) - 1L)
+  expect_identical(pca_plot$fit_model, "OU")
+})
+
+test_that("plotFocalResidualPCA supports multi-model panel plots", {
+  skip_if_not_installed("mvMORPH")
+
+  ex <- focalDisparityExampleData(seed = 2)
+  plot_file <- tempfile(fileext = ".pdf")
+
+  grDevices::pdf(plot_file)
+  pca_panels <- plotFocalResidualPCA(
+    tree = ex$tree,
+    trait_data = ex$trait_data,
+    focal = ex$focal_tips,
+    formula = cbind(y1, y2, y3) ~ size,
+    model = c("BM", "OU", "EB"),
+    method = "LL",
+    show_legend = FALSE
+  )
+  grDevices::dev.off()
+
+  expect_true(file.exists(plot_file))
+  expect_type(pca_panels, "list")
+  expect_identical(names(pca_panels), c("BM", "OU", "EB"))
+  expect_true(all(vapply(pca_panels, function(x) inherits(x$pca, "prcomp"), logical(1))))
+  expect_identical(unname(vapply(pca_panels, `[[`, character(1), "fit_model")), c("BM", "OU", "EB"))
+})
+
+test_that("plotSubtreeCovarianceHeatmaps returns post-hoc subtree matrices", {
+  skip_if_not_installed("mvMORPH")
+
+  ex <- focalDisparityExampleData(seed = 2)
+  plot_file <- tempfile(fileext = ".pdf")
+
+  grDevices::pdf(plot_file)
+  subtree_mats <- suppressWarnings(
+    plotSubtreeCovarianceHeatmaps(
+      tree = ex$tree,
+      trait_data = ex$trait_data,
+      focal = ex$focal_tips,
+      formula = cbind(y1, y2, y3) ~ size,
+      model = c("BM", "OU"),
+      subsets = c("focal", "background"),
+      matrix_type = c("covariance", "correlation"),
+      method = "LL"
+    )
+  )
+  grDevices::dev.off()
+
+  expect_true(file.exists(plot_file))
+  expect_s3_class(subtree_mats, "bifrost_subtree_covariance_heatmaps")
+  expect_identical(names(subtree_mats), c("BM", "OU"))
+  expect_identical(names(subtree_mats$BM), c("focal", "background"))
+  expect_equal(colnames(subtree_mats$BM$focal$covariance), c("y1", "y2", "y3"))
+  expect_equal(colnames(subtree_mats$BM$focal$correlation), c("y1", "y2", "y3"))
+  expect_true(isSymmetric(subtree_mats$OU$background$covariance))
+  expect_true(isSymmetric(subtree_mats$OU$background$correlation))
+  expect_equal(unname(diag(subtree_mats$OU$background$correlation)), rep(1, 3))
+  expect_true("summary" %in% names(subtree_mats$BM$focal))
+  expect_equal(subtree_mats$BM$focal$summary$subset, "focal")
+
+  summary_obj <- bifrost:::summary.bifrost_subtree_covariance_heatmaps(subtree_mats)
+  expect_true(all(c("summary_table", "contrast_table") %in% names(summary_obj)))
+  expect_equal(unique(summary_obj$summary_table$model), c("BM", "OU"))
+  expect_equal(summary_obj$summary_table$subset, c("focal", "background", "focal", "background"))
+  expect_equal(summary_obj$contrast_table$model, c("BM", "OU"))
+  printed <- paste(capture.output(print(subtree_mats)), collapse = "\n")
+  expect_match(printed, "Subtree Covariance Heatmaps")
+  expect_match(printed, "Focal vs Background Contrasts")
 })
 
 test_that("sigma and model helpers cover alternative object shapes", {
@@ -363,6 +547,31 @@ test_that("testFocalDisparity fits a named-column formula workflow", {
   printed <- capture.output(print(res))
   expect_true(any(grepl("Bifrost Focal Disparity Test", printed, fixed = TRUE)))
   expect_true(any(grepl("Metric: centroid_msd", printed, fixed = TRUE)))
+})
+
+test_that("testFocalDisparity supports legacy indexed formulas over trait_data", {
+  skip_if_not_installed("mvMORPH")
+  skip_if_not_installed("phytools")
+
+  x <- make_focal_residual_test_data()
+
+  res <- testFocalDisparity(
+    tree = x$tree,
+    trait_data = x$dat,
+    focal = x$tree$tip.label[1:4],
+    formula = "trait_data[, 1:2] ~ trait_data[, 3]",
+    nsim = 3,
+    method = "LL",
+    workers = 1,
+    future_plan = "sequential",
+    show_progress = FALSE,
+    seed = 2026
+  )
+
+  expect_s3_class(res, "bifrost_focal_disparity_test")
+  expect_identical(res$formula_input, "trait_data[, 1:2] ~ trait_data[, 3]")
+  expect_identical(res$fit_formula, "cbind(y1, y2) ~ size")
+  expect_true(all(is.finite(res$null_statistics)))
 })
 
 test_that("testFocalDisparity resolves focal clades from node numbers", {

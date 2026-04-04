@@ -107,6 +107,40 @@ test_that("normalizeMvglsFormulaCall can synthesize multivariate names from matr
   testthat::expect_identical(colnames(normalized$args_list$data), c("Y1", "Y2", "mass"))
 })
 
+test_that("normalizeMvglsFormulaCall rewrites legacy indexed formulas onto named columns", {
+  dat <- data.frame(
+    y1 = c(1, 2, 3),
+    y2 = c(4, 5, 6),
+    y3 = c(7, 8, 9),
+    mass = c(10, 11, 12),
+    row.names = c("sp1", "sp2", "sp3")
+  )
+
+  normalized <- bifrost:::normalizeMvglsFormulaCall(
+    formula = "trait_data[, 2:3] ~ trait_data[, 1]",
+    trait_data = dat,
+    args_list = list(data = dat)
+  )
+
+  testthat::expect_identical(
+    paste(deparse(normalized$formula), collapse = " "),
+    "cbind(y2, y3) ~ y1"
+  )
+  testthat::expect_identical(rownames(normalized$args_list$data), rownames(dat))
+
+  intercept_only <- bifrost:::normalizeMvglsFormulaCall(
+    formula = "trait_data[, 1:2] ~ 1",
+    trait_data = dat,
+    args_list = list(data = dat)
+  )
+
+  testthat::expect_identical(
+    paste(deparse(intercept_only$formula), collapse = " "),
+    "cbind(y1, y2) ~ 1"
+  )
+  testthat::expect_identical(colnames(intercept_only$args_list$data), c("y1", "y2"))
+})
+
 test_that("normalizeMvglsFormulaCall can rewrite single-response data.frames when allowed", {
   dat <- data.frame(
     y1 = c(1, 2, 3),

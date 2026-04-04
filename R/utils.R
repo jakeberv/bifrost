@@ -229,7 +229,7 @@ normalizeMvglsFormulaCall <- function(formula, trait_data, args_list, allow_sing
     rownames(data_obj) <- rownames(trait_data)
   }
 
-  if (grepl("^\\s*trait_data\\b", formula_chr)) {
+  if (grepl("\\btrait_data\\b", formula_chr)) {
     formula_terms <- stats::terms(formula_obj)
     intercept_only <- length(attr(formula_terms, "term.labels")) == 0L &&
       identical(attr(formula_terms, "intercept"), 1L)
@@ -256,11 +256,77 @@ normalizeMvglsFormulaCall <- function(formula, trait_data, args_list, allow_sing
       }
       args_list$data <- data_obj
       formula_chr <- paste(deparse(formula_obj, width.cutoff = 500), collapse = " ")
-    } else {
+    } else if (intercept_only && lhs_is_trait_data) {
       return(list(
         formula   = formula_obj,
         args_list = args_list
       ))
+    } else {
+      data_names <- colnames(data_obj)
+      has_missing_names <- is.null(data_names) || any(!nzchar(data_names))
+
+      if (has_missing_names) {
+        if (is.null(data_names)) {
+          data_names <- rep("", ncol(data_obj))
+        }
+        missing_idx <- which(!nzchar(data_names))
+        data_names[missing_idx] <- paste0("V", seq_along(missing_idx))
+        data_names <- make.unique(make.names(data_names))
+        colnames(data_obj) <- data_names
+      }
+
+      lhs_expr <- formula_obj[[2L]]
+      rhs_expr <- formula_obj[[3L]]
+      has_legacy_refs <- isLegacyTraitDataReference(lhs_expr) ||
+        isLegacyTraitDataSubset(lhs_expr) ||
+        length(collectLegacyTraitDataColumns(rhs_expr, colnames(data_obj))) > 0L
+
+      if (!has_legacy_refs) {
+        return(list(
+          formula   = formula_obj,
+          args_list = args_list
+        ))
+      }
+
+      formula_spec <- normalizeSimulationFormulaSpec(
+        formula = formula_obj,
+        trait_data = data_obj
+      )
+
+      if (isTRUE(formula_spec$intercept_only)) {
+        data_obj <- data_obj[, formula_spec$response_column_names, drop = FALSE]
+        rownames(data_obj) <- rownames(trait_data)
+        args_list$data <- data_obj
+        formula_obj <- stats::as.formula("trait_data ~ 1")
+        formula_chr <- paste(deparse(formula_obj, width.cutoff = 500), collapse = " ")
+
+        response_only_df <- is.data.frame(data_obj) &&
+          ncol(data_obj) > 0L &&
+          all(vapply(data_obj, is.numeric, logical(1)))
+
+        if (response_only_df) {
+          response_names <- colnames(data_obj)
+          if (is.null(response_names) || any(!nzchar(response_names))) {
+            response_names <- paste0("Y", seq_len(ncol(data_obj)))
+            colnames(data_obj) <- response_names
+          }
+          response_names <- make.unique(make.names(response_names))
+          colnames(data_obj) <- response_names
+          formula_obj <- if (length(response_names) == 1L) {
+            stats::as.formula(paste0(response_names, " ~ 1"))
+          } else {
+            stats::as.formula(
+              paste0("cbind(", paste(response_names, collapse = ", "), ") ~ 1")
+            )
+          }
+          args_list$data <- data_obj
+          formula_chr <- paste(deparse(formula_obj, width.cutoff = 500), collapse = " ")
+        }
+      } else {
+        formula_obj <- formula_spec$formula_normalized_obj
+        formula_chr <- paste(deparse(formula_obj, width.cutoff = 500), collapse = " ")
+        args_list$data <- data_obj
+      }
     }
   }
 

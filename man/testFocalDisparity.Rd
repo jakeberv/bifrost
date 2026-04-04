@@ -9,7 +9,8 @@ testFocalDisparity(
   trait_data,
   focal,
   formula = "trait_data ~ 1",
-  metric = c("centroid_msd", "trace_cov", "mean_pairwise_sqdist"),
+  metric = c("centroid_msd", "trace_cov", "mean_pairwise_sqdist", "log_det_cov",
+    "max_eigenvalue", "eigenvalue_evenness"),
   nsim = 999,
   model = "BM",
   method = "PL-LOOCV",
@@ -34,18 +35,33 @@ number whose descendant tips define the focal clade.}
 
 \item{formula}{Formula passed to \code{\link[mvMORPH:mvgls]{mvMORPH::mvgls()}}. Named-column formulas
 such as \code{cbind(y1, y2) ~ size + group} are supported, as are response-only
-matrix workflows such as \code{"trait_data ~ 1"}.}
+matrix workflows such as \code{"trait_data ~ 1"}. Legacy indexed formulas that
+reference subsets of \code{trait_data} directly are also supported and are
+internally rewritten onto named columns, for example
+\code{"trait_data[, 1:5] ~ 1"} or \code{"trait_data[, 2:12] ~ trait_data[, 1]"}.}
 
-\item{metric}{Either one of \code{"centroid_msd"}, \code{"trace_cov"}, or
-\code{"mean_pairwise_sqdist"}, or a function that accepts the focal residual
+\item{metric}{Either one of \code{"centroid_msd"}, \code{"trace_cov"},
+\code{"mean_pairwise_sqdist"}, \code{"log_det_cov"}, \code{"max_eigenvalue"}, or
+\code{"eigenvalue_evenness"}, or a function that accepts the focal residual
 matrix and returns a single numeric value. The built-in options are all
-disparity/dispersion summaries.}
+disparity/dispersion summaries, including covariance-volume and
+eigenspectrum-based measures:
+\code{"centroid_msd"} is mean squared Euclidean distance from the centroid;
+\code{"trace_cov"} is total variance (the covariance trace);
+\code{"mean_pairwise_sqdist"} is mean squared pairwise Euclidean distance;
+\code{"log_det_cov"} is the log generalized variance; \code{"max_eigenvalue"}
+emphasizes the dominant axis of variation; and
+\code{"eigenvalue_evenness"} summarizes how evenly variance is distributed
+across axes on a 0 to 1 scale.}
 
 \item{nsim}{Integer number of bootstrap replicates.}
 
 \item{model}{Character \code{mvgls} fit-model code used for the observed fit,
 bootstrap simulations, and each bootstrap refit. Supported values are
-\code{"BM"}, \code{"OU"}, and \code{"EB"}.}
+\code{"BM"}, \code{"OU"}, and \code{"EB"}: \code{"BM"} is a Brownian-motion model,
+\code{"OU"} is a single-regime Ornstein-Uhlenbeck model, and \code{"EB"} is an
+early-burst model with exponentially changing evolutionary rates through
+time.}
 
 \item{method}{Character fitting method passed to \code{\link[mvMORPH:mvgls]{mvMORPH::mvgls()}}.}
 
@@ -86,6 +102,17 @@ model used for fitting: \code{"BM"} uses \code{mvSIM(model = "BM1")}, \code{"OU"
 \code{mvSIM(model = "OU1")}, and \code{"EB"} uses \code{mvSIM(model = "EB")}. The fitted
 residual covariance matrix and fitted mean structure from the observed
 \code{mvgls} model are reused in each bootstrap replicate.
+
+The built-in metric choices emphasize different aspects of focal disparity:
+\code{centroid_msd}, \code{trace_cov}, and \code{mean_pairwise_sqdist} target overall
+spread; \code{log_det_cov} measures covariance volume; \code{max_eigenvalue}
+emphasizes the largest principal axis; and \code{eigenvalue_evenness} measures
+how evenly disparity is distributed across dimensions rather than how large
+total disparity is.
+
+The supported models are intentionally restricted to single-regime nulls so
+the fitted model and bootstrap model stay aligned: Brownian motion (\code{"BM"}),
+Ornstein-Uhlenbeck (\code{"OU"}), and early burst (\code{"EB"}).
 
 If \code{focal} is supplied as an internal node number, descendant tips are
 resolved on the original tree before overlap pruning, so the focal definition
