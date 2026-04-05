@@ -22,9 +22,11 @@ searchOptimalConfiguration(
 )
 }
 \arguments{
-\item{baseline_tree}{A rooted SIMMAP/\code{phylo} object representing the baseline
-(single-regime) tree. If not SIMMAP-initialized, it should already be painted to a
-single baseline state and have tip order matching \code{trait_data}.}
+\item{baseline_tree}{A rooted \code{phylo} (or SIMMAP/\code{phylo}) object representing
+the starting tree. It does not need to already be painted: the function converts the
+input to a \code{phylo} object and internally paints a single baseline state at the root
+before generating candidate shift configurations. Tip order must match
+\code{trait_data}.}
 
 \item{trait_data}{A \code{matrix} or \code{data.frame} of continuous trait values with row
 names matching \code{baseline_tree$tip.label} (same order). For the default
@@ -121,7 +123,7 @@ Additional components appear conditionally:
 }
 }
 \description{
-Greedy, stepwise search for evolutionary regime shifts on a SIMMAP-style phylogeny
+Greedy, stepwise search for evolutionary regime shifts on a phylogeny
 using multivariate \code{mvgls} fits from \pkg{mvMORPH}. The routine:
 \enumerate{
 \item builds one-shift candidate trees for all internal nodes meeting a tip-size threshold
@@ -143,6 +145,8 @@ are forwarded to \code{\link[mvMORPH]{mvgls}} (e.g., \code{method = "LL"} or
 \itemize{
 \item \emph{Tree:} \code{baseline_tree} should be a rooted \code{phylo} (or SIMMAP-style) tree
 with branch lengths interpreted in units of time. An ultrametric tree is not required.
+The starting tree does not need to already be painted; \code{searchOptimalConfiguration()}
+paints a single baseline regime internally before building shifted candidates.
 \item \emph{Trait data alignment:} \code{rownames(trait_data)} must match
 \code{baseline_tree$tip.label} in both names and order; any tips without data should be
 pruned beforehand.

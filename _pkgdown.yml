@@ -5,11 +5,11 @@ articles:
     contents:
       - theoretical-background-vignette
       - pca-model-selection-and-bifrost-vignette
-  - title: Examples
-    navbar: Examples
+  - title: Using bifrost
+    navbar: Using bifrost
     contents:
+      - quick-start-vignette
       - jaw-shape-vignette
-      - simulation-study-vignette
 template:
   bootstrap: 5
   includes:

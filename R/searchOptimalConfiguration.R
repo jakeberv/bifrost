@@ -1,7 +1,7 @@
 #' Search for an Optimal Multi-Regime (Shift) Configuration on a Phylogeny
 #'
 #' @description
-#' Greedy, stepwise search for evolutionary regime shifts on a SIMMAP-style phylogeny
+#' Greedy, stepwise search for evolutionary regime shifts on a phylogeny
 #' using multivariate \code{mvgls} fits from \pkg{mvMORPH}. The routine:
 #' \enumerate{
 #'   \item builds one-shift candidate trees for all internal nodes meeting a tip-size threshold
@@ -18,9 +18,11 @@
 #' are forwarded to \code{\link[mvMORPH]{mvgls}} (e.g., \code{method = "LL"} or
 #' \code{method = "PL-LOOCV"}, \code{penalty}, \code{error = TRUE}, etc.).
 #'
-#' @param baseline_tree A rooted SIMMAP/\code{phylo} object representing the baseline
-#'   (single-regime) tree. If not SIMMAP-initialized, it should already be painted to a
-#'   single baseline state and have tip order matching \code{trait_data}.
+#' @param baseline_tree A rooted \code{phylo} (or SIMMAP/\code{phylo}) object representing
+#'   the starting tree. It does not need to already be painted: the function converts the
+#'   input to a \code{phylo} object and internally paints a single baseline state at the root
+#'   before generating candidate shift configurations. Tip order must match
+#'   \code{trait_data}.
 #' @param trait_data A \code{matrix} or \code{data.frame} of continuous trait values with row
 #'   names matching \code{baseline_tree$tip.label} (same order). For the default
 #'   \code{formula = "trait_data ~ 1"}, \code{trait_data} is typically supplied as a numeric
@@ -84,6 +86,8 @@
 #' \itemize{
 #'   \item \emph{Tree:} \code{baseline_tree} should be a rooted \code{phylo} (or SIMMAP-style) tree
 #'         with branch lengths interpreted in units of time. An ultrametric tree is not required.
+#'         The starting tree does not need to already be painted; \code{searchOptimalConfiguration()}
+#'         paints a single baseline regime internally before building shifted candidates.
 #'   \item \emph{Trait data alignment:} \code{rownames(trait_data)} must match
 #'         \code{baseline_tree$tip.label} in both names and order; any tips without data should be
 #'         pruned beforehand.
@@ -289,7 +293,7 @@ searchOptimalConfiguration <-
       stop("formula must be a single character string or formula object.")
     }
 
-    # Input tree should be painted SIMMAP tree with global state zero
+    # Convert input tree to phylo and paint a global baseline regime internally
     baseline_tree <- paintSubTree(((as.phylo(baseline_tree))),
                                   node = length(baseline_tree$tip.label) + 1,
                                   state = 0)
