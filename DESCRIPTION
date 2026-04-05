@@ -7,6 +7,7 @@ Authors@R: c(
     person(given = c("Matthew", "J."), family = "Thorstensen", role = "aut", comment = c(ORCID = "0000-0002-7870-3369")),
     person(given = "Henry", family = "Lloyd-Laney", role = "aut", comment = c(ORCID = "0000-0003-4650-8937")),
     person(given = c("Emily", "M."), family = "Troyer", role = "aut", comment = c(ORCID = "0000-0001-7478-2306")),
+    person(given = c("Rafael", "A."), family = "Rivero-Vega", role = "aut", comment = c(ORCID = "0000-0001-5937-6377")),
     person(given = c("Stephen", "A."), family = "Smith", role = c("aut", "fnd"), comment = c(ORCID = "0000-0003-2035-9531")),
     person(given = "Matt", family = "Friedman", role = c("aut", "fnd"), comment = c(ORCID = "0000-0002-0114-7384")),
     person(given = c("David", "F."), family = "Fouhey", role = c("aut", "fnd"), comment = c(ORCID = "0000-0001-5028-5161")),
