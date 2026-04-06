@@ -138,6 +138,8 @@ The accepted shift set defines the optimal no-uncertainty configuration under th
 
 ### High-level workflow
 
+The figure below summarizes the main stages of the greedy search and post-processing workflow implemented in `bifrost`.
+
 ```{r workflow_diagram, echo=FALSE, eval=TRUE, results='asis'}
 cat('<p align="center"><img src="quick-start/bifrost-workflow.svg" alt="Workflow diagram showing setup, baseline scoring, greedy search, post-processing, and output steps in bifrost." style="max-width:100%; height:auto;" /></p>')
 ```
