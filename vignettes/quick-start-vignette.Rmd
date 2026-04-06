@@ -138,62 +138,10 @@ The accepted shift set defines the optimal no-uncertainty configuration under th
 
 ### High-level workflow
 
-```mermaid
-flowchart TD
+The figure below summarizes the main stages of the greedy search and post-processing workflow implemented in `bifrost`.
 
-subgraph S[Setup]
-  A([Start]) --> B[Init and validate]
-  B --> C[Paint baseline state 0]
-  C --> D[Generate one-shift candidates]
-end
-
-subgraph CS[Baseline and scoring]
-  D --> E[Fit baseline mvgls]
-  E --> F[Baseline IC GIC or BIC]
-  F --> G[Score candidates in parallel]
-  G --> H[Compute delta IC and sort]
-end
-
-subgraph GS[Greedy search]
-  H --> I[Init best tree and IC]
-  I --> J{More candidates?}
-
-  J -- Yes --> K[Add shift]
-  K --> L[Fit shifted model]
-  L --> M[Delta IC best minus new]
-  M --> N{Delta IC >= threshold?}
-
-  N -- Yes --> O[Accept update best]
-  N -- No --> P[Reject keep best]
-
-  O --> Q[Record status]
-  P --> Q
-
-  Q --> J
-end
-
-subgraph PP[Post processing]
-  J -- No --> U[Finalize best model]
-  U --> V{Compute IC weights?}
-
-  V -- No --> V0[Skip weights]
-  V -- Yes --> W{Any shifts?}
-  W -- No --> V0
-
-  W -- Yes --> X{Weights parallel?}
-  X -- Yes --> X1[Drop-one refits parallel]
-  X -- No --> X2[Drop-one refits serial]
-
-  X1 --> Y[Compute weights aicw and ER]
-  X2 --> Y
-end
-
-subgraph OUT[Output]
-  V0 --> Z[Assemble result]
-  Y --> Z
-  Z --> ZA[Extract regime VCVs]
-  ZA --> ZB([Return])
-end
+```{r workflow_diagram, echo=FALSE, eval=TRUE, results='asis'}
+cat('<p align="center"><img src="quick-start/bifrost-workflow.svg" alt="Workflow diagram showing setup, baseline scoring, greedy search, post-processing, and output steps in bifrost." style="max-width:100%; height:auto;" /></p>')
 ```
 
 Because the search is greedy, it can converge to a local optimum. In practice, it is useful to repeat analyses with different `min_descendant_tips`, thresholds, and IC choices to assess robustness.
