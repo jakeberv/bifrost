@@ -4,7 +4,7 @@ Version: 0.1.3
 Authors@R: c(
     person(given = c("Jacob", "S."), family = "Berv", email = "jacob.berv@gmail.com", role = c("aut", "cre", "cph", "fnd"), comment = c(ORCID = "0000-0002-5962-0621")),
     person(given = "Nathan", family = "Fox", role = "aut", comment = c(ORCID = "0000-0002-2816-9751")),
-    person(given = c("Matthew", "J."), family = "Thorstensen", role = "aut", comment = c(ORCID = "0000-0002-7870-3369")),
+    person(given = c("Matt", "J."), family = "Thorstensen", role = "aut", comment = c(ORCID = "0000-0002-7870-3369")),
     person(given = "Henry", family = "Lloyd-Laney", role = "aut", comment = c(ORCID = "0000-0003-4650-8937")),
     person(given = c("Emily", "M."), family = "Troyer", role = "aut", comment = c(ORCID = "0000-0001-7478-2306")),
     person(given = c("Rafael", "A."), family = "Rivero-Vega", role = "aut", comment = c(ORCID = "0000-0001-5937-6377")),

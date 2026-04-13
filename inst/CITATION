@@ -19,14 +19,14 @@ bibentry(
   note    = "In press."
 )
 
-## 2. Forthcoming bifrost methods / package paper
+## 2. bifrost methods / package preprint
 bibentry(
   bibtype = "Unpublished",
-  title   = "bifrost: an R package for scalable inference of phylogenetic shifts in multivariate trait evolution",
+  title   = "bifrost: an R package for scalable inference of phylogenetic shifts in multivariate evolutionary dynamics",
   author  = c(
     person(c("Jacob",  "S."), "Berv"),
     person("Nathan",          "Fox"),
-    person(c("Matthew","J."), "Thorstensen"),
+    person(c("Matt",   "J."), "Thorstensen"),
     person("Henry",           "Lloyd-Laney"),
     person(c("Emily", "M."), "Troyer"),
     person(c("Rafael", "A."), "Rivero-Vega"),
@@ -36,7 +36,7 @@ bibentry(
     person(c("Brian","C."),   "Weeks")
   ),
   year    = "2026",
-  note    = "Forthcoming manuscript describing the bifrost R package."
+  note    = "Preprint describing the bifrost R package."
 )
 
 ## 3. Software / package manual citation
@@ -46,7 +46,7 @@ bibentry(
   author  = c(
     person(c("Jacob",  "S."), "Berv"),
     person("Nathan",          "Fox"),
-    person(c("Matthew","J."), "Thorstensen"),
+    person(c("Matt",   "J."), "Thorstensen"),
     person("Henry",           "Lloyd-Laney"),
     person(c("Emily", "M."), "Troyer"),
     person(c("Rafael", "A."), "Rivero-Vega"),
