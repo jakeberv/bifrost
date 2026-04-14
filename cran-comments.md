@@ -1,35 +1,25 @@
 ## Resubmission
 
-This is a resubmission following CRAN feedback on **bifrost 0.1.2**. The previous submission was **bifrost 0.1.2**. The current submission is **bifrost 0.1.3**.
+This is a new submission of **bifrost 0.1.4**. The current CRAN version is **bifrost 0.1.3**.
 
-### Changes made in response to CRAN comments
+### Changes since 0.1.3
 
-- Added explicit return-value documentation (`@return` / `\value{}`) for the exported
-  `print.bifrost_search()` method, documenting that the function returns the input object
-  invisibly and is called for its printing side effects.
-
-### Other updates since 0.1.2 (unrelated to the CRAN note)
-
-- `plot_ic_acceptance_matrix()` gained an optional `baseline_ic` argument to use the true
-  no-shift baseline IC for the baseline annotation and for computing the rate-of-improvement
-  series (`diff(IC)`), which is useful when `matrix_data` begins at the first evaluated shift model.
-- Jaw-shape vignette: added additional static figures (evolutionary correlation heatmap, IC
-  trajectory plot, and branch-rate visualization) and updated plotting/legend annotations for
-  clarity. Vignette continues to build under `--as-cran`.
-- Expanded unit tests to cover the new `baseline_ic` behavior and input validation.
+- Added a new package vignette, **"Quick Start with bifrost"**, with a minimal end-to-end simulated example.
+- Clarified `searchOptimalConfiguration()` documentation around tree input requirements, recommended `mvgls()` methods, and the role of `error = TRUE`.
+- Reworked the README to foreground installation, documentation, and citation guidance.
+- Added two pkgdown-only background articles on multivariate Brownian motion / shifts and whole-tree PCA / model-selection issues. These articles are excluded from the CRAN tarball via `.Rbuildignore`.
+- Updated package authorship metadata and refreshed `citation("bifrost")` for the live bioRxiv preprint, the in-press application paper, and the foundational `mvMORPH` references.
+- Disabled a deprecated vignette-preview step in GitHub Actions CI. This does not affect package runtime or CRAN checks.
 
 ## Test environments
 
 - macOS Sequoia 15.x, R 4.4.2 (local, aarch64)
-- GitHub Actions CI: macOS-latest, ubuntu-latest, windows-latest
-- R-hub (run via GitHub)
 
 ## R CMD check results
 
 0 errors | 0 warnings | 0 notes
 
-Checked locally with `R CMD check --as-cran` / `devtools::check(args = "--as-cran")`.
-GitHub Actions CI checks also pass on macOS, Linux, and Windows.
+Checked locally with `R CMD build .` and `R CMD check --as-cran bifrost_0.1.4.tar.gz`.
 
 ## Downstream dependencies
 

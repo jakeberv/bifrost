@@ -99,7 +99,7 @@ citation("bifrost")
    Berv JS, Fox N, Thorstensen MJ, Lloyd-Laney H, Troyer EM, Rivero-Vega RA, Smith SA, Friedman M, Fouhey DF, Weeks BC (2026). *bifrost: an R package for scalable inference of phylogenetic shifts in multivariate evolutionary dynamics*. *bioRxiv*. [https://doi.org/10.64898/2026.04.12.718036](https://doi.org/10.64898/2026.04.12.718036)
 
 3. `bifrost` software citation  
-   Berv JS, Fox N, Thorstensen MJ, Lloyd-Laney H, Troyer EM, Rivero-Vega RA, Smith SA, Friedman M, Fouhey DF, Weeks BC (2026). *Branch-Level Inference Framework for Recognizing Optimal Shifts in Traits*. R package version 0.1.3. [https://CRAN.R-project.org/package=bifrost](https://CRAN.R-project.org/package=bifrost)
+   Berv JS, Fox N, Thorstensen MJ, Lloyd-Laney H, Troyer EM, Rivero-Vega RA, Smith SA, Friedman M, Fouhey DF, Weeks BC (2026). *Branch-Level Inference Framework for Recognizing Optimal Shifts in Traits*. R package version 0.1.4. [https://CRAN.R-project.org/package=bifrost](https://CRAN.R-project.org/package=bifrost)
 
 4. `mvMORPH` package paper  
    Clavel J, Escarguel G, Merceron G (2015). *mvmorph: an R package for fitting multivariate evolutionary models to morphometric data*. *Methods in Ecology and Evolution*, 6(11), 1311-1319. [https://doi.org/10.1111/2041-210X.12420](https://doi.org/10.1111/2041-210X.12420)
@@ -119,7 +119,7 @@ This project is released under the GPL (>= 2) License. See the `LICENSE` file fo
 
 `bifrost` builds on substantial work from `mvMORPH`, `phytools`, `ape`, `future`, and `future.apply`. The greedy search algorithm is adapted from [Mitov et al. 2019](https://www.pnas.org/doi/10.1073/pnas.1813823116) and [Smith et al. 2023](https://nph.onlinelibrary.wiley.com/doi/10.1111/nph.19099). See the `DESCRIPTION` file for complete dependency and version information.
 
-The name of our R package is inspired by the Bifrost, the rainbow bridge of Norse mythology that connects Earth (Midgard) and Asgard within the cosmic structure of Yggdrasil, the Tree of Life, echoing how this framework links observable data to hidden evolutionary shifts across the history of life.
+The name of our R package is inspired by the Bifröst, the rainbow bridge of Norse mythology that connects Earth (Midgard) and Asgard within the cosmic structure of Yggdrasil, the Tree of Life, echoing how this framework links observable data to hidden evolutionary shifts across the history of life.
 
 Development of the `bifrost` R package was supported by the [Oxford Research Software Engineering Group](https://www.rse.ox.ac.uk/schmidt-ai-science), with support from [Schmidt Sciences, LLC.](https://www.schmidtsciences.org/ai-in-science/) and the [Michigan Institute for Data Science and AI in Society](https://midas.umich.edu/).
 
