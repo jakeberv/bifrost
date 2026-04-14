@@ -84,11 +84,28 @@ Though `bifrost` was initially developed as a framework for inferring macroevolu
 
 ## Citation
 
-If you use `bifrost`, please cite the references returned by:
+If you use `bifrost`, please cite the package and methods references below. The same set is also available from:
 
 ```r
 citation("bifrost")
 ```
+
+### Recommended citations
+
+1. `bifrost` methods / application paper  
+   Berv JS, Probst CM, Claramunt S, Shipley JR, Friedman M, Smith SA, Fouhey DF, Weeks BC (2026). *Rates of passerine body plan evolution in time and space*. *Nature Ecology & Evolution*. In press.
+
+2. `bifrost` preprint  
+   Berv JS, Fox N, Thorstensen MJ, Lloyd-Laney H, Troyer EM, Rivero-Vega RA, Smith SA, Friedman M, Fouhey DF, Weeks BC (2026). *bifrost: an R package for scalable inference of phylogenetic shifts in multivariate evolutionary dynamics*. *bioRxiv*. [https://doi.org/10.64898/2026.04.12.718036](https://doi.org/10.64898/2026.04.12.718036)
+
+3. `bifrost` software citation  
+   Berv JS, Fox N, Thorstensen MJ, Lloyd-Laney H, Troyer EM, Rivero-Vega RA, Smith SA, Friedman M, Fouhey DF, Weeks BC (2026). *Branch-Level Inference Framework for Recognizing Optimal Shifts in Traits*. R package version 0.1.3. [https://CRAN.R-project.org/package=bifrost](https://CRAN.R-project.org/package=bifrost)
+
+4. `mvMORPH` package paper  
+   Clavel J, Escarguel G, Merceron G (2015). *mvmorph: an R package for fitting multivariate evolutionary models to morphometric data*. *Methods in Ecology and Evolution*, 6(11), 1311-1319. [https://doi.org/10.1111/2041-210X.12420](https://doi.org/10.1111/2041-210X.12420)
+
+5. Penalized-likelihood framework paper  
+   Clavel J, Aristide L, Morlon H (2019). *A Penalized Likelihood Framework for High-Dimensional Phylogenetic Comparative Methods and an Application to New-World Monkeys Brain Evolution*. *Systematic Biology*, 68(1), 93-116. [https://doi.org/10.1093/sysbio/syy045](https://doi.org/10.1093/sysbio/syy045)
 
 ## Contributing
 

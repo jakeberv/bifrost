@@ -44,8 +44,7 @@ bibentry(
   year    = "2026",
   journal = "bioRxiv",
   doi     = "10.64898/2026.04.12.718036",
-  url     = "https://doi.org/10.64898/2026.04.12.718036",
-  note    = "Preprint, version 1."
+  note    = "Preprint version 1."
 )
 
 ## 3. Software / package manual citation
@@ -72,7 +71,7 @@ bibentry(
 ## 4. mvMORPH package citation
 bibentry(
   bibtype = "Article",
-  title   = "mvmorph: an r package for fitting multivariate evolutionary models to morphometric data",
+  title   = "mvmorph: an R package for fitting multivariate evolutionary models to morphometric data",
   author  = c(
     person("Julien",  "Clavel"),
     person("Gilles",  "Escarguel"),
@@ -83,8 +82,7 @@ bibentry(
   volume  = "6",
   number  = "11",
   pages   = "1311-1319",
-  doi     = "10.1111/2041-210X.12420",
-  url     = "https://doi.org/10.1111/2041-210X.12420"
+  doi     = "10.1111/2041-210X.12420"
 )
 
 ## 5. Penalized-likelihood framework citation
@@ -101,6 +99,5 @@ bibentry(
   volume  = "68",
   number  = "1",
   pages   = "93-116",
-  doi     = "10.1093/sysbio/syy045",
-  url     = "https://doi.org/10.1093/sysbio/syy045"
+  doi     = "10.1093/sysbio/syy045"
 )
