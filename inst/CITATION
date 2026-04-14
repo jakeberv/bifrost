@@ -21,7 +21,7 @@ bibentry(
 
 ## 2. bifrost methods / package preprint
 bibentry(
-  bibtype = "Unpublished",
+  bibtype = "Article",
   title   = "bifrost: an R package for scalable inference of phylogenetic shifts in multivariate evolutionary dynamics",
   author  = c(
     person(c("Jacob",  "S."), "Berv"),
@@ -36,7 +36,10 @@ bibentry(
     person(c("Brian","C."),   "Weeks")
   ),
   year    = "2026",
-  note    = "Preprint describing the bifrost R package."
+  journal = "bioRxiv",
+  doi     = "10.64898/2026.04.12.718036",
+  url     = "https://doi.org/10.64898/2026.04.12.718036",
+  note    = "Preprint, version 1."
 )
 
 ## 3. Software / package manual citation
