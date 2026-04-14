@@ -1,3 +1,20 @@
+# bifrost 0.1.4
+
+* Documentation / vignettes:
+  - Added a new "Quick Start with bifrost" vignette with a minimal end-to-end simulated example.
+  - Clarified `searchOptimalConfiguration()` documentation around acceptable tree inputs, recommended `mvgls()` methods (`"H&L"` vs `"LL"`), and the role of `error = TRUE`.
+  - Reworked the README to foreground installation, documentation, and citation guidance.
+  - Added two pkgdown-only background articles on multivariate Brownian motion / shifts and on whole-tree PCA / model-selection issues.
+
+* Citation / metadata:
+  - Updated package authorship metadata to reflect the current author list.
+  - Updated `citation("bifrost")` for the live bioRxiv preprint and the in-press application paper.
+  - Added the foundational `mvMORPH` citations to the package citation metadata.
+  - Added a formatted citation section and dynamic bioRxiv badge to the README.
+
+* Maintenance:
+  - Disabled a deprecated vignette-preview step in GitHub Actions CI.
+
 # bifrost 0.1.3
 
 * Addressed CRAN reviewer feedback following review of 0.1.2:
