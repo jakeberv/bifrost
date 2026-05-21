@@ -394,19 +394,58 @@
 
 #' Summarize Branchwise Rate Variation Across Multiple Runs
 #'
-#' Computes a branch-interval summary of fitted regime-specific rates across a
-#' list of stochastic-map-aware model fits or completed `bifrost_search`
-#' results. In the default interval mode, each branch is sliced on a global
-#' depth grid, the rate associated with each mapped state is looked up for each
-#' run, and interval values are averaged across runs. In branch mode, each edge
-#' receives a single length-weighted whole-branch value.
+#' Summarize fitted regime-specific rates across a list of stochastic-map-aware
+#' model fits or completed `bifrost_search` results. By default, `rateMap()`
+#' preserves the original same-tree workflow: the first retained tree is used as
+#' the plotting scaffold, all retained trees must match in topology and branch
+#' lengths, branches are sliced on a global depth grid, and runs are averaged
+#' with equal weight.
+#'
+#' `rateMap()` can also summarize same-topology posterior or sensitivity samples
+#' where branch lengths differ. In that case, supply `check = "topology"` and,
+#' usually, an explicit `target_tree` such as an MCC or other summary tree. The
+#' target tree supplies the plotted topology and branch lengths, while rates are
+#' matched from each input tree by descendant-tip clade keys rather than by edge
+#' order.
+#'
+#' @details
+#' **Summary modes.** With `summary = "interval"`, each target-tree branch is
+#' subdivided by the global depth grid controlled by `res`. If source branch
+#' lengths differ from the target branch length, source stochastic-map segments
+#' are projected onto target intervals by relative position along the matched
+#' branch. With `summary = "branch"`, each edge receives one length-weighted
+#' average rate from each run before the across-run summary is computed.
+#'
+#' **Tree checks and targets.** `check = TRUE` is equivalent to `check = "full"`
+#' and requires topology and branch lengths to match the target tree. Use
+#' `check = "topology"` when all inputs have the same topology and tip labels but
+#' may have different branch lengths. `check = FALSE` or `check = "none"` skips
+#' the upfront `ape::all.equal.phylo()` check, but every target branch must still
+#' be recoverable in every input tree by descendant-tip set. This function is not
+#' a mixed-topology posterior summarizer; clades absent from an input tree are
+#' treated as an error rather than being marginalized over topology.
+#'
+#' When `target_tree` is supplied, it is used directly as the plotting scaffold
+#' and need not contain SIMMAP maps. When `target_tree = NULL`, `target = "first"`
+#' uses the first retained input tree, and `target = "mcc"` chooses the retained
+#' input tree with the highest sum of log clade credibilities. For truly
+#' same-topology inputs, the MCC score is usually tied, so `"mcc"` commonly
+#' resolves to the first retained tree unless topologies differ.
+#'
+#' **Fit weights.** `weights = "equal"` assigns the same weight to each retained
+#' fit. `weights = "ic"` computes standard information-criterion weights from
+#' each retained fit's `optimal_ic`, requiring all retained fits to share the
+#' same non-missing `IC_used`. Numeric `weights` or `fit_weights` can be supplied
+#' for custom weighting. Weights are subset to retained fits after
+#' `na_action = "omit"` and are normalized to sum to one.
 #'
 #' @param fits A non-empty list of completed runs or fitted model objects.
 #'   Supported shapes are `bifrost_search` objects, `mvgls` objects,
 #'   `list(model = <mvgls>)`, and scratch-style lists with
 #'   `variables$tree` plus `param`.
 #' @param res Integer resolution of the global depth grid used to subdivide
-#'   branches when `summary = "interval"`.
+#'   target-tree branches when `summary = "interval"`. Ignored by
+#'   `summary = "branch"`.
 #' @param fsize Optional plotting font sizes passed to [plotRateMap()] when
 #'   `plot = TRUE`.
 #' @param ftype Optional plotting font type(s) passed to [plotRateMap()] when
@@ -468,7 +507,8 @@
 #' @param target_tree Optional explicit target tree used as the plotting scaffold.
 #'   This may be an MCC tree or another summary tree with the same topology as
 #'   the inputs. It does not need to contain stochastic maps because `rateMap()`
-#'   replaces maps with color-bin maps in the returned object.
+#'   replaces maps with color-bin maps in the returned object. Branch lengths in
+#'   `target_tree` define the geometry of the returned and plotted tree.
 #' @param weights Fit-level weighting mode. `"equal"` gives every retained fit
 #'   equal weight. `"ic"` computes standard IC weights from `optimal_ic` and
 #'   requires all retained fits to have the same `IC_used`. A numeric vector is
@@ -493,6 +533,8 @@
 #'   \item{`target`}{Target-tree selection mode used.}
 #'   \item{`check`}{Tree compatibility check mode used.}
 #'   \item{`weights`}{Normalized fit weights used for aggregation.}
+#'   \item{`weight_mode`}{Weighting mode used: `"equal"`, `"ic"`, or
+#'   `"custom"`.}
 #'   \item{`weight_table`}{Data frame linking retained input indices, weights,
 #'   and IC values when available.}
 #'   \item{`title`}{Legend title used for plotting.}
@@ -521,12 +563,30 @@
 #' # Whole-branch summaries avoid interval subdivision:
 #' branch_rates <- rateMap(list(search_a, search_b), summary = "branch", plot = FALSE)
 #'
+#' # Custom fit weights are normalized internally:
+#' custom_weighted <- rateMap(
+#'   list(search_a, search_b, search_c),
+#'   weights = c(2, 1, 1),
+#'   summary = "branch",
+#'   plot = FALSE
+#' )
+#'
 #' # Posterior trees with the same topology but different branch lengths can be
 #' # summarized on an explicit target tree:
 #' posterior_rates <- rateMap(
 #'   posterior_fit_list,
 #'   check = "topology",
 #'   target_tree = mcc_tree,
+#'   summary = "branch",
+#'   plot = FALSE
+#' )
+#'
+#' # Or choose the retained input tree with the highest summed log clade
+#' # credibility as the plotting scaffold:
+#' posterior_mcc_rates <- rateMap(
+#'   posterior_fit_list,
+#'   check = "topology",
+#'   target = "mcc",
 #'   summary = "branch",
 #'   plot = FALSE
 #' )

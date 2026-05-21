@@ -48,7 +48,8 @@ Supported shapes are \code{bifrost_search} objects, \code{mvgls} objects,
 \code{variables$tree} plus \code{param}.}
 
 \item{res}{Integer resolution of the global depth grid used to subdivide
-branches when \code{summary = "interval"}.}
+target-tree branches when \code{summary = "interval"}. Ignored by
+\code{summary = "branch"}.}
 
 \item{fsize}{Optional plotting font sizes passed to \code{\link[=plotRateMap]{plotRateMap()}} when
 \code{plot = TRUE}.}
@@ -139,7 +140,8 @@ inputs this is usually tied and therefore returns the first retained tree.}
 \item{target_tree}{Optional explicit target tree used as the plotting scaffold.
 This may be an MCC tree or another summary tree with the same topology as
 the inputs. It does not need to contain stochastic maps because \code{rateMap()}
-replaces maps with color-bin maps in the returned object.}
+replaces maps with color-bin maps in the returned object. Branch lengths in
+\code{target_tree} define the geometry of the returned and plotted tree.}
 
 \item{weights}{Fit-level weighting mode. \code{"equal"} gives every retained fit
 equal weight. \code{"ic"} computes standard IC weights from \code{optimal_ic} and
@@ -168,6 +170,8 @@ one row per branch when \code{summary = "branch"}.}
 \item{\code{target}}{Target-tree selection mode used.}
 \item{\code{check}}{Tree compatibility check mode used.}
 \item{\code{weights}}{Normalized fit weights used for aggregation.}
+\item{\code{weight_mode}}{Weighting mode used: \code{"equal"}, \code{"ic"}, or
+\code{"custom"}.}
 \item{\code{weight_table}}{Data frame linking retained input indices, weights,
 and IC values when available.}
 \item{\code{title}}{Legend title used for plotting.}
@@ -176,12 +180,50 @@ and IC values when available.}
 }
 }
 \description{
-Computes a branch-interval summary of fitted regime-specific rates across a
-list of stochastic-map-aware model fits or completed \code{bifrost_search}
-results. In the default interval mode, each branch is sliced on a global
-depth grid, the rate associated with each mapped state is looked up for each
-run, and interval values are averaged across runs. In branch mode, each edge
-receives a single length-weighted whole-branch value.
+Summarize fitted regime-specific rates across a list of stochastic-map-aware
+model fits or completed \code{bifrost_search} results. By default, \code{rateMap()}
+preserves the original same-tree workflow: the first retained tree is used as
+the plotting scaffold, all retained trees must match in topology and branch
+lengths, branches are sliced on a global depth grid, and runs are averaged
+with equal weight.
+
+\code{rateMap()} can also summarize same-topology posterior or sensitivity samples
+where branch lengths differ. In that case, supply \code{check = "topology"} and,
+usually, an explicit \code{target_tree} such as an MCC or other summary tree. The
+target tree supplies the plotted topology and branch lengths, while rates are
+matched from each input tree by descendant-tip clade keys rather than by edge
+order.
+}
+\details{
+\strong{Summary modes.} With \code{summary = "interval"}, each target-tree branch is
+subdivided by the global depth grid controlled by \code{res}. If source branch
+lengths differ from the target branch length, source stochastic-map segments
+are projected onto target intervals by relative position along the matched
+branch. With \code{summary = "branch"}, each edge receives one length-weighted
+average rate from each run before the across-run summary is computed.
+
+\strong{Tree checks and targets.} \code{check = TRUE} is equivalent to \code{check = "full"}
+and requires topology and branch lengths to match the target tree. Use
+\code{check = "topology"} when all inputs have the same topology and tip labels but
+may have different branch lengths. \code{check = FALSE} or \code{check = "none"} skips
+the upfront \code{ape::all.equal.phylo()} check, but every target branch must still
+be recoverable in every input tree by descendant-tip set. This function is not
+a mixed-topology posterior summarizer; clades absent from an input tree are
+treated as an error rather than being marginalized over topology.
+
+When \code{target_tree} is supplied, it is used directly as the plotting scaffold
+and need not contain SIMMAP maps. When \code{target_tree = NULL}, \code{target = "first"}
+uses the first retained input tree, and \code{target = "mcc"} chooses the retained
+input tree with the highest sum of log clade credibilities. For truly
+same-topology inputs, the MCC score is usually tied, so \code{"mcc"} commonly
+resolves to the first retained tree unless topologies differ.
+
+\strong{Fit weights.} \code{weights = "equal"} assigns the same weight to each retained
+fit. \code{weights = "ic"} computes standard information-criterion weights from
+each retained fit's \code{optimal_ic}, requiring all retained fits to share the
+same non-missing \code{IC_used}. Numeric \code{weights} or \code{fit_weights} can be supplied
+for custom weighting. Weights are subset to retained fits after
+\code{na_action = "omit"} and are normalized to sum to one.
 }
 \examples{
 \dontrun{
@@ -202,12 +244,30 @@ rm_ic <- rateMap(list(search_a, search_b), weights = "ic", plot = FALSE)
 # Whole-branch summaries avoid interval subdivision:
 branch_rates <- rateMap(list(search_a, search_b), summary = "branch", plot = FALSE)
 
+# Custom fit weights are normalized internally:
+custom_weighted <- rateMap(
+  list(search_a, search_b, search_c),
+  weights = c(2, 1, 1),
+  summary = "branch",
+  plot = FALSE
+)
+
 # Posterior trees with the same topology but different branch lengths can be
 # summarized on an explicit target tree:
 posterior_rates <- rateMap(
   posterior_fit_list,
   check = "topology",
   target_tree = mcc_tree,
+  summary = "branch",
+  plot = FALSE
+)
+
+# Or choose the retained input tree with the highest summed log clade
+# credibility as the plotting scaffold:
+posterior_mcc_rates <- rateMap(
+  posterior_fit_list,
+  check = "topology",
+  target = "mcc",
   summary = "branch",
   plot = FALSE
 )
