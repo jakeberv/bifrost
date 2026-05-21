@@ -1,0 +1,493 @@
+{
+  "package": "bifrost",
+  "source": "https://cranlogs.r-pkg.org/",
+  "source_endpoint_template": "https://cranlogs.r-pkg.org/downloads/daily/{start}:{end}/{package}",
+  "source_note": "Daily package download counts from RStudio CRAN mirror logs; counts are download events, not unique users.",
+  "archive_note": "This file is the repository's canonical CRAN downloads archive. Existing days are preserved; fetched rows overwrite matching days so upstream corrections are retained.",
+  "query_start": "1900-01-01",
+  "start": "2026-01-21",
+  "end": "2026-05-20",
+  "total_downloads": 2278,
+  "downloads": [
+    {
+      "day": "2026-01-21",
+      "downloads": 1
+    },
+    {
+      "day": "2026-01-22",
+      "downloads": 15
+    },
+    {
+      "day": "2026-01-23",
+      "downloads": 9
+    },
+    {
+      "day": "2026-01-24",
+      "downloads": 31
+    },
+    {
+      "day": "2026-01-25",
+      "downloads": 4
+    },
+    {
+      "day": "2026-01-26",
+      "downloads": 10
+    },
+    {
+      "day": "2026-01-27",
+      "downloads": 41
+    },
+    {
+      "day": "2026-01-28",
+      "downloads": 8
+    },
+    {
+      "day": "2026-01-29",
+      "downloads": 27
+    },
+    {
+      "day": "2026-01-30",
+      "downloads": 48
+    },
+    {
+      "day": "2026-01-31",
+      "downloads": 8
+    },
+    {
+      "day": "2026-02-01",
+      "downloads": 16
+    },
+    {
+      "day": "2026-02-02",
+      "downloads": 39
+    },
+    {
+      "day": "2026-02-03",
+      "downloads": 7
+    },
+    {
+      "day": "2026-02-04",
+      "downloads": 9
+    },
+    {
+      "day": "2026-02-05",
+      "downloads": 43
+    },
+    {
+      "day": "2026-02-06",
+      "downloads": 15
+    },
+    {
+      "day": "2026-02-07",
+      "downloads": 6
+    },
+    {
+      "day": "2026-02-08",
+      "downloads": 50
+    },
+    {
+      "day": "2026-02-09",
+      "downloads": 6
+    },
+    {
+      "day": "2026-02-10",
+      "downloads": 7
+    },
+    {
+      "day": "2026-02-11",
+      "downloads": 43
+    },
+    {
+      "day": "2026-02-12",
+      "downloads": 15
+    },
+    {
+      "day": "2026-02-13",
+      "downloads": 13
+    },
+    {
+      "day": "2026-02-14",
+      "downloads": 42
+    },
+    {
+      "day": "2026-02-15",
+      "downloads": 9
+    },
+    {
+      "day": "2026-02-16",
+      "downloads": 5
+    },
+    {
+      "day": "2026-02-17",
+      "downloads": 38
+    },
+    {
+      "day": "2026-02-18",
+      "downloads": 14
+    },
+    {
+      "day": "2026-02-19",
+      "downloads": 4
+    },
+    {
+      "day": "2026-02-20",
+      "downloads": 51
+    },
+    {
+      "day": "2026-02-21",
+      "downloads": 5
+    },
+    {
+      "day": "2026-02-22",
+      "downloads": 7
+    },
+    {
+      "day": "2026-02-23",
+      "downloads": 43
+    },
+    {
+      "day": "2026-02-24",
+      "downloads": 7
+    },
+    {
+      "day": "2026-02-25",
+      "downloads": 15
+    },
+    {
+      "day": "2026-02-26",
+      "downloads": 2
+    },
+    {
+      "day": "2026-02-27",
+      "downloads": 43
+    },
+    {
+      "day": "2026-02-28",
+      "downloads": 4
+    },
+    {
+      "day": "2026-03-01",
+      "downloads": 3
+    },
+    {
+      "day": "2026-03-02",
+      "downloads": 40
+    },
+    {
+      "day": "2026-03-03",
+      "downloads": 8
+    },
+    {
+      "day": "2026-03-04",
+      "downloads": 7
+    },
+    {
+      "day": "2026-03-05",
+      "downloads": 44
+    },
+    {
+      "day": "2026-03-06",
+      "downloads": 6
+    },
+    {
+      "day": "2026-03-07",
+      "downloads": 3
+    },
+    {
+      "day": "2026-03-08",
+      "downloads": 39
+    },
+    {
+      "day": "2026-03-09",
+      "downloads": 2
+    },
+    {
+      "day": "2026-03-10",
+      "downloads": 2
+    },
+    {
+      "day": "2026-03-11",
+      "downloads": 43
+    },
+    {
+      "day": "2026-03-12",
+      "downloads": 3
+    },
+    {
+      "day": "2026-03-13",
+      "downloads": 2
+    },
+    {
+      "day": "2026-03-14",
+      "downloads": 45
+    },
+    {
+      "day": "2026-03-15",
+      "downloads": 4
+    },
+    {
+      "day": "2026-03-16",
+      "downloads": 5
+    },
+    {
+      "day": "2026-03-17",
+      "downloads": 40
+    },
+    {
+      "day": "2026-03-18",
+      "downloads": 16
+    },
+    {
+      "day": "2026-03-19",
+      "downloads": 9
+    },
+    {
+      "day": "2026-03-20",
+      "downloads": 39
+    },
+    {
+      "day": "2026-03-21",
+      "downloads": 10
+    },
+    {
+      "day": "2026-03-22",
+      "downloads": 8
+    },
+    {
+      "day": "2026-03-23",
+      "downloads": 43
+    },
+    {
+      "day": "2026-03-24",
+      "downloads": 2
+    },
+    {
+      "day": "2026-03-25",
+      "downloads": 5
+    },
+    {
+      "day": "2026-03-26",
+      "downloads": 38
+    },
+    {
+      "day": "2026-03-27",
+      "downloads": 7
+    },
+    {
+      "day": "2026-03-28",
+      "downloads": 4
+    },
+    {
+      "day": "2026-03-29",
+      "downloads": 40
+    },
+    {
+      "day": "2026-03-30",
+      "downloads": 48
+    },
+    {
+      "day": "2026-03-31",
+      "downloads": 43
+    },
+    {
+      "day": "2026-04-01",
+      "downloads": 34
+    },
+    {
+      "day": "2026-04-02",
+      "downloads": 12
+    },
+    {
+      "day": "2026-04-03",
+      "downloads": 5
+    },
+    {
+      "day": "2026-04-04",
+      "downloads": 11
+    },
+    {
+      "day": "2026-04-05",
+      "downloads": 43
+    },
+    {
+      "day": "2026-04-06",
+      "downloads": 5
+    },
+    {
+      "day": "2026-04-07",
+      "downloads": 8
+    },
+    {
+      "day": "2026-04-08",
+      "downloads": 46
+    },
+    {
+      "day": "2026-04-09",
+      "downloads": 4
+    },
+    {
+      "day": "2026-04-10",
+      "downloads": 15
+    },
+    {
+      "day": "2026-04-11",
+      "downloads": 46
+    },
+    {
+      "day": "2026-04-12",
+      "downloads": 3
+    },
+    {
+      "day": "2026-04-13",
+      "downloads": 7
+    },
+    {
+      "day": "2026-04-14",
+      "downloads": 41
+    },
+    {
+      "day": "2026-04-15",
+      "downloads": 7
+    },
+    {
+      "day": "2026-04-16",
+      "downloads": 3
+    },
+    {
+      "day": "2026-04-17",
+      "downloads": 59
+    },
+    {
+      "day": "2026-04-18",
+      "downloads": 7
+    },
+    {
+      "day": "2026-04-19",
+      "downloads": 4
+    },
+    {
+      "day": "2026-04-20",
+      "downloads": 6
+    },
+    {
+      "day": "2026-04-21",
+      "downloads": 42
+    },
+    {
+      "day": "2026-04-22",
+      "downloads": 9
+    },
+    {
+      "day": "2026-04-23",
+      "downloads": 9
+    },
+    {
+      "day": "2026-04-24",
+      "downloads": 19
+    },
+    {
+      "day": "2026-04-25",
+      "downloads": 48
+    },
+    {
+      "day": "2026-04-26",
+      "downloads": 3
+    },
+    {
+      "day": "2026-04-27",
+      "downloads": 11
+    },
+    {
+      "day": "2026-04-28",
+      "downloads": 9
+    },
+    {
+      "day": "2026-04-29",
+      "downloads": 31
+    },
+    {
+      "day": "2026-04-30",
+      "downloads": 23
+    },
+    {
+      "day": "2026-05-01",
+      "downloads": 7
+    },
+    {
+      "day": "2026-05-02",
+      "downloads": 3
+    },
+    {
+      "day": "2026-05-03",
+      "downloads": 15
+    },
+    {
+      "day": "2026-05-04",
+      "downloads": 45
+    },
+    {
+      "day": "2026-05-05",
+      "downloads": 7
+    },
+    {
+      "day": "2026-05-06",
+      "downloads": 6
+    },
+    {
+      "day": "2026-05-07",
+      "downloads": 3
+    },
+    {
+      "day": "2026-05-08",
+      "downloads": 44
+    },
+    {
+      "day": "2026-05-09",
+      "downloads": 6
+    },
+    {
+      "day": "2026-05-10",
+      "downloads": 11
+    },
+    {
+      "day": "2026-05-11",
+      "downloads": 46
+    },
+    {
+      "day": "2026-05-12",
+      "downloads": 8
+    },
+    {
+      "day": "2026-05-13",
+      "downloads": 6
+    },
+    {
+      "day": "2026-05-14",
+      "downloads": 43
+    },
+    {
+      "day": "2026-05-15",
+      "downloads": 7
+    },
+    {
+      "day": "2026-05-16",
+      "downloads": 14
+    },
+    {
+      "day": "2026-05-17",
+      "downloads": 44
+    },
+    {
+      "day": "2026-05-18",
+      "downloads": 14
+    },
+    {
+      "day": "2026-05-19",
+      "downloads": 7
+    },
+    {
+      "day": "2026-05-20",
+      "downloads": 4
+    }
+  ]
+}
