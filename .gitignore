@@ -1,7 +1,9 @@
 inst/doc
 docs
 .Rproj.user
-man/figures
+man/figures/*
+!man/figures/logo.png
+!man/figures/cran-downloads.png
 .Rhistory
 .Rproj.user/
 .gitignore

@@ -26,7 +26,15 @@
 
 ## CRAN downloads
 
-![Cumulative CRAN downloads for bifrost](tools/cran-downloads/output/cran-downloads.png)
+<p align="center">
+  <a href="man/figures/cran-downloads.png">
+    <img
+      src="man/figures/cran-downloads.png"
+      alt="Cumulative CRAN downloads for bifrost"
+      width="560"
+    />
+  </a>
+</p>
 
 ## Installation
 
