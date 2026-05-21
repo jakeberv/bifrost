@@ -34,13 +34,13 @@ Use the PNG in Markdown. The SVG is retained as a render source, but PNG output 
 
 ## Automation
 
-`.github/workflows/update-cran-downloads.yml` updates the stored JSON and chart once per week. If the JSON or chart changes, the workflow commits:
+`.github/workflows/update-cran-downloads.yml` updates the stored JSON and chart once per week. If the JSON or chart changes, the workflow opens or updates an automated pull request with:
 
 - `data/bifrost-cran-downloads.json`
 - `output/cran-downloads.svg`
 - `output/cran-downloads.png`
 
-The workflow then dispatches the pkgdown workflow so the site can pick up the new PNG.
+The workflow uses a pull request instead of pushing directly to `main`, so it works with branch protection rules.
 
 ## Attribution
 
