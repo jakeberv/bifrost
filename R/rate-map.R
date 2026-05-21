@@ -86,6 +86,18 @@
   NULL
 }
 
+.rateMap_extract_ic <- function(fit) {
+  if (.rateMap_is_bifrost_search(fit) ||
+      (is.list(fit) && !is.null(fit$optimal_ic))) {
+    return(list(
+      ic = fit$optimal_ic,
+      IC_used = if (is.null(fit$IC_used)) NA_character_ else as.character(fit$IC_used)
+    ))
+  }
+
+  list(ic = NA_real_, IC_used = NA_character_)
+}
+
 .rateMap_mapped_states <- function(tree) {
   unique(unlist(lapply(tree$maps, names), use.names = FALSE))
 }
@@ -171,27 +183,240 @@
     legend > 0
 }
 
+.rateMap_normalize_check <- function(check) {
+  if (is.logical(check) && length(check) == 1L && !is.na(check)) {
+    return(if (isTRUE(check)) "full" else "none")
+  }
+  if (is.character(check) && length(check) == 1L) {
+    choices <- c("full", "topology", "none")
+    if (check %in% choices) {
+      return(check)
+    }
+  }
+  stop("'check' must be TRUE, FALSE, 'full', 'topology', or 'none'.")
+}
+
+.rateMap_edge_clade_keys <- function(tree) {
+  n_tip <- length(tree$tip.label)
+  child_map <- split(tree$edge[, 2L], tree$edge[, 1L])
+  cache <- new.env(parent = emptyenv())
+  separator <- "\r"
+
+  descendants <- function(node) {
+    cache_key <- as.character(node)
+    if (exists(cache_key, envir = cache, inherits = FALSE)) {
+      return(get(cache_key, envir = cache, inherits = FALSE))
+    }
+
+    out <- if (node <= n_tip) {
+      tree$tip.label[node]
+    } else {
+      children <- child_map[[cache_key]]
+      sort(unlist(lapply(children, descendants), use.names = FALSE))
+    }
+
+    assign(cache_key, out, envir = cache)
+    out
+  }
+
+  vapply(
+    tree$edge[, 2L],
+    function(node) paste(descendants(node), collapse = separator),
+    character(1)
+  )
+}
+
+.rateMap_mcc_index <- function(trees) {
+  clade_keys <- lapply(trees, .rateMap_edge_clade_keys)
+  clade_counts <- table(unlist(clade_keys, use.names = FALSE))
+  clade_credibility <- clade_counts / length(trees)
+  scores <- vapply(
+    clade_keys,
+    function(keys) sum(log(unname(clade_credibility[keys]))),
+    numeric(1)
+  )
+  which.max(scores)
+}
+
+.rateMap_target_tree <- function(trees, target, target_tree = NULL) {
+  if (!is.null(target_tree)) {
+    if (!inherits(target_tree, "phylo")) {
+      stop("'target_tree' must inherit from class 'phylo'.")
+    }
+    return(target_tree)
+  }
+
+  target <- match.arg(target, c("first", "mcc"))
+  if (identical(target, "mcc")) {
+    trees[[.rateMap_mcc_index(trees)]]
+  } else {
+    trees[[1L]]
+  }
+}
+
+.rateMap_match_edges <- function(target_tree, trees) {
+  target_keys <- .rateMap_edge_clade_keys(target_tree)
+  # nocov start
+  if (anyDuplicated(target_keys)) {
+    stop("Target tree contains duplicated descendant-tip branch keys.")
+  }
+  # nocov end
+
+  lapply(seq_along(trees), function(i) {
+    tree_keys <- .rateMap_edge_clade_keys(trees[[i]])
+    idx <- match(target_keys, tree_keys)
+    if (anyNA(idx)) {
+      stop(paste0(
+        "Tree ", i,
+        " is missing one or more target-tree branches; use matching topologies."
+      ))
+    }
+    idx
+  })
+}
+
+.rateMap_map_value <- function(map, fit_rates, start, end, tol = 1e-10) {
+  branch_length <- sum(map)
+  if (!is.finite(branch_length) || branch_length <= tol || (end - start) <= tol) {
+    return(unname(fit_rates[names(map)[1L]]))
+  }
+
+  start <- max(0, min(start, branch_length))
+  end <- max(0, min(end, branch_length))
+  if ((end - start) <= tol) {
+    return(unname(fit_rates[names(map)[1L]]))
+  }
+
+  segment_end <- cumsum(as.numeric(map))
+  segment_start <- c(0, head(segment_end, -1L))
+  overlap <- pmax(0, pmin(segment_end, end) - pmax(segment_start, start))
+  total_overlap <- sum(overlap)
+
+  # nocov start
+  if (!is.finite(total_overlap) || total_overlap <= tol) {
+    return(unname(fit_rates[names(map)[1L]]))
+  }
+  # nocov end
+
+  rate_values <- unname(fit_rates[names(map)])
+  sum(overlap * rate_values) / total_overlap
+}
+
+.rateMap_normalize_weights <- function(weights) {
+  if (!is.numeric(weights) || length(weights) == 0L || any(!is.finite(weights))) {
+    stop("Fit weights must be a non-empty finite numeric vector.")
+  }
+  if (any(weights < 0)) {
+    stop("Fit weights must be non-negative.")
+  }
+  weight_sum <- sum(weights)
+  if (!is.finite(weight_sum) || weight_sum <= 0) {
+    stop("At least one fit weight must be positive.")
+  }
+  as.numeric(weights) / weight_sum
+}
+
+.rateMap_subset_user_weights <- function(weights, n_fits, keep) {
+  if (length(weights) == n_fits) {
+    return(weights[keep])
+  }
+  if (length(weights) == length(keep)) {
+    return(weights)
+  }
+  stop("Fit weights must have length equal to the input fits or the retained fits.")
+}
+
+.rateMap_resolve_weights <- function(fits,
+                                     keep,
+                                     weights,
+                                     fit_weights = NULL) {
+  n_fits <- length(fits)
+  n_used <- length(keep)
+
+  if (!is.null(fit_weights)) {
+    resolved <- .rateMap_normalize_weights(
+      .rateMap_subset_user_weights(fit_weights, n_fits, keep)
+    )
+    return(list(
+      weights = resolved,
+      mode = "custom",
+      ic = rep(NA_real_, n_used),
+      IC_used = rep(NA_character_, n_used)
+    ))
+  }
+
+  if (is.numeric(weights)) {
+    resolved <- .rateMap_normalize_weights(
+      .rateMap_subset_user_weights(weights, n_fits, keep)
+    )
+    return(list(
+      weights = resolved,
+      mode = "custom",
+      ic = rep(NA_real_, n_used),
+      IC_used = rep(NA_character_, n_used)
+    ))
+  }
+
+  weights <- match.arg(weights, c("equal", "ic"))
+  if (identical(weights, "equal")) {
+    return(list(
+      weights = rep(1 / n_used, n_used),
+      mode = "equal",
+      ic = rep(NA_real_, n_used),
+      IC_used = rep(NA_character_, n_used)
+    ))
+  }
+
+  ic_info <- lapply(fits[keep], .rateMap_extract_ic)
+  ic_values <- vapply(ic_info, function(x) x$ic[1L], numeric(1))
+  ic_family <- vapply(ic_info, function(x) x$IC_used[1L], character(1))
+
+  if (!all(is.finite(ic_values))) {
+    stop("weights = 'ic' requires every retained fit to contain a finite 'optimal_ic'.")
+  }
+
+  present_family <- unique(ic_family[!is.na(ic_family) & nzchar(ic_family)])
+  if (length(present_family) != 1L || any(is.na(ic_family) | !nzchar(ic_family))) {
+    stop("weights = 'ic' requires every retained fit to contain the same non-missing 'IC_used'.")
+  }
+
+  delta_ic <- ic_values - min(ic_values)
+  raw_weights <- exp(-0.5 * delta_ic)
+  resolved <- .rateMap_normalize_weights(raw_weights)
+
+  list(
+    weights = resolved,
+    mode = "ic",
+    ic = ic_values,
+    IC_used = ic_family
+  )
+}
+
 #' Summarize Branchwise Rate Variation Across Multiple Runs
 #'
 #' Computes a branch-interval summary of fitted regime-specific rates across a
 #' list of stochastic-map-aware model fits or completed `bifrost_search`
-#' results. Each branch is sliced on a global depth grid, the rate associated
-#' with each mapped state is looked up for each run, and interval values are
-#' averaged across runs.
+#' results. In the default interval mode, each branch is sliced on a global
+#' depth grid, the rate associated with each mapped state is looked up for each
+#' run, and interval values are averaged across runs. In branch mode, each edge
+#' receives a single length-weighted whole-branch value.
 #'
 #' @param fits A non-empty list of completed runs or fitted model objects.
 #'   Supported shapes are `bifrost_search` objects, `mvgls` objects,
 #'   `list(model = <mvgls>)`, and scratch-style lists with
 #'   `variables$tree` plus `param`.
 #' @param res Integer resolution of the global depth grid used to subdivide
-#'   branches.
+#'   branches when `summary = "interval"`.
 #' @param fsize Optional plotting font sizes passed to [plotRateMap()] when
 #'   `plot = TRUE`.
 #' @param ftype Optional plotting font type(s) passed to [plotRateMap()] when
 #'   `plot = TRUE`.
 #' @param lwd Line width passed through to [plotRateMap()] when `plot = TRUE`.
-#' @param check Logical; if `TRUE`, verify that extracted trees match in
-#'   topology and branch lengths before aggregation.
+#' @param check Logical or character check mode. `TRUE` or `"full"` verifies
+#'   that extracted trees and the target tree match in topology and branch
+#'   lengths. `"topology"` verifies matching topology/tip labels while allowing
+#'   branch lengths to differ. `FALSE` or `"none"` skips this check, but target
+#'   branches still must be matchable by descendant-tip sets.
 #' @param legend Legend length passed through to [plotRateMap()] when
 #'   `plot = TRUE`.
 #' @param outline Logical; if `TRUE`, draw branch outlines in the plotted map
@@ -234,6 +459,22 @@
 #'   `"Mean fitted rate"` or `"Mean log fitted rate"` depending on `log`.
 #' @param na_action What to do when a run has invalid parameters. `"error"`
 #'   stops immediately. `"omit"` drops invalid runs before aggregation.
+#' @param summary Character; `"interval"` slices branches on a global depth grid,
+#'   while `"branch"` computes one length-weighted value per edge.
+#' @param target Character target-tree selection when `target_tree = NULL`.
+#'   `"first"` uses the first retained input tree. `"mcc"` chooses the retained
+#'   input tree with the highest sum of log clade credibilities. For same-topology
+#'   inputs this is usually tied and therefore returns the first retained tree.
+#' @param target_tree Optional explicit target tree used as the plotting scaffold.
+#'   This may be an MCC tree or another summary tree with the same topology as
+#'   the inputs. It does not need to contain stochastic maps because `rateMap()`
+#'   replaces maps with color-bin maps in the returned object.
+#' @param weights Fit-level weighting mode. `"equal"` gives every retained fit
+#'   equal weight. `"ic"` computes standard IC weights from `optimal_ic` and
+#'   requires all retained fits to have the same `IC_used`. A numeric vector is
+#'   also accepted and treated as custom fit weights.
+#' @param fit_weights Optional numeric custom fit weights. If supplied, these
+#'   override `weights`.
 #' @param ... Additional plotting arguments passed to [plotRateMap()] when
 #'   `plot = TRUE`, such as `mar`, `offset`, `xlim`, `ylim`, `hold`,
 #'   `underscore`, or `arc_height`.
@@ -246,7 +487,14 @@
 #'   \item{`lims`}{Numeric length-2 vector giving the plotted value range.}
 #'   \item{`breaks`}{Numeric vector of palette bin boundaries.}
 #'   \item{`values`}{List of branch-interval mean values before color binning.}
-#'   \item{`intervals`}{Data frame with one row per plotted branch interval.}
+#'   \item{`intervals`}{Data frame with one row per plotted branch interval, or
+#'   one row per branch when `summary = "branch"`.}
+#'   \item{`summary`}{The summary mode used, `"interval"` or `"branch"`.}
+#'   \item{`target`}{Target-tree selection mode used.}
+#'   \item{`check`}{Tree compatibility check mode used.}
+#'   \item{`weights`}{Normalized fit weights used for aggregation.}
+#'   \item{`weight_table`}{Data frame linking retained input indices, weights,
+#'   and IC values when available.}
 #'   \item{`title`}{Legend title used for plotting.}
 #'   \item{`n_fits`}{Number of fits used after validation or omission.}
 #'   \item{`omitted`}{Integer indices of omitted fits when `na_action = "omit"`.}
@@ -266,6 +514,22 @@
 #'   param = c("0" = 0.12, "1" = 0.45)
 #' )
 #' rateMap(list(scratch_fit), plot = FALSE)
+#'
+#' # Use Bifrost model-level IC weights across comparable sensitivity runs:
+#' rm_ic <- rateMap(list(search_a, search_b), weights = "ic", plot = FALSE)
+#'
+#' # Whole-branch summaries avoid interval subdivision:
+#' branch_rates <- rateMap(list(search_a, search_b), summary = "branch", plot = FALSE)
+#'
+#' # Posterior trees with the same topology but different branch lengths can be
+#' # summarized on an explicit target tree:
+#' posterior_rates <- rateMap(
+#'   posterior_fit_list,
+#'   check = "topology",
+#'   target_tree = mcc_tree,
+#'   summary = "branch",
+#'   plot = FALSE
+#' )
 #'
 #' # Large sensitivity sets can be explicitly subsampled before plotting:
 #' set.seed(1)
@@ -312,8 +576,14 @@ rateMap <- function(
   reverse_palette = FALSE,
   legend_title = NULL,
   na_action = c("error", "omit"),
+  summary = c("interval", "branch"),
+  target = c("first", "mcc"),
+  target_tree = NULL,
+  weights = c("equal", "ic"),
+  fit_weights = NULL,
   ...
 ) {
+  # nocov start
   if (!requireNamespace("phytools", quietly = TRUE)) {
     stop("Package 'phytools' is required.")
   }
@@ -329,6 +599,7 @@ rateMap <- function(
   if (!requireNamespace("progressr", quietly = TRUE)) {
     stop("Package 'progressr' is required.")
   }
+  # nocov end
   if (!is.list(fits) || length(fits) == 0L) {
     stop("'fits' must be a non-empty list of fitted run objects.")
   }
@@ -349,7 +620,11 @@ rateMap <- function(
   }
   future_strategy <- match.arg(future_strategy)
   na_action <- match.arg(na_action)
+  summary <- match.arg(summary)
+  target <- match.arg(target)
+  check_mode <- .rateMap_normalize_check(check)
   type <- match.arg(type, c("phylogram", "fan", "arc"))
+  target_mode <- if (is.null(target_tree)) target else "user"
 
   if (is.null(legend_title)) {
     legend_title <- if (isTRUE(log)) "Mean log fitted rate" else "Mean fitted rate"
@@ -372,6 +647,7 @@ rateMap <- function(
   invalid <- which(nzchar(validation))
 
   omitted <- integer()
+  keep <- seq_along(fits)
   if (length(invalid) > 0L) {
     if (identical(na_action, "error")) {
       stop(validation[invalid[1L]])
@@ -385,12 +661,26 @@ rateMap <- function(
     params <- params[keep]
   }
 
+  resolved_weights <- .rateMap_resolve_weights(
+    fits = fits,
+    keep = keep,
+    weights = weights,
+    fit_weights = fit_weights
+  )
+  fit_weights_used <- resolved_weights$weights
+
   if (isTRUE(log)) {
     params <- lapply(params, base::log)
   }
 
-  if (isTRUE(check)) {
-    ref_tree <- ape::as.phylo(trees[[1L]])
+  target_tree <- .rateMap_target_tree(
+    trees = trees,
+    target = target,
+    target_tree = target_tree
+  )
+
+  if (identical(check_mode, "full")) {
+    ref_tree <- ape::as.phylo(target_tree)
     same_tree <- vapply(
       trees,
       function(tr) isTRUE(ape::all.equal.phylo(ref_tree, ape::as.phylo(tr))),
@@ -399,25 +689,53 @@ rateMap <- function(
     if (!all(same_tree)) {
       stop("Some trees do not match in topology or branch lengths.")
     }
+  } else if (identical(check_mode, "topology")) {
+    ref_tree <- ape::as.phylo(target_tree)
+    same_tree <- vapply(
+      trees,
+      function(tr) {
+        isTRUE(ape::all.equal.phylo(
+          ref_tree,
+          ape::as.phylo(tr),
+          use.edge.length = FALSE
+        ))
+      },
+      logical(1)
+    )
+    if (!all(same_tree)) {
+      stop("Some trees do not match in topology.")
+    }
   }
 
-  if (all(vapply(trees, inherits, logical(1), what = "simmap"))) {
-    class(trees) <- c("multiSimmap", "multiPhylo")
+  trees <- lapply(trees, function(tr) {
+    if (!inherits(tr, "simmap")) {
+      class(tr) <- c("simmap", class(tr))
+    }
+    tr
+  })
+  class(trees) <- c("multiSimmap", "multiPhylo")
+  target_tree <- ape::as.phylo(target_tree)
+  edge_matches <- .rateMap_match_edges(target_tree, trees)
+
+  heights <- phytools::nodeHeights(target_tree)
+  max_height <- max(heights)
+  steps <- if (identical(summary, "interval")) {
+    (0:res / res) * max_height
   } else {
-    class(trees) <- "multiPhylo"
+    numeric()
   }
-
-  heights <- vapply(trees, function(x) max(phytools::nodeHeights(x)), numeric(1))
-  steps <- (0:res / res) * max(heights)
-  trees <- phytools::rescaleSimmap(trees, totalDepth = max(heights))
-  tree <- trees[[1L]]
-  H <- phytools::nodeHeights(tree)
+  tree <- target_tree
+  H <- heights
   tol <- 1e-10
 
   edge_indices <- seq_len(nrow(tree$edge))
 
   compute_edge <- function(i) {
-    mids <- intersect(which(steps > H[i, 1L]), which(steps < H[i, 2L]))
+    mids <- if (identical(summary, "interval")) {
+      intersect(which(steps > H[i, 1L]), which(steps < H[i, 2L]))
+    } else {
+      integer()
+    }
     yy <- cbind(
       c(H[i, 1L], steps[mids]),
       c(steps[mids], H[i, 2L])
@@ -425,45 +743,31 @@ rateMap <- function(
     lengths_i <- yy[, 2L] - yy[, 1L]
 
     values_i <- numeric(nrow(yy))
+    target_length <- H[i, 2L] - H[i, 1L]
 
     for (j in seq_along(trees)) {
-      map_i <- trees[[j]]$maps[[i]]
-      state_names <- names(map_i)
+      source_edge <- edge_matches[[j]][i]
+      map_i <- trees[[j]]$maps[[source_edge]]
+      source_length <- sum(map_i)
       fit_rates <- params[[j]]
 
-      xx <- matrix(
-        0,
-        nrow = length(map_i),
-        ncol = 2L,
-        dimnames = list(state_names, c("start", "end"))
-      )
-      xx[1L, 2L] <- map_i[1L]
-
-      if (length(map_i) > 1L) {
-        for (k in 2:length(map_i)) {
-          xx[k, 1L] <- xx[k - 1L, 2L]
-          xx[k, 2L] <- xx[k, 1L] + map_i[k]
-        }
-      }
-
       for (k in seq_len(nrow(yy))) {
-        lower <- which(xx[, 1L] <= yy[k, 1L])
-        lower <- lower[length(lower)]
-        upper <- which(xx[, 2L] >= (yy[k, 2L] - tol))[1L]
-        names(lower) <- names(upper) <- NULL
-
-        if (!all(xx == 0)) {
-          value_k <- 0
-          for (m in lower:upper) {
-            overlap <- min(xx[m, 2L], yy[k, 2L]) - max(xx[m, 1L], yy[k, 1L])
-            frac <- overlap / (yy[k, 2L] - yy[k, 1L])
-            value_k <- value_k + frac * unname(fit_rates[rownames(xx)[m]])
-          }
+        if (target_length > tol) {
+          source_start <- (yy[k, 1L] / target_length) * source_length
+          source_end <- (yy[k, 2L] / target_length) * source_length
         } else {
-          value_k <- unname(fit_rates[rownames(xx)[1L]])
+          source_start <- 0
+          source_end <- source_length
         }
 
-        values_i[k] <- values_i[k] + value_k / length(trees)
+        value_k <- .rateMap_map_value(
+          map = map_i,
+          fit_rates = fit_rates,
+          start = source_start,
+          end = source_end,
+          tol = tol
+        )
+        values_i[k] <- values_i[k] + fit_weights_used[j] * value_k
       }
     }
 
@@ -517,9 +821,11 @@ rateMap <- function(
   interval_lengths <- lapply(edge_results, `[[`, "lengths")
 
   lims <- range(unlist(interval_values, use.names = FALSE), finite = TRUE)
+  # nocov start
   if (!all(is.finite(lims))) {
     stop("Could not compute finite rate limits from the supplied fits.")
   }
+  # nocov end
 
   if (diff(lims) == 0) {
     lims <- lims + c(-0.5, 0.5) * max(abs(lims[1L]), 1) * 1e-6
@@ -564,6 +870,14 @@ rateMap <- function(
   )
   rownames(intervals) <- NULL
 
+  weight_table <- data.frame(
+    input_index = keep,
+    weight = fit_weights_used,
+    ic = resolved_weights$ic,
+    IC_used = resolved_weights$IC_used,
+    stringsAsFactors = FALSE
+  )
+
   out <- list(
     tree = tree,
     cols = cols,
@@ -571,6 +885,12 @@ rateMap <- function(
     breaks = breaks,
     values = interval_values,
     intervals = intervals,
+    summary = summary,
+    target = target_mode,
+    check = check_mode,
+    weights = fit_weights_used,
+    weight_mode = resolved_weights$mode,
+    weight_table = weight_table,
     title = legend_title,
     n_fits = length(trees),
     omitted = omitted

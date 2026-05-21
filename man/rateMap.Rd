@@ -33,17 +33,22 @@ rateMap(
   reverse_palette = FALSE,
   legend_title = NULL,
   na_action = c("error", "omit"),
+  summary = c("interval", "branch"),
+  target = c("first", "mcc"),
+  target_tree = NULL,
+  weights = c("equal", "ic"),
+  fit_weights = NULL,
   ...
 )
 }
 \arguments{
 \item{fits}{A non-empty list of completed runs or fitted model objects.
 Supported shapes are \code{bifrost_search} objects, \code{mvgls} objects,
-\code{list(model = <mvgls>)}, and scratch-style lists with
+\verb{list(model = <mvgls>)}, and scratch-style lists with
 \code{variables$tree} plus \code{param}.}
 
 \item{res}{Integer resolution of the global depth grid used to subdivide
-branches.}
+branches when \code{summary = "interval"}.}
 
 \item{fsize}{Optional plotting font sizes passed to \code{\link[=plotRateMap]{plotRateMap()}} when
 \code{plot = TRUE}.}
@@ -53,8 +58,11 @@ branches.}
 
 \item{lwd}{Line width passed through to \code{\link[=plotRateMap]{plotRateMap()}} when \code{plot = TRUE}.}
 
-\item{check}{Logical; if \code{TRUE}, verify that extracted trees match in
-topology and branch lengths before aggregation.}
+\item{check}{Logical or character check mode. \code{TRUE} or \code{"full"} verifies
+that extracted trees and the target tree match in topology and branch
+lengths. \code{"topology"} verifies matching topology/tip labels while allowing
+branch lengths to differ. \code{FALSE} or \code{"none"} skips this check, but target
+branches still must be matchable by descendant-tip sets.}
 
 \item{legend}{Legend length passed through to \code{\link[=plotRateMap]{plotRateMap()}} when
 \code{plot = TRUE}.}
@@ -120,6 +128,27 @@ name, a vector of colors, or a palette function.}
 \item{na_action}{What to do when a run has invalid parameters. \code{"error"}
 stops immediately. \code{"omit"} drops invalid runs before aggregation.}
 
+\item{summary}{Character; \code{"interval"} slices branches on a global depth grid,
+while \code{"branch"} computes one length-weighted value per edge.}
+
+\item{target}{Character target-tree selection when \code{target_tree = NULL}.
+\code{"first"} uses the first retained input tree. \code{"mcc"} chooses the retained
+input tree with the highest sum of log clade credibilities. For same-topology
+inputs this is usually tied and therefore returns the first retained tree.}
+
+\item{target_tree}{Optional explicit target tree used as the plotting scaffold.
+This may be an MCC tree or another summary tree with the same topology as
+the inputs. It does not need to contain stochastic maps because \code{rateMap()}
+replaces maps with color-bin maps in the returned object.}
+
+\item{weights}{Fit-level weighting mode. \code{"equal"} gives every retained fit
+equal weight. \code{"ic"} computes standard IC weights from \code{optimal_ic} and
+requires all retained fits to have the same \code{IC_used}. A numeric vector is
+also accepted and treated as custom fit weights.}
+
+\item{fit_weights}{Optional numeric custom fit weights. If supplied, these
+override \code{weights}.}
+
 \item{...}{Additional plotting arguments passed to \code{\link[=plotRateMap]{plotRateMap()}} when
 \code{plot = TRUE}, such as \code{mar}, \code{offset}, \code{xlim}, \code{ylim}, \code{hold},
 \code{underscore}, or \code{arc_height}.}
@@ -133,7 +162,14 @@ indices.}
 \item{\code{lims}}{Numeric length-2 vector giving the plotted value range.}
 \item{\code{breaks}}{Numeric vector of palette bin boundaries.}
 \item{\code{values}}{List of branch-interval mean values before color binning.}
-\item{\code{intervals}}{Data frame with one row per plotted branch interval.}
+\item{\code{intervals}}{Data frame with one row per plotted branch interval, or
+one row per branch when \code{summary = "branch"}.}
+\item{\code{summary}}{The summary mode used, \code{"interval"} or \code{"branch"}.}
+\item{\code{target}}{Target-tree selection mode used.}
+\item{\code{check}}{Tree compatibility check mode used.}
+\item{\code{weights}}{Normalized fit weights used for aggregation.}
+\item{\code{weight_table}}{Data frame linking retained input indices, weights,
+and IC values when available.}
 \item{\code{title}}{Legend title used for plotting.}
 \item{\code{n_fits}}{Number of fits used after validation or omission.}
 \item{\code{omitted}}{Integer indices of omitted fits when \code{na_action = "omit"}.}
@@ -142,9 +178,10 @@ indices.}
 \description{
 Computes a branch-interval summary of fitted regime-specific rates across a
 list of stochastic-map-aware model fits or completed \code{bifrost_search}
-results. Each branch is sliced on a global depth grid, the rate associated
-with each mapped state is looked up for each run, and interval values are
-averaged across runs.
+results. In the default interval mode, each branch is sliced on a global
+depth grid, the rate associated with each mapped state is looked up for each
+run, and interval values are averaged across runs. In branch mode, each edge
+receives a single length-weighted whole-branch value.
 }
 \examples{
 \dontrun{
@@ -158,6 +195,22 @@ scratch_fit <- list(
   param = c("0" = 0.12, "1" = 0.45)
 )
 rateMap(list(scratch_fit), plot = FALSE)
+
+# Use Bifrost model-level IC weights across comparable sensitivity runs:
+rm_ic <- rateMap(list(search_a, search_b), weights = "ic", plot = FALSE)
+
+# Whole-branch summaries avoid interval subdivision:
+branch_rates <- rateMap(list(search_a, search_b), summary = "branch", plot = FALSE)
+
+# Posterior trees with the same topology but different branch lengths can be
+# summarized on an explicit target tree:
+posterior_rates <- rateMap(
+  posterior_fit_list,
+  check = "topology",
+  target_tree = mcc_tree,
+  summary = "branch",
+  plot = FALSE
+)
 
 # Large sensitivity sets can be explicitly subsampled before plotting:
 set.seed(1)
