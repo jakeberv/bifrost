@@ -24,6 +24,10 @@
 
 `bifrost` performs branch-level inference of multi-regime, multivariate trait evolution on a phylogeny using [penalized-likelihood multivariate GLS fits](https://doi.org/10.1093/sysbio/syy045). The current version searches for evolutionary model shifts under a multi-rate Brownian Motion (BMM) model with proportional regime VCV scaling, operates directly in trait space (for example, without PCA), and is designed for high-dimensional datasets (`p > n`) and large trees (`> 1000` tips). The method works with fossil tip-dated trees and with a wide range of multivariate comparative data, including GPA-aligned morphometric coordinates, linear dimensions, and related trait matrices. A future major release will add support for the [multivariate scalar Ornstein-Uhlenbeck process](https://doi.org/10.1093/sysbio/syy005).
 
+## CRAN downloads
+
+![Cumulative CRAN downloads for bifrost](tools/cran-downloads/output/cran-downloads.png)
+
 ## Installation
 
 ### Stable release
