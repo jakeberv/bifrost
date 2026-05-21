@@ -28,7 +28,8 @@ pnpm run update
 
 - `data/bifrost-cran-downloads.json`
 - `output/cran-downloads.svg` as the SVG render source
-- `output/cran-downloads.png` as the canonical README/pkgdown image when `rsvg-convert` is available
+- `output/cran-downloads.png` as the rendered PNG when `rsvg-convert` is available
+- `../../man/figures/cran-downloads.png` as the README/pkgdown copy
 
 Use the PNG in Markdown. The SVG is retained as a render source, but PNG output avoids renderer/font differences across GitHub, pkgdown, and local preview tools.
 
@@ -41,6 +42,7 @@ Each run rebuilds the persistent `automation/cran-downloads` branch from the cur
 - `data/bifrost-cran-downloads.json`
 - `output/cran-downloads.svg`
 - `output/cran-downloads.png`
+- `../../man/figures/cran-downloads.png`
 
 The workflow uses a pull request instead of pushing directly to `main`, so it works with branch protection rules. Merging the PR makes the stored JSON on `main` the canonical archive for the next run.
 
