@@ -8,7 +8,7 @@ on:
 
 permissions:
   contents: write
-  actions: write
+  pull-requests: write
 
 concurrency:
   group: cran-downloads-chart
@@ -45,9 +45,12 @@ jobs:
         working-directory: tools/cran-downloads
         run: pnpm run update
 
-      - name: Commit updated CRAN downloads artifacts
-        id: commit
+      - name: Open update pull request
+        id: update-pr
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           paths=(
             tools/cran-downloads/data/bifrost-cran-downloads.json
@@ -61,17 +64,24 @@ jobs:
             exit 0
           fi
 
+          branch="automation/cran-downloads-update"
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$branch"
 
           git add "${paths[@]}"
           git commit -m "Update CRAN downloads data and chart"
-          git push
+          git push --force-with-lease origin "$branch"
+
+          if gh pr view "$branch" --json url --jq .url >/tmp/cran-downloads-pr-url 2>/dev/null; then
+            echo "Updated existing PR: $(cat /tmp/cran-downloads-pr-url)"
+          else
+            gh pr create \
+              --base "$BASE_BRANCH" \
+              --head "$branch" \
+              --title "Update CRAN downloads data and chart" \
+              --body "Automated weekly update of stored CRAN downloads data and the generated chart artifacts."
+          fi
 
           echo "changed=true" >> "$GITHUB_OUTPUT"
-
-      - name: Trigger pkgdown rebuild
-        if: steps.commit.outputs.changed == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh workflow run pkgdown.yml --ref "${{ github.ref_name }}"
