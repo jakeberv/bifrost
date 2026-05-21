@@ -21,6 +21,9 @@ const outputSvgPath =
 const outputPngPath =
   process.env.CRAN_DOWNLOADS_PNG ||
   path.join(projectRoot, "output", "cran-downloads.png");
+const readmePngPath =
+  process.env.CRAN_DOWNLOADS_README_PNG ||
+  path.resolve(projectRoot, "..", "..", "man", "figures", "cran-downloads.png");
 
 const canvasWidth = 1200;
 const canvasHeight = 500;
@@ -107,6 +110,10 @@ if (commandExists("rsvg-convert")) {
     throw new Error("rsvg-convert failed");
   }
   console.log(outputPngPath);
+
+  fs.mkdirSync(path.dirname(readmePngPath), { recursive: true });
+  fs.copyFileSync(outputPngPath, readmePngPath);
+  console.log(readmePngPath);
 }
 
 function renderChart({ title, yLabel, datasets, colors, legendPosition = "top-left" }) {
