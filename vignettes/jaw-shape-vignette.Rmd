@@ -357,6 +357,46 @@ text((x0 + x1) / 2, y1 + vscale * (0.03 * yr),
 
 ```
 
+For sensitivity analyses or posterior-style batches of fitted models, `rateMap()`
+can summarize branchwise rates across many completed runs on the same tree. The
+function accepts `bifrost_search` objects directly, and can also consume the
+scratch-style `list(variables = list(tree = ...), param = ...)` objects often
+used for large external run collections.
+
+```{r multi_run_rate_map, eval=FALSE}
+# Example: summarize a set of completed Bifrost searches
+jaws_rate_map <- rateMap(
+  jaws_search_runs,
+  res = 100,
+  plot = FALSE,
+  log = TRUE,
+  palette = c("lightblue", "blue", "pink", "red")
+)
+
+plotRateMap(
+  jaws_rate_map,
+  type = "arc",
+  show_tip_labels = FALSE,
+  tip_fsize = 0.4,
+  legend_fsize = 0.8,
+  lwd = 1,
+  outline = FALSE,
+  arc_height = 0.5
+)
+
+# For very large run lists, subsample explicitly before summarizing.
+set.seed(1)
+idx <- sample(seq_along(jaws_search_runs), size = 1000)
+jaws_rate_map_sub <- rateMap(
+  jaws_search_runs[idx],
+  res = 100,
+  workers = 8,
+  future_strategy = "multisession",
+  plot = FALSE,
+  log = TRUE
+)
+```
+
 <br>
 ```{r branch_rates_fig, echo=FALSE, fig.align="center", out.width="80%", fig.alt="Upward-oriented phylogenetic tree without tip labels. Branches are colored using a viridis gradient, where yellow branches represent faster inferred evolutionary rates and dark purple branches represent slower rates; different clades show distinct colors indicating variation in branch rates across the tree."}
 knitr::include_graphics("jaw-shape/branch_rates.png")
