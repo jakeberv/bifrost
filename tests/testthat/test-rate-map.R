@@ -229,6 +229,10 @@ test_that("rateMap validates top-level arguments and tree checks", {
   testthat::expect_error(rateMap(list(fit), ncolors = 1), "ncolors")
   testthat::expect_error(rateMap(list(fit), workers = 0), "workers")
   testthat::expect_error(rateMap(list(fit), summary = "node"), "'arg' should be")
+  testthat::expect_error(rateMap(list(fit), uncertainty = NA), "uncertainty")
+  testthat::expect_error(rateMap(list(fit), value_summary = "mode"), "'arg' should be")
+  testthat::expect_error(rateMap(list(fit), quantile_probs = c(0.9, 0.1)), "quantile_probs")
+  testthat::expect_error(rateMap(list(fit), hpd_prob = 0), "hpd_prob")
   testthat::expect_error(rateMap(list(fit), check = "branch"), "check")
   testthat::expect_error(
     rateMap(list(fit), target_tree = list(), plot = FALSE, progress = FALSE),
@@ -407,6 +411,73 @@ test_that("rateMap computes whole-branch summaries without splitting branches", 
   testthat::expect_equal(out$weight_mode, "custom")
   testthat::expect_true(all(abs(out$intervals$value - 0.4) < 1e-12))
   testthat::expect_true(all(vapply(out$tree$maps, length, integer(1)) == 1L))
+})
+
+test_that("rateMap computes optional uncertainty summaries", {
+  .rate_map_skip_if_missing_deps()
+  fx <- .rate_map_fixture()
+
+  fits <- list(
+    .rate_map_fit(fx$base, c("0" = 1)),
+    .rate_map_fit(fx$base, c("0" = 3))
+  )
+
+  out <- rateMap(
+    fits,
+    summary = "branch",
+    uncertainty = TRUE,
+    plot = FALSE,
+    progress = FALSE
+  )
+
+  testthat::expect_true(out$uncertainty)
+  testthat::expect_equal(out$value_summary, "mean")
+  testthat::expect_length(out$run_values, nrow(fx$base$edge))
+  testthat::expect_equal(dim(out$run_values[[1L]]), c(1L, 2L))
+  testthat::expect_true(all(c(
+    "mean", "median", "sd", "q025", "q975", "hpd_low", "hpd_high", "n"
+  ) %in% names(out$intervals)))
+  testthat::expect_equal(out$intervals$value, out$intervals$mean)
+  testthat::expect_true(all(abs(out$intervals$mean - 2) < 1e-12))
+  testthat::expect_true(all(abs(out$intervals$median - 2) < 1e-12))
+  testthat::expect_true(all(abs(out$intervals$sd - sqrt(2)) < 1e-12))
+  testthat::expect_true(all(abs(out$intervals$q025 - 1.05) < 1e-12))
+  testthat::expect_true(all(abs(out$intervals$q975 - 2.95) < 1e-12))
+  testthat::expect_true(all(abs(out$intervals$hpd_low - 1) < 1e-12))
+  testthat::expect_true(all(abs(out$intervals$hpd_high - 3) < 1e-12))
+  testthat::expect_true(all(out$intervals$n == 2L))
+
+  median_out <- rateMap(
+    list(
+      .rate_map_fit(fx$base, c("0" = 1)),
+      .rate_map_fit(fx$base, c("0" = 5)),
+      .rate_map_fit(fx$base, c("0" = 9))
+    ),
+    summary = "branch",
+    value_summary = "median",
+    plot = FALSE,
+    progress = FALSE
+  )
+
+  testthat::expect_false(median_out$uncertainty)
+  testthat::expect_null(median_out$run_values)
+  testthat::expect_equal(median_out$value_summary, "median")
+  testthat::expect_true(all(abs(median_out$intervals$value - 5) < 1e-12))
+
+  weighted <- rateMap(
+    fits,
+    summary = "branch",
+    weights = c(1, 3),
+    uncertainty = TRUE,
+    value_summary = "median",
+    plot = FALSE,
+    progress = FALSE
+  )
+
+  testthat::expect_equal(weighted$weights, c(0.25, 0.75))
+  testthat::expect_true(all(abs(weighted$intervals$mean - 2.5) < 1e-12))
+  testthat::expect_true(all(abs(weighted$intervals$value - 3) < 1e-12))
+  testthat::expect_true(all(abs(weighted$intervals$median - 3) < 1e-12))
 })
 
 test_that("rateMap handles valid log transforms and multi-segment branch maps", {
@@ -616,6 +687,36 @@ test_that("rateMap palette resolution handles names, vectors, and reversal", {
   testthat::expect_equal(
     .rateMap_map_value(c("0" = 1), c("0" = 7), start = 2, end = 3),
     7
+  )
+  testthat::expect_equal(
+    .rateMap_weighted_mean(c(NA, 4), c(1, 3)),
+    4
+  )
+  testthat::expect_true(is.na(.rateMap_weighted_mean(c(NA, Inf), c(1, 1))))
+  testthat::expect_true(is.na(.rateMap_weighted_sd(c(1, NA), c(1, 1))))
+  testthat::expect_equal(
+    .rateMap_weighted_quantile(c(NA, Inf), c(1, 1), c(0.25, 0.75)),
+    c(NA_real_, NA_real_)
+  )
+  testthat::expect_equal(
+    .rateMap_weighted_quantile(c(4, NA), c(1, 1), c(0.25, 0.75)),
+    c(4, 4)
+  )
+  testthat::expect_equal(
+    .rateMap_weighted_quantile(c(1, 3), c(1, 3), c(0, 1)),
+    c(1, 3)
+  )
+  testthat::expect_equal(
+    .rateMap_hpd(c(NA, Inf), c(1, 1), 0.95),
+    c(NA_real_, NA_real_)
+  )
+  testthat::expect_equal(
+    .rateMap_hpd(c(4, NA), c(1, 1), 0.95),
+    c(4, 4)
+  )
+  testthat::expect_equal(
+    .rateMap_row_means(matrix(c(1, NA, 3, 5), nrow = 2, byrow = TRUE), c(0.25, 0.75)),
+    c(1, 4.5)
   )
 })
 

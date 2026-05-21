@@ -302,6 +302,168 @@
   sum(overlap * rate_values) / total_overlap
 }
 
+.rateMap_quantile_names <- function(probs) {
+  paste0("q", sprintf("%03d", as.integer(round(1000 * probs))))
+}
+
+.rateMap_weighted_mean <- function(x, weights) {
+  ok <- is.finite(x) & is.finite(weights) & weights > 0
+  if (!any(ok)) {
+    return(NA_real_)
+  }
+  x <- x[ok]
+  weights <- weights[ok] / sum(weights[ok])
+  sum(weights * x)
+}
+
+.rateMap_weighted_sd <- function(x, weights) {
+  ok <- is.finite(x) & is.finite(weights) & weights > 0
+  if (sum(ok) <= 1L) {
+    return(NA_real_)
+  }
+  x <- x[ok]
+  weights <- weights[ok] / sum(weights[ok])
+  if (all(abs(weights - weights[1L]) < sqrt(.Machine$double.eps))) {
+    return(stats::sd(x))
+  }
+  mu <- sum(weights * x)
+  sqrt(sum(weights * (x - mu)^2))
+}
+
+.rateMap_weighted_quantile <- function(x, weights, probs) {
+  ok <- is.finite(x) & is.finite(weights) & weights > 0
+  if (!any(ok)) {
+    return(rep(NA_real_, length(probs)))
+  }
+
+  x <- x[ok]
+  weights <- weights[ok] / sum(weights[ok])
+
+  if (length(x) == 1L) {
+    return(rep(x, length(probs)))
+  }
+
+  if (all(abs(weights - weights[1L]) < sqrt(.Machine$double.eps))) {
+    return(as.numeric(stats::quantile(x, probs = probs, names = FALSE, type = 7)))
+  }
+
+  ord <- order(x)
+  x <- x[ord]
+  weights <- weights[ord]
+  cumulative <- cumsum(weights)
+
+  vapply(
+    probs,
+    function(prob) {
+      if (prob <= 0) {
+        return(x[1L])
+      }
+      if (prob >= 1) {
+        return(x[length(x)])
+      }
+      x[which(cumulative >= prob)[1L]]
+    },
+    numeric(1)
+  )
+}
+
+.rateMap_hpd <- function(x, weights, prob) {
+  ok <- is.finite(x) & is.finite(weights) & weights > 0
+  if (!any(ok)) {
+    return(c(NA_real_, NA_real_))
+  }
+
+  x <- x[ok]
+  weights <- weights[ok] / sum(weights[ok])
+  if (length(x) == 1L) {
+    return(c(x, x))
+  }
+
+  ord <- order(x)
+  x <- x[ord]
+  weights <- weights[ord]
+
+  if (all(abs(weights - weights[1L]) < sqrt(.Machine$double.eps))) {
+    width <- max(1L, ceiling(prob * length(x)))
+    starts <- seq_len(length(x) - width + 1L)
+    ranges <- x[starts + width - 1L] - x[starts]
+    best <- starts[which.min(ranges)]
+    return(c(x[best], x[best + width - 1L]))
+  }
+
+  cumulative <- c(0, cumsum(weights))
+  best <- c(x[1L], x[length(x)])
+  best_width <- Inf
+  tol <- sqrt(.Machine$double.eps)
+
+  for (i in seq_along(x)) {
+    target <- cumulative[i] + prob
+    if (target > 1 + tol) {
+      break
+    }
+    j <- which(cumulative >= target - tol)[1L] - 1L
+    if (!is.na(j) && j >= i) {
+      width <- x[j] - x[i]
+      if (width < best_width) {
+        best_width <- width
+        best <- c(x[i], x[j])
+      }
+    }
+  }
+
+  best
+}
+
+.rateMap_row_means <- function(values, weights) {
+  if (all(is.finite(values))) {
+    return(as.numeric(values %*% weights))
+  }
+  vapply(
+    seq_len(nrow(values)),
+    function(i) .rateMap_weighted_mean(values[i, ], weights),
+    numeric(1)
+  )
+}
+
+.rateMap_summarize_run_values <- function(values,
+                                          weights,
+                                          quantile_probs,
+                                          hpd_prob) {
+  q_names <- .rateMap_quantile_names(quantile_probs)
+  quantiles <- t(vapply(
+    seq_len(nrow(values)),
+    function(i) .rateMap_weighted_quantile(values[i, ], weights, quantile_probs),
+    numeric(length(quantile_probs))
+  ))
+  colnames(quantiles) <- q_names
+
+  hpds <- t(vapply(
+    seq_len(nrow(values)),
+    function(i) .rateMap_hpd(values[i, ], weights, hpd_prob),
+    numeric(2)
+  ))
+  colnames(hpds) <- c("hpd_low", "hpd_high")
+
+  data.frame(
+    mean = .rateMap_row_means(values, weights),
+    median = vapply(
+      seq_len(nrow(values)),
+      function(i) .rateMap_weighted_quantile(values[i, ], weights, 0.5),
+      numeric(1)
+    ),
+    sd = vapply(
+      seq_len(nrow(values)),
+      function(i) .rateMap_weighted_sd(values[i, ], weights),
+      numeric(1)
+    ),
+    quantiles,
+    hpds,
+    n = rowSums(is.finite(values)),
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+}
+
 .rateMap_normalize_weights <- function(weights) {
   if (!is.numeric(weights) || length(weights) == 0L || any(!is.finite(weights))) {
     stop("Fit weights must be a non-empty finite numeric vector.")
@@ -439,6 +601,15 @@
 #' for custom weighting. Weights are subset to retained fits after
 #' `na_action = "omit"` and are normalized to sum to one.
 #'
+#' **Uncertainty summaries.** When `uncertainty = TRUE`, the returned
+#' `intervals` data frame includes across-fit summaries for each branch or
+#' interval: weighted mean, weighted median, weighted standard deviation,
+#' quantiles, HPD interval, and the number of finite run-level values. The
+#' run-level values are also returned in `run_values` as one matrix per edge.
+#' For posterior tree samples, use `weights = "equal"` so the quantiles and HPDs
+#' are empirical posterior summaries. `value_summary` controls whether the
+#' plotted `value` column uses the weighted mean or weighted median.
+#'
 #' @param fits A non-empty list of completed runs or fitted model objects.
 #'   Supported shapes are `bifrost_search` objects, `mvgls` objects,
 #'   `list(model = <mvgls>)`, and scratch-style lists with
@@ -515,6 +686,15 @@
 #'   also accepted and treated as custom fit weights.
 #' @param fit_weights Optional numeric custom fit weights. If supplied, these
 #'   override `weights`.
+#' @param uncertainty Logical; if `TRUE`, compute and return across-fit
+#'   uncertainty summaries for every plotted branch interval or whole branch.
+#' @param value_summary Character; central estimate stored in `intervals$value`
+#'   and mapped to colors. `"mean"` preserves the legacy weighted-mean behavior.
+#'   `"median"` uses the weighted median.
+#' @param quantile_probs Numeric length-2 vector of quantile probabilities to
+#'   report when `uncertainty = TRUE`.
+#' @param hpd_prob Numeric scalar giving the HPD mass to report when
+#'   `uncertainty = TRUE`.
 #' @param ... Additional plotting arguments passed to [plotRateMap()] when
 #'   `plot = TRUE`, such as `mar`, `offset`, `xlim`, `ylim`, `hold`,
 #'   `underscore`, or `arc_height`.
@@ -526,10 +706,20 @@
 #'   \item{`cols`}{The resolved color palette.}
 #'   \item{`lims`}{Numeric length-2 vector giving the plotted value range.}
 #'   \item{`breaks`}{Numeric vector of palette bin boundaries.}
-#'   \item{`values`}{List of branch-interval mean values before color binning.}
+#'   \item{`values`}{List of branch-interval central values before color
+#'   binning.}
 #'   \item{`intervals`}{Data frame with one row per plotted branch interval, or
 #'   one row per branch when `summary = "branch"`.}
+#'   \item{`run_values`}{When `uncertainty = TRUE`, list of numeric matrices
+#'   containing run-level values for each edge. Rows are plotted intervals and
+#'   columns are retained fits. Otherwise `NULL`.}
 #'   \item{`summary`}{The summary mode used, `"interval"` or `"branch"`.}
+#'   \item{`uncertainty`}{Logical indicating whether uncertainty summaries were
+#'   computed.}
+#'   \item{`value_summary`}{Central estimate used for `intervals$value`.}
+#'   \item{`quantile_probs`}{Quantile probabilities used for uncertainty
+#'   summaries.}
+#'   \item{`hpd_prob`}{HPD mass used for uncertainty summaries.}
 #'   \item{`target`}{Target-tree selection mode used.}
 #'   \item{`check`}{Tree compatibility check mode used.}
 #'   \item{`weights`}{Normalized fit weights used for aggregation.}
@@ -578,6 +768,8 @@
 #'   check = "topology",
 #'   target_tree = mcc_tree,
 #'   summary = "branch",
+#'   weights = "equal",
+#'   uncertainty = TRUE,
 #'   plot = FALSE
 #' )
 #'
@@ -641,6 +833,10 @@ rateMap <- function(
   target_tree = NULL,
   weights = c("equal", "ic"),
   fit_weights = NULL,
+  uncertainty = FALSE,
+  value_summary = c("mean", "median"),
+  quantile_probs = c(0.025, 0.975),
+  hpd_prob = 0.95,
   ...
 ) {
   # nocov start
@@ -672,6 +868,23 @@ rateMap <- function(
   if (!is.null(workers) && (!is.numeric(workers) || length(workers) != 1L || workers < 1)) {
     stop("'workers' must be NULL or a positive number.")
   }
+  if (!is.logical(uncertainty) || length(uncertainty) != 1L || is.na(uncertainty)) {
+    stop("'uncertainty' must be TRUE or FALSE.")
+  }
+  if (!is.numeric(quantile_probs) ||
+      length(quantile_probs) != 2L ||
+      any(!is.finite(quantile_probs)) ||
+      any(quantile_probs < 0 | quantile_probs > 1) ||
+      quantile_probs[1L] >= quantile_probs[2L]) {
+    stop("'quantile_probs' must be an increasing finite numeric vector of length 2 between 0 and 1.")
+  }
+  if (!is.numeric(hpd_prob) ||
+      length(hpd_prob) != 1L ||
+      !is.finite(hpd_prob) ||
+      hpd_prob <= 0 ||
+      hpd_prob > 1) {
+    stop("'hpd_prob' must be a finite number in (0, 1].")
+  }
 
   res <- as.integer(res)
   ncolors <- as.integer(ncolors)
@@ -683,6 +896,7 @@ rateMap <- function(
   summary <- match.arg(summary)
   target <- match.arg(target)
   check_mode <- .rateMap_normalize_check(check)
+  value_summary <- match.arg(value_summary)
   type <- match.arg(type, c("phylogram", "fan", "arc"))
   target_mode <- if (is.null(target_tree)) target else "user"
 
@@ -802,7 +1016,12 @@ rateMap <- function(
     ) - H[i, 1L]
     lengths_i <- yy[, 2L] - yy[, 1L]
 
-    values_i <- numeric(nrow(yy))
+    values_by_fit <- matrix(
+      NA_real_,
+      nrow = nrow(yy),
+      ncol = length(trees),
+      dimnames = list(NULL, paste0("fit_", keep))
+    )
     target_length <- H[i, 2L] - H[i, 1L]
 
     for (j in seq_along(trees)) {
@@ -827,8 +1046,24 @@ rateMap <- function(
           end = source_end,
           tol = tol
         )
-        values_i[k] <- values_i[k] + fit_weights_used[j] * value_k
+        values_by_fit[k, j] <- value_k
       }
+    }
+
+    uncertainty_i <- if (isTRUE(uncertainty) || identical(value_summary, "median")) {
+      .rateMap_summarize_run_values(
+        values = values_by_fit,
+        weights = fit_weights_used,
+        quantile_probs = quantile_probs,
+        hpd_prob = hpd_prob
+      )
+    } else {
+      NULL
+    }
+    values_i <- if (identical(value_summary, "median")) {
+      uncertainty_i$median
+    } else {
+      .rateMap_row_means(values_by_fit, fit_weights_used)
     }
 
     if (isTRUE(progress)) {
@@ -837,6 +1072,8 @@ rateMap <- function(
 
     list(
       values = values_i,
+      run_values = if (isTRUE(uncertainty)) values_by_fit else NULL,
+      uncertainty = if (isTRUE(uncertainty)) uncertainty_i else NULL,
       lengths = lengths_i,
       depth_start = H[i, 1L] + yy[, 1L],
       depth_end = H[i, 1L] + yy[, 2L]
@@ -879,6 +1116,11 @@ rateMap <- function(
 
   interval_values <- lapply(edge_results, `[[`, "values")
   interval_lengths <- lapply(edge_results, `[[`, "lengths")
+  run_values <- if (isTRUE(uncertainty)) {
+    lapply(edge_results, `[[`, "run_values")
+  } else {
+    NULL
+  }
 
   lims <- range(unlist(interval_values, use.names = FALSE), finite = TRUE)
   # nocov start
@@ -915,7 +1157,7 @@ rateMap <- function(
   intervals <- do.call(
     rbind,
     lapply(edge_indices, function(i) {
-      data.frame(
+      base_row <- data.frame(
         edge = i,
         parent = tree$edge[i, 1L],
         child = tree$edge[i, 2L],
@@ -926,6 +1168,10 @@ rateMap <- function(
         color_bin = bins_by_edge[[i]],
         stringsAsFactors = FALSE
       )
+      if (isTRUE(uncertainty)) {
+        base_row <- cbind(base_row, edge_results[[i]]$uncertainty)
+      }
+      base_row
     })
   )
   rownames(intervals) <- NULL
@@ -945,7 +1191,12 @@ rateMap <- function(
     breaks = breaks,
     values = interval_values,
     intervals = intervals,
+    run_values = run_values,
     summary = summary,
+    uncertainty = uncertainty,
+    value_summary = value_summary,
+    quantile_probs = quantile_probs,
+    hpd_prob = hpd_prob,
     target = target_mode,
     check = check_mode,
     weights = fit_weights_used,

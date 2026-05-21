@@ -38,6 +38,10 @@ rateMap(
   target_tree = NULL,
   weights = c("equal", "ic"),
   fit_weights = NULL,
+  uncertainty = FALSE,
+  value_summary = c("mean", "median"),
+  quantile_probs = c(0.025, 0.975),
+  hpd_prob = 0.95,
   ...
 )
 }
@@ -151,6 +155,19 @@ also accepted and treated as custom fit weights.}
 \item{fit_weights}{Optional numeric custom fit weights. If supplied, these
 override \code{weights}.}
 
+\item{uncertainty}{Logical; if \code{TRUE}, compute and return across-fit
+uncertainty summaries for every plotted branch interval or whole branch.}
+
+\item{value_summary}{Character; central estimate stored in \code{intervals$value}
+and mapped to colors. \code{"mean"} preserves the legacy weighted-mean behavior.
+\code{"median"} uses the weighted median.}
+
+\item{quantile_probs}{Numeric length-2 vector of quantile probabilities to
+report when \code{uncertainty = TRUE}.}
+
+\item{hpd_prob}{Numeric scalar giving the HPD mass to report when
+\code{uncertainty = TRUE}.}
+
 \item{...}{Additional plotting arguments passed to \code{\link[=plotRateMap]{plotRateMap()}} when
 \code{plot = TRUE}, such as \code{mar}, \code{offset}, \code{xlim}, \code{ylim}, \code{hold},
 \code{underscore}, or \code{arc_height}.}
@@ -163,10 +180,20 @@ indices.}
 \item{\code{cols}}{The resolved color palette.}
 \item{\code{lims}}{Numeric length-2 vector giving the plotted value range.}
 \item{\code{breaks}}{Numeric vector of palette bin boundaries.}
-\item{\code{values}}{List of branch-interval mean values before color binning.}
+\item{\code{values}}{List of branch-interval central values before color
+binning.}
 \item{\code{intervals}}{Data frame with one row per plotted branch interval, or
 one row per branch when \code{summary = "branch"}.}
+\item{\code{run_values}}{When \code{uncertainty = TRUE}, list of numeric matrices
+containing run-level values for each edge. Rows are plotted intervals and
+columns are retained fits. Otherwise \code{NULL}.}
 \item{\code{summary}}{The summary mode used, \code{"interval"} or \code{"branch"}.}
+\item{\code{uncertainty}}{Logical indicating whether uncertainty summaries were
+computed.}
+\item{\code{value_summary}}{Central estimate used for \code{intervals$value}.}
+\item{\code{quantile_probs}}{Quantile probabilities used for uncertainty
+summaries.}
+\item{\code{hpd_prob}}{HPD mass used for uncertainty summaries.}
 \item{\code{target}}{Target-tree selection mode used.}
 \item{\code{check}}{Tree compatibility check mode used.}
 \item{\code{weights}}{Normalized fit weights used for aggregation.}
@@ -224,6 +251,15 @@ each retained fit's \code{optimal_ic}, requiring all retained fits to share the
 same non-missing \code{IC_used}. Numeric \code{weights} or \code{fit_weights} can be supplied
 for custom weighting. Weights are subset to retained fits after
 \code{na_action = "omit"} and are normalized to sum to one.
+
+\strong{Uncertainty summaries.} When \code{uncertainty = TRUE}, the returned
+\code{intervals} data frame includes across-fit summaries for each branch or
+interval: weighted mean, weighted median, weighted standard deviation,
+quantiles, HPD interval, and the number of finite run-level values. The
+run-level values are also returned in \code{run_values} as one matrix per edge.
+For posterior tree samples, use \code{weights = "equal"} so the quantiles and HPDs
+are empirical posterior summaries. \code{value_summary} controls whether the
+plotted \code{value} column uses the weighted mean or weighted median.
 }
 \examples{
 \dontrun{
@@ -259,6 +295,8 @@ posterior_rates <- rateMap(
   check = "topology",
   target_tree = mcc_tree,
   summary = "branch",
+  weights = "equal",
+  uncertainty = TRUE,
   plot = FALSE
 )
 
