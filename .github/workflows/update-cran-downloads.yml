@@ -1,0 +1,77 @@
+name: Update CRAN downloads chart
+
+on:
+  schedule:
+    # Weekly on Monday at 13:17 UTC.
+    - cron: "17 13 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: cran-downloads-chart
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Setup pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.1.3 --activate
+
+      - name: Install SVG renderer
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y librsvg2-bin
+
+      - name: Install chart dependencies
+        working-directory: tools/cran-downloads
+        run: pnpm install --frozen-lockfile
+
+      - name: Update stored CRAN data and chart
+        working-directory: tools/cran-downloads
+        run: pnpm run update
+
+      - name: Commit updated CRAN downloads artifacts
+        id: commit
+        shell: bash
+        run: |
+          paths=(
+            tools/cran-downloads/data/bifrost-cran-downloads.json
+            tools/cran-downloads/output/cran-downloads.svg
+            tools/cran-downloads/output/cran-downloads.png
+          )
+
+          if git diff --quiet -- "${paths[@]}"; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No CRAN downloads changes."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add "${paths[@]}"
+          git commit -m "Update CRAN downloads data and chart"
+          git push
+
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Trigger pkgdown rebuild
+        if: steps.commit.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run pkgdown.yml --ref "${{ github.ref_name }}"

@@ -14,3 +14,4 @@ lint.txt
 .lintr
 lintr.R
 experimental/
+/tools/cran-downloads/node_modules/

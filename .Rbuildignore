@@ -4,7 +4,7 @@
 ^_pkgdown\.yml$
 ^docs$
 ^pkgdown$
-^\.github$
+^\.github($|/)
 ^CODE_OF_CONDUCT\.md$
 ^cran-comments\.md$
 ^LICENSE$
@@ -29,3 +29,4 @@
 ^lint\.txt$
 ^.lintr$
 ^lintr\.R$
+^tools/cran-downloads($|/)
