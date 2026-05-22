@@ -223,6 +223,16 @@ lengths, branches are sliced on a global depth grid, and runs are averaged
 with equal weight.
 }
 \details{
+\strong{Algorithmic provenance.} \code{rateMap()} is inspired by
+\code{\link[phytools:densityMap]{phytools::densityMap()}}, which summarizes a set of stochastic maps by
+slicing mapped branches on a shared depth grid and coloring a SIMMAP-style
+tree by an averaged branchwise quantity. Here the averaged quantity is not a
+posterior probability of a mapped state; instead, each mapped state is
+translated through the corresponding fitted regime-rate parameter from each
+run. The plotting interface likewise follows the \code{phytools} density-map
+family by returning a colored SIMMAP tree and drawing it with
+\code{\link[phytools:plotSimmap]{phytools::plotSimmap()}} plus a continuous color-bar legend.
+
 \code{rateMap()} can also summarize same-topology posterior or sensitivity samples
 where branch lengths differ. In that case, supply \code{check = "topology"} and,
 usually, an explicit \code{target_tree}. This can be any target or summary tree
@@ -340,5 +350,6 @@ plotRateMap(rm_sub, type = "arc", show_tip_labels = FALSE, lwd = 1)
 
 }
 \seealso{
-\code{\link[=plotRateMap]{plotRateMap()}}, \code{\link[phytools:plotSimmap]{phytools::plotSimmap()}}
+\code{\link[=plotRateMap]{plotRateMap()}}, \code{\link[phytools:densityMap]{phytools::densityMap()}},
+\code{\link[phytools:plotSimmap]{phytools::plotSimmap()}}
 }
