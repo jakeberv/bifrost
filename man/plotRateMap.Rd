@@ -34,6 +34,8 @@ Invisibly returns \code{x}.
 \description{
 Render a rate-variation map produced by \code{\link[=rateMap]{rateMap()}} using
 \code{\link[phytools:plotSimmap]{phytools::plotSimmap()}} and a continuous color-bar legend.
+The plotting controls intentionally mirror the \code{phytools} density-map
+plotting style for phylogram, fan, and arc layouts.
 }
 \examples{
 \dontrun{
@@ -51,5 +53,5 @@ plotRateMap(rm_obj, value = "sd", palette = "Inferno")
 
 }
 \seealso{
-\code{\link[=rateMap]{rateMap()}}
+\code{\link[=rateMap]{rateMap()}}, \code{\link[phytools:densityMap]{phytools::densityMap()}}, \code{\link[phytools:plotSimmap]{phytools::plotSimmap()}}
 }

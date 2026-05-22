@@ -675,6 +675,16 @@
 #' with equal weight.
 #'
 #' @details
+#' **Algorithmic provenance.** `rateMap()` is inspired by
+#' [phytools::densityMap()], which summarizes a set of stochastic maps by
+#' slicing mapped branches on a shared depth grid and coloring a SIMMAP-style
+#' tree by an averaged branchwise quantity. Here the averaged quantity is not a
+#' posterior probability of a mapped state; instead, each mapped state is
+#' translated through the corresponding fitted regime-rate parameter from each
+#' run. The plotting interface likewise follows the `phytools` density-map
+#' family by returning a colored SIMMAP tree and drawing it with
+#' [phytools::plotSimmap()] plus a continuous color-bar legend.
+#'
 #' `rateMap()` can also summarize same-topology posterior or sensitivity samples
 #' where branch lengths differ. In that case, supply `check = "topology"` and,
 #' usually, an explicit `target_tree`. This can be any target or summary tree
@@ -855,7 +865,8 @@
 #'   \item{`omitted`}{Integer indices of omitted fits when `na_action = "omit"`.}
 #' }
 #'
-#' @seealso [plotRateMap()], [phytools::plotSimmap()]
+#' @seealso [plotRateMap()], [phytools::densityMap()],
+#'   [phytools::plotSimmap()]
 #'
 #' @examples
 #' \dontrun{
@@ -1371,6 +1382,8 @@ rateMap <- function(
 #'
 #' Render a rate-variation map produced by [rateMap()] using
 #' [phytools::plotSimmap()] and a continuous color-bar legend.
+#' The plotting controls intentionally mirror the `phytools` density-map
+#' plotting style for phylogram, fan, and arc layouts.
 #'
 #' @param x An object of class `"rateMap"` returned by [rateMap()].
 #' @param value Character interval column to map to branch colors. The default
@@ -1388,7 +1401,7 @@ rateMap <- function(
 #'
 #' @return Invisibly returns `x`.
 #'
-#' @seealso [rateMap()]
+#' @seealso [rateMap()], [phytools::densityMap()], [phytools::plotSimmap()]
 #'
 #' @examples
 #' \dontrun{
