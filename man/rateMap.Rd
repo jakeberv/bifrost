@@ -221,7 +221,8 @@ preserves the original same-tree workflow: the first retained tree is used as
 the plotting scaffold, all retained trees must match in topology and branch
 lengths, branches are sliced on a global depth grid, and runs are averaged
 with equal weight.
-
+}
+\details{
 \code{rateMap()} can also summarize same-topology posterior or sensitivity samples
 where branch lengths differ. In that case, supply \code{check = "topology"} and,
 usually, an explicit \code{target_tree}. This can be any target or summary tree
@@ -229,8 +230,7 @@ with the same topology and tip labels as the inputs; an MCC tree is only one
 possible choice. The target tree supplies the plotted topology and branch
 lengths, while rates are matched from each input tree by descendant-tip clade
 keys rather than by edge order.
-}
-\details{
+
 \strong{Summary modes.} With \code{summary = "interval"}, each target-tree branch is
 subdivided by the global depth grid controlled by \code{res}. If source branch
 lengths differ from the target branch length, source stochastic-map segments

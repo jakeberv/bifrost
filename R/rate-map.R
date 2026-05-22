@@ -642,6 +642,7 @@
 #' lengths, branches are sliced on a global depth grid, and runs are averaged
 #' with equal weight.
 #'
+#' @details
 #' `rateMap()` can also summarize same-topology posterior or sensitivity samples
 #' where branch lengths differ. In that case, supply `check = "topology"` and,
 #' usually, an explicit `target_tree`. This can be any target or summary tree
@@ -650,7 +651,6 @@
 #' lengths, while rates are matched from each input tree by descendant-tip clade
 #' keys rather than by edge order.
 #'
-#' @details
 #' **Summary modes.** With `summary = "interval"`, each target-tree branch is
 #' subdivided by the global depth grid controlled by `res`. If source branch
 #' lengths differ from the target branch length, source stochastic-map segments
