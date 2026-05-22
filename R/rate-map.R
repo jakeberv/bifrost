@@ -183,6 +183,38 @@
     legend > 0
 }
 
+.rateMap_getYmult <- function() {
+  if (grDevices::dev.cur() == 1L) {
+    warning("No graphics device open.")
+    return(1)
+  }
+
+  xyasp <- graphics::par("pin")
+  xycr <- diff(graphics::par("usr"))[c(1L, 3L)]
+  xyasp[1L] / xyasp[2L] * xycr[2L] / xycr[1L]
+}
+
+.rateMap_with_plotrix_getYmult <- function(expr) {
+  global <- .GlobalEnv
+  had_getYmult <- exists("getYmult", envir = global, inherits = FALSE)
+  old_getYmult <- if (had_getYmult) {
+    get("getYmult", envir = global, inherits = FALSE)
+  } else {
+    NULL
+  }
+
+  assign("getYmult", .rateMap_getYmult, envir = global)
+  on.exit({
+    if (had_getYmult) {
+      assign("getYmult", old_getYmult, envir = global)
+    } else if (exists("getYmult", envir = global, inherits = FALSE)) {
+      rm("getYmult", envir = global)
+    }
+  }, add = TRUE)
+
+  force(expr)
+}
+
 .rateMap_normalize_check <- function(check) {
   if (is.logical(check) && length(check) == 1L && !is.na(check)) {
     return(if (isTRUE(check)) "full" else "none")
@@ -1536,18 +1568,40 @@ plotRateMap <- function(x,
       )
     }
   } else {
-    if (isTRUE(outline)) {
-      old_col <- graphics::par()$col
-      graphics::par(col = "white")
+    .rateMap_with_plotrix_getYmult({
+      if (isTRUE(outline)) {
+        old_col <- graphics::par()$col
+        graphics::par(col = "white")
+        invisible(utils::capture.output(
+          phytools::plotTree(
+            tree,
+            type = type,
+            lwd = lwd[1L] + 2,
+            mar = mar,
+            fsize = fsize[1L],
+            color = graphics::par()$fg,
+            ftype = ftype[1L],
+            xlim = xlim,
+            ylim = ylim,
+            hold = FALSE,
+            offset = offset,
+            underscore = underscore,
+            arc_height = arc_height
+          )
+        ))
+        graphics::par(col = old_col)
+      }
+
       invisible(utils::capture.output(
-        phytools::plotTree(
+        phytools::plotSimmap(
           tree,
-          type = type,
-          lwd = lwd[1L] + 2,
+          colors = cols,
+          lwd = lwd[1L],
           mar = mar,
           fsize = fsize[1L],
-          color = graphics::par()$fg,
+          add = isTRUE(outline),
           ftype = ftype[1L],
+          type = type,
           xlim = xlim,
           ylim = ylim,
           hold = FALSE,
@@ -1556,59 +1610,39 @@ plotRateMap <- function(x,
           arc_height = arc_height
         )
       ))
-      graphics::par(col = old_col)
-    }
 
-    invisible(utils::capture.output(
-      phytools::plotSimmap(
-        tree,
-        colors = cols,
-        lwd = lwd[1L],
-        mar = mar,
-        fsize = fsize[1L],
-        add = isTRUE(outline),
-        ftype = ftype[1L],
-        type = type,
-        xlim = xlim,
-        ylim = ylim,
-        hold = FALSE,
-        offset = offset,
-        underscore = underscore,
-        arc_height = arc_height
-      )
-    ))
-
-    if (show_legend) {
-      if (identical(type, "arc")) {
-        phytools::add.color.bar(
-          legend,
-          cols,
-          title = leg_txt[2L],
-          lims = as.numeric(leg_txt[c(1L, 3L)]),
-          digits = 3,
-          outline = outline,
-          prompt = FALSE,
-          x = mean(graphics::par()$usr[1:2]) - 0.5 * legend,
-          y = graphics::par()$usr[3L] + 0.1 * diff(graphics::par()$usr[3:4]),
-          lwd = lwd[2L],
-          fsize = fsize[2L]
-        )
-      } else {
-        phytools::add.color.bar(
-          legend,
-          cols,
-          title = leg_txt[2L],
-          lims = as.numeric(leg_txt[c(1L, 3L)]),
-          digits = 3,
-          outline = outline,
-          prompt = FALSE,
-          x = 0.9 * graphics::par()$usr[1L],
-          y = 0.9 * graphics::par()$usr[3L],
-          lwd = lwd[2L],
-          fsize = fsize[2L]
-        )
+      if (show_legend) {
+        if (identical(type, "arc")) {
+          phytools::add.color.bar(
+            legend,
+            cols,
+            title = leg_txt[2L],
+            lims = as.numeric(leg_txt[c(1L, 3L)]),
+            digits = 3,
+            outline = outline,
+            prompt = FALSE,
+            x = mean(graphics::par()$usr[1:2]) - 0.5 * legend,
+            y = graphics::par()$usr[3L] + 0.1 * diff(graphics::par()$usr[3:4]),
+            lwd = lwd[2L],
+            fsize = fsize[2L]
+          )
+        } else {
+          phytools::add.color.bar(
+            legend,
+            cols,
+            title = leg_txt[2L],
+            lims = as.numeric(leg_txt[c(1L, 3L)]),
+            digits = 3,
+            outline = outline,
+            prompt = FALSE,
+            x = 0.9 * graphics::par()$usr[1L],
+            y = 0.9 * graphics::par()$usr[3L],
+            lwd = lwd[2L],
+            fsize = fsize[2L]
+          )
+        }
       }
-    }
+    })
   }
 
   invisible(x)

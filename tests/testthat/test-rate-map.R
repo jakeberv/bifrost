@@ -764,6 +764,40 @@ test_that("rateMap can plot directly during computation and use progress/workers
   )
 })
 
+test_that("plotRateMap getYmult compatibility shim restores global state", {
+  global <- .GlobalEnv
+  had_getYmult <- exists("getYmult", envir = global, inherits = FALSE)
+  old_getYmult <- if (had_getYmult) {
+    get("getYmult", envir = global, inherits = FALSE)
+  } else {
+    NULL
+  }
+  on.exit({
+    if (exists("getYmult", envir = global, inherits = FALSE)) {
+      rm("getYmult", envir = global)
+    }
+    if (had_getYmult) {
+      assign("getYmult", old_getYmult, envir = global)
+    }
+  }, add = TRUE)
+
+  if (exists("getYmult", envir = global, inherits = FALSE)) {
+    rm("getYmult", envir = global)
+  }
+
+  testthat::expect_true(.rateMap_with_plotrix_getYmult(
+    exists("getYmult", envir = global, inherits = FALSE)
+  ))
+  testthat::expect_false(exists("getYmult", envir = global, inherits = FALSE))
+
+  assign("getYmult", "sentinel", envir = global)
+  shimmed <- .rateMap_with_plotrix_getYmult(
+    get("getYmult", envir = global, inherits = FALSE)
+  )
+  testthat::expect_true(is.function(shimmed))
+  testthat::expect_identical(get("getYmult", envir = global, inherits = FALSE), "sentinel")
+})
+
 test_that("plotRateMap draws rate maps on a graphics device", {
   .rate_map_skip_if_missing_deps()
   fx <- .rate_map_fixture()
