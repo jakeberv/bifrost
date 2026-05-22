@@ -288,7 +288,7 @@
   }
 
   segment_end <- cumsum(as.numeric(map))
-  segment_start <- c(0, head(segment_end, -1L))
+  segment_start <- c(0, utils::head(segment_end, -1L))
   overlap <- pmax(0, pmin(segment_end, end) - pmax(segment_start, start))
   total_overlap <- sum(overlap)
 
