@@ -275,6 +275,9 @@ test_that("rateMap projects same-topology branch-length variation onto a target 
   sampled$maps[[edge_b]] <- c("1" = 0.5)
   sampled$mapped.edge <- .rateMap_make_mapped_edge(sampled$edge, sampled$maps)
 
+  generic_target <- ape::as.phylo(target)
+  generic_target$edge.length <- c(0.75, 1.25)
+
   testthat::expect_error(
     rateMap(
       list(.rate_map_fit(target, c("0" = 1, "1" = 3)), .rate_map_fit(sampled, c("0" = 1, "1" = 3))),
@@ -287,7 +290,7 @@ test_that("rateMap projects same-topology branch-length variation onto a target 
 
   branch_out <- rateMap(
     list(.rate_map_fit(sampled, c("0" = 1, "1" = 3))),
-    target_tree = ape::as.phylo(target),
+    target_tree = generic_target,
     check = "topology",
     summary = "branch",
     plot = FALSE,
@@ -296,7 +299,7 @@ test_that("rateMap projects same-topology branch-length variation onto a target 
 
   testthat::expect_equal(branch_out$target, "user")
   testthat::expect_equal(branch_out$check, "topology")
-  testthat::expect_equal(branch_out$tree$edge.length, target$edge.length)
+  testthat::expect_equal(branch_out$tree$edge.length, generic_target$edge.length)
   testthat::expect_equal(branch_out$intervals$value[branch_out$intervals$edge == edge_a], 2)
   testthat::expect_equal(branch_out$intervals$value[branch_out$intervals$edge == edge_b], 3)
 

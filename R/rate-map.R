@@ -644,10 +644,11 @@
 #'
 #' `rateMap()` can also summarize same-topology posterior or sensitivity samples
 #' where branch lengths differ. In that case, supply `check = "topology"` and,
-#' usually, an explicit `target_tree` such as an MCC or other summary tree. The
-#' target tree supplies the plotted topology and branch lengths, while rates are
-#' matched from each input tree by descendant-tip clade keys rather than by edge
-#' order.
+#' usually, an explicit `target_tree`. This can be any target or summary tree
+#' with the same topology and tip labels as the inputs; an MCC tree is only one
+#' possible choice. The target tree supplies the plotted topology and branch
+#' lengths, while rates are matched from each input tree by descendant-tip clade
+#' keys rather than by edge order.
 #'
 #' @details
 #' **Summary modes.** With `summary = "interval"`, each target-tree branch is
@@ -671,7 +672,9 @@
 #' uses the first retained input tree, and `target = "mcc"` chooses the retained
 #' input tree with the highest sum of log clade credibilities. For truly
 #' same-topology inputs, the MCC score is usually tied, so `"mcc"` commonly
-#' resolves to the first retained tree unless topologies differ.
+#' resolves to the first retained tree unless topologies differ. If you already
+#' have a preferred consensus, chronogram, MCC, maximum-likelihood, or otherwise
+#' curated target tree, pass it with `target_tree` instead of using `target`.
 #'
 #' **Fit weights.** `weights = "equal"` assigns the same weight to each retained
 #' fit. `weights = "ic"` computes standard information-criterion weights from
@@ -756,10 +759,11 @@
 #'   input tree with the highest sum of log clade credibilities. For same-topology
 #'   inputs this is usually tied and therefore returns the first retained tree.
 #' @param target_tree Optional explicit target tree used as the plotting scaffold.
-#'   This may be an MCC tree or another summary tree with the same topology as
-#'   the inputs. It does not need to contain stochastic maps because `rateMap()`
-#'   replaces maps with color-bin maps in the returned object. Branch lengths in
-#'   `target_tree` define the geometry of the returned and plotted tree.
+#'   This may be any target or summary tree with the same topology and tip labels
+#'   as the inputs. It does not need to contain stochastic maps because
+#'   `rateMap()` replaces maps with color-bin maps in the returned object. Branch
+#'   lengths in `target_tree` define the geometry of the returned and plotted
+#'   tree.
 #' @param weights Fit-level weighting mode. `"equal"` gives every retained fit
 #'   equal weight. `"ic"` computes standard IC weights from `optimal_ic` and
 #'   requires all retained fits to have the same `IC_used`. A numeric vector is
@@ -849,17 +853,17 @@
 #' )
 #'
 #' # Posterior trees with the same topology but different branch lengths can be
-#' # summarized on an explicit target tree:
-#' posterior_rates <- rateMap(
+#' # summarized on any explicit target or summary tree:
+#' posterior_target_rates <- rateMap(
 #'   posterior_fit_list,
 #'   check = "topology",
-#'   target_tree = mcc_tree,
+#'   target_tree = summary_tree,
 #'   summary = "branch",
 #'   weights = "equal",
 #'   uncertainty = TRUE,
 #'   plot = FALSE
 #' )
-#' plotRateMap(posterior_rates, value = "sd", type = "arc")
+#' plotRateMap(posterior_target_rates, value = "sd", type = "arc")
 #'
 #' # Or choose the retained input tree with the highest summed log clade
 #' # credibility as the plotting scaffold:

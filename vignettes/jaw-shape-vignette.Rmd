@@ -365,9 +365,10 @@ used for large external run collections. Use `weights = "ic"` for comparable
 Bifrost model-search outputs when model support should affect the summary; use
 `weights = "equal"` for posterior samples where each retained draw should
 contribute equally. When posterior trees share topology but branch lengths vary,
-use `check = "topology"` with an explicit target tree, such as an MCC tree, so
-the summary is plotted on the target branch lengths while rates are matched by
-descendant clades.
+use `check = "topology"` with an explicit target tree. The target can be any
+summary, consensus, chronogram, MCC, maximum-likelihood, or otherwise curated
+tree with the same topology and tip labels as the inputs; the summary is plotted
+on that target's branch lengths while rates are matched by descendant clades.
 
 ```{r multi_run_rate_map, eval=FALSE}
 # Example: summarize a set of completed Bifrost searches
@@ -415,7 +416,7 @@ jaws_branch_rates <- rateMap(
 # Same topology but posterior branch lengths differ:
 jaws_posterior_branch_rates <- rateMap(
   jaws_posterior_runs,
-  target_tree = jaws_mcc_tree,
+  target_tree = jaws_summary_tree,
   check = "topology",
   summary = "branch",
   weights = "equal",
