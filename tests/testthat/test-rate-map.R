@@ -781,6 +781,24 @@ test_that("plotRateMap getYmult compatibility shim restores global state", {
     }
   }, add = TRUE)
 
+  grDevices::graphics.off()
+  no_device <- NULL
+  testthat::expect_warning(
+    no_device <- .rateMap_getYmult(),
+    "No graphics device open"
+  )
+  testthat::expect_equal(no_device, 1)
+
+  path <- tempfile(fileext = ".pdf")
+  grDevices::pdf(path)
+  on.exit(if (grDevices::dev.cur() > 1L) grDevices::dev.off(), add = TRUE)
+  graphics::plot.new()
+  graphics::plot.window(xlim = c(0, 2), ylim = c(0, 4))
+  ymult <- .rateMap_getYmult()
+  testthat::expect_true(is.finite(ymult))
+  testthat::expect_gt(ymult, 0)
+  grDevices::dev.off()
+
   if (exists("getYmult", envir = global, inherits = FALSE)) {
     rm("getYmult", envir = global)
   }
