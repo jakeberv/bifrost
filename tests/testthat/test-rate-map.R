@@ -335,6 +335,14 @@ test_that("rateMap projects same-topology branch-length variation onto a target 
   )
   testthat::expect_equal(permuted_out$check, "none")
   testthat::expect_equal(permuted_out$intervals$value[permuted_out$intervals$edge == edge_a], 2)
+  testthat::expect_length(permuted_out$clade_key, nrow(target$edge))
+  testthat::expect_true("clade_key" %in% names(permuted_out$intervals))
+  testthat::expect_equal(dim(permuted_out$edge_matches), c(nrow(target$edge), 1L))
+  testthat::expect_equal(colnames(permuted_out$edge_matches), "fit_1")
+  testthat::expect_equal(
+    permuted_out$clade_key[permuted_out$intervals$edge],
+    permuted_out$intervals$clade_key
+  )
 
   mcc_out <- rateMap(
     list(.rate_map_fit(sampled, c("0" = 1, "1" = 3)), .rate_map_fit(permuted, c("0" = 1, "1" = 3))),
@@ -435,7 +443,8 @@ test_that("rateMap computes optional uncertainty summaries", {
   testthat::expect_length(out$run_values, nrow(fx$base$edge))
   testthat::expect_equal(dim(out$run_values[[1L]]), c(1L, 2L))
   testthat::expect_true(all(c(
-    "mean", "median", "sd", "q025", "q975", "hpd_low", "hpd_high", "n"
+    "mean", "median", "sd", "q025", "q975", "hpd_low", "hpd_high",
+    "ci_width", "hpd_width", "cv", "n"
   ) %in% names(out$intervals)))
   testthat::expect_equal(out$intervals$value, out$intervals$mean)
   testthat::expect_true(all(abs(out$intervals$mean - 2) < 1e-12))
@@ -445,7 +454,17 @@ test_that("rateMap computes optional uncertainty summaries", {
   testthat::expect_true(all(abs(out$intervals$q975 - 2.95) < 1e-12))
   testthat::expect_true(all(abs(out$intervals$hpd_low - 1) < 1e-12))
   testthat::expect_true(all(abs(out$intervals$hpd_high - 3) < 1e-12))
+  testthat::expect_true(all(abs(out$intervals$ci_width - 1.9) < 1e-12))
+  testthat::expect_true(all(abs(out$intervals$hpd_width - 2) < 1e-12))
+  testthat::expect_true(all(abs(out$intervals$cv - sqrt(2) / 2) < 1e-12))
   testthat::expect_true(all(out$intervals$n == 2L))
+  testthat::expect_equal(
+    .rateMap_add_derived_uncertainty(data.frame(mean = 1)),
+    data.frame(mean = 1)
+  )
+  sd_map <- .rateMap_recolor(out, "sd")
+  testthat::expect_equal(sd_map$plot_value, "sd")
+  testthat::expect_true(diff(sd_map$lims) > 0)
 
   median_out <- rateMap(
     list(
@@ -756,10 +775,12 @@ test_that("plotRateMap draws rate maps on a graphics device", {
   grDevices::pdf(path)
   on.exit(grDevices::dev.off(), add = TRUE)
 
+  drawn <- NULL
   testthat::expect_error(
-    plotRateMap(out, type = "arc", show_tip_labels = FALSE, legend = FALSE, hold = FALSE),
+    drawn <- plotRateMap(out, type = "arc", show_tip_labels = FALSE, legend = FALSE, hold = FALSE),
     NA
   )
+  testthat::expect_s3_class(drawn, "rateMap")
 
   testthat::expect_error(plotRateMap(list()), "rateMap")
 })
@@ -770,6 +791,7 @@ test_that("plotRateMap covers phylogram, fan, legend, outline, and S3 paths", {
   out <- rateMap(
     list(.rate_map_fit(fx$shifted_a), .rate_map_fit(fx$shifted_b)),
     res = 4,
+    uncertainty = TRUE,
     plot = FALSE,
     progress = FALSE
   )
@@ -777,6 +799,51 @@ test_that("plotRateMap covers phylogram, fan, legend, outline, and S3 paths", {
   path <- tempfile(fileext = ".pdf")
   grDevices::pdf(path)
   on.exit(grDevices::dev.off(), add = TRUE)
+
+  sd_drawn <- NULL
+  testthat::expect_error(
+    sd_drawn <- plotRateMap(
+      out,
+      value = "sd",
+      palette = c("white", "black"),
+      reverse_palette = TRUE,
+      type = "arc",
+      legend = FALSE,
+      hold = FALSE
+    ),
+    NA
+  )
+  testthat::expect_equal(sd_drawn$plot_value, "sd")
+  testthat::expect_equal(sd_drawn$intervals$value, sd_drawn$intervals$sd)
+  testthat::expect_equal(
+    sd_drawn$cols,
+    stats::setNames(
+      .rateMap_colors(length(out$cols), c("white", "black"), reverse_palette = TRUE),
+      as.character(seq_along(out$cols))
+    )
+  )
+  testthat::expect_equal(
+    as.numeric(rowSums(sd_drawn$tree$mapped.edge)),
+    sd_drawn$tree$edge.length,
+    tolerance = 1e-10
+  )
+
+  default_recolored <- NULL
+  testthat::expect_error(
+    default_recolored <- plotRateMap(
+      out,
+      palette = c("navy", "gold"),
+      legend = FALSE,
+      hold = FALSE
+    ),
+    NA
+  )
+  testthat::expect_equal(default_recolored$plot_value, "value")
+  testthat::expect_equal(default_recolored$intervals$value, out$intervals$value)
+
+  testthat::expect_error(plotRateMap(out, value = "missing", legend = FALSE), "not a column")
+  testthat::expect_error(plotRateMap(out, value = "clade_key", legend = FALSE), "numeric column")
+  testthat::expect_error(plotRateMap(out, value = NA_character_, legend = FALSE), "single non-empty")
 
   testthat::expect_error(
     plotRateMap(out, type = "arc", legend = TRUE, hold = FALSE),
@@ -830,9 +897,15 @@ test_that("plotRateMap covers phylogram, fan, legend, outline, and S3 paths", {
     NA
   )
 
+  printed <- utils::capture.output(print(out))
+  testthat::expect_true(any(grepl("rateMap object", printed)))
+  testthat::expect_true(any(grepl("uncertainty: TRUE", printed)))
+  testthat::expect_error(print.rateMap(list()), "rateMap")
+
   testthat::expect_error(
     plot(
       out,
+      value = "sd",
       type = "arc",
       outline = TRUE,
       legend = 0.2,

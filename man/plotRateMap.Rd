@@ -5,12 +5,23 @@
 \alias{plot.rateMap}
 \title{Plot a \code{rateMap} Object}
 \usage{
-plotRateMap(x, ...)
+plotRateMap(x, value = "value", palette = NULL, reverse_palette = NULL, ...)
 
 \method{plot}{rateMap}(x, ...)
 }
 \arguments{
 \item{x}{An object of class \code{"rateMap"} returned by \code{\link[=rateMap]{rateMap()}}.}
+
+\item{value}{Character interval column to map to branch colors. The default
+\code{"value"} plots the central estimate chosen by \code{\link[=rateMap]{rateMap()}}. When
+\code{uncertainty = TRUE}, useful alternatives include \code{"mean"}, \code{"median"},
+\code{"sd"}, \code{"ci_width"}, \code{"hpd_width"}, and \code{"cv"}.}
+
+\item{palette}{Optional palette override used for this plot. This accepts the
+same values as \code{\link[=rateMap]{rateMap()}}'s \code{palette} argument.}
+
+\item{reverse_palette}{Optional logical override for palette reversal used
+for this plot.}
 
 \item{...}{Additional plotting controls. Supported options include
 \code{legend}, \code{fsize}, \code{tip_fsize}, \code{legend_fsize}, \code{ftype},
@@ -33,6 +44,9 @@ plotRateMap(
   show_tip_labels = FALSE,
   legend_fsize = 0.8
 )
+
+# If rm_obj was built with uncertainty = TRUE, plot uncertainty directly:
+plotRateMap(rm_obj, value = "sd", palette = "Inferno")
 }
 
 }

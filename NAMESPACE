@@ -2,6 +2,7 @@
 
 S3method(plot,rateMap)
 S3method(print,bifrost_search)
+S3method(print,rateMap)
 export(generateViridisColorScale)
 export(plotRateMap)
 export(plot_ic_acceptance_matrix)

@@ -464,6 +464,85 @@
   )
 }
 
+.rateMap_add_derived_uncertainty <- function(x) {
+  if (!all(c("q025", "q975", "hpd_low", "hpd_high", "mean", "sd") %in% names(x))) {
+    return(x)
+  }
+
+  x$ci_width <- x$q975 - x$q025
+  x$hpd_width <- x$hpd_high - x$hpd_low
+  x$cv <- ifelse(is.finite(x$mean) & x$mean != 0, x$sd / abs(x$mean), NA_real_)
+  x
+}
+
+.rateMap_recolor <- function(x, value, palette = NULL, reverse_palette = NULL) {
+  if (!is.character(value) || length(value) != 1L || is.na(value) || !nzchar(value)) {
+    stop("'value' must be a single non-empty character string.")
+  }
+  if (!value %in% names(x$intervals)) {
+    stop("'", value, "' is not a column in 'x$intervals'.")
+  }
+  if (!is.numeric(x$intervals[[value]])) {
+    stop("'", value, "' must be a numeric column in 'x$intervals'.")
+  }
+
+  vals <- lapply(
+    seq_along(x$tree$maps),
+    function(i) x$intervals[[value]][x$intervals$edge == i]
+  )
+  lims <- range(unlist(vals, use.names = FALSE), finite = TRUE)
+  # nocov start
+  if (!all(is.finite(lims))) {
+    stop("Could not compute finite plotting limits for '", value, "'.")
+  }
+  # nocov end
+  if (diff(lims) == 0) {
+    lims <- lims + c(-0.5, 0.5) * max(abs(lims[1L]), 1) * 1e-6
+  }
+
+  ncolors <- length(x$cols)
+  if (!is.null(palette) || !is.null(reverse_palette)) {
+    selected_palette <- if (is.null(palette)) x$palette else palette
+    selected_reverse <- if (is.null(reverse_palette)) {
+      isTRUE(x$reverse_palette)
+    } else {
+      reverse_palette
+    }
+    x$cols <- .rateMap_colors(ncolors, selected_palette, selected_reverse)
+    names(x$cols) <- as.character(seq_len(ncolors))
+    x$palette <- selected_palette
+    x$reverse_palette <- selected_reverse
+  }
+
+  breaks <- seq(lims[1L], lims[2L], length.out = ncolors + 1L)
+  bins_by_edge <- vector("list", length(x$tree$maps))
+  for (i in seq_along(x$tree$maps)) {
+    bins <- findInterval(vals[[i]], breaks, all.inside = TRUE)
+    bins_by_edge[[i]] <- bins
+    names(x$tree$maps[[i]]) <- as.character(bins)
+  }
+
+  x$tree$mapped.edge <- .rateMap_make_mapped_edge(x$tree$edge, x$tree$maps)
+  x$values <- vals
+  x$lims <- lims
+  x$breaks <- breaks
+  x$intervals$value <- x$intervals[[value]]
+  x$intervals$color_bin <- unlist(bins_by_edge, use.names = FALSE)
+  x$plot_value <- value
+  x$title <- switch(
+    value,
+    value = x$title,
+    mean = if (isTRUE(x$log)) "Mean log fitted rate" else "Mean fitted rate",
+    median = if (isTRUE(x$log)) "Median log fitted rate" else "Median fitted rate",
+    sd = if (isTRUE(x$log)) "SD log fitted rate" else "SD fitted rate",
+    ci_width = if (isTRUE(x$log)) "95% quantile width (log rate)" else "95% quantile width",
+    hpd_width = if (isTRUE(x$log)) "95% HPD width (log rate)" else "95% HPD width",
+    cv = "Coefficient of variation",
+    value
+  )
+  x
+}
+
 .rateMap_normalize_weights <- function(weights) {
   if (!is.numeric(weights) || length(weights) == 0L || any(!is.finite(weights))) {
     stop("Fit weights must be a non-empty finite numeric vector.")
@@ -604,11 +683,12 @@
 #' **Uncertainty summaries.** When `uncertainty = TRUE`, the returned
 #' `intervals` data frame includes across-fit summaries for each branch or
 #' interval: weighted mean, weighted median, weighted standard deviation,
-#' quantiles, HPD interval, and the number of finite run-level values. The
-#' run-level values are also returned in `run_values` as one matrix per edge.
-#' For posterior tree samples, use `weights = "equal"` so the quantiles and HPDs
-#' are empirical posterior summaries. `value_summary` controls whether the
-#' plotted `value` column uses the weighted mean or weighted median.
+#' quantiles, HPD interval, quantile/HPD widths, coefficient of variation, and
+#' the number of finite run-level values. The run-level values are also returned
+#' in `run_values` as one matrix per edge. For posterior tree samples, use
+#' `weights = "equal"` so the quantiles and HPDs are empirical posterior
+#' summaries. `value_summary` controls whether the plotted `value` column uses
+#' the weighted mean or weighted median.
 #'
 #' @param fits A non-empty list of completed runs or fitted model objects.
 #'   Supported shapes are `bifrost_search` objects, `mvgls` objects,
@@ -713,6 +793,9 @@
 #'   \item{`run_values`}{When `uncertainty = TRUE`, list of numeric matrices
 #'   containing run-level values for each edge. Rows are plotted intervals and
 #'   columns are retained fits. Otherwise `NULL`.}
+#'   \item{`clade_key`}{Character descendant-tip key for each target-tree edge.}
+#'   \item{`edge_matches`}{Integer matrix mapping target-tree edge rows to
+#'   matched source-tree edge rows for each retained fit.}
 #'   \item{`summary`}{The summary mode used, `"interval"` or `"branch"`.}
 #'   \item{`uncertainty`}{Logical indicating whether uncertainty summaries were
 #'   computed.}
@@ -720,6 +803,7 @@
 #'   \item{`quantile_probs`}{Quantile probabilities used for uncertainty
 #'   summaries.}
 #'   \item{`hpd_prob`}{HPD mass used for uncertainty summaries.}
+#'   \item{`plot_value`}{Current interval column mapped to branch colors.}
 #'   \item{`target`}{Target-tree selection mode used.}
 #'   \item{`check`}{Tree compatibility check mode used.}
 #'   \item{`weights`}{Normalized fit weights used for aggregation.}
@@ -727,6 +811,9 @@
 #'   `"custom"`.}
 #'   \item{`weight_table`}{Data frame linking retained input indices, weights,
 #'   and IC values when available.}
+#'   \item{`palette`}{Original palette specification.}
+#'   \item{`reverse_palette`}{Logical indicating whether the palette was
+#'   reversed.}
 #'   \item{`title`}{Legend title used for plotting.}
 #'   \item{`n_fits`}{Number of fits used after validation or omission.}
 #'   \item{`omitted`}{Integer indices of omitted fits when `na_action = "omit"`.}
@@ -772,6 +859,7 @@
 #'   uncertainty = TRUE,
 #'   plot = FALSE
 #' )
+#' plotRateMap(posterior_rates, value = "sd", type = "arc")
 #'
 #' # Or choose the retained input tree with the highest summed log clade
 #' # credibility as the plotting scaffold:
@@ -990,6 +1078,7 @@ rateMap <- function(
   class(trees) <- c("multiSimmap", "multiPhylo")
   target_tree <- ape::as.phylo(target_tree)
   edge_matches <- .rateMap_match_edges(target_tree, trees)
+  target_clade_keys <- .rateMap_edge_clade_keys(target_tree)
 
   heights <- phytools::nodeHeights(target_tree)
   max_height <- max(heights)
@@ -1169,12 +1258,19 @@ rateMap <- function(
         stringsAsFactors = FALSE
       )
       if (isTRUE(uncertainty)) {
-        base_row <- cbind(base_row, edge_results[[i]]$uncertainty)
+        base_row <- cbind(
+          base_row,
+          .rateMap_add_derived_uncertainty(edge_results[[i]]$uncertainty)
+        )
       }
       base_row
     })
   )
   rownames(intervals) <- NULL
+  intervals$clade_key <- rep(
+    target_clade_keys,
+    times = vapply(interval_lengths, length, integer(1))
+  )
 
   weight_table <- data.frame(
     input_index = keep,
@@ -1192,20 +1288,27 @@ rateMap <- function(
     values = interval_values,
     intervals = intervals,
     run_values = run_values,
+    clade_key = target_clade_keys,
+    edge_matches = do.call(cbind, edge_matches),
     summary = summary,
     uncertainty = uncertainty,
     value_summary = value_summary,
     quantile_probs = quantile_probs,
     hpd_prob = hpd_prob,
+    plot_value = "value",
     target = target_mode,
     check = check_mode,
     weights = fit_weights_used,
     weight_mode = resolved_weights$mode,
     weight_table = weight_table,
+    palette = palette,
+    reverse_palette = reverse_palette,
+    log = isTRUE(log),
     title = legend_title,
     n_fits = length(trees),
     omitted = omitted
   )
+  colnames(out$edge_matches) <- paste0("fit_", keep)
   class(out) <- "rateMap"
 
   if (isTRUE(plot)) {
@@ -1234,6 +1337,14 @@ rateMap <- function(
 #' [phytools::plotSimmap()] and a continuous color-bar legend.
 #'
 #' @param x An object of class `"rateMap"` returned by [rateMap()].
+#' @param value Character interval column to map to branch colors. The default
+#'   `"value"` plots the central estimate chosen by [rateMap()]. When
+#'   `uncertainty = TRUE`, useful alternatives include `"mean"`, `"median"`,
+#'   `"sd"`, `"ci_width"`, `"hpd_width"`, and `"cv"`.
+#' @param palette Optional palette override used for this plot. This accepts the
+#'   same values as [rateMap()]'s `palette` argument.
+#' @param reverse_palette Optional logical override for palette reversal used
+#'   for this plot.
 #' @param ... Additional plotting controls. Supported options include
 #'   `legend`, `fsize`, `tip_fsize`, `legend_fsize`, `ftype`,
 #'   `show_tip_labels`, `outline`, `lwd`, `type`, `mar`, `direction`,
@@ -1252,12 +1363,27 @@ rateMap <- function(
 #'   show_tip_labels = FALSE,
 #'   legend_fsize = 0.8
 #' )
+#'
+#' # If rm_obj was built with uncertainty = TRUE, plot uncertainty directly:
+#' plotRateMap(rm_obj, value = "sd", palette = "Inferno")
 #' }
 #'
 #' @export
-plotRateMap <- function(x, ...) {
+plotRateMap <- function(x,
+                        value = "value",
+                        palette = NULL,
+                        reverse_palette = NULL,
+                        ...) {
   if (!inherits(x, "rateMap")) {
     stop("'x' must be an object of class 'rateMap'.")
+  }
+  if (!identical(value, "value") || !is.null(palette) || !is.null(reverse_palette)) {
+    x <- .rateMap_recolor(
+      x,
+      value = value,
+      palette = palette,
+      reverse_palette = reverse_palette
+    )
   }
 
   tree <- x$tree
@@ -1489,4 +1615,56 @@ plotRateMap <- function(x, ...) {
 #' @export
 plot.rateMap <- function(x, ...) {
   plotRateMap(x, ...)
+}
+
+#' Print a `rateMap` Object
+#'
+#' @param x An object of class `"rateMap"` returned by [rateMap()].
+#' @param ... Ignored.
+#'
+#' @return Invisibly returns `x`.
+#'
+#' @export
+print.rateMap <- function(x, ...) {
+  if (!inherits(x, "rateMap")) {
+    stop("'x' must be an object of class 'rateMap'.")
+  }
+
+  plot_value <- if (is.null(x$plot_value)) "value" else x$plot_value
+  uncertainty <- if (isTRUE(x$uncertainty)) "TRUE" else "FALSE"
+  cat("rateMap object\n")
+  cat("- fits: ", x$n_fits, "\n", sep = "")
+  cat("- summary: ", x$summary, "\n", sep = "")
+  cat("- target: ", x$target, "\n", sep = "")
+  cat("- check: ", x$check, "\n", sep = "")
+  cat("- weights: ", x$weight_mode, "\n", sep = "")
+  cat("- uncertainty: ", uncertainty, "\n", sep = "")
+  cat("- plotted value: ", plot_value, "\n", sep = "")
+
+  if (!is.null(x$lims) && length(x$lims) == 2L && all(is.finite(x$lims))) {
+    cat(
+      "- value range: ",
+      formatC(x$lims[1L], digits = 4, format = "fg"),
+      " to ",
+      formatC(x$lims[2L], digits = 4, format = "fg"),
+      "\n",
+      sep = ""
+    )
+  }
+
+  if (isTRUE(x$uncertainty) && "sd" %in% names(x$intervals)) {
+    sd_range <- range(x$intervals$sd, finite = TRUE)
+    if (all(is.finite(sd_range))) {
+      cat(
+        "- sd range: ",
+        formatC(sd_range[1L], digits = 4, format = "fg"),
+        " to ",
+        formatC(sd_range[2L], digits = 4, format = "fg"),
+        "\n",
+        sep = ""
+      )
+    }
+  }
+
+  invisible(x)
 }

@@ -187,6 +187,9 @@ one row per branch when \code{summary = "branch"}.}
 \item{\code{run_values}}{When \code{uncertainty = TRUE}, list of numeric matrices
 containing run-level values for each edge. Rows are plotted intervals and
 columns are retained fits. Otherwise \code{NULL}.}
+\item{\code{clade_key}}{Character descendant-tip key for each target-tree edge.}
+\item{\code{edge_matches}}{Integer matrix mapping target-tree edge rows to
+matched source-tree edge rows for each retained fit.}
 \item{\code{summary}}{The summary mode used, \code{"interval"} or \code{"branch"}.}
 \item{\code{uncertainty}}{Logical indicating whether uncertainty summaries were
 computed.}
@@ -194,6 +197,7 @@ computed.}
 \item{\code{quantile_probs}}{Quantile probabilities used for uncertainty
 summaries.}
 \item{\code{hpd_prob}}{HPD mass used for uncertainty summaries.}
+\item{\code{plot_value}}{Current interval column mapped to branch colors.}
 \item{\code{target}}{Target-tree selection mode used.}
 \item{\code{check}}{Tree compatibility check mode used.}
 \item{\code{weights}}{Normalized fit weights used for aggregation.}
@@ -201,6 +205,9 @@ summaries.}
 \code{"custom"}.}
 \item{\code{weight_table}}{Data frame linking retained input indices, weights,
 and IC values when available.}
+\item{\code{palette}}{Original palette specification.}
+\item{\code{reverse_palette}}{Logical indicating whether the palette was
+reversed.}
 \item{\code{title}}{Legend title used for plotting.}
 \item{\code{n_fits}}{Number of fits used after validation or omission.}
 \item{\code{omitted}}{Integer indices of omitted fits when \code{na_action = "omit"}.}
@@ -255,11 +262,12 @@ for custom weighting. Weights are subset to retained fits after
 \strong{Uncertainty summaries.} When \code{uncertainty = TRUE}, the returned
 \code{intervals} data frame includes across-fit summaries for each branch or
 interval: weighted mean, weighted median, weighted standard deviation,
-quantiles, HPD interval, and the number of finite run-level values. The
-run-level values are also returned in \code{run_values} as one matrix per edge.
-For posterior tree samples, use \code{weights = "equal"} so the quantiles and HPDs
-are empirical posterior summaries. \code{value_summary} controls whether the
-plotted \code{value} column uses the weighted mean or weighted median.
+quantiles, HPD interval, quantile/HPD widths, coefficient of variation, and
+the number of finite run-level values. The run-level values are also returned
+in \code{run_values} as one matrix per edge. For posterior tree samples, use
+\code{weights = "equal"} so the quantiles and HPDs are empirical posterior
+summaries. \code{value_summary} controls whether the plotted \code{value} column uses
+the weighted mean or weighted median.
 }
 \examples{
 \dontrun{
@@ -299,6 +307,7 @@ posterior_rates <- rateMap(
   uncertainty = TRUE,
   plot = FALSE
 )
+plotRateMap(posterior_rates, value = "sd", type = "arc")
 
 # Or choose the retained input tree with the highest summed log clade
 # credibility as the plotting scaffold:
