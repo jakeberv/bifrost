@@ -9,14 +9,10 @@
 ^cran-comments\.md$
 ^LICENSE$
 ^experimental$
-^vignettes/jaw-shape/.*\.gif$
+^local-cache($|/)
+^preview($|/)
 ^doc$
 ^Meta$
-^vignettes/fit_history$
-^vignettes/theoretical-background-vignette\.Rmd$
-^vignettes/theoretical-background-vignette\.html$
-^vignettes/pca-model-selection-and-bifrost-vignette\.Rmd$
-^vignettes/pca-model-selection-and-bifrost-vignette\.html$
 \.DS_Store
 .*\.log
 \.Rd2pdf
@@ -30,3 +26,4 @@
 ^.lintr$
 ^lintr\.R$
 ^tools/cran-downloads($|/)
+^vignettes($|/)

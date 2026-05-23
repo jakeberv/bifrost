@@ -1,4 +1,6 @@
 url: ~
+# Vignettes are tracked in this source checkout so pkgdown can build articles,
+# but .Rbuildignore excludes vignettes/ from the package tarball.
 articles:
   - title: Background
     navbar: Background
@@ -10,6 +12,7 @@ articles:
     contents:
       - quick-start-vignette
       - jaw-shape-vignette
+      - rate-map-jaw-shape-vignette
 template:
   bootstrap: 5
   includes:
