@@ -16,4 +16,6 @@ lint.txt
 .lintr
 lintr.R
 experimental/
+/local-cache/
+/preview/
 /tools/cran-downloads/node_modules/

@@ -3,19 +3,35 @@
 \name{plotRateMap}
 \alias{plotRateMap}
 \alias{plot.rateMap}
-\title{Plot a \code{rateMap} Object}
+\title{Plot \code{rateMap} Objects}
 \usage{
-plotRateMap(x, value = "value", palette = NULL, reverse_palette = NULL, ...)
+plotRateMap(
+  x,
+  value = "value",
+  palette = NULL,
+  reverse_palette = NULL,
+  color_mode = NULL,
+  n_categories = NULL,
+  category_bin_method = NULL,
+  category_breaks = NULL,
+  category_labels = NULL,
+  ...
+)
 
 \method{plot}{rateMap}(x, ...)
 }
 \arguments{
-\item{x}{An object of class \code{"rateMap"} returned by \code{\link[=rateMap]{rateMap()}}.}
+\item{x}{An object of class \code{"rateMap"} returned by \code{\link[=rateMap]{rateMap()}}, or a single
+supported fitted object such as a completed \code{bifrost_search}. Single fitted
+objects are first passed to \code{\link[=rateMap]{rateMap()}} with \code{plot = FALSE}, which is useful
+for applying the same plotting controls used for multi-run summaries to one
+fitted model.}
 
-\item{value}{Character interval column to map to branch colors. The default
-\code{"value"} plots the central estimate chosen by \code{\link[=rateMap]{rateMap()}}. When
-\code{uncertainty = TRUE}, useful alternatives include \code{"mean"}, \code{"median"},
-\code{"sd"}, \code{"ci_width"}, \code{"hpd_width"}, and \code{"cv"}.}
+\item{value}{Character column in the plotted summary table (\code{x$intervals})
+to map to branch colors. The default \code{"value"} plots the central estimate
+chosen by \code{\link[=rateMap]{rateMap()}}. When \code{uncertainty = TRUE}, useful alternatives
+include \code{"mean"}, \code{"median"}, \code{"sd"}, \code{"ci_width"},
+\code{"highest_density_interval_width"}, and \code{"cv"}.}
 
 \item{palette}{Optional palette override used for this plot. This accepts the
 same values as \code{\link[=rateMap]{rateMap()}}'s \code{palette} argument.}
@@ -23,24 +39,67 @@ same values as \code{\link[=rateMap]{rateMap()}}'s \code{palette} argument.}
 \item{reverse_palette}{Optional logical override for palette reversal used
 for this plot.}
 
+\item{color_mode}{Optional color-mode override. Use \code{"continuous"} for a
+numeric color ramp or \code{"category"} for ordered discrete rate categories.
+If \code{NULL}, the stored mode in \code{x} is used. Category mode draws one color
+per exact value or category bin; continuous mode draws a many-color ramp.}
+
+\item{n_categories}{Optional category-count override for
+\code{color_mode = "category"}. This changes the target number of category
+bins, not the number of colors in continuous mode.}
+
+\item{category_bin_method}{Optional category-binning override for
+\code{color_mode = "category"}. Use \code{"pretty"} for pretty breaks or \code{"equal"}
+for equal-width numeric intervals. Ignored when \code{category_breaks} is
+supplied.}
+
+\item{category_breaks}{Optional category-break override for
+\code{color_mode = "category"}. Custom breaks override automatic bins.}
+
+\item{category_labels}{Optional category-label override for
+\code{color_mode = "category"}.}
+
 \item{...}{Additional plotting controls. Supported options include
 \code{legend}, \code{fsize}, \code{tip_fsize}, \code{legend_fsize}, \code{ftype},
 \code{show_tip_labels}, \code{outline}, \code{lwd}, \code{type}, \code{mar}, \code{direction},
-\code{offset}, \code{xlim}, \code{ylim}, \code{hold}, \code{underscore}, and \code{arc_height}.}
+\code{offset}, \code{xlim}, \code{ylim}, \code{hold}, \code{underscore}, \code{arc_height}, and
+\code{legend_digits}. If \code{legend_digits} is omitted, small-magnitude values use
+enough digits to avoid zero-valued legend endpoints. When \code{x} is a single
+fitted object rather than a \code{"rateMap"}, \code{...} may also include \code{\link[=rateMap]{rateMap()}}
+arguments such as \code{summary}, \code{uncertainty}, \code{log}, or \code{target_tree}.
+Unsupported arguments are rejected.}
 }
 \value{
-Invisibly returns \code{x}.
+Invisibly returns the plotted \code{"rateMap"} object.
 }
 \description{
-Render a rate-variation map produced by \code{\link[=rateMap]{rateMap()}} using
-\code{\link[phytools:plotSimmap]{phytools::plotSimmap()}} and a continuous color-bar legend.
+Render a rate-variation map produced by \code{\link[=rateMap]{rateMap()}}. Use \code{plot(x, ...)} for
+ordinary S3 dispatch on a \code{"rateMap"} object. \code{plotRateMap(x, ...)} is the
+explicit helper with the same plotting controls, and can also accept one
+supported fitted object as a convenience.
+}
+\details{
+Both interfaces use \code{\link[phytools:plotSimmap]{phytools::plotSimmap()}} and draw either a continuous
+color-bar legend or a segmented rate-category color bar.
 The plotting controls intentionally mirror the \code{phytools} density-map
 plotting style for phylogram, fan, and arc layouts.
+
+For \code{"rateMap"} objects, prefer \code{plot(x, ...)} for ordinary S3 dispatch. It
+calls \code{plot.rateMap()}, which delegates to \code{plotRateMap()}. The explicit
+helper is kept so users can find the plotting workflow directly, and for
+direct plotting of one completed \code{bifrost_search} or other supported fit.
+Both interfaces use \code{\link[phytools:plotSimmap]{phytools::plotSimmap()}} for \code{"phylogram"}, \code{"fan"}, and
+\code{"arc"} layouts. \code{legend} controls the length of the color bar; set
+\code{legend = FALSE} to suppress it. \code{legend_digits} controls numeric endpoint
+labels and defaults to enough precision to avoid rounding small values to
+zero. If \code{x} is a single supported fitted object rather than a \code{"rateMap"},
+\code{plotRateMap()} first calls \code{\link[=rateMap]{rateMap()}} with \code{plot = FALSE}, forwarding
+compatible \code{rateMap()} arguments through \code{...}.
 }
 \examples{
 \dontrun{
 rm_obj <- rateMap(fits, plot = FALSE, progress = FALSE)
-plotRateMap(
+plot(
   rm_obj,
   type = "arc",
   show_tip_labels = FALSE,
@@ -48,7 +107,17 @@ plotRateMap(
 )
 
 # If rm_obj was built with uncertainty = TRUE, plot uncertainty directly:
-plotRateMap(rm_obj, value = "sd", palette = "Inferno")
+plot(rm_obj, value = "sd", palette = "Inferno")
+
+# Direct plotting of one completed search is available as a convenience:
+plotRateMap(search_a, type = "arc", show_tip_labels = FALSE)
+
+# Use a continuous ramp instead of the default ordered rate categories:
+plot(rm_obj, color_mode = "continuous")
+
+# Or keep category colors but change the binning:
+plot(rm_obj, n_categories = 5, category_bin_method = "equal")
+plot(rm_obj, category_breaks = c(-4, -2, 0, 2))
 }
 
 }

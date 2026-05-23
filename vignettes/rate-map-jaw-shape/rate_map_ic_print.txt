@@ -1,0 +1,11 @@
+rateMap object
+- fits: 6
+- summary: branch
+- target: first
+- check: full
+- weights: ic
+- uncertainty: TRUE
+- color mode: category
+- plotted value: value
+- value range: -25.79 to -11.36
+- sd range: 0.005051 to 0.665
