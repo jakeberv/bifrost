@@ -49,5 +49,6 @@ if (requireNamespace("viridis", quietly = TRUE)) {
 
 }
 \seealso{
-\code{\link[viridis:viridis]{viridis::viridis()}} for details on the color palette.
+\code{\link[viridis:viridis]{viridis::viridis()}} for details on
+the color palette.
 }

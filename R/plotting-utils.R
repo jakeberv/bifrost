@@ -38,7 +38,8 @@
 #'           main = "Rates with Viridis Colors")
 #' }
 #'
-#' @seealso [viridis::viridis()] for details on the color palette.
+#' @seealso \code{\link[viridis:viridis]{viridis::viridis()}} for details on
+#'   the color palette.
 #'
 #' @importFrom viridis viridis
 #' @export
