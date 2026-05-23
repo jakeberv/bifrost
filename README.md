@@ -89,6 +89,8 @@ You may need to install [XQuartz](https://www.xquartz.org/) to build or run pack
   A practical introduction to the core `bifrost` workflow using a minimal simulated example, including setup, key arguments, outputs, and interpretation.
 - [Detecting Evolutionary Shifts in Paleozoic Fish Jaw Shape with bifrost](https://jakeberv.com/bifrost/articles/jaw-shape-vignette.html)  
   A full empirical case study using the packaged fossil jaw-shape dataset, showing how to run, inspect, and interpret a real `bifrost` analysis end to end.
+- [Mapping Sensitivity in Jaw-Shape Evolutionary Rates with rateMap](https://jakeberv.com/bifrost/articles/rate-map-jaw-shape-vignette.html)
+  A follow-up case study showing the compute-first `rateMap()` workflow: build a reusable branch-rate summary object from completed searches, render maps with `plot(x, ...)`, and use `rateMapView()` only when reusable category tables are needed.
 
 ## Additional note
 

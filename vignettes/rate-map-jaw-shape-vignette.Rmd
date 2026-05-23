@@ -304,17 +304,17 @@ The [jaw-shape vignette](jaw-shape-vignette.html) fits one conservative
 [Troyer et al. (2025)](https://doi.org/10.1016/j.cub.2025.08.008). It then
 colors the selected SIMMAP-style tree by fitted regime-specific rates.
 
-Here we use `rateMap()` to ask how stable that branch-rate pattern is across a
-small sweep of information-criterion (IC) thresholds. The main workflow builds
-branch-level log-rate maps from a list of completed `bifrost` searches,
-compares equal-weight and IC-weighted summaries, and then maps uncertainty
-across the same stack of runs. Because ordinary `bifrost` shifts occur at
-nodes, the default summary is one fitted rate per branch.
+Here we use `rateMap()` in two steps. First, compute a reusable `"rateMap"`
+object from a list of completed `bifrost` searches. Then, call `plot()` on that
+object to render equal-weight, IC-weighted, and uncertainty views. Because
+ordinary `bifrost` shifts occur at nodes, the default computed summary is one
+fitted log-rate per branch.
 
 The workflow stands on its own, but it assumes you have seen the main jaw-shape
 analysis. Long-running search chunks are shown for interactive use; run them
 once, save the fitted objects, and then use the lighter `rateMap()` chunks for
-plotting and summaries. Later sections also show how the same branch-matching
+summaries and `plot(x, ...)` chunks for display. Later sections also show how
+the same branch-matching
 logic can be used with fixed-topology posterior tree samples whose branch
 lengths differ.
 
@@ -400,19 +400,21 @@ individual search. They differ from the fit-level weights used by
 `rateMap(weights = "ic")`, which come from each retained run's `optimal_ic` and
 `IC_used`.
 
-For equal-weight maps, `rateMap()` uses the fitted branch-rate tree and
-regime-rate parameters stored in each completed `bifrost` search. The main use
-case is summarizing a list of runs, but a single completed search can also be
-passed directly to `rateMap()`. Once you have a `"rateMap"` object, use
-`plot(x, ...)` as the standard object method. The explicit `plotRateMap()`
-helper is also available for users who prefer named workflow functions, and it
-can plot one supported fitted object directly by first calling `rateMap(...,
-plot = FALSE)`.
+Think of `rateMap()` as the compute step: it extracts fitted branch-rate trees
+and regime-rate parameters, matches branches across retained runs, and returns a
+reusable `"rateMap"` object. The common compute controls in this vignette are
+`weights`, `uncertainty`, `summary`, and `log`. Once the object exists, use
+`plot(x, ...)` for display. Most users can stop there. Use `rateMapView(x, ...)`
+only when you want to freeze a display mapping before printing category tables
+or reusing the exact same categories in multiple figures. More specialized
+controls can be passed as `control = list(...)` or built with
+`rateMapControl()`; these are mainly for posterior-tree samples, interval maps,
+custom extractors, or large sensitivity sets.
 
 The sweep is the slowest part of the workflow. The examples below save the
 fitted searches to a local cache and reload them for the lighter `rateMap()`
 summaries. Run the sweep chunk once, then reuse the saved results while
-exploring plotting, weighting, and uncertainty options.
+exploring display, weighting, and uncertainty options.
 
 ```{r run_threshold_sweep}
 run_jaw_threshold <- function(threshold) {
@@ -499,14 +501,14 @@ The most transparent sensitivity summary gives every threshold run equal
 weight. It asks which branch log-rate pattern appears across the threshold
 settings considered here.
 
-By default, `rateMap()` follows `bifrost`'s branch-level framing and plots
-log-rates. Each branch receives one summarized log-rate, and ordered log-rate
-categories color the map. This default matches `bifrost`'s node-shift model:
-shifts occur at nodes, so a fitted `bifrost` branch does not change regimes
-internally.
+By default, `rateMap()` follows `bifrost`'s branch-level framing and computes
+log-rates. Each branch receives one summarized log-rate. `plot(x, ...)` then
+colors those summaries as ordered log-rate categories. This default matches
+`bifrost`'s node-shift model: shifts occur at nodes, so a fitted `bifrost`
+branch does not change regimes internally.
 
 Because this map uses `summary = "branch"`, the `rateMap()` summary table has
-one row per branch. In a multi-run `rateMap()` summary, the plotted values are
+one row per branch. In a multi-run `rateMap()` summary, the displayed values are
 branch summaries rather than named regimes. Because `log = TRUE` is the default,
 `rateMap()` transforms rates before computing branch and across-run summaries.
 The mapped mean is a mean log-rate, equivalent to the log of a weighted
@@ -514,27 +516,26 @@ geometric mean, not the log of an arithmetic mean rate. `summary = "interval"`
 is also available for stochastic-map inputs with true within-branch changes; the
 appendix describes why that mode is not the main jaw-shape example.
 
-Category colors provide the visualization layer. `color_mode = "category"` is
-the default, so branches are assigned to ordered rate categories rather than to
-a many-color continuous ramp. For a single `bifrost` search with `log = FALSE`,
-category mode is closest to the illustrative `generateViridisColorScale()` plot
-from the jaw-shape vignette: exact fitted rates become ordered categories when
-there are few enough unique values.
+Category colors provide the visualization layer. In `plot(x, ...)`,
+`color_mode = "category"` is the default, so branches are assigned to ordered
+rate categories rather than to a many-color continuous ramp. For a single
+`bifrost` search with `log = FALSE`, category mode is closest to the
+illustrative `generateViridisColorScale()` plot from the jaw-shape vignette:
+exact fitted rates become ordered categories when there are few enough unique
+values.
 
 For multi-run summaries, the plotted branch summaries usually have many unique
-values, so `rateMap()` bins them. `n_categories` controls the target number of
-automatic bins. By default, `category_bin_method = "pretty"` chooses readable
-rounded breaks, so the final number of bins can differ from the requested
-target. Use `category_bin_method = "equal"` for equal-width bins, or supply
-`category_breaks` for exact custom boundaries. Continuous maps use
-`color_mode = "continuous"` and `ncolors` for a many-color ramp. In multi-run
-summaries, categories are plotting bins for summarized branch values; they
-should not be read as newly inferred `bifrost` regimes.
+values, so `plot(x, ...)` bins them. The defaults choose readable category
+breaks. When comparisons require tighter control, set `n_categories`, switch to
+equal-width bins, supply exact `category_breaks`, or use
+`color_mode = "continuous"`. In multi-run summaries, categories are plotting
+bins for summarized branch values; they should not be read as newly inferred
+`bifrost` regimes.
 
 ```{r category_controls_example, eval = FALSE}
-rateMap(jaw_threshold_runs, n_categories = 5)
-rateMap(jaw_threshold_runs, n_categories = 5, category_bin_method = "equal")
-rateMap(jaw_threshold_runs, category_breaks = c(-26, -22, -18, -14, -10))
+plot(jaw_rate_map_equal, n_categories = 5)
+plot(jaw_rate_map_equal, n_categories = 5, category_bin_method = "equal")
+plot(jaw_rate_map_equal, category_breaks = c(-26, -22, -18, -14, -10))
 ```
 
 ```{r equal_weight_branch_category_ratemap}
@@ -542,8 +543,10 @@ jaw_rate_map_equal <- rateMap(
   jaw_threshold_runs,
   weights = "equal",
   uncertainty = TRUE,
-  plot = FALSE,
-  progress = TRUE,
+  progress = TRUE
+)
+jaw_rate_map_equal <- rateMapView(
+  jaw_rate_map_equal,
   palette = "Viridis",
   legend_title = "Mean log fitted rate"
 )
@@ -613,8 +616,10 @@ jaw_rate_map_ic <- rateMap(
   jaw_threshold_runs,
   weights = "ic",
   uncertainty = TRUE,
-  plot = FALSE,
-  progress = TRUE,
+  progress = TRUE
+)
+jaw_rate_map_ic <- rateMapView(
+  jaw_rate_map_ic,
   palette = "Viridis",
   legend_title = "IC-weighted mean log fitted rate"
 )
@@ -719,7 +724,8 @@ With `uncertainty = TRUE`, `rateMap()` stores run-level log-rate values and adds
 branch-level summaries: weighted mean, weighted median, standard deviation,
 quantiles, highest-density interval bounds, and coefficient of variation.
 The highest-density interval contains 95% of the weighted run-level values by
-default; set `highest_density_interval_prob` in `rateMap()` to change that probability.
+default; set `control = list(highest_density_interval_prob = ...)` to change
+that probability.
 For equal weights, `sd` is the ordinary sample standard deviation across runs;
 for IC or custom weights, it is computed from the normalized weighted variance.
 In this threshold sweep, these columns summarize variation across fitted
@@ -818,9 +824,10 @@ posterior chronograms from a divergence-time analysis, then ask how the fitted
 branch-rate pattern can be summarized on one reference tree.
 
 In that case, provide an explicit `target_tree` and relax the tree check from
-identical branch lengths to matching topology with `check = "topology"`. The
-target can be an MCC tree, a posterior mean chronogram, or another biologically
-preferred same-topology summary tree.
+identical branch lengths to matching topology with
+`control = list(check = "topology")`. The target can be an MCC tree, a
+posterior mean chronogram, or another biologically preferred same-topology
+summary tree.
 
 For ordinary `bifrost` outputs, shifts are placed at nodes, so each branch has
 one fitted regime-rate value. With the default `summary = "branch"`,
@@ -855,12 +862,11 @@ jaw_target_tree <- fish.tree
 jaw_target_rate_map <- rateMap(
   jaw_threshold_runs,
   target_tree = jaw_target_tree,
-  check = "topology",
   weights = "equal",
   summary = "branch",
   uncertainty = TRUE,
-  plot = FALSE,
-  progress = TRUE
+  progress = TRUE,
+  control = list(check = "topology")
 )
 ```
 
@@ -871,13 +877,13 @@ jaw_target_rate_map <- rateMap(
 - Equal weights summarize robustness across selected threshold settings; IC
   weights emphasize lower-IC threshold outcomes.
 - For fixed-topology posterior tree samples with different branch lengths, use
-  an explicit target tree, `check = "topology"`, branch summaries, and equal
-  weights.
+  an explicit target tree, `control = list(check = "topology")`, branch
+  summaries, and equal weights.
 - The default branch-level, log-rate-category map matches `bifrost`'s node-shift
   model.
-- `n_categories` sets the target number of automatic category bins;
-  `category_bin_method = "equal"` and `category_breaks` give more direct bin
-  control; `ncolors` controls continuous ramps.
+- In `plot(x, ...)`, `n_categories` sets the target number of automatic
+  category bins; `category_bin_method = "equal"` and `category_breaks` give
+  more direct bin control; `ncolors` controls continuous ramps.
 - Uncertainty maps identify branches where inferred log-rates are stable or
   threshold-sensitive.
 
@@ -913,8 +919,10 @@ jaw_raw_rate_map <- rateMap(
   weights = "equal",
   uncertainty = TRUE,
   log = FALSE,
-  plot = FALSE,
-  progress = TRUE,
+  progress = TRUE
+)
+plot(
+  jaw_raw_rate_map,
   palette = "Viridis",
   legend_title = "Mean fitted rate"
 )
@@ -991,7 +999,6 @@ equal_branch_map <- rateMap(
   jaw_threshold_runs,
   summary = "branch",
   weights = "equal",
-  plot = FALSE,
   progress = TRUE
 )
 
@@ -999,7 +1006,6 @@ ic_branch_map <- rateMap(
   jaw_threshold_runs,
   summary = "branch",
   weights = "ic",
-  plot = FALSE,
   progress = TRUE
 )
 
