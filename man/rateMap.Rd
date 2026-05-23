@@ -27,13 +27,18 @@ rateMap(
   future_scheduling = 1,
   future_chunk_size = NULL,
   progress = TRUE,
-  log = FALSE,
+  log = TRUE,
   ncolors = 256,
   palette = "YlOrRd",
   reverse_palette = FALSE,
+  color_mode = c("category", "continuous"),
+  n_categories = 6,
+  category_bin_method = c("pretty", "equal"),
+  category_breaks = NULL,
+  category_labels = NULL,
   legend_title = NULL,
   na_action = c("error", "omit"),
-  summary = c("interval", "branch"),
+  summary = c("branch", "interval"),
   target = c("first", "mcc"),
   target_tree = NULL,
   weights = c("equal", "ic"),
@@ -41,27 +46,29 @@ rateMap(
   uncertainty = FALSE,
   value_summary = c("mean", "median"),
   quantile_probs = c(0.025, 0.975),
-  hpd_prob = 0.95,
+  highest_density_interval_prob = 0.95,
   ...
 )
 }
 \arguments{
-\item{fits}{A non-empty list of completed runs or fitted model objects.
-Supported shapes are \code{bifrost_search} objects, \code{mvgls} objects,
-\verb{list(model = <mvgls>)}, and scratch-style lists with
-\code{variables$tree} plus \code{param}.}
+\item{fits}{A completed run, fitted model object, or non-empty list of these
+objects. Supported shapes are \code{bifrost_search} objects, \code{mvgls} objects,
+\verb{list(model = <mvgls>)}, and scratch-style lists with \code{variables$tree} plus
+\code{param}. Single supported objects are wrapped automatically as a convenience
+for one-fit plotting and inspection.}
 
 \item{res}{Integer resolution of the global depth grid used to subdivide
 target-tree branches when \code{summary = "interval"}. Ignored by
 \code{summary = "branch"}.}
 
-\item{fsize}{Optional plotting font sizes passed to \code{\link[=plotRateMap]{plotRateMap()}} when
-\code{plot = TRUE}.}
+\item{fsize}{Optional plotting font sizes passed to the \code{"rateMap"} plot
+method when \code{plot = TRUE}.}
 
-\item{ftype}{Optional plotting font type(s) passed to \code{\link[=plotRateMap]{plotRateMap()}} when
-\code{plot = TRUE}.}
+\item{ftype}{Optional plotting font type(s) passed to the \code{"rateMap"} plot
+method when \code{plot = TRUE}.}
 
-\item{lwd}{Line width passed through to \code{\link[=plotRateMap]{plotRateMap()}} when \code{plot = TRUE}.}
+\item{lwd}{Line width passed through to the \code{"rateMap"} plot method when
+\code{plot = TRUE}.}
 
 \item{check}{Logical or character check mode. \code{TRUE} or \code{"full"} verifies
 that extracted trees and the target tree match in topology and branch
@@ -69,7 +76,7 @@ lengths. \code{"topology"} verifies matching topology/tip labels while allowing
 branch lengths to differ. \code{FALSE} or \code{"none"} skips this check, but target
 branches still must be matchable by descendant-tip sets.}
 
-\item{legend}{Legend length passed through to \code{\link[=plotRateMap]{plotRateMap()}} when
+\item{legend}{Legend length passed through to the \code{"rateMap"} plot method when
 \code{plot = TRUE}.}
 
 \item{outline}{Logical; if \code{TRUE}, draw branch outlines in the plotted map
@@ -81,16 +88,17 @@ when \code{plot = TRUE}.}
 \item{direction}{Plotting direction for \code{type = "phylogram"} when
 \code{plot = TRUE}.}
 
-\item{plot}{Logical; if \code{TRUE}, plot the result immediately using
-\code{\link[=plotRateMap]{plotRateMap()}}. If \code{FALSE}, only return the computed \code{"rateMap"} object.}
+\item{plot}{Logical; if \code{TRUE}, plot the result immediately using the
+\code{"rateMap"} plot method. If \code{FALSE}, only return the computed \code{"rateMap"}
+object.}
 
 \item{tree_fun}{Optional function used to extract a mapped tree from each
-element of \code{fits}. If \code{NULL}, common Bifrost and mvgls shapes are
+element of \code{fits}. If \code{NULL}, common \code{bifrost} and mvgls shapes are
 auto-detected.}
 
 \item{param_fun}{Optional function used to extract a named numeric vector of
 state-specific fitted rates from each element of \code{fits}. If \code{NULL}, common
-Bifrost and mvgls shapes are auto-detected.}
+\code{bifrost} and mvgls shapes are auto-detected.}
 
 \item{tip_fsize}{Optional override for phylogeny tip-label font size when
 \code{plot = TRUE}.}
@@ -117,29 +125,61 @@ Must be one of \code{"multisession"} or \code{"multicore"}.}
 \item{progress}{Logical; if \code{TRUE}, display a text progress bar via
 \code{\link[progressr:with_progress]{progressr::with_progress()}}.}
 
-\item{log}{Logical; if \code{TRUE}, transform extracted rate parameters with
-\code{log()} before averaging.}
+\item{log}{Logical; if \code{TRUE} (the default), transform extracted rate
+parameters with \code{log()} before branch, interval, and across-fit averaging
+and plotting. Weighted means are then mean log-rates, equivalent to the log
+of weighted geometric mean rates. Set \code{log = FALSE} to summarize rates in
+their original units.}
 
-\item{ncolors}{Number of colors in the rendered palette.}
+\item{ncolors}{Number of colors in the rendered palette for
+\code{color_mode = "continuous"}. In \code{color_mode = "category"}, the rendered
+tree uses one color per exact value or category bin; \code{ncolors} does not
+increase the number of displayed category colors.}
 
 \item{palette}{Palette specification. This can be an \code{hcl.colors()} palette
 name, a vector of colors, or a palette function.}
 
 \item{reverse_palette}{Logical; if \code{TRUE}, reverse the resolved palette.}
 
+\item{color_mode}{Character; \code{"category"} maps numeric summaries onto
+discrete ordered rate categories, while \code{"continuous"} maps them onto a
+continuous color ramp.}
+
+\item{n_categories}{Maximum number of exact unique values to preserve as
+discrete rate categories, and target number of automatic bins when more
+unique values are present. Ignored by \code{color_mode = "continuous"} and by
+user-supplied \code{category_breaks}.}
+
+\item{category_bin_method}{Character; automatic binning method for
+\code{color_mode = "category"} when there are more unique plotted values than
+\code{n_categories}. \code{"pretty"} (the default) uses \code{\link[=pretty]{pretty()}} breaks, treating
+\code{n_categories} as a target rather than an exact bin count. \code{"equal"} uses
+equal-width numeric intervals across the finite plotted range. Ignored by
+\code{color_mode = "continuous"} and by user-supplied \code{category_breaks}.}
+
+\item{category_breaks}{Optional strictly increasing numeric vector of
+category boundaries for \code{color_mode = "category"}. When supplied, these
+breaks must cover all finite plotted values and override automatic
+binning.}
+
+\item{category_labels}{Optional character labels for the displayed categories.
+Labels can be used with custom \code{category_breaks}, exact unique-value
+categories, or automatic bins, and must match the final category count.}
+
 \item{legend_title}{Optional legend title. If \code{NULL}, defaults to
-\code{"Mean fitted rate"} or \code{"Mean log fitted rate"} depending on \code{log}.}
+\code{"Mean log fitted rate"} or \code{"Mean fitted rate"} depending on \code{log}.}
 
 \item{na_action}{What to do when a run has invalid parameters. \code{"error"}
 stops immediately. \code{"omit"} drops invalid runs before aggregation.}
 
-\item{summary}{Character; \code{"interval"} slices branches on a global depth grid,
-while \code{"branch"} computes one length-weighted value per edge.}
+\item{summary}{Character; \code{"branch"} computes one length-weighted value per
+edge, while \code{"interval"} slices branches on a global depth grid.}
 
 \item{target}{Character target-tree selection when \code{target_tree = NULL}.
 \code{"first"} uses the first retained input tree. \code{"mcc"} chooses the retained
-input tree with the highest sum of log clade credibilities. For same-topology
-inputs this is usually tied and therefore returns the first retained tree.}
+input tree with the highest sum of log clade credibilities. This only
+selects the plotting scaffold; every target branch must still be present in
+every retained input.}
 
 \item{target_tree}{Optional explicit target tree used as the plotting scaffold.
 This may be any target or summary tree with the same topology and tip labels
@@ -157,47 +197,59 @@ also accepted and treated as custom fit weights.}
 override \code{weights}.}
 
 \item{uncertainty}{Logical; if \code{TRUE}, compute and return across-fit
-uncertainty summaries for every plotted branch interval or whole branch.}
+uncertainty summaries for every plotted row: whole branches when
+\code{summary = "branch"} and depth-grid intervals when \code{summary = "interval"}.}
 
-\item{value_summary}{Character; central estimate stored in \code{intervals$value}
-and mapped to colors. \code{"mean"} preserves the legacy weighted-mean behavior.
-\code{"median"} uses the weighted median.}
+\item{value_summary}{Character; central estimate stored in the plotted
+summary table column \code{intervals$value} and mapped to colors. \code{"mean"} uses
+the weighted mean. \code{"median"} uses the weighted median. When \code{log = TRUE},
+both summaries are computed on the log-rate scale.}
 
 \item{quantile_probs}{Numeric length-2 vector of quantile probabilities to
 report when \code{uncertainty = TRUE}.}
 
-\item{hpd_prob}{Numeric scalar giving the HPD mass to report when
-\code{uncertainty = TRUE}.}
+\item{highest_density_interval_prob}{Numeric scalar giving the highest-density interval mass to
+report when \code{uncertainty = TRUE}.}
 
-\item{...}{Additional plotting arguments passed to \code{\link[=plotRateMap]{plotRateMap()}} when
-\code{plot = TRUE}, such as \code{mar}, \code{offset}, \code{xlim}, \code{ylim}, \code{hold},
-\code{underscore}, or \code{arc_height}.}
+\item{...}{Additional plotting arguments passed to the \code{"rateMap"} plot
+method when \code{plot = TRUE}, such as \code{value}, \code{mar}, \code{offset}, \code{xlim},
+\code{ylim}, \code{hold}, \code{underscore}, \code{arc_height}, or \code{legend_digits}.
+Non-empty \code{...} is rejected when \code{plot = FALSE} because these controls do
+not change the computed \code{"rateMap"} object. Unsupported arguments are
+rejected.}
 }
 \value{
 An object of class \code{"rateMap"} with components:
 \describe{
 \item{\code{tree}}{A SIMMAP-style tree whose mapped segments encode color-bin
-indices.}
-\item{\code{cols}}{The resolved color palette.}
+indices in continuous mode, or named rate categories in category mode.}
+\item{\code{cols}}{The resolved color palette. In continuous mode this has
+length \code{ncolors}; in category mode it has one color per exact value or
+category bin.}
 \item{\code{lims}}{Numeric length-2 vector giving the plotted value range.}
-\item{\code{breaks}}{Numeric vector of palette bin boundaries.}
-\item{\code{values}}{List of branch-interval central values before color
+\item{\code{breaks}}{Numeric vector of palette bin boundaries in continuous
+mode, or category boundaries/values in category mode.}
+\item{\code{values}}{List of plotted-row central values by edge before color
 binning.}
-\item{\code{intervals}}{Data frame with one row per plotted branch interval, or
-one row per branch when \code{summary = "branch"}.}
+\item{\code{intervals}}{Plotted summary table. With \code{summary = "branch"}, this
+has one row per branch. With \code{summary = "interval"}, this has one row per
+plotted depth-grid interval.}
+\item{\code{rate_categories}}{Data frame describing discrete rate categories
+when \code{color_mode = "category"}; otherwise \code{NULL}.}
 \item{\code{run_values}}{When \code{uncertainty = TRUE}, list of numeric matrices
-containing run-level values for each edge. Rows are plotted intervals and
-columns are retained fits. Otherwise \code{NULL}.}
+containing run-level values for each edge. Matrix rows match the plotted
+rows for that edge and columns are retained fits. Otherwise \code{NULL}.}
 \item{\code{clade_key}}{Character descendant-tip key for each target-tree edge.}
 \item{\code{edge_matches}}{Integer matrix mapping target-tree edge rows to
 matched source-tree edge rows for each retained fit.}
 \item{\code{summary}}{The summary mode used, \code{"interval"} or \code{"branch"}.}
 \item{\code{uncertainty}}{Logical indicating whether uncertainty summaries were
 computed.}
-\item{\code{value_summary}}{Central estimate used for \code{intervals$value}.}
+\item{\code{value_summary}}{Central estimate used for the plotted summary table
+column \code{intervals$value}.}
 \item{\code{quantile_probs}}{Quantile probabilities used for uncertainty
 summaries.}
-\item{\code{hpd_prob}}{HPD mass used for uncertainty summaries.}
+\item{\code{highest_density_interval_prob}}{Highest-density interval mass used for uncertainty summaries.}
 \item{\code{plot_value}}{Current interval column mapped to branch colors.}
 \item{\code{target}}{Target-tree selection mode used.}
 \item{\code{check}}{Tree compatibility check mode used.}
@@ -209,6 +261,15 @@ and IC values when available.}
 \item{\code{palette}}{Original palette specification.}
 \item{\code{reverse_palette}}{Logical indicating whether the palette was
 reversed.}
+\item{\code{color_mode}}{Coloring mode used for the current tree.}
+\item{\code{n_categories}}{Category count target used when
+\code{color_mode = "category"}.}
+\item{\code{category_breaks}}{Category breaks or exact category values used
+when \code{color_mode = "category"}.}
+\item{\code{category_labels}}{Category labels used when
+\code{color_mode = "category"}.}
+\item{\code{category_bin_method}}{Automatic category-binning method used when
+\code{color_mode = "category"} and \code{category_breaks = NULL}.}
 \item{\code{title}}{Legend title used for plotting.}
 \item{\code{n_fits}}{Number of fits used after validation or omission.}
 \item{\code{omitted}}{Integer indices of omitted fits when \code{na_action = "omit"}.}
@@ -217,9 +278,9 @@ reversed.}
 \description{
 Summarize fitted regime-specific rates across a list of stochastic-map-aware
 model fits or completed \code{bifrost_search} results. By default, \code{rateMap()}
-preserves the original same-tree workflow: the first retained tree is used as
+follows \code{bifrost}'s branch-level framing: the first retained tree is used as
 the plotting scaffold, all retained trees must match in topology and branch
-lengths, branches are sliced on a global depth grid, and runs are averaged
+lengths, each branch receives one summarized log-rate, and runs are averaged
 with equal weight.
 }
 \details{
@@ -231,7 +292,13 @@ posterior probability of a mapped state; instead, each mapped state is
 translated through the corresponding fitted regime-rate parameter from each
 run. The plotting interface likewise follows the \code{phytools} density-map
 family by returning a colored SIMMAP tree and drawing it with
-\code{\link[phytools:plotSimmap]{phytools::plotSimmap()}} plus a continuous color-bar legend.
+\code{\link[phytools:plotSimmap]{phytools::plotSimmap()}} plus either a segmented rate-category color bar or
+a continuous color-bar legend.
+
+Although \code{rateMap()} is designed for summarizing multiple fitted maps, it also
+accepts a single completed \code{bifrost} search or supported fit. Single-fit input
+is a convenience for applying the same plotting controls to one fitted model
+before scaling up to multi-run summaries.
 
 \code{rateMap()} can also summarize same-topology posterior or sensitivity samples
 where branch lengths differ. In that case, supply \code{check = "topology"} and,
@@ -241,12 +308,24 @@ possible choice. The target tree supplies the plotted topology and branch
 lengths, while rates are matched from each input tree by descendant-tip clade
 keys rather than by edge order.
 
-\strong{Summary modes.} With \code{summary = "interval"}, each target-tree branch is
-subdivided by the global depth grid controlled by \code{res}. If source branch
-lengths differ from the target branch length, source stochastic-map segments
-are projected onto target intervals by relative position along the matched
-branch. With \code{summary = "branch"}, each edge receives one length-weighted
-average rate from each run before the across-run summary is computed.
+\strong{Summary modes.} With the default \code{summary = "branch"} and \code{log = TRUE},
+each edge receives one length-weighted average log-rate from each run before
+the across-run summary is computed. This is the natural default for \code{bifrost}
+searches because shifts are placed at nodes, so a \code{bifrost} branch is not
+expected to change regimes internally. With \code{summary = "interval"}, each
+target-tree branch is subdivided by the global depth grid controlled by
+\code{res}. If source branch lengths differ from the target branch length, source
+stochastic-map segments are projected onto target intervals by relative
+position along the matched branch. Interval mode is useful for general
+stochastic maps that can genuinely change state along a branch.
+
+\strong{Log-rate averaging.} When \code{log = TRUE}, rate parameters are transformed
+before branch-level, interval-level, and across-fit summaries are computed.
+With weights \code{w_i}, the default plotted mean is therefore
+\code{sum(w_i * log(rate_i))}, which is the log of a weighted geometric mean. It
+is not \code{log(sum(w_i * rate_i))}, the log of a weighted arithmetic mean. Use
+\code{log = FALSE} when downstream interpretation requires arithmetic summaries on
+the original rate scale.
 
 \strong{Tree checks and targets.} \code{check = TRUE} is equivalent to \code{check = "full"}
 and requires topology and branch lengths to match the target tree. Use
@@ -262,9 +341,11 @@ and need not contain SIMMAP maps. When \code{target_tree = NULL}, \code{target =
 uses the first retained input tree, and \code{target = "mcc"} chooses the retained
 input tree with the highest sum of log clade credibilities. For truly
 same-topology inputs, the MCC score is usually tied, so \code{"mcc"} commonly
-resolves to the first retained tree unless topologies differ. If you already
-have a preferred consensus, chronogram, MCC, maximum-likelihood, or otherwise
-curated target tree, pass it with \code{target_tree} instead of using \code{target}.
+resolves to the first retained tree. MCC target selection does not make
+\code{rateMap()} a mixed-topology summarizer: every target branch must still be
+present in every retained input. If you already have a preferred consensus,
+chronogram, MCC, maximum-likelihood, or otherwise curated target tree, pass it
+with \code{target_tree} instead of using \code{target}.
 
 \strong{Fit weights.} \code{weights = "equal"} assigns the same weight to each retained
 fit. \code{weights = "ic"} computes standard information-criterion weights from
@@ -273,21 +354,57 @@ same non-missing \code{IC_used}. Numeric \code{weights} or \code{fit_weights} ca
 for custom weighting. Weights are subset to retained fits after
 \code{na_action = "omit"} and are normalized to sum to one.
 
-\strong{Uncertainty summaries.} When \code{uncertainty = TRUE}, the returned
-\code{intervals} data frame includes across-fit summaries for each branch or
-interval: weighted mean, weighted median, weighted standard deviation,
-quantiles, HPD interval, quantile/HPD widths, coefficient of variation, and
-the number of finite run-level values. The run-level values are also returned
-in \code{run_values} as one matrix per edge. For posterior tree samples, use
-\code{weights = "equal"} so the quantiles and HPDs are empirical posterior
-summaries. \code{value_summary} controls whether the plotted \code{value} column uses
-the weighted mean or weighted median.
+\strong{Uncertainty summaries.} The returned \code{intervals} data frame is the plotted
+summary table. With \code{summary = "branch"}, it has one row per branch. With
+\code{summary = "interval"}, it has one row per plotted depth-grid interval. When
+\code{uncertainty = TRUE}, this table includes across-fit summaries for each
+plotted row: weighted mean, weighted median, weighted standard deviation,
+quantiles, highest-density interval bounds, quantile and highest-density
+interval widths, coefficient of variation, and the number of finite run-level
+values. The run-level values are also returned in \code{run_values} as one matrix
+per edge.
+These are weighted empirical summaries of run-level values. For posterior
+tree samples, use \code{weights = "equal"} if each retained run represents one
+posterior draw. \code{value_summary} controls whether the plotted \code{value} column
+uses the weighted mean or weighted median. These summaries are computed on
+the log-rate scale when \code{log = TRUE}. Highest-density intervals use the same
+shortest empirical interval calculation for both equal and unequal fit
+weights. For \code{weights = "equal"}, \code{sd} is the ordinary sample standard
+deviation of retained run-level values. For unequal weights, \code{sd} is the
+square root of the normalized weighted variance, \code{sum(w * (x - mu)^2)}, with
+weights normalized to sum to one.
+
+\strong{Color modes.} \code{color_mode = "category"} is the default and assigns plotted
+rows to ordered rate categories. For a single \code{bifrost} search with
+\code{log = FALSE}, this is the closest formal analogue to the illustrative
+\code{generateViridisColorScale()} plot: exact unique fitted rates are preserved
+as categories when their count is at most \code{n_categories}, and each displayed
+category receives one color. For multi-run summaries, the plotted values are
+usually branch summaries rather than named regimes. If there are more unique
+finite plotted values than \code{n_categories}, the values are binned into
+automatic intervals using \code{category_bin_method = "pretty"} by default. Use
+\code{category_bin_method = "equal"} for equal-width numeric intervals, or
+\code{category_breaks} to supply custom category boundaries. These categories are
+display bins, not additional inferred regimes. \code{color_mode = "continuous"}
+uses the density-map-style behavior: summarized numeric values are binned
+onto a many-color ramp controlled by \code{ncolors} and shown with a continuous
+color-bar legend. \code{pretty()} uses \code{n_categories} as a target, so the final
+number of bins can differ and the displayed break range can extend slightly
+beyond the finite plotted values.
 }
 \examples{
 \dontrun{
-# A list of completed Bifrost searches can be summarized directly:
+# A list of completed bifrost searches can be summarized directly:
 rm_obj <- rateMap(list(search_a, search_b, search_c), plot = FALSE)
-plotRateMap(rm_obj, type = "arc", show_tip_labels = FALSE)
+plot(rm_obj, type = "arc", show_tip_labels = FALSE)
+
+# A single completed bifrost search can be inspected with the same API:
+one_search_map <- rateMap(search_a, plot = FALSE)
+plot(one_search_map, type = "arc", show_tip_labels = FALSE)
+
+# plotRateMap() is the explicit helper and can plot one fitted object
+# directly by first calling rateMap(..., plot = FALSE):
+plotRateMap(search_a, type = "arc", show_tip_labels = FALSE)
 
 # Scratch-style lists remain supported:
 scratch_fit <- list(
@@ -296,11 +413,46 @@ scratch_fit <- list(
 )
 rateMap(list(scratch_fit), plot = FALSE)
 
-# Use Bifrost model-level IC weights across comparable sensitivity runs:
+# Use bifrost model-level IC weights across comparable sensitivity runs:
 rm_ic <- rateMap(list(search_a, search_b), weights = "ic", plot = FALSE)
 
-# Whole-branch summaries avoid interval subdivision:
-branch_rates <- rateMap(list(search_a, search_b), summary = "branch", plot = FALSE)
+# Branch-level, discrete-category maps are the bifrost default:
+branch_rates <- rateMap(list(search_a, search_b), plot = FALSE)
+branch_rates$rate_categories
+
+# To mimic the old jaw-shape preview style for a single search, use raw
+# fitted rates and category colors:
+jaw_style <- rateMap(
+  search_a,
+  log = FALSE,
+  color_mode = "category",
+  palette = viridis::viridis,
+  plot = FALSE
+)
+
+# Category bins use pretty breaks by default. Use equal-width bins or custom
+# boundaries when those are easier to compare across figures:
+equal_bin_rates <- rateMap(
+  list(search_a, search_b),
+  n_categories = 5,
+  category_bin_method = "equal",
+  plot = FALSE
+)
+custom_bin_rates <- rateMap(
+  list(search_a, search_b),
+  category_breaks = c(-4, -2, 0, 2),
+  category_labels = c("slow", "middle", "fast"),
+  plot = FALSE
+)
+
+# Continuous interval maps remain available for stochastic maps with
+# along-branch changes:
+interval_rates <- rateMap(
+  list(search_a, search_b),
+  summary = "interval",
+  color_mode = "continuous",
+  plot = FALSE
+)
 
 # Custom fit weights are normalized internally:
 custom_weighted <- rateMap(
@@ -321,7 +473,7 @@ posterior_target_rates <- rateMap(
   uncertainty = TRUE,
   plot = FALSE
 )
-plotRateMap(posterior_target_rates, value = "sd", type = "arc")
+plot(posterior_target_rates, value = "sd", type = "arc")
 
 # Or choose the retained input tree with the highest summed log clade
 # credibility as the plotting scaffold:
@@ -333,7 +485,8 @@ posterior_mcc_rates <- rateMap(
   plot = FALSE
 )
 
-# Large sensitivity sets can be explicitly subsampled before plotting:
+# Large sensitivity sets can be explicitly subsampled before plotting.
+# By default, rates are mapped on the log scale:
 set.seed(1)
 idx <- sample(seq_along(fit_list), size = 1000)
 rm_sub <- rateMap(
@@ -341,11 +494,13 @@ rm_sub <- rateMap(
   res = 100,
   workers = 8,
   future_strategy = "multisession",
-  log = TRUE,
   palette = c("lightblue", "blue", "pink", "red"),
   plot = FALSE
 )
-plotRateMap(rm_sub, type = "arc", show_tip_labels = FALSE, lwd = 1)
+
+# Use log = FALSE only when a raw-rate scale is preferred:
+rm_raw <- rateMap(fit_list[idx], log = FALSE, plot = FALSE)
+plot(rm_sub, type = "arc", show_tip_labels = FALSE, lwd = 1)
 }
 
 }

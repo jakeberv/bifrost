@@ -38,8 +38,78 @@
   cols
 }
 
+.rateMap_validate_dots <- function(dots, allowed) {
+  if (length(dots) == 0L) {
+    return(invisible(NULL))
+  }
+
+  dot_names <- names(dots)
+  if (is.null(dot_names) || any(!nzchar(dot_names))) {
+    stop("Additional arguments in '...' must be named.")
+  }
+
+  unknown_dots <- setdiff(dot_names, allowed)
+  if (length(unknown_dots) > 0L) {
+    stop(
+      "Unsupported argument(s) in '...': ",
+      paste(unknown_dots, collapse = ", "),
+      "."
+    )
+  }
+
+  invisible(NULL)
+}
+
+.rateMap_rate_dot_names <- function() {
+  c(
+    "value",
+    "mar",
+    "offset",
+    "xlim",
+    "ylim",
+    "hold",
+    "underscore",
+    "arc_height",
+    "legend_digits"
+  )
+}
+
+.rateMap_plot_dot_names <- function() {
+  c(
+    "legend",
+    "fsize",
+    "tip_fsize",
+    "legend_fsize",
+    "ftype",
+    "show_tip_labels",
+    "outline",
+    "lwd",
+    "type",
+    "mar",
+    "direction",
+    "offset",
+    "xlim",
+    "ylim",
+    "hold",
+    "underscore",
+    "arc_height",
+    "legend_digits"
+  )
+}
+
+.rateMap_rate_arg_names <- function() {
+  setdiff(names(formals(rateMap)), c("fits", "plot", "..."))
+}
+
 .rateMap_is_bifrost_search <- function(x) {
   inherits(x, "bifrost_search")
+}
+
+.rateMap_is_single_fit <- function(x) {
+  .rateMap_is_bifrost_search(x) ||
+    inherits(x, "mvgls") ||
+    (is.list(x) && inherits(x$model, "mvgls")) ||
+    (is.list(x) && !is.null(x$variables$tree) && !is.null(x$param))
 }
 
 .rateMap_extract_tree <- function(fit) {
@@ -89,8 +159,15 @@
 .rateMap_extract_ic <- function(fit) {
   if (.rateMap_is_bifrost_search(fit) ||
       (is.list(fit) && !is.null(fit$optimal_ic))) {
+    ic <- fit$optimal_ic
+    if (is.null(ic) || length(ic) < 1L || !is.numeric(ic)) {
+      ic <- NA_real_
+    } else {
+      ic <- as.numeric(ic[1L])
+    }
+
     return(list(
-      ic = fit$optimal_ic,
+      ic = ic,
       IC_used = if (is.null(fit$IC_used)) NA_character_ else as.character(fit$IC_used)
     ))
   }
@@ -181,6 +258,375 @@
     length(legend) == 1L &&
     is.finite(legend) &&
     legend > 0
+}
+
+.rateMap_category_lims <- function(x) {
+  categories <- x$rate_categories
+  if (is.null(categories) || nrow(categories) == 0L) {
+    return(x$lims)
+  }
+
+  if (all(c("lower", "upper") %in% names(categories))) {
+    bounds <- c(categories$lower, categories$upper)
+    bounds <- bounds[is.finite(bounds)]
+    if (length(bounds) > 0L) {
+      lims <- range(bounds)
+      if (diff(lims) > 0) {
+        return(lims)
+      }
+    }
+  }
+
+  if ("value" %in% names(categories)) {
+    vals <- categories$value[is.finite(categories$value)]
+    if (length(vals) > 0L) {
+      lims <- range(vals)
+      if (diff(lims) > 0) {
+        return(lims)
+      }
+    }
+  }
+
+  x$lims
+}
+
+.rateMap_add_category_legend <- function(x,
+                                         legend,
+                                         x_pos,
+                                         y_pos,
+                                         lwd = 3,
+                                         fsize = 1,
+                                         outline = FALSE,
+                                         digits = .rateMap_legend_digits(x$lims),
+                                         direction = "rightwards") {
+  categories <- x$rate_categories
+  if (is.null(categories) || nrow(categories) == 0L) {
+    return(invisible(NULL))
+  }
+
+  bar_cols <- x$cols
+  if (length(bar_cols) == 1L) {
+    bar_cols <- rep(bar_cols, 2L)
+  }
+
+  lims <- .rateMap_category_lims(x)
+  if (identical(direction, "leftwards")) {
+    bar_cols <- rev(bar_cols)
+    lims <- rev(lims)
+  }
+
+  op <- graphics::par(xpd = NA)
+  on.exit(graphics::par(op), add = TRUE)
+
+  usr <- graphics::par("usr")
+  yr <- diff(usr[3:4])
+  bar_height <- 0.012 * yr * max(lwd / 3, 0.75)
+  label_gap <- 0.018 * yr * max(fsize, 0.75)
+  title_gap <- 0.04 * yr * max(fsize, 0.75)
+
+  x0 <- x_pos
+  x1 <- x_pos + legend
+  y0 <- y_pos
+  y1 <- y_pos + bar_height
+  xs <- seq(x0, x1, length.out = length(bar_cols) + 1L)
+
+  graphics::rect(
+    xs[-length(xs)],
+    y0,
+    xs[-1L],
+    y1,
+    col = unname(bar_cols),
+    border = NA
+  )
+  if (isTRUE(outline)) {
+    graphics::rect(x0, y0, x1, y1, border = "grey30")
+  }
+  graphics::text(
+    c(x0, x1),
+    rep(y1 + label_gap, 2L),
+    labels = formatC(lims, digits = digits, format = "fg"),
+    cex = fsize,
+    adj = c(0.5, 0.5)
+  )
+  graphics::text(
+    mean(c(x0, x1)),
+    y1 + title_gap,
+    labels = x$title,
+    cex = fsize
+  )
+  invisible(NULL)
+}
+
+.rateMap_legend_digits <- function(lims) {
+  if (!is.numeric(lims) || length(lims) != 2L || any(!is.finite(lims))) {
+    return(3L)
+  }
+
+  nonzero <- abs(lims[lims != 0])
+  if (length(nonzero) == 0L) {
+    return(3L)
+  }
+
+  scale <- min(nonzero)
+  # nocov start
+  if (!is.finite(scale)) {
+    return(3L)
+  }
+  # nocov end
+
+  if (scale < 1) {
+    return(as.integer(max(3L, min(12L, ceiling(-log10(scale)) + 2L))))
+  }
+
+  3L
+}
+
+.rateMap_format_rate <- function(x, lims = range(x, finite = TRUE)) {
+  digits <- .rateMap_legend_digits(lims)
+  trimws(formatC(x, digits = digits, format = "fg"))
+}
+
+.rateMap_validate_n_categories <- function(n_categories) {
+  if (!is.numeric(n_categories) ||
+      length(n_categories) != 1L ||
+      !is.finite(n_categories) ||
+      n_categories < 1) {
+    stop("'n_categories' must be a finite number >= 1.")
+  }
+
+  as.integer(n_categories)
+}
+
+.rateMap_category_labels <- function(labels, n, user_supplied) {
+  if (is.null(labels)) {
+    return(NULL)
+  }
+  if (!is.character(labels) || length(labels) != n || anyNA(labels) || any(!nzchar(labels))) {
+    stop("'category_labels' must be a non-missing character vector with one label per rate category.")
+  }
+  if (anyDuplicated(labels)) {
+    if (isTRUE(user_supplied)) {
+      stop("'category_labels' must contain unique labels.")
+    }
+    labels <- make.unique(labels, sep = "_")
+  }
+
+  labels
+}
+
+.rateMap_resolve_categories <- function(values,
+                                        n_categories,
+                                        category_breaks = NULL,
+                                        category_labels = NULL,
+                                        category_bin_method = c("pretty", "equal")) {
+  values <- as.numeric(values)
+  finite_values <- values[is.finite(values)]
+  if (length(finite_values) == 0L) {
+    stop("Could not compute finite rate categories from the supplied values.")
+  }
+
+  n_categories <- .rateMap_validate_n_categories(n_categories)
+  category_bin_method <- match.arg(category_bin_method)
+  user_labels <- !is.null(category_labels)
+
+  if (!is.null(category_breaks)) {
+    if (!is.numeric(category_breaks) ||
+        length(category_breaks) < 2L ||
+        any(!is.finite(category_breaks)) ||
+        is.unsorted(category_breaks, strictly = TRUE)) {
+      stop("'category_breaks' must be a strictly increasing finite numeric vector.")
+    }
+    if (min(finite_values) < min(category_breaks) || max(finite_values) > max(category_breaks)) {
+      stop("'category_breaks' must cover the finite values being mapped.")
+    }
+
+    lower <- utils::head(category_breaks, -1L)
+    upper <- utils::tail(category_breaks, -1L)
+    labels <- .rateMap_category_labels(category_labels, length(lower), user_labels)
+    if (is.null(labels)) {
+      labels <- paste(
+        .rateMap_format_rate(lower, range(category_breaks)),
+        .rateMap_format_rate(upper, range(category_breaks)),
+        sep = " to "
+      )
+      labels <- .rateMap_category_labels(labels, length(labels), user_supplied = FALSE)
+    }
+
+    bin <- findInterval(values, category_breaks, all.inside = TRUE)
+    bin[values == max(category_breaks)] <- length(lower)
+
+    return(list(
+      index = bin,
+      labels = labels,
+      breaks = category_breaks,
+      table = data.frame(
+        color_bin = seq_along(labels),
+        rate_category = labels,
+        lower = lower,
+        upper = upper,
+        value = NA_real_,
+        stringsAsFactors = FALSE
+      )
+    ))
+  }
+
+  unique_values <- sort(unique(finite_values))
+  if (length(unique_values) <= n_categories) {
+    labels <- .rateMap_category_labels(category_labels, length(unique_values), user_labels)
+    if (is.null(labels)) {
+      labels <- .rateMap_format_rate(unique_values, range(unique_values))
+      labels <- .rateMap_category_labels(labels, length(labels), user_supplied = FALSE)
+    }
+
+    return(list(
+      index = match(values, unique_values),
+      labels = labels,
+      breaks = unique_values,
+      table = data.frame(
+        color_bin = seq_along(labels),
+        rate_category = labels,
+        lower = unique_values,
+        upper = unique_values,
+        value = unique_values,
+        stringsAsFactors = FALSE
+      )
+    ))
+  }
+
+  lims <- range(finite_values)
+  breaks <- if (identical(category_bin_method, "equal")) {
+    seq(lims[1L], lims[2L], length.out = n_categories + 1L)
+  } else {
+    pretty(lims, n = n_categories)
+  }
+  # nocov start
+  if (length(breaks) < 2L ||
+      min(breaks) > lims[1L] ||
+      max(breaks) < lims[2L]) {
+    breaks <- seq(lims[1L], lims[2L], length.out = n_categories + 1L)
+  }
+  # nocov end
+  breaks[1L] <- min(breaks[1L], lims[1L])
+  breaks[length(breaks)] <- max(breaks[length(breaks)], lims[2L])
+  breaks <- unique(breaks)
+
+  lower <- utils::head(breaks, -1L)
+  upper <- utils::tail(breaks, -1L)
+  labels <- .rateMap_category_labels(category_labels, length(lower), user_labels)
+  if (is.null(labels)) {
+    labels <- paste(
+      .rateMap_format_rate(lower, range(breaks)),
+      .rateMap_format_rate(upper, range(breaks)),
+      sep = " to "
+    )
+    labels <- .rateMap_category_labels(labels, length(labels), user_supplied = FALSE)
+  }
+
+  bin <- findInterval(values, breaks, all.inside = TRUE)
+  bin[values == max(breaks)] <- length(lower)
+
+  list(
+    index = bin,
+    labels = labels,
+    breaks = breaks,
+    table = data.frame(
+      color_bin = seq_along(labels),
+      rate_category = labels,
+      lower = lower,
+      upper = upper,
+      value = NA_real_,
+      stringsAsFactors = FALSE
+    )
+  )
+}
+
+.rateMap_build_color_map <- function(values_by_edge,
+                                     ncolors,
+                                     palette,
+                                     reverse_palette,
+                                     color_mode,
+                                     n_categories,
+                                     category_breaks = NULL,
+                                     category_labels = NULL,
+                                     category_bin_method = "pretty") {
+  flat_values <- unlist(values_by_edge, use.names = FALSE)
+  lims <- range(flat_values, finite = TRUE)
+  # nocov start
+  if (!all(is.finite(lims))) {
+    stop("Could not compute finite rate limits from the supplied fits.")
+  }
+  # nocov end
+
+  if (diff(lims) == 0) {
+    lims <- lims + c(-0.5, 0.5) * max(abs(lims[1L]), 1) * 1e-6
+  }
+
+  color_mode <- match.arg(color_mode, c("continuous", "category"))
+
+  if (identical(color_mode, "continuous")) {
+    breaks <- seq(lims[1L], lims[2L], length.out = ncolors + 1L)
+    cols <- .rateMap_colors(
+      ncolors = ncolors,
+      palette = palette,
+      reverse_palette = reverse_palette
+    )
+    names(cols) <- as.character(seq_len(ncolors))
+    bins_by_edge <- lapply(values_by_edge, findInterval, vec = breaks, all.inside = TRUE)
+    states_by_edge <- lapply(bins_by_edge, as.character)
+
+    return(list(
+      color_mode = color_mode,
+      cols = cols,
+      lims = lims,
+      breaks = breaks,
+      bins_by_edge = bins_by_edge,
+      states_by_edge = states_by_edge,
+      rate_categories = NULL,
+      category_breaks = NULL,
+      category_labels = NULL,
+      category_bin_method = NULL
+    ))
+  }
+
+  categories <- .rateMap_resolve_categories(
+    values = flat_values,
+    n_categories = n_categories,
+    category_breaks = category_breaks,
+    category_labels = category_labels,
+    category_bin_method = category_bin_method
+  )
+  category_count <- length(categories$labels)
+  cols <- .rateMap_colors(
+    ncolors = max(category_count, 2L),
+    palette = palette,
+    reverse_palette = reverse_palette
+  )[seq_len(category_count)]
+  names(cols) <- categories$labels
+  categories$table$color <- unname(cols[categories$table$rate_category])
+
+  bins_by_edge <- vector("list", length(values_by_edge))
+  states_by_edge <- vector("list", length(values_by_edge))
+  start <- 1L
+  for (i in seq_along(values_by_edge)) {
+    n_i <- length(values_by_edge[[i]])
+    idx <- categories$index[start:(start + n_i - 1L)]
+    bins_by_edge[[i]] <- idx
+    states_by_edge[[i]] <- categories$labels[idx]
+    start <- start + n_i
+  }
+
+  list(
+    color_mode = color_mode,
+    cols = cols,
+    lims = lims,
+    breaks = categories$breaks,
+    bins_by_edge = bins_by_edge,
+    states_by_edge = states_by_edge,
+    rate_categories = categories$table,
+    category_breaks = categories$breaks,
+    category_labels = categories$labels,
+    category_bin_method = category_bin_method
+  )
 }
 
 .rateMap_getYmult <- function() {
@@ -399,7 +845,7 @@
   )
 }
 
-.rateMap_hpd <- function(x, weights, prob) {
+.rateMap_highest_density_interval <- function(x, weights, prob) {
   ok <- is.finite(x) & is.finite(weights) & weights > 0
   if (!any(ok)) {
     return(c(NA_real_, NA_real_))
@@ -460,7 +906,7 @@
 .rateMap_summarize_run_values <- function(values,
                                           weights,
                                           quantile_probs,
-                                          hpd_prob) {
+                                          highest_density_interval_prob) {
   q_names <- .rateMap_quantile_names(quantile_probs)
   quantiles <- t(vapply(
     seq_len(nrow(values)),
@@ -469,12 +915,12 @@
   ))
   colnames(quantiles) <- q_names
 
-  hpds <- t(vapply(
+  highest_density_intervals <- t(vapply(
     seq_len(nrow(values)),
-    function(i) .rateMap_hpd(values[i, ], weights, hpd_prob),
+    function(i) .rateMap_highest_density_interval(values[i, ], weights, highest_density_interval_prob),
     numeric(2)
   ))
-  colnames(hpds) <- c("hpd_low", "hpd_high")
+  colnames(highest_density_intervals) <- c("highest_density_interval_low", "highest_density_interval_high")
 
   data.frame(
     mean = .rateMap_row_means(values, weights),
@@ -489,7 +935,7 @@
       numeric(1)
     ),
     quantiles,
-    hpds,
+    highest_density_intervals,
     n = rowSums(is.finite(values)),
     stringsAsFactors = FALSE,
     check.names = FALSE
@@ -497,17 +943,25 @@
 }
 
 .rateMap_add_derived_uncertainty <- function(x) {
-  if (!all(c("q025", "q975", "hpd_low", "hpd_high", "mean", "sd") %in% names(x))) {
+  if (!all(c("q025", "q975", "highest_density_interval_low", "highest_density_interval_high", "mean", "sd") %in% names(x))) {
     return(x)
   }
 
   x$ci_width <- x$q975 - x$q025
-  x$hpd_width <- x$hpd_high - x$hpd_low
+  x$highest_density_interval_width <- x$highest_density_interval_high - x$highest_density_interval_low
   x$cv <- ifelse(is.finite(x$mean) & x$mean != 0, x$sd / abs(x$mean), NA_real_)
   x
 }
 
-.rateMap_recolor <- function(x, value, palette = NULL, reverse_palette = NULL) {
+.rateMap_recolor <- function(x,
+                             value,
+                             palette = NULL,
+                             reverse_palette = NULL,
+                             color_mode = NULL,
+                             n_categories = NULL,
+                             category_breaks = NULL,
+                             category_labels = NULL,
+                             category_bin_method = NULL) {
   if (!is.character(value) || length(value) != 1L || is.na(value) || !nzchar(value)) {
     stop("'value' must be a single non-empty character string.")
   }
@@ -522,44 +976,96 @@
     seq_along(x$tree$maps),
     function(i) x$intervals[[value]][x$intervals$edge == i]
   )
-  lims <- range(unlist(vals, use.names = FALSE), finite = TRUE)
-  # nocov start
-  if (!all(is.finite(lims))) {
-    stop("Could not compute finite plotting limits for '", value, "'.")
-  }
-  # nocov end
-  if (diff(lims) == 0) {
-    lims <- lims + c(-0.5, 0.5) * max(abs(lims[1L]), 1) * 1e-6
-  }
 
-  ncolors <- length(x$cols)
-  if (!is.null(palette) || !is.null(reverse_palette)) {
-    selected_palette <- if (is.null(palette)) x$palette else palette
-    selected_reverse <- if (is.null(reverse_palette)) {
-      isTRUE(x$reverse_palette)
+  selected_palette <- if (is.null(palette)) x$palette else palette
+  selected_reverse <- if (is.null(reverse_palette)) {
+    isTRUE(x$reverse_palette)
+  } else {
+    reverse_palette
+  }
+  selected_color_mode <- if (is.null(color_mode)) {
+    if (is.null(x$color_mode)) "continuous" else x$color_mode
+  } else {
+    match.arg(color_mode, c("continuous", "category"))
+  }
+  selected_n_categories <- if (is.null(n_categories)) {
+    if (is.null(x$n_categories)) 6L else x$n_categories
+  } else {
+    .rateMap_validate_n_categories(n_categories)
+  }
+  selected_category_bin_method <- if (is.null(category_bin_method)) {
+    if (is.null(x$category_bin_method)) "pretty" else x$category_bin_method
+  } else {
+    match.arg(category_bin_method, c("pretty", "equal"))
+  }
+  current_plot_value <- if (is.null(x$plot_value)) "value" else x$plot_value
+  reuse_categories <- is.null(color_mode) &&
+    identical(selected_color_mode, "category") &&
+    identical(value, current_plot_value)
+  reuse_exact_categories <- isTRUE(reuse_categories) &&
+    !is.null(x$rate_categories) &&
+    "value" %in% names(x$rate_categories) &&
+    all(is.finite(x$rate_categories$value))
+  selected_category_breaks <- if (is.null(category_breaks)) {
+    if (isTRUE(reuse_categories) && !isTRUE(reuse_exact_categories)) {
+      x$category_breaks
     } else {
-      reverse_palette
+      NULL
     }
-    x$cols <- .rateMap_colors(ncolors, selected_palette, selected_reverse)
-    names(x$cols) <- as.character(seq_len(ncolors))
-    x$palette <- selected_palette
-    x$reverse_palette <- selected_reverse
+  } else {
+    category_breaks
+  }
+  selected_category_labels <- if (is.null(category_labels)) {
+    if (isTRUE(reuse_categories)) {
+      x$category_labels
+    } else {
+      NULL
+    }
+  } else {
+    category_labels
   }
 
-  breaks <- seq(lims[1L], lims[2L], length.out = ncolors + 1L)
-  bins_by_edge <- vector("list", length(x$tree$maps))
+  ncolors <- if (identical(selected_color_mode, "continuous")) {
+    length(x$cols)
+  } else {
+    max(length(x$cols), 2L)
+  }
+  color_map <- .rateMap_build_color_map(
+    values_by_edge = vals,
+    ncolors = ncolors,
+    palette = selected_palette,
+    reverse_palette = selected_reverse,
+    color_mode = selected_color_mode,
+    n_categories = selected_n_categories,
+    category_breaks = selected_category_breaks,
+    category_labels = selected_category_labels,
+    category_bin_method = selected_category_bin_method
+  )
+
   for (i in seq_along(x$tree$maps)) {
-    bins <- findInterval(vals[[i]], breaks, all.inside = TRUE)
-    bins_by_edge[[i]] <- bins
-    names(x$tree$maps[[i]]) <- as.character(bins)
+    names(x$tree$maps[[i]]) <- color_map$states_by_edge[[i]]
   }
 
   x$tree$mapped.edge <- .rateMap_make_mapped_edge(x$tree$edge, x$tree$maps)
   x$values <- vals
-  x$lims <- lims
-  x$breaks <- breaks
+  x$cols <- color_map$cols
+  x$lims <- color_map$lims
+  x$breaks <- color_map$breaks
   x$intervals$value <- x$intervals[[value]]
-  x$intervals$color_bin <- unlist(bins_by_edge, use.names = FALSE)
+  x$intervals$color_bin <- unlist(color_map$bins_by_edge, use.names = FALSE)
+  if (identical(selected_color_mode, "category")) {
+    x$intervals$rate_category <- unlist(color_map$states_by_edge, use.names = FALSE)
+  } else if ("rate_category" %in% names(x$intervals)) {
+    x$intervals$rate_category <- NULL
+  }
+  x$rate_categories <- color_map$rate_categories
+  x$palette <- selected_palette
+  x$reverse_palette <- selected_reverse
+  x$color_mode <- selected_color_mode
+  x$n_categories <- selected_n_categories
+  x$category_breaks <- color_map$category_breaks
+  x$category_labels <- color_map$category_labels
+  x$category_bin_method <- color_map$category_bin_method
   x$plot_value <- value
   x$title <- switch(
     value,
@@ -568,7 +1074,11 @@
     median = if (isTRUE(x$log)) "Median log fitted rate" else "Median fitted rate",
     sd = if (isTRUE(x$log)) "SD log fitted rate" else "SD fitted rate",
     ci_width = if (isTRUE(x$log)) "95% quantile width (log rate)" else "95% quantile width",
-    hpd_width = if (isTRUE(x$log)) "95% HPD width (log rate)" else "95% HPD width",
+    highest_density_interval_width = if (isTRUE(x$log)) {
+      "95% highest-density interval width (log rate)"
+    } else {
+      "95% highest-density interval width"
+    },
     cv = "Coefficient of variation",
     value
   )
@@ -669,9 +1179,9 @@
 #'
 #' Summarize fitted regime-specific rates across a list of stochastic-map-aware
 #' model fits or completed `bifrost_search` results. By default, `rateMap()`
-#' preserves the original same-tree workflow: the first retained tree is used as
+#' follows `bifrost`'s branch-level framing: the first retained tree is used as
 #' the plotting scaffold, all retained trees must match in topology and branch
-#' lengths, branches are sliced on a global depth grid, and runs are averaged
+#' lengths, each branch receives one summarized log-rate, and runs are averaged
 #' with equal weight.
 #'
 #' @details
@@ -683,7 +1193,13 @@
 #' translated through the corresponding fitted regime-rate parameter from each
 #' run. The plotting interface likewise follows the `phytools` density-map
 #' family by returning a colored SIMMAP tree and drawing it with
-#' [phytools::plotSimmap()] plus a continuous color-bar legend.
+#' [phytools::plotSimmap()] plus either a segmented rate-category color bar or
+#' a continuous color-bar legend.
+#'
+#' Although `rateMap()` is designed for summarizing multiple fitted maps, it also
+#' accepts a single completed `bifrost` search or supported fit. Single-fit input
+#' is a convenience for applying the same plotting controls to one fitted model
+#' before scaling up to multi-run summaries.
 #'
 #' `rateMap()` can also summarize same-topology posterior or sensitivity samples
 #' where branch lengths differ. In that case, supply `check = "topology"` and,
@@ -693,12 +1209,24 @@
 #' lengths, while rates are matched from each input tree by descendant-tip clade
 #' keys rather than by edge order.
 #'
-#' **Summary modes.** With `summary = "interval"`, each target-tree branch is
-#' subdivided by the global depth grid controlled by `res`. If source branch
-#' lengths differ from the target branch length, source stochastic-map segments
-#' are projected onto target intervals by relative position along the matched
-#' branch. With `summary = "branch"`, each edge receives one length-weighted
-#' average rate from each run before the across-run summary is computed.
+#' **Summary modes.** With the default `summary = "branch"` and `log = TRUE`,
+#' each edge receives one length-weighted average log-rate from each run before
+#' the across-run summary is computed. This is the natural default for `bifrost`
+#' searches because shifts are placed at nodes, so a `bifrost` branch is not
+#' expected to change regimes internally. With `summary = "interval"`, each
+#' target-tree branch is subdivided by the global depth grid controlled by
+#' `res`. If source branch lengths differ from the target branch length, source
+#' stochastic-map segments are projected onto target intervals by relative
+#' position along the matched branch. Interval mode is useful for general
+#' stochastic maps that can genuinely change state along a branch.
+#'
+#' **Log-rate averaging.** When `log = TRUE`, rate parameters are transformed
+#' before branch-level, interval-level, and across-fit summaries are computed.
+#' With weights `w_i`, the default plotted mean is therefore
+#' `sum(w_i * log(rate_i))`, which is the log of a weighted geometric mean. It
+#' is not `log(sum(w_i * rate_i))`, the log of a weighted arithmetic mean. Use
+#' `log = FALSE` when downstream interpretation requires arithmetic summaries on
+#' the original rate scale.
 #'
 #' **Tree checks and targets.** `check = TRUE` is equivalent to `check = "full"`
 #' and requires topology and branch lengths to match the target tree. Use
@@ -714,9 +1242,11 @@
 #' uses the first retained input tree, and `target = "mcc"` chooses the retained
 #' input tree with the highest sum of log clade credibilities. For truly
 #' same-topology inputs, the MCC score is usually tied, so `"mcc"` commonly
-#' resolves to the first retained tree unless topologies differ. If you already
-#' have a preferred consensus, chronogram, MCC, maximum-likelihood, or otherwise
-#' curated target tree, pass it with `target_tree` instead of using `target`.
+#' resolves to the first retained tree. MCC target selection does not make
+#' `rateMap()` a mixed-topology summarizer: every target branch must still be
+#' present in every retained input. If you already have a preferred consensus,
+#' chronogram, MCC, maximum-likelihood, or otherwise curated target tree, pass it
+#' with `target_tree` instead of using `target`.
 #'
 #' **Fit weights.** `weights = "equal"` assigns the same weight to each retained
 #' fit. `weights = "ic"` computes standard information-criterion weights from
@@ -725,34 +1255,64 @@
 #' for custom weighting. Weights are subset to retained fits after
 #' `na_action = "omit"` and are normalized to sum to one.
 #'
-#' **Uncertainty summaries.** When `uncertainty = TRUE`, the returned
-#' `intervals` data frame includes across-fit summaries for each branch or
-#' interval: weighted mean, weighted median, weighted standard deviation,
-#' quantiles, HPD interval, quantile/HPD widths, coefficient of variation, and
-#' the number of finite run-level values. The run-level values are also returned
-#' in `run_values` as one matrix per edge. For posterior tree samples, use
-#' `weights = "equal"` so the quantiles and HPDs are empirical posterior
-#' summaries. `value_summary` controls whether the plotted `value` column uses
-#' the weighted mean or weighted median.
+#' **Uncertainty summaries.** The returned `intervals` data frame is the plotted
+#' summary table. With `summary = "branch"`, it has one row per branch. With
+#' `summary = "interval"`, it has one row per plotted depth-grid interval. When
+#' `uncertainty = TRUE`, this table includes across-fit summaries for each
+#' plotted row: weighted mean, weighted median, weighted standard deviation,
+#' quantiles, highest-density interval bounds, quantile and highest-density
+#' interval widths, coefficient of variation, and the number of finite run-level
+#' values. The run-level values are also returned in `run_values` as one matrix
+#' per edge.
+#' These are weighted empirical summaries of run-level values. For posterior
+#' tree samples, use `weights = "equal"` if each retained run represents one
+#' posterior draw. `value_summary` controls whether the plotted `value` column
+#' uses the weighted mean or weighted median. These summaries are computed on
+#' the log-rate scale when `log = TRUE`. Highest-density intervals use the same
+#' shortest empirical interval calculation for both equal and unequal fit
+#' weights. For `weights = "equal"`, `sd` is the ordinary sample standard
+#' deviation of retained run-level values. For unequal weights, `sd` is the
+#' square root of the normalized weighted variance, `sum(w * (x - mu)^2)`, with
+#' weights normalized to sum to one.
 #'
-#' @param fits A non-empty list of completed runs or fitted model objects.
-#'   Supported shapes are `bifrost_search` objects, `mvgls` objects,
-#'   `list(model = <mvgls>)`, and scratch-style lists with
-#'   `variables$tree` plus `param`.
+#' **Color modes.** `color_mode = "category"` is the default and assigns plotted
+#' rows to ordered rate categories. For a single `bifrost` search with
+#' `log = FALSE`, this is the closest formal analogue to the illustrative
+#' `generateViridisColorScale()` plot: exact unique fitted rates are preserved
+#' as categories when their count is at most `n_categories`, and each displayed
+#' category receives one color. For multi-run summaries, the plotted values are
+#' usually branch summaries rather than named regimes. If there are more unique
+#' finite plotted values than `n_categories`, the values are binned into
+#' automatic intervals using `category_bin_method = "pretty"` by default. Use
+#' `category_bin_method = "equal"` for equal-width numeric intervals, or
+#' `category_breaks` to supply custom category boundaries. These categories are
+#' display bins, not additional inferred regimes. `color_mode = "continuous"`
+#' uses the density-map-style behavior: summarized numeric values are binned
+#' onto a many-color ramp controlled by `ncolors` and shown with a continuous
+#' color-bar legend. `pretty()` uses `n_categories` as a target, so the final
+#' number of bins can differ and the displayed break range can extend slightly
+#' beyond the finite plotted values.
+#'
+#' @param fits A completed run, fitted model object, or non-empty list of these
+#'   objects. Supported shapes are `bifrost_search` objects, `mvgls` objects,
+#'   `list(model = <mvgls>)`, and scratch-style lists with `variables$tree` plus
+#'   `param`. Single supported objects are wrapped automatically as a convenience
+#'   for one-fit plotting and inspection.
 #' @param res Integer resolution of the global depth grid used to subdivide
 #'   target-tree branches when `summary = "interval"`. Ignored by
 #'   `summary = "branch"`.
-#' @param fsize Optional plotting font sizes passed to [plotRateMap()] when
+#' @param fsize Optional plotting font sizes passed to the `"rateMap"` plot
+#'   method when `plot = TRUE`.
+#' @param ftype Optional plotting font type(s) passed to the `"rateMap"` plot
+#'   method when `plot = TRUE`.
+#' @param lwd Line width passed through to the `"rateMap"` plot method when
 #'   `plot = TRUE`.
-#' @param ftype Optional plotting font type(s) passed to [plotRateMap()] when
-#'   `plot = TRUE`.
-#' @param lwd Line width passed through to [plotRateMap()] when `plot = TRUE`.
 #' @param check Logical or character check mode. `TRUE` or `"full"` verifies
 #'   that extracted trees and the target tree match in topology and branch
 #'   lengths. `"topology"` verifies matching topology/tip labels while allowing
 #'   branch lengths to differ. `FALSE` or `"none"` skips this check, but target
 #'   branches still must be matchable by descendant-tip sets.
-#' @param legend Legend length passed through to [plotRateMap()] when
+#' @param legend Legend length passed through to the `"rateMap"` plot method when
 #'   `plot = TRUE`.
 #' @param outline Logical; if `TRUE`, draw branch outlines in the plotted map
 #'   when `plot = TRUE`.
@@ -760,14 +1320,15 @@
 #'   `"phylogram"`, `"fan"`, and `"arc"`.
 #' @param direction Plotting direction for `type = "phylogram"` when
 #'   `plot = TRUE`.
-#' @param plot Logical; if `TRUE`, plot the result immediately using
-#'   [plotRateMap()]. If `FALSE`, only return the computed `"rateMap"` object.
+#' @param plot Logical; if `TRUE`, plot the result immediately using the
+#'   `"rateMap"` plot method. If `FALSE`, only return the computed `"rateMap"`
+#'   object.
 #' @param tree_fun Optional function used to extract a mapped tree from each
-#'   element of `fits`. If `NULL`, common Bifrost and mvgls shapes are
+#'   element of `fits`. If `NULL`, common `bifrost` and mvgls shapes are
 #'   auto-detected.
 #' @param param_fun Optional function used to extract a named numeric vector of
 #'   state-specific fitted rates from each element of `fits`. If `NULL`, common
-#'   Bifrost and mvgls shapes are auto-detected.
+#'   `bifrost` and mvgls shapes are auto-detected.
 #' @param tip_fsize Optional override for phylogeny tip-label font size when
 #'   `plot = TRUE`.
 #' @param legend_fsize Optional override for legend font size when `plot = TRUE`.
@@ -784,22 +1345,49 @@
 #'   [future.apply::future_lapply()].
 #' @param progress Logical; if `TRUE`, display a text progress bar via
 #'   [progressr::with_progress()].
-#' @param log Logical; if `TRUE`, transform extracted rate parameters with
-#'   `log()` before averaging.
-#' @param ncolors Number of colors in the rendered palette.
+#' @param log Logical; if `TRUE` (the default), transform extracted rate
+#'   parameters with `log()` before branch, interval, and across-fit averaging
+#'   and plotting. Weighted means are then mean log-rates, equivalent to the log
+#'   of weighted geometric mean rates. Set `log = FALSE` to summarize rates in
+#'   their original units.
+#' @param ncolors Number of colors in the rendered palette for
+#'   `color_mode = "continuous"`. In `color_mode = "category"`, the rendered
+#'   tree uses one color per exact value or category bin; `ncolors` does not
+#'   increase the number of displayed category colors.
 #' @param palette Palette specification. This can be an `hcl.colors()` palette
 #'   name, a vector of colors, or a palette function.
 #' @param reverse_palette Logical; if `TRUE`, reverse the resolved palette.
+#' @param color_mode Character; `"category"` maps numeric summaries onto
+#'   discrete ordered rate categories, while `"continuous"` maps them onto a
+#'   continuous color ramp.
+#' @param n_categories Maximum number of exact unique values to preserve as
+#'   discrete rate categories, and target number of automatic bins when more
+#'   unique values are present. Ignored by `color_mode = "continuous"` and by
+#'   user-supplied `category_breaks`.
+#' @param category_bin_method Character; automatic binning method for
+#'   `color_mode = "category"` when there are more unique plotted values than
+#'   `n_categories`. `"pretty"` (the default) uses [pretty()] breaks, treating
+#'   `n_categories` as a target rather than an exact bin count. `"equal"` uses
+#'   equal-width numeric intervals across the finite plotted range. Ignored by
+#'   `color_mode = "continuous"` and by user-supplied `category_breaks`.
+#' @param category_breaks Optional strictly increasing numeric vector of
+#'   category boundaries for `color_mode = "category"`. When supplied, these
+#'   breaks must cover all finite plotted values and override automatic
+#'   binning.
+#' @param category_labels Optional character labels for the displayed categories.
+#'   Labels can be used with custom `category_breaks`, exact unique-value
+#'   categories, or automatic bins, and must match the final category count.
 #' @param legend_title Optional legend title. If `NULL`, defaults to
-#'   `"Mean fitted rate"` or `"Mean log fitted rate"` depending on `log`.
+#'   `"Mean log fitted rate"` or `"Mean fitted rate"` depending on `log`.
 #' @param na_action What to do when a run has invalid parameters. `"error"`
 #'   stops immediately. `"omit"` drops invalid runs before aggregation.
-#' @param summary Character; `"interval"` slices branches on a global depth grid,
-#'   while `"branch"` computes one length-weighted value per edge.
+#' @param summary Character; `"branch"` computes one length-weighted value per
+#'   edge, while `"interval"` slices branches on a global depth grid.
 #' @param target Character target-tree selection when `target_tree = NULL`.
 #'   `"first"` uses the first retained input tree. `"mcc"` chooses the retained
-#'   input tree with the highest sum of log clade credibilities. For same-topology
-#'   inputs this is usually tied and therefore returns the first retained tree.
+#'   input tree with the highest sum of log clade credibilities. This only
+#'   selects the plotting scaffold; every target branch must still be present in
+#'   every retained input.
 #' @param target_tree Optional explicit target tree used as the plotting scaffold.
 #'   This may be any target or summary tree with the same topology and tip labels
 #'   as the inputs. It does not need to contain stochastic maps because
@@ -813,42 +1401,54 @@
 #' @param fit_weights Optional numeric custom fit weights. If supplied, these
 #'   override `weights`.
 #' @param uncertainty Logical; if `TRUE`, compute and return across-fit
-#'   uncertainty summaries for every plotted branch interval or whole branch.
-#' @param value_summary Character; central estimate stored in `intervals$value`
-#'   and mapped to colors. `"mean"` preserves the legacy weighted-mean behavior.
-#'   `"median"` uses the weighted median.
+#'   uncertainty summaries for every plotted row: whole branches when
+#'   `summary = "branch"` and depth-grid intervals when `summary = "interval"`.
+#' @param value_summary Character; central estimate stored in the plotted
+#'   summary table column `intervals$value` and mapped to colors. `"mean"` uses
+#'   the weighted mean. `"median"` uses the weighted median. When `log = TRUE`,
+#'   both summaries are computed on the log-rate scale.
 #' @param quantile_probs Numeric length-2 vector of quantile probabilities to
 #'   report when `uncertainty = TRUE`.
-#' @param hpd_prob Numeric scalar giving the HPD mass to report when
-#'   `uncertainty = TRUE`.
-#' @param ... Additional plotting arguments passed to [plotRateMap()] when
-#'   `plot = TRUE`, such as `mar`, `offset`, `xlim`, `ylim`, `hold`,
-#'   `underscore`, or `arc_height`.
+#' @param highest_density_interval_prob Numeric scalar giving the highest-density interval mass to
+#'   report when `uncertainty = TRUE`.
+#' @param ... Additional plotting arguments passed to the `"rateMap"` plot
+#'   method when `plot = TRUE`, such as `value`, `mar`, `offset`, `xlim`,
+#'   `ylim`, `hold`, `underscore`, `arc_height`, or `legend_digits`.
+#'   Non-empty `...` is rejected when `plot = FALSE` because these controls do
+#'   not change the computed `"rateMap"` object. Unsupported arguments are
+#'   rejected.
 #'
 #' @return An object of class `"rateMap"` with components:
 #' \describe{
 #'   \item{`tree`}{A SIMMAP-style tree whose mapped segments encode color-bin
-#'   indices.}
-#'   \item{`cols`}{The resolved color palette.}
+#'   indices in continuous mode, or named rate categories in category mode.}
+#'   \item{`cols`}{The resolved color palette. In continuous mode this has
+#'   length `ncolors`; in category mode it has one color per exact value or
+#'   category bin.}
 #'   \item{`lims`}{Numeric length-2 vector giving the plotted value range.}
-#'   \item{`breaks`}{Numeric vector of palette bin boundaries.}
-#'   \item{`values`}{List of branch-interval central values before color
+#'   \item{`breaks`}{Numeric vector of palette bin boundaries in continuous
+#'   mode, or category boundaries/values in category mode.}
+#'   \item{`values`}{List of plotted-row central values by edge before color
 #'   binning.}
-#'   \item{`intervals`}{Data frame with one row per plotted branch interval, or
-#'   one row per branch when `summary = "branch"`.}
+#'   \item{`intervals`}{Plotted summary table. With `summary = "branch"`, this
+#'   has one row per branch. With `summary = "interval"`, this has one row per
+#'   plotted depth-grid interval.}
+#'   \item{`rate_categories`}{Data frame describing discrete rate categories
+#'   when `color_mode = "category"`; otherwise `NULL`.}
 #'   \item{`run_values`}{When `uncertainty = TRUE`, list of numeric matrices
-#'   containing run-level values for each edge. Rows are plotted intervals and
-#'   columns are retained fits. Otherwise `NULL`.}
+#'   containing run-level values for each edge. Matrix rows match the plotted
+#'   rows for that edge and columns are retained fits. Otherwise `NULL`.}
 #'   \item{`clade_key`}{Character descendant-tip key for each target-tree edge.}
 #'   \item{`edge_matches`}{Integer matrix mapping target-tree edge rows to
 #'   matched source-tree edge rows for each retained fit.}
 #'   \item{`summary`}{The summary mode used, `"interval"` or `"branch"`.}
 #'   \item{`uncertainty`}{Logical indicating whether uncertainty summaries were
 #'   computed.}
-#'   \item{`value_summary`}{Central estimate used for `intervals$value`.}
+#'   \item{`value_summary`}{Central estimate used for the plotted summary table
+#'   column `intervals$value`.}
 #'   \item{`quantile_probs`}{Quantile probabilities used for uncertainty
 #'   summaries.}
-#'   \item{`hpd_prob`}{HPD mass used for uncertainty summaries.}
+#'   \item{`highest_density_interval_prob`}{Highest-density interval mass used for uncertainty summaries.}
 #'   \item{`plot_value`}{Current interval column mapped to branch colors.}
 #'   \item{`target`}{Target-tree selection mode used.}
 #'   \item{`check`}{Tree compatibility check mode used.}
@@ -860,6 +1460,15 @@
 #'   \item{`palette`}{Original palette specification.}
 #'   \item{`reverse_palette`}{Logical indicating whether the palette was
 #'   reversed.}
+#'   \item{`color_mode`}{Coloring mode used for the current tree.}
+#'   \item{`n_categories`}{Category count target used when
+#'   `color_mode = "category"`.}
+#'   \item{`category_breaks`}{Category breaks or exact category values used
+#'   when `color_mode = "category"`.}
+#'   \item{`category_labels`}{Category labels used when
+#'   `color_mode = "category"`.}
+#'   \item{`category_bin_method`}{Automatic category-binning method used when
+#'   `color_mode = "category"` and `category_breaks = NULL`.}
 #'   \item{`title`}{Legend title used for plotting.}
 #'   \item{`n_fits`}{Number of fits used after validation or omission.}
 #'   \item{`omitted`}{Integer indices of omitted fits when `na_action = "omit"`.}
@@ -870,9 +1479,17 @@
 #'
 #' @examples
 #' \dontrun{
-#' # A list of completed Bifrost searches can be summarized directly:
+#' # A list of completed bifrost searches can be summarized directly:
 #' rm_obj <- rateMap(list(search_a, search_b, search_c), plot = FALSE)
-#' plotRateMap(rm_obj, type = "arc", show_tip_labels = FALSE)
+#' plot(rm_obj, type = "arc", show_tip_labels = FALSE)
+#'
+#' # A single completed bifrost search can be inspected with the same API:
+#' one_search_map <- rateMap(search_a, plot = FALSE)
+#' plot(one_search_map, type = "arc", show_tip_labels = FALSE)
+#'
+#' # plotRateMap() is the explicit helper and can plot one fitted object
+#' # directly by first calling rateMap(..., plot = FALSE):
+#' plotRateMap(search_a, type = "arc", show_tip_labels = FALSE)
 #'
 #' # Scratch-style lists remain supported:
 #' scratch_fit <- list(
@@ -881,11 +1498,46 @@
 #' )
 #' rateMap(list(scratch_fit), plot = FALSE)
 #'
-#' # Use Bifrost model-level IC weights across comparable sensitivity runs:
+#' # Use bifrost model-level IC weights across comparable sensitivity runs:
 #' rm_ic <- rateMap(list(search_a, search_b), weights = "ic", plot = FALSE)
 #'
-#' # Whole-branch summaries avoid interval subdivision:
-#' branch_rates <- rateMap(list(search_a, search_b), summary = "branch", plot = FALSE)
+#' # Branch-level, discrete-category maps are the bifrost default:
+#' branch_rates <- rateMap(list(search_a, search_b), plot = FALSE)
+#' branch_rates$rate_categories
+#'
+#' # To mimic the old jaw-shape preview style for a single search, use raw
+#' # fitted rates and category colors:
+#' jaw_style <- rateMap(
+#'   search_a,
+#'   log = FALSE,
+#'   color_mode = "category",
+#'   palette = viridis::viridis,
+#'   plot = FALSE
+#' )
+#'
+#' # Category bins use pretty breaks by default. Use equal-width bins or custom
+#' # boundaries when those are easier to compare across figures:
+#' equal_bin_rates <- rateMap(
+#'   list(search_a, search_b),
+#'   n_categories = 5,
+#'   category_bin_method = "equal",
+#'   plot = FALSE
+#' )
+#' custom_bin_rates <- rateMap(
+#'   list(search_a, search_b),
+#'   category_breaks = c(-4, -2, 0, 2),
+#'   category_labels = c("slow", "middle", "fast"),
+#'   plot = FALSE
+#' )
+#'
+#' # Continuous interval maps remain available for stochastic maps with
+#' # along-branch changes:
+#' interval_rates <- rateMap(
+#'   list(search_a, search_b),
+#'   summary = "interval",
+#'   color_mode = "continuous",
+#'   plot = FALSE
+#' )
 #'
 #' # Custom fit weights are normalized internally:
 #' custom_weighted <- rateMap(
@@ -906,7 +1558,7 @@
 #'   uncertainty = TRUE,
 #'   plot = FALSE
 #' )
-#' plotRateMap(posterior_target_rates, value = "sd", type = "arc")
+#' plot(posterior_target_rates, value = "sd", type = "arc")
 #'
 #' # Or choose the retained input tree with the highest summed log clade
 #' # credibility as the plotting scaffold:
@@ -918,7 +1570,8 @@
 #'   plot = FALSE
 #' )
 #'
-#' # Large sensitivity sets can be explicitly subsampled before plotting:
+#' # Large sensitivity sets can be explicitly subsampled before plotting.
+#' # By default, rates are mapped on the log scale:
 #' set.seed(1)
 #' idx <- sample(seq_along(fit_list), size = 1000)
 #' rm_sub <- rateMap(
@@ -926,11 +1579,13 @@
 #'   res = 100,
 #'   workers = 8,
 #'   future_strategy = "multisession",
-#'   log = TRUE,
 #'   palette = c("lightblue", "blue", "pink", "red"),
 #'   plot = FALSE
 #' )
-#' plotRateMap(rm_sub, type = "arc", show_tip_labels = FALSE, lwd = 1)
+#'
+#' # Use log = FALSE only when a raw-rate scale is preferred:
+#' rm_raw <- rateMap(fit_list[idx], log = FALSE, plot = FALSE)
+#' plot(rm_sub, type = "arc", show_tip_labels = FALSE, lwd = 1)
 #' }
 #'
 #' @export
@@ -957,13 +1612,18 @@ rateMap <- function(
   future_scheduling = 1,
   future_chunk_size = NULL,
   progress = TRUE,
-  log = FALSE,
+  log = TRUE,
   ncolors = 256,
   palette = "YlOrRd",
   reverse_palette = FALSE,
+  color_mode = c("category", "continuous"),
+  n_categories = 6,
+  category_bin_method = c("pretty", "equal"),
+  category_breaks = NULL,
+  category_labels = NULL,
   legend_title = NULL,
   na_action = c("error", "omit"),
-  summary = c("interval", "branch"),
+  summary = c("branch", "interval"),
   target = c("first", "mcc"),
   target_tree = NULL,
   weights = c("equal", "ic"),
@@ -971,7 +1631,7 @@ rateMap <- function(
   uncertainty = FALSE,
   value_summary = c("mean", "median"),
   quantile_probs = c(0.025, 0.975),
-  hpd_prob = 0.95,
+  highest_density_interval_prob = 0.95,
   ...
 ) {
   # nocov start
@@ -991,6 +1651,18 @@ rateMap <- function(
     stop("Package 'progressr' is required.")
   }
   # nocov end
+  dots <- list(...)
+  .rateMap_validate_dots(dots, .rateMap_rate_dot_names())
+  if (!is.logical(plot) || length(plot) != 1L || is.na(plot)) {
+    stop("'plot' must be TRUE or FALSE.")
+  }
+  if (!isTRUE(plot) && length(dots) > 0L) {
+    stop("Additional plotting arguments in '...' are only used when 'plot = TRUE'.")
+  }
+
+  if (.rateMap_is_single_fit(fits)) {
+    fits <- list(fits)
+  }
   if (!is.list(fits) || length(fits) == 0L) {
     stop("'fits' must be a non-empty list of fitted run objects.")
   }
@@ -1013,12 +1685,12 @@ rateMap <- function(
       quantile_probs[1L] >= quantile_probs[2L]) {
     stop("'quantile_probs' must be an increasing finite numeric vector of length 2 between 0 and 1.")
   }
-  if (!is.numeric(hpd_prob) ||
-      length(hpd_prob) != 1L ||
-      !is.finite(hpd_prob) ||
-      hpd_prob <= 0 ||
-      hpd_prob > 1) {
-    stop("'hpd_prob' must be a finite number in (0, 1].")
+  if (!is.numeric(highest_density_interval_prob) ||
+      length(highest_density_interval_prob) != 1L ||
+      !is.finite(highest_density_interval_prob) ||
+      highest_density_interval_prob <= 0 ||
+      highest_density_interval_prob > 1) {
+    stop("'highest_density_interval_prob' must be a finite number in (0, 1].")
   }
 
   res <- as.integer(res)
@@ -1032,6 +1704,9 @@ rateMap <- function(
   target <- match.arg(target)
   check_mode <- .rateMap_normalize_check(check)
   value_summary <- match.arg(value_summary)
+  color_mode <- match.arg(color_mode)
+  n_categories <- .rateMap_validate_n_categories(n_categories)
+  category_bin_method <- match.arg(category_bin_method)
   type <- match.arg(type, c("phylogram", "fan", "arc"))
   target_mode <- if (is.null(target_tree)) target else "user"
 
@@ -1191,7 +1866,7 @@ rateMap <- function(
         values = values_by_fit,
         weights = fit_weights_used,
         quantile_probs = quantile_probs,
-        hpd_prob = hpd_prob
+        highest_density_interval_prob = highest_density_interval_prob
       )
     } else {
       NULL
@@ -1258,32 +1933,22 @@ rateMap <- function(
     NULL
   }
 
-  lims <- range(unlist(interval_values, use.names = FALSE), finite = TRUE)
-  # nocov start
-  if (!all(is.finite(lims))) {
-    stop("Could not compute finite rate limits from the supplied fits.")
-  }
-  # nocov end
-
-  if (diff(lims) == 0) {
-    lims <- lims + c(-0.5, 0.5) * max(abs(lims[1L]), 1) * 1e-6
-  }
-
-  breaks <- seq(lims[1L], lims[2L], length.out = ncolors + 1L)
-  cols <- .rateMap_colors(
+  color_map <- .rateMap_build_color_map(
+    values_by_edge = interval_values,
     ncolors = ncolors,
     palette = palette,
-    reverse_palette = reverse_palette
+    reverse_palette = reverse_palette,
+    color_mode = color_mode,
+    n_categories = n_categories,
+    category_breaks = category_breaks,
+    category_labels = category_labels,
+    category_bin_method = category_bin_method
   )
-  names(cols) <- as.character(seq_len(ncolors))
 
   tree$maps <- vector("list", nrow(tree$edge))
-  bins_by_edge <- vector("list", nrow(tree$edge))
   for (i in seq_len(nrow(tree$edge))) {
-    bins <- findInterval(interval_values[[i]], breaks, all.inside = TRUE)
-    bins_by_edge[[i]] <- bins
     tree$maps[[i]] <- interval_lengths[[i]]
-    names(tree$maps[[i]]) <- as.character(bins)
+    names(tree$maps[[i]]) <- color_map$states_by_edge[[i]]
   }
 
   tree$mapped.edge <- .rateMap_make_mapped_edge(tree$edge, tree$maps)
@@ -1301,9 +1966,12 @@ rateMap <- function(
         depth_end = edge_results[[i]]$depth_end,
         interval_length = interval_lengths[[i]],
         value = interval_values[[i]],
-        color_bin = bins_by_edge[[i]],
+        color_bin = color_map$bins_by_edge[[i]],
         stringsAsFactors = FALSE
       )
+      if (identical(color_mode, "category")) {
+        base_row$rate_category <- color_map$states_by_edge[[i]]
+      }
       if (isTRUE(uncertainty)) {
         base_row <- cbind(
           base_row,
@@ -1329,19 +1997,20 @@ rateMap <- function(
 
   out <- list(
     tree = tree,
-    cols = cols,
-    lims = lims,
-    breaks = breaks,
+    cols = color_map$cols,
+    lims = color_map$lims,
+    breaks = color_map$breaks,
     values = interval_values,
     intervals = intervals,
     run_values = run_values,
+    rate_categories = color_map$rate_categories,
     clade_key = target_clade_keys,
     edge_matches = do.call(cbind, edge_matches),
     summary = summary,
     uncertainty = uncertainty,
     value_summary = value_summary,
     quantile_probs = quantile_probs,
-    hpd_prob = hpd_prob,
+    highest_density_interval_prob = highest_density_interval_prob,
     plot_value = "value",
     target = target_mode,
     check = check_mode,
@@ -1350,6 +2019,11 @@ rateMap <- function(
     weight_table = weight_table,
     palette = palette,
     reverse_palette = reverse_palette,
+    color_mode = color_mode,
+    n_categories = n_categories,
+    category_breaks = color_map$category_breaks,
+    category_labels = color_map$category_labels,
+    category_bin_method = color_map$category_bin_method,
     log = isTRUE(log),
     title = legend_title,
     n_fits = length(trees),
@@ -1359,8 +2033,8 @@ rateMap <- function(
   class(out) <- "rateMap"
 
   if (isTRUE(plot)) {
-    plotRateMap(
-      out,
+    plot_args <- c(list(
+      x = out,
       fsize = fsize,
       tip_fsize = tip_fsize,
       legend_fsize = legend_fsize,
@@ -1370,43 +2044,86 @@ rateMap <- function(
       legend = legend,
       outline = outline,
       type = type,
-      direction = direction,
-      ...
-    )
+      direction = direction
+    ), dots)
+    do.call(graphics::plot, plot_args)
   }
 
   invisible(out)
 }
 
-#' Plot a `rateMap` Object
+#' Plot `rateMap` Objects
 #'
-#' Render a rate-variation map produced by [rateMap()] using
-#' [phytools::plotSimmap()] and a continuous color-bar legend.
+#' Render a rate-variation map produced by [rateMap()]. Use `plot(x, ...)` for
+#' ordinary S3 dispatch on a `"rateMap"` object. `plotRateMap(x, ...)` is the
+#' explicit helper with the same plotting controls, and can also accept one
+#' supported fitted object as a convenience.
+#'
+#' Both interfaces use [phytools::plotSimmap()] and draw either a continuous
+#' color-bar legend or a segmented rate-category color bar.
 #' The plotting controls intentionally mirror the `phytools` density-map
 #' plotting style for phylogram, fan, and arc layouts.
 #'
-#' @param x An object of class `"rateMap"` returned by [rateMap()].
-#' @param value Character interval column to map to branch colors. The default
-#'   `"value"` plots the central estimate chosen by [rateMap()]. When
-#'   `uncertainty = TRUE`, useful alternatives include `"mean"`, `"median"`,
-#'   `"sd"`, `"ci_width"`, `"hpd_width"`, and `"cv"`.
+#' @param x An object of class `"rateMap"` returned by [rateMap()], or a single
+#'   supported fitted object such as a completed `bifrost_search`. Single fitted
+#'   objects are first passed to [rateMap()] with `plot = FALSE`, which is useful
+#'   for applying the same plotting controls used for multi-run summaries to one
+#'   fitted model.
+#' @param value Character column in the plotted summary table (`x$intervals`)
+#'   to map to branch colors. The default `"value"` plots the central estimate
+#'   chosen by [rateMap()]. When `uncertainty = TRUE`, useful alternatives
+#'   include `"mean"`, `"median"`, `"sd"`, `"ci_width"`,
+#'   `"highest_density_interval_width"`, and `"cv"`.
 #' @param palette Optional palette override used for this plot. This accepts the
 #'   same values as [rateMap()]'s `palette` argument.
 #' @param reverse_palette Optional logical override for palette reversal used
 #'   for this plot.
+#' @param color_mode Optional color-mode override. Use `"continuous"` for a
+#'   numeric color ramp or `"category"` for ordered discrete rate categories.
+#'   If `NULL`, the stored mode in `x` is used. Category mode draws one color
+#'   per exact value or category bin; continuous mode draws a many-color ramp.
+#' @param n_categories Optional category-count override for
+#'   `color_mode = "category"`. This changes the target number of category
+#'   bins, not the number of colors in continuous mode.
+#' @param category_bin_method Optional category-binning override for
+#'   `color_mode = "category"`. Use `"pretty"` for pretty breaks or `"equal"`
+#'   for equal-width numeric intervals. Ignored when `category_breaks` is
+#'   supplied.
+#' @param category_breaks Optional category-break override for
+#'   `color_mode = "category"`. Custom breaks override automatic bins.
+#' @param category_labels Optional category-label override for
+#'   `color_mode = "category"`.
 #' @param ... Additional plotting controls. Supported options include
 #'   `legend`, `fsize`, `tip_fsize`, `legend_fsize`, `ftype`,
 #'   `show_tip_labels`, `outline`, `lwd`, `type`, `mar`, `direction`,
-#'   `offset`, `xlim`, `ylim`, `hold`, `underscore`, and `arc_height`.
+#'   `offset`, `xlim`, `ylim`, `hold`, `underscore`, `arc_height`, and
+#'   `legend_digits`. If `legend_digits` is omitted, small-magnitude values use
+#'   enough digits to avoid zero-valued legend endpoints. When `x` is a single
+#'   fitted object rather than a `"rateMap"`, `...` may also include [rateMap()]
+#'   arguments such as `summary`, `uncertainty`, `log`, or `target_tree`.
+#'   Unsupported arguments are rejected.
 #'
-#' @return Invisibly returns `x`.
+#' @details
+#' For `"rateMap"` objects, prefer `plot(x, ...)` for ordinary S3 dispatch. It
+#' calls `plot.rateMap()`, which delegates to `plotRateMap()`. The explicit
+#' helper is kept so users can find the plotting workflow directly, and for
+#' direct plotting of one completed `bifrost_search` or other supported fit.
+#' Both interfaces use [phytools::plotSimmap()] for `"phylogram"`, `"fan"`, and
+#' `"arc"` layouts. `legend` controls the length of the color bar; set
+#' `legend = FALSE` to suppress it. `legend_digits` controls numeric endpoint
+#' labels and defaults to enough precision to avoid rounding small values to
+#' zero. If `x` is a single supported fitted object rather than a `"rateMap"`,
+#' `plotRateMap()` first calls [rateMap()] with `plot = FALSE`, forwarding
+#' compatible `rateMap()` arguments through `...`.
+#'
+#' @return Invisibly returns the plotted `"rateMap"` object.
 #'
 #' @seealso [rateMap()], [phytools::densityMap()], [phytools::plotSimmap()]
 #'
 #' @examples
 #' \dontrun{
 #' rm_obj <- rateMap(fits, plot = FALSE, progress = FALSE)
-#' plotRateMap(
+#' plot(
 #'   rm_obj,
 #'   type = "arc",
 #'   show_tip_labels = FALSE,
@@ -1414,7 +2131,17 @@ rateMap <- function(
 #' )
 #'
 #' # If rm_obj was built with uncertainty = TRUE, plot uncertainty directly:
-#' plotRateMap(rm_obj, value = "sd", palette = "Inferno")
+#' plot(rm_obj, value = "sd", palette = "Inferno")
+#'
+#' # Direct plotting of one completed search is available as a convenience:
+#' plotRateMap(search_a, type = "arc", show_tip_labels = FALSE)
+#'
+#' # Use a continuous ramp instead of the default ordered rate categories:
+#' plot(rm_obj, color_mode = "continuous")
+#'
+#' # Or keep category colors but change the binning:
+#' plot(rm_obj, n_categories = 5, category_bin_method = "equal")
+#' plot(rm_obj, category_breaks = c(-4, -2, 0, 2))
 #' }
 #'
 #' @export
@@ -1422,16 +2149,85 @@ plotRateMap <- function(x,
                         value = "value",
                         palette = NULL,
                         reverse_palette = NULL,
+                        color_mode = NULL,
+                        n_categories = NULL,
+                        category_bin_method = NULL,
+                        category_breaks = NULL,
+                        category_labels = NULL,
                         ...) {
+  dots <- list(...)
   if (!inherits(x, "rateMap")) {
-    stop("'x' must be an object of class 'rateMap'.")
+    if (.rateMap_is_single_fit(x)) {
+      allowed_dots <- union(.rateMap_plot_dot_names(), .rateMap_rate_arg_names())
+      .rateMap_validate_dots(dots, allowed_dots)
+
+      rate_arg_names <- setdiff(.rateMap_rate_arg_names(), .rateMap_plot_dot_names())
+      plot_arg_names <- .rateMap_plot_dot_names()
+      rate_args <- dots[names(dots) %in% rate_arg_names]
+      plot_args <- dots[names(dots) %in% plot_arg_names]
+      rate_args$fits <- x
+      rate_args$plot <- FALSE
+      if (!"progress" %in% names(rate_args)) {
+        rate_args$progress <- FALSE
+      }
+      if (!is.null(palette)) {
+        rate_args$palette <- palette
+      }
+      if (!is.null(reverse_palette)) {
+        rate_args$reverse_palette <- reverse_palette
+      }
+      if (!is.null(color_mode)) {
+        rate_args$color_mode <- color_mode
+      }
+      if (!is.null(n_categories)) {
+        rate_args$n_categories <- n_categories
+      }
+      if (!is.null(category_bin_method)) {
+        rate_args$category_bin_method <- category_bin_method
+      }
+      if (!is.null(category_breaks)) {
+        rate_args$category_breaks <- category_breaks
+      }
+      if (!is.null(category_labels)) {
+        rate_args$category_labels <- category_labels
+      }
+
+      rate_map <- do.call(rateMap, rate_args)
+      return(do.call(plotRateMap, c(list(
+        x = rate_map,
+        value = value,
+        palette = palette,
+        reverse_palette = reverse_palette,
+        color_mode = color_mode,
+        n_categories = n_categories,
+        category_bin_method = category_bin_method,
+        category_breaks = category_breaks,
+        category_labels = category_labels
+      ), plot_args)))
+    }
+    stop("'x' must be an object of class 'rateMap' or a single supported fitted object.")
   }
-  if (!identical(value, "value") || !is.null(palette) || !is.null(reverse_palette)) {
+
+  .rateMap_validate_dots(dots, .rateMap_plot_dot_names())
+
+  if (!identical(value, "value") ||
+      !is.null(palette) ||
+      !is.null(reverse_palette) ||
+      !is.null(color_mode) ||
+      !is.null(n_categories) ||
+      !is.null(category_bin_method) ||
+      !is.null(category_breaks) ||
+      !is.null(category_labels)) {
     x <- .rateMap_recolor(
       x,
       value = value,
       palette = palette,
-      reverse_palette = reverse_palette
+      reverse_palette = reverse_palette,
+      color_mode = color_mode,
+      n_categories = n_categories,
+      category_bin_method = category_bin_method,
+      category_breaks = category_breaks,
+      category_labels = category_labels
     )
   }
 
@@ -1439,7 +2235,6 @@ plotRateMap <- function(x,
   cols <- x$cols
   H <- phytools::nodeHeights(tree)
 
-  dots <- list(...)
   legend <- if ("legend" %in% names(dots)) dots$legend else NULL
   fsize <- if ("fsize" %in% names(dots)) dots$fsize else NULL
   tip_fsize <- if ("tip_fsize" %in% names(dots)) dots$tip_fsize else NULL
@@ -1457,6 +2252,19 @@ plotRateMap <- function(x,
   hold <- if ("hold" %in% names(dots)) dots$hold else TRUE
   underscore <- if ("underscore" %in% names(dots)) dots$underscore else FALSE
   arc_height <- if ("arc_height" %in% names(dots)) dots$arc_height else 2
+  legend_digits <- if ("legend_digits" %in% names(dots)) {
+    dots$legend_digits
+  } else {
+    .rateMap_legend_digits(x$lims)
+  }
+
+  if (!is.numeric(legend_digits) ||
+      length(legend_digits) != 1L ||
+      !is.finite(legend_digits) ||
+      legend_digits < 0) {
+    stop("'legend_digits' must be a non-negative finite number.")
+  }
+  legend_digits <- as.integer(legend_digits)
 
   type <- match.arg(type, c("phylogram", "fan", "arc"))
 
@@ -1470,6 +2278,7 @@ plotRateMap <- function(x,
     legend <- .rateMap_default_legend_length(type, H)
   }
   show_legend <- .rateMap_show_legend(legend)
+  categorical_legend <- show_legend && identical(x$color_mode, "category")
 
   if (is.null(fsize)) {
     fsize <- c(1, 1)
@@ -1564,19 +2373,31 @@ plotRateMap <- function(x,
       underscore = underscore
     )
 
-    if (show_legend) {
+    if (show_legend && !categorical_legend) {
       phytools::add.color.bar(
         legend,
         cols,
         title = leg_txt[2L],
         lims = as.numeric(leg_txt[c(1L, 3L)]),
-        digits = 3,
+        digits = legend_digits,
         prompt = FALSE,
         x = if (identical(direction, "leftwards")) max(H) - legend else 0,
         y = 1 - 0.08 * (n_tips - 1L),
         lwd = lwd[2L],
         fsize = fsize[2L],
         outline = outline,
+        direction = if (!is.null(xlim) && xlim[2L] < xlim[1L]) "leftwards" else "rightwards"
+      )
+    } else if (categorical_legend) {
+      .rateMap_add_category_legend(
+        x,
+        legend = legend,
+        x_pos = if (identical(direction, "leftwards")) max(H) - legend else 0,
+        y_pos = 1 - 0.08 * (n_tips - 1L),
+        lwd = lwd[2L],
+        fsize = fsize[2L],
+        outline = outline,
+        digits = legend_digits,
         direction = if (!is.null(xlim) && xlim[2L] < xlim[1L]) "leftwards" else "rightwards"
       )
     }
@@ -1625,13 +2446,35 @@ plotRateMap <- function(x,
       ))
 
       if (show_legend) {
-        if (identical(type, "arc")) {
+        if (categorical_legend && identical(type, "arc")) {
+          .rateMap_add_category_legend(
+            x,
+            legend = legend,
+            x_pos = mean(graphics::par()$usr[1:2]) - 0.5 * legend,
+            y_pos = graphics::par()$usr[3L] + 0.1 * diff(graphics::par()$usr[3:4]),
+            lwd = lwd[2L],
+            fsize = fsize[2L],
+            outline = outline,
+            digits = legend_digits
+          )
+        } else if (categorical_legend) {
+          .rateMap_add_category_legend(
+            x,
+            legend = legend,
+            x_pos = 0.9 * graphics::par()$usr[1L],
+            y_pos = 0.9 * graphics::par()$usr[3L],
+            lwd = lwd[2L],
+            fsize = fsize[2L],
+            outline = outline,
+            digits = legend_digits
+          )
+        } else if (identical(type, "arc")) {
           phytools::add.color.bar(
             legend,
             cols,
             title = leg_txt[2L],
             lims = as.numeric(leg_txt[c(1L, 3L)]),
-            digits = 3,
+            digits = legend_digits,
             outline = outline,
             prompt = FALSE,
             x = mean(graphics::par()$usr[1:2]) - 0.5 * legend,
@@ -1645,7 +2488,7 @@ plotRateMap <- function(x,
             cols,
             title = leg_txt[2L],
             lims = as.numeric(leg_txt[c(1L, 3L)]),
-            digits = 3,
+            digits = legend_digits,
             outline = outline,
             prompt = FALSE,
             x = 0.9 * graphics::par()$usr[1L],
@@ -1670,6 +2513,10 @@ plot.rateMap <- function(x, ...) {
 
 #' Print a `rateMap` Object
 #'
+#' Print a concise summary of a `"rateMap"` object, including the number of fits,
+#' summary mode, target/check mode, weighting mode, uncertainty status, color
+#' mode, plotted value, value range, and uncertainty ranges when available.
+#'
 #' @param x An object of class `"rateMap"` returned by [rateMap()].
 #' @param ... Ignored.
 #'
@@ -1690,6 +2537,7 @@ print.rateMap <- function(x, ...) {
   cat("- check: ", x$check, "\n", sep = "")
   cat("- weights: ", x$weight_mode, "\n", sep = "")
   cat("- uncertainty: ", uncertainty, "\n", sep = "")
+  cat("- color mode: ", if (is.null(x$color_mode)) "continuous" else x$color_mode, "\n", sep = "")
   cat("- plotted value: ", plot_value, "\n", sep = "")
 
   if (!is.null(x$lims) && length(x$lims) == 2L && all(is.finite(x$lims))) {

@@ -32,12 +32,12 @@ Imports:
     viridis,
     txtplot
 Suggests:
-    HDInterval,
     RColorBrewer,
     boot,
     classInt,
     evd,
     fitdistrplus,
+    geomorph,
     knitr,
     palaeoverse,
     parallel,
@@ -45,6 +45,7 @@ Suggests:
     pbmcapply,
     phylolm,
     plotly,
+    png,
     readxl,
     rmarkdown,
     scales,

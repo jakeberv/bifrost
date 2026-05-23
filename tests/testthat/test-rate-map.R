@@ -70,7 +70,10 @@ test_that("rateMap summarizes small synthetic stochastic-map fits", {
 
   testthat::expect_s3_class(out, "rateMap")
   testthat::expect_s3_class(out$tree, "simmap")
-  testthat::expect_length(out$cols, 16)
+  testthat::expect_equal(out$summary, "branch")
+  testthat::expect_equal(out$color_mode, "category")
+  testthat::expect_true(out$log)
+  testthat::expect_s3_class(out$rate_categories, "data.frame")
   testthat::expect_length(out$lims, 2)
   testthat::expect_true(is.data.frame(out$intervals))
   testthat::expect_true(all(c(
@@ -81,7 +84,8 @@ test_that("rateMap summarizes small synthetic stochastic-map fits", {
     "depth_end",
     "interval_length",
     "value",
-    "color_bin"
+    "color_bin",
+    "rate_category"
   ) %in% names(out$intervals)))
   testthat::expect_equal(out$n_fits, 2L)
 })
@@ -108,6 +112,7 @@ test_that("rateMap auto-detects bifrost_search-style objects", {
 
   testthat::expect_s3_class(out, "rateMap")
   testthat::expect_equal(out$n_fits, 2L)
+  testthat::expect_true(out$log)
   testthat::expect_equal(range(out$intervals$value), out$lims)
 })
 
@@ -145,7 +150,6 @@ test_that("rateMap validates mapped state and parameter compatibility", {
   testthat::expect_error(
     rateMap(
       list(.rate_map_fit(fx$shifted_a, c("0" = 0.1, "1" = 0))),
-      log = TRUE,
       plot = FALSE,
       progress = FALSE
     ),
@@ -210,6 +214,7 @@ test_that("rateMap supports all default extraction shapes", {
   out <- rateMap(
     list(mvgls_stub, wrapped_mvgls, transformed_only),
     summary = "branch",
+    log = FALSE,
     plot = FALSE,
     progress = FALSE
   )
@@ -217,6 +222,64 @@ test_that("rateMap supports all default extraction shapes", {
   testthat::expect_equal(out$n_fits, 3L)
   testthat::expect_equal(out$weight_mode, "equal")
   testthat::expect_true(all(abs(out$intervals$value - mean(c(0.2, 0.2, 0.4))) < 1e-12))
+})
+
+test_that("rateMap and plotRateMap accept a single fitted object", {
+  .rate_map_skip_if_missing_deps()
+  fx <- .rate_map_fixture()
+
+  scratch_fit <- .rate_map_fit(fx$base, c("0" = 0.2))
+  scratch_out <- rateMap(
+    scratch_fit,
+    plot = FALSE,
+    progress = FALSE
+  )
+  testthat::expect_s3_class(scratch_out, "rateMap")
+  testthat::expect_equal(scratch_out$n_fits, 1L)
+  testthat::expect_equal(scratch_out$summary, "branch")
+  testthat::expect_true(scratch_out$log)
+
+  bifrost_fit <- structure(
+    list(
+      tree_no_uncertainty_untransformed = fx$base,
+      model_no_uncertainty = list(param = c("0" = 0.3))
+    ),
+    class = c("bifrost_search", "list")
+  )
+  bifrost_out <- rateMap(
+    bifrost_fit,
+    plot = FALSE,
+    progress = FALSE
+  )
+  testthat::expect_equal(bifrost_out$n_fits, 1L)
+  testthat::expect_true(bifrost_out$log)
+  testthat::expect_equal(bifrost_out$intervals$value, rep(log(0.3), nrow(fx$base$edge)))
+
+  path <- tempfile(fileext = ".pdf")
+  grDevices::pdf(path)
+  on.exit(grDevices::dev.off(), add = TRUE)
+  drawn <- NULL
+  testthat::expect_error(
+    drawn <- plotRateMap(
+      bifrost_fit,
+      legend = FALSE,
+      hold = FALSE,
+      palette = "Viridis",
+      reverse_palette = TRUE,
+      color_mode = "category",
+      n_categories = 2,
+      category_bin_method = "equal",
+      category_breaks = c(-2, 0),
+      category_labels = "single",
+      uncertainty = TRUE,
+      summary = "branch"
+    ),
+    NA
+  )
+  testthat::expect_s3_class(drawn, "rateMap")
+  testthat::expect_equal(drawn$n_fits, 1L)
+  testthat::expect_equal(drawn$category_labels, "single")
+  testthat::expect_true(drawn$uncertainty)
 })
 
 test_that("rateMap validates top-level arguments and tree checks", {
@@ -230,9 +293,20 @@ test_that("rateMap validates top-level arguments and tree checks", {
   testthat::expect_error(rateMap(list(fit), workers = 0), "workers")
   testthat::expect_error(rateMap(list(fit), summary = "node"), "'arg' should be")
   testthat::expect_error(rateMap(list(fit), uncertainty = NA), "uncertainty")
+  testthat::expect_error(rateMap(list(fit), plot = NA, progress = FALSE), "plot")
   testthat::expect_error(rateMap(list(fit), value_summary = "mode"), "'arg' should be")
+  testthat::expect_error(rateMap(list(fit), color_mode = "state"), "'arg' should be")
+  testthat::expect_error(rateMap(list(fit), n_categories = 0), "n_categories")
   testthat::expect_error(rateMap(list(fit), quantile_probs = c(0.9, 0.1)), "quantile_probs")
-  testthat::expect_error(rateMap(list(fit), hpd_prob = 0), "hpd_prob")
+  testthat::expect_error(rateMap(list(fit), highest_density_interval_prob = 0), "highest_density_interval_prob")
+  testthat::expect_error(
+    rateMap(list(fit), unsupported_arg = TRUE, plot = FALSE, progress = FALSE),
+    "Unsupported argument"
+  )
+  testthat::expect_error(
+    rateMap(list(fit), mar = c(0, 0, 0, 0), plot = FALSE, progress = FALSE),
+    "only used when 'plot = TRUE'"
+  )
   testthat::expect_error(rateMap(list(fit), check = "branch"), "check")
   testthat::expect_error(
     rateMap(list(fit), target_tree = list(), plot = FALSE, progress = FALSE),
@@ -293,6 +367,7 @@ test_that("rateMap projects same-topology branch-length variation onto a target 
     target_tree = generic_target,
     check = "topology",
     summary = "branch",
+    log = FALSE,
     plot = FALSE,
     progress = FALSE
   )
@@ -308,6 +383,7 @@ test_that("rateMap projects same-topology branch-length variation onto a target 
     target_tree = ape::as.phylo(target),
     check = "topology",
     summary = "interval",
+    log = FALSE,
     res = 2,
     plot = FALSE,
     progress = FALSE
@@ -333,6 +409,7 @@ test_that("rateMap projects same-topology branch-length variation onto a target 
     target_tree = ape::as.phylo(target),
     check = FALSE,
     summary = "branch",
+    log = FALSE,
     plot = FALSE,
     progress = FALSE
   )
@@ -352,6 +429,7 @@ test_that("rateMap projects same-topology branch-length variation onto a target 
     target = "mcc",
     check = "topology",
     summary = "branch",
+    log = FALSE,
     plot = FALSE,
     progress = FALSE
   )
@@ -411,6 +489,7 @@ test_that("rateMap computes whole-branch summaries without splitting branches", 
     ),
     summary = "branch",
     weights = c(1, 3),
+    log = FALSE,
     plot = FALSE,
     progress = FALSE
   )
@@ -422,6 +501,149 @@ test_that("rateMap computes whole-branch summaries without splitting branches", 
   testthat::expect_equal(out$weight_mode, "custom")
   testthat::expect_true(all(abs(out$intervals$value - 0.4) < 1e-12))
   testthat::expect_true(all(vapply(out$tree$maps, length, integer(1)) == 1L))
+})
+
+test_that("rateMap can color by discrete rate categories", {
+  .rate_map_skip_if_missing_deps()
+
+  tr <- .rate_map_two_tip(
+    edge_length = c(1, 1),
+    maps = list(c("0" = 1), c("1" = 1))
+  )
+  fit <- .rate_map_fit(tr, c("0" = 1, "1" = 4))
+
+  out <- rateMap(
+    list(fit),
+    summary = "branch",
+    color_mode = "category",
+    n_categories = 4,
+    palette = c("blue", "red"),
+    log = FALSE,
+    plot = FALSE,
+    progress = FALSE
+  )
+
+  testthat::expect_equal(out$color_mode, "category")
+  testthat::expect_equal(out$category_labels, c("1", "4"))
+  testthat::expect_equal(out$rate_categories$value, c(1, 4))
+  testthat::expect_equal(names(out$cols), c("1", "4"))
+  testthat::expect_equal(length(out$cols), nrow(out$rate_categories))
+  testthat::expect_equal(out$intervals$rate_category, c("1", "4"))
+  testthat::expect_equal(
+    unname(unlist(lapply(out$tree$maps, names), use.names = FALSE)),
+    c("1", "4")
+  )
+
+  custom <- rateMap(
+    list(fit),
+    summary = "branch",
+    color_mode = "category",
+    category_breaks = c(0, 2, 5),
+    category_labels = c("slow", "fast"),
+    log = FALSE,
+    plot = FALSE,
+    progress = FALSE
+  )
+
+  testthat::expect_equal(custom$category_labels, c("slow", "fast"))
+  testthat::expect_equal(custom$intervals$rate_category, c("slow", "fast"))
+  testthat::expect_equal(custom$rate_categories$lower, c(0, 2))
+  testthat::expect_equal(custom$rate_categories$upper, c(2, 5))
+  testthat::expect_equal(length(custom$cols), nrow(custom$rate_categories))
+
+  equal_binned <- rateMap(
+    list(fit),
+    summary = "branch",
+    color_mode = "category",
+    n_categories = 1,
+    category_bin_method = "equal",
+    log = FALSE,
+    plot = FALSE,
+    progress = FALSE
+  )
+  testthat::expect_equal(equal_binned$category_bin_method, "equal")
+  testthat::expect_equal(equal_binned$category_breaks, c(1, 4))
+  testthat::expect_equal(equal_binned$category_labels, "1 to 4")
+
+  many <- .rateMap_resolve_categories(1:10, n_categories = 3)
+  testthat::expect_equal(many$breaks, c(0, 5, 10))
+  testthat::expect_equal(many$labels, c("0 to 5", "5 to 10"))
+  testthat::expect_equal(many$index, c(1L, 1L, 1L, 1L, 2L, 2L, 2L, 2L, 2L, 2L))
+
+  equal_width <- .rateMap_resolve_categories(
+    1:10,
+    n_categories = 3,
+    category_bin_method = "equal"
+  )
+  testthat::expect_equal(equal_width$breaks, c(1, 4, 7, 10))
+  testthat::expect_equal(equal_width$labels, c("1 to 4", "4 to 7", "7 to 10"))
+  testthat::expect_equal(
+    equal_width$index,
+    c(1L, 1L, 1L, 2L, 2L, 2L, 3L, 3L, 3L, 3L)
+  )
+
+  auto_breaks <- .rateMap_resolve_categories(
+    c(1, 4),
+    n_categories = 2,
+    category_breaks = c(0, 2, 5)
+  )
+  testthat::expect_equal(auto_breaks$labels, c("0 to 2", "2 to 5"))
+  testthat::expect_equal(auto_breaks$index, c(1L, 2L))
+
+  testthat::expect_error(
+    .rateMap_resolve_categories(c(NA_real_, Inf), n_categories = 2),
+    "finite rate categories"
+  )
+
+  testthat::expect_error(
+    rateMap(
+      list(fit),
+      summary = "branch",
+      color_mode = "category",
+      category_bin_method = "quantile",
+      log = FALSE,
+      plot = FALSE,
+      progress = FALSE
+    ),
+    "'arg' should be"
+  )
+  testthat::expect_error(
+    rateMap(
+      list(fit),
+      summary = "branch",
+      color_mode = "category",
+      category_breaks = c(2, 1),
+      log = FALSE,
+      plot = FALSE,
+      progress = FALSE
+    ),
+    "category_breaks"
+  )
+  testthat::expect_error(
+    rateMap(
+      list(fit),
+      summary = "branch",
+      color_mode = "category",
+      category_breaks = c(2, 3),
+      log = FALSE,
+      plot = FALSE,
+      progress = FALSE
+    ),
+    "cover"
+  )
+  testthat::expect_error(
+    rateMap(
+      list(fit),
+      summary = "branch",
+      color_mode = "category",
+      category_breaks = c(0, 2, 5),
+      category_labels = c("same", "same"),
+      log = FALSE,
+      plot = FALSE,
+      progress = FALSE
+    ),
+    "unique"
+  )
 })
 
 test_that("rateMap computes optional uncertainty summaries", {
@@ -437,6 +659,7 @@ test_that("rateMap computes optional uncertainty summaries", {
     fits,
     summary = "branch",
     uncertainty = TRUE,
+    log = FALSE,
     plot = FALSE,
     progress = FALSE
   )
@@ -446,8 +669,8 @@ test_that("rateMap computes optional uncertainty summaries", {
   testthat::expect_length(out$run_values, nrow(fx$base$edge))
   testthat::expect_equal(dim(out$run_values[[1L]]), c(1L, 2L))
   testthat::expect_true(all(c(
-    "mean", "median", "sd", "q025", "q975", "hpd_low", "hpd_high",
-    "ci_width", "hpd_width", "cv", "n"
+    "mean", "median", "sd", "q025", "q975", "highest_density_interval_low", "highest_density_interval_high",
+    "ci_width", "highest_density_interval_width", "cv", "n"
   ) %in% names(out$intervals)))
   testthat::expect_equal(out$intervals$value, out$intervals$mean)
   testthat::expect_true(all(abs(out$intervals$mean - 2) < 1e-12))
@@ -455,10 +678,10 @@ test_that("rateMap computes optional uncertainty summaries", {
   testthat::expect_true(all(abs(out$intervals$sd - sqrt(2)) < 1e-12))
   testthat::expect_true(all(abs(out$intervals$q025 - 1.05) < 1e-12))
   testthat::expect_true(all(abs(out$intervals$q975 - 2.95) < 1e-12))
-  testthat::expect_true(all(abs(out$intervals$hpd_low - 1) < 1e-12))
-  testthat::expect_true(all(abs(out$intervals$hpd_high - 3) < 1e-12))
+  testthat::expect_true(all(abs(out$intervals$highest_density_interval_low - 1) < 1e-12))
+  testthat::expect_true(all(abs(out$intervals$highest_density_interval_high - 3) < 1e-12))
   testthat::expect_true(all(abs(out$intervals$ci_width - 1.9) < 1e-12))
-  testthat::expect_true(all(abs(out$intervals$hpd_width - 2) < 1e-12))
+  testthat::expect_true(all(abs(out$intervals$highest_density_interval_width - 2) < 1e-12))
   testthat::expect_true(all(abs(out$intervals$cv - sqrt(2) / 2) < 1e-12))
   testthat::expect_true(all(out$intervals$n == 2L))
   testthat::expect_equal(
@@ -477,6 +700,7 @@ test_that("rateMap computes optional uncertainty summaries", {
     ),
     summary = "branch",
     value_summary = "median",
+    log = FALSE,
     plot = FALSE,
     progress = FALSE
   )
@@ -492,6 +716,7 @@ test_that("rateMap computes optional uncertainty summaries", {
     weights = c(1, 3),
     uncertainty = TRUE,
     value_summary = "median",
+    log = FALSE,
     plot = FALSE,
     progress = FALSE
   )
@@ -514,12 +739,12 @@ test_that("rateMap handles valid log transforms and multi-segment branch maps", 
   out <- rateMap(
     list(.rate_map_fit(segmented, c("0" = exp(1), "1" = exp(3)))),
     summary = "branch",
-    log = TRUE,
     plot = FALSE,
     progress = FALSE
   )
 
   testthat::expect_equal(out$summary, "branch")
+  testthat::expect_true(out$log)
   testthat::expect_true(any(abs(out$intervals$value - 2) < 1e-12))
 })
 
@@ -535,6 +760,7 @@ test_that("rateMap handles zero-length mapped branches", {
   out <- rateMap(
     list(.rate_map_fit(zero_branch, c("0" = 1))),
     summary = "branch",
+    log = FALSE,
     plot = FALSE,
     progress = FALSE
   )
@@ -568,6 +794,7 @@ test_that("rateMap supports IC weights for comparable bifrost_search objects", {
     list(fit_a, fit_b),
     summary = "branch",
     weights = "ic",
+    log = FALSE,
     plot = FALSE,
     progress = FALSE
   )
@@ -612,6 +839,18 @@ test_that("rateMap supports IC weights for comparable bifrost_search objects", {
     "finite 'optimal_ic'"
   )
 
+  missing_ic_field <- fit_a
+  missing_ic_field$optimal_ic <- NULL
+  testthat::expect_error(
+    rateMap(
+      list(fit_a, missing_ic_field),
+      weights = "ic",
+      plot = FALSE,
+      progress = FALSE
+    ),
+    "finite 'optimal_ic'"
+  )
+
   testthat::expect_error(
     rateMap(
       list(.rate_map_fit(fx$base, c("0" = 1))),
@@ -636,6 +875,7 @@ test_that("rateMap validates custom fit weights", {
     summary = "branch",
     weights = "ic",
     fit_weights = c(2, 2),
+    log = FALSE,
     plot = FALSE,
     progress = FALSE
   )
@@ -702,10 +942,44 @@ test_that("rateMap palette resolution handles names, vectors, and reversal", {
 
   testthat::expect_error(.rateMap_colors(3, 1:3), "palette")
   testthat::expect_error(.rateMap_colors(3, function(n) "black"), "at least two")
+  testthat::expect_error(
+    .rateMap_validate_dots(list(TRUE), allowed = "x"),
+    "must be named"
+  )
 
   testthat::expect_equal(.rateMap_order_state_names(c("b", "a")), c("a", "b"))
   testthat::expect_true(.rateMap_show_legend(0.1))
   testthat::expect_false(.rateMap_show_legend(FALSE))
+  testthat::expect_equal(.rateMap_legend_digits(c(1e-9, 1e-5)), 11L)
+  testthat::expect_equal(.rateMap_legend_digits(c(-10, 10)), 3L)
+  testthat::expect_equal(.rateMap_legend_digits(c(NA_real_, 1)), 3L)
+  testthat::expect_equal(.rateMap_legend_digits(c(0, 0)), 3L)
+  testthat::expect_equal(.rateMap_format_rate(1e-9, c(1e-9, 1e-5)), "0.000000001")
+  testthat::expect_error(.rateMap_validate_n_categories(NA_real_), "n_categories")
+  testthat::expect_error(.rateMap_category_labels(c("a", NA), 2, TRUE), "non-missing")
+  testthat::expect_equal(
+    .rateMap_category_labels(c("a", "a"), 2, FALSE),
+    c("a", "a_1")
+  )
+  testthat::expect_equal(
+    .rateMap_category_lims(list(rate_categories = NULL, lims = c(0, 1))),
+    c(0, 1)
+  )
+  testthat::expect_equal(
+    .rateMap_category_lims(list(
+      rate_categories = data.frame(value = c(1, 4)),
+      lims = c(0, 5)
+    )),
+    c(1, 4)
+  )
+  testthat::expect_equal(
+    .rateMap_category_lims(list(
+      rate_categories = data.frame(lower = 1, upper = 1, value = 1),
+      lims = c(0.99, 1.01)
+    )),
+    c(0.99, 1.01)
+  )
+  testthat::expect_null(.rateMap_add_category_legend(list(rate_categories = NULL)))
   testthat::expect_equal(
     .rateMap_map_value(c("0" = 1), c("0" = 7), start = 2, end = 3),
     7
@@ -729,12 +1003,24 @@ test_that("rateMap palette resolution handles names, vectors, and reversal", {
     c(1, 3)
   )
   testthat::expect_equal(
-    .rateMap_hpd(c(NA, Inf), c(1, 1), 0.95),
+    .rateMap_highest_density_interval(c(NA, Inf), c(1, 1), 0.95),
     c(NA_real_, NA_real_)
   )
   testthat::expect_equal(
-    .rateMap_hpd(c(4, NA), c(1, 1), 0.95),
+    .rateMap_highest_density_interval(c(4, NA), c(1, 1), 0.95),
     c(4, 4)
+  )
+  testthat::expect_equal(
+    .rateMap_highest_density_interval(c(3, 1, 2, NA), c(1, 1, 1, 1), 0.5),
+    c(1, 2)
+  )
+  testthat::expect_equal(
+    .rateMap_highest_density_interval(c(1, 2, 100), c(0.49, 0.49, 0.02), 0.9),
+    c(1, 2)
+  )
+  testthat::expect_equal(
+    .rateMap_highest_density_interval(c(1, 2, 3), c(1, 1, 1), 1),
+    c(1, 3)
   )
   testthat::expect_equal(
     .rateMap_row_means(matrix(c(1, NA, 3, 5), nrow = 2, byrow = TRUE), c(0.25, 0.75)),
@@ -749,6 +1035,19 @@ test_that("rateMap can plot directly during computation and use progress/workers
   path <- tempfile(fileext = ".pdf")
   grDevices::pdf(path)
   on.exit(grDevices::dev.off(), add = TRUE)
+  graphics::plot.new()
+  graphics::plot.window(xlim = c(0, 1), ylim = c(0, 1))
+  testthat::expect_null(.rateMap_add_category_legend(
+    list(
+      rate_categories = data.frame(lower = 1, upper = 1, value = 1),
+      cols = c("1" = "red"),
+      title = "one category",
+      lims = c(0.99, 1.01)
+    ),
+    legend = 0.5,
+    x_pos = 0.2,
+    y_pos = 0.2
+  ))
 
   testthat::expect_error(
     rateMap(
@@ -826,6 +1125,32 @@ test_that("plotRateMap draws rate maps on a graphics device", {
     progress = FALSE
   )
 
+  legacy_like <- out
+  legacy_like$color_mode <- NULL
+  legacy_like$n_categories <- NULL
+  legacy_like$category_bin_method <- NULL
+  legacy_like$category_breaks <- NULL
+  legacy_like$category_labels <- NULL
+  legacy_recolored <- .rateMap_recolor(legacy_like, "value")
+  testthat::expect_equal(legacy_recolored$color_mode, "continuous")
+
+  binned_like <- out
+  binned_like$color_mode <- "category"
+  binned_like$n_categories <- 2L
+  binned_like$category_breaks <- c(-3, -1, 0)
+  binned_like$category_labels <- c("low", "high")
+  binned_like$rate_categories <- data.frame(
+    color_bin = 1:2,
+    rate_category = c("low", "high"),
+    lower = c(-3, -1),
+    upper = c(-1, 0),
+    value = c(NA_real_, NA_real_),
+    color = c("black", "white"),
+    stringsAsFactors = FALSE
+  )
+  binned_recolored <- .rateMap_recolor(binned_like, "value")
+  testthat::expect_equal(binned_recolored$category_labels, c("low", "high"))
+
   path <- tempfile(fileext = ".pdf")
   grDevices::pdf(path)
   on.exit(grDevices::dev.off(), add = TRUE)
@@ -862,6 +1187,7 @@ test_that("plotRateMap covers phylogram, fan, legend, outline, and S3 paths", {
       value = "sd",
       palette = c("white", "black"),
       reverse_palette = TRUE,
+      color_mode = "continuous",
       type = "arc",
       legend = FALSE,
       hold = FALSE
@@ -896,9 +1222,104 @@ test_that("plotRateMap covers phylogram, fan, legend, outline, and S3 paths", {
   testthat::expect_equal(default_recolored$plot_value, "value")
   testthat::expect_equal(default_recolored$intervals$value, out$intervals$value)
 
+  category_drawn <- NULL
+  testthat::expect_error(
+    category_drawn <- plotRateMap(
+      out,
+      color_mode = "category",
+      n_categories = 3,
+      category_bin_method = "equal",
+      type = "phylogram",
+      legend = TRUE,
+      hold = FALSE
+    ),
+    NA
+  )
+  testthat::expect_equal(category_drawn$color_mode, "category")
+  testthat::expect_equal(category_drawn$category_bin_method, "equal")
+  testthat::expect_true("rate_category" %in% names(category_drawn$intervals))
+  testthat::expect_s3_class(category_drawn$rate_categories, "data.frame")
+
+  continuous_again <- plotRateMap(
+    category_drawn,
+    color_mode = "continuous",
+    legend = FALSE,
+    hold = FALSE
+  )
+  testthat::expect_equal(continuous_again$color_mode, "continuous")
+  testthat::expect_false("rate_category" %in% names(continuous_again$intervals))
+
+  continuous_out <- rateMap(
+    list(.rate_map_fit(fx$shifted_a), .rate_map_fit(fx$shifted_b)),
+    res = 4,
+    color_mode = "continuous",
+    plot = FALSE,
+    progress = FALSE
+  )
+  highest_density_recolored <- .rateMap_recolor(out, "highest_density_interval_width")
+  testthat::expect_equal(
+    highest_density_recolored$title,
+    "95% highest-density interval width (log rate)"
+  )
+
+  raw_out <- rateMap(
+    list(.rate_map_fit(fx$shifted_a), .rate_map_fit(fx$shifted_b)),
+    res = 4,
+    uncertainty = TRUE,
+    log = FALSE,
+    plot = FALSE,
+    progress = FALSE
+  )
+  raw_highest_density_recolored <- .rateMap_recolor(raw_out, "highest_density_interval_width")
+  testthat::expect_equal(
+    raw_highest_density_recolored$title,
+    "95% highest-density interval width"
+  )
+
+  testthat::expect_error(
+    plotRateMap(
+      continuous_out,
+      type = "phylogram",
+      legend = 0.2,
+      hold = FALSE
+    ),
+    NA
+  )
+  testthat::expect_error(
+    plotRateMap(
+      continuous_out,
+      type = "arc",
+      legend = 0.2,
+      hold = FALSE
+    ),
+    NA
+  )
+  testthat::expect_error(
+    plotRateMap(
+      continuous_out,
+      type = "fan",
+      outline = TRUE,
+      legend = 0.2,
+      hold = FALSE
+    ),
+    NA
+  )
+
   testthat::expect_error(plotRateMap(out, value = "missing", legend = FALSE), "not a column")
   testthat::expect_error(plotRateMap(out, value = "clade_key", legend = FALSE), "numeric column")
   testthat::expect_error(plotRateMap(out, value = NA_character_, legend = FALSE), "single non-empty")
+  testthat::expect_error(plotRateMap(out, pallete = "Viridis"), "Unsupported argument")
+  testthat::expect_error(plotRateMap(out, legend = FALSE, legend_digits = -1), "legend_digits")
+  testthat::expect_error(plotRateMap(out, legend = FALSE, n_categories = 0), "n_categories")
+  testthat::expect_error(
+    plotRateMap(
+      out,
+      color_mode = "category",
+      category_breaks = c(0, 0.01),
+      legend = FALSE
+    ),
+    "cover"
+  )
 
   testthat::expect_error(
     plotRateMap(out, type = "arc", legend = TRUE, hold = FALSE),
