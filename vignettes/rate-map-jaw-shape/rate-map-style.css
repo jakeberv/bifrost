@@ -33,6 +33,10 @@ table caption strong,
 .rate-map-table-spacer {
   height: 0.6rem;
 }
+.rate-map-table-scroller {
+  max-width: 100%;
+  overflow-x: auto;
+}
 .rate-map-table-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);

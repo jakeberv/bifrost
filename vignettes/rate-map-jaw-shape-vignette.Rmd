@@ -56,7 +56,7 @@ biological setup comes from the main jaw-shape analysis. Long-running search
 chunks are shown for interactive use; run them once, save the fitted objects,
 and then use the lighter `rateMap()` chunks for summaries and `plot(x, ...)`
 chunks for display. Part 2 continues with IC weighting, uncertainty views, and
-fixed-topology posterior tree samples.
+same-topology tree samples.
 
 ```{r single_run_rate_map, echo = FALSE, eval = TRUE, fig.align = "center", out.width = "80%", fig.cap = "**Figure 1. Single-run branch-rate visualization from the jaw-shape example.** This tree shows the fitted branch-rate categories for one selected `bifrost` search on the jaw-shape data; branch colors encode the regime-specific fitted evolutionary rates from that single model. The multi-run `rateMap()` workflow below asks which parts of this single-run pattern persist when the search threshold changes; subsequent maps use log fitted rates by default.", fig.alt = "Upward-oriented phylogenetic tree without tip labels. Branches are colored using a viridis gradient, with yellow branches representing faster inferred evolutionary rates and dark purple branches representing slower rates."}
 knitr::include_graphics("jaw-shape/branch_rates.png")

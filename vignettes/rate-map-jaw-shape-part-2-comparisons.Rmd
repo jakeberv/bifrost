@@ -147,11 +147,12 @@ ic_weight_caption <- rate_map_caption(
 
 ic_category_caption <- rate_map_caption(
   "Table 2. IC-weighted rate categories.",
-  "Ordered log-rate bins used to color the IC-weighted branch-category map.",
-  "`color_bin` is the plotted bin index; `rate_category` is the displayed",
-  "log-rate interval; `lower` and `upper` are the bin boundaries; `color`",
-  "is the hex color assigned to that bin; and the branch-count and `value_*`",
-  "columns summarize the plotted branch log-rates assigned to each bin."
+  "Condensed ordered log-rate bins used to color the IC-weighted branch-category map.",
+  "`rate_category` is the displayed interval or diagnostic class;",
+  "`n_branches` counts branches assigned to the bin; `value_mean`,",
+  "`value_median`, and `value_sd` summarize plotted branch log-rates; and",
+  "`total_branch_length` gives the summed branch length in that displayed bin.",
+  "The full generated category table remains available as `rate_map_ic_categories.csv`."
 )
 
 cat(
@@ -165,7 +166,10 @@ cat(
   "\n\n",
   paste(rate_map_table(
     "rate_map_ic_categories.csv",
-    drop = "value",
+    keep = c(
+      "rate_category", "n_branches", "value_mean", "value_median",
+      "value_sd", "total_branch_length"
+    ),
     caption = ic_category_caption,
     full_width_caption = TRUE
   ), collapse = "\n"),
@@ -194,7 +198,7 @@ weighted mean log-rate. The IC-weighted map is visually similar to the
 equal-weight map because the dominant lower-GIC searches preserve the same
 broad branch-rate structure. The maps are not identical: branch values are
 recomputed under IC weights, and some branches shift color categories, but the
-main high-rate regions remain stable. Appendix D shows the largest branch-level
+main high-rate regions remain stable. Appendix E shows the largest branch-level
 differences between weighting schemes.
 
 ## Mapping Uncertainty Across Thresholds
@@ -214,12 +218,12 @@ They also do not use the per-shift support weights that `bifrost` can compute
 inside an individual search; the weights here are the fit-level weights supplied
 to `rateMap()`.
 
-Because this worked example has only six threshold runs, the default 95%
-highest-density interval is deliberately conservative and effectively spans all
-retained run-level values for each branch. With denser run stacks, the same
-column behaves more like the familiar shortest interval containing the requested
-probability mass; for small sensitivity sweeps, interpret it as a range-like
-stability diagnostic.
+For the equal-weight six-run map shown here, the default 95% highest-density
+interval is deliberately conservative and effectively spans all retained
+run-level values for each branch. With denser run stacks, the same column behaves
+more like the familiar shortest interval containing the requested probability
+mass; for small sensitivity sweeps, interpret it as a range-like stability
+diagnostic.
 
 You can recolor the same object by any compatible numeric column. For
 uncertainty summaries, continuous color ramps are often easier to read than
@@ -267,10 +271,10 @@ plot(
 knitr::include_graphics(rate_map_artifact("rate_highest_density_interval_width_ratemap.png"))
 ```
 
-The strongest uncertainty signal partly overlaps the near-zero diagnostic. A
-compact way to check that overlap is to mark branches in the upper quartile of
-`highest_density_interval_width`, then ask whether near-zero branches are
-overrepresented in that high-uncertainty set.
+In this example dataset, the strongest uncertainty signal partly overlaps the
+near-zero diagnostic. A compact way to check that overlap is to mark branches in
+the upper quartile of `highest_density_interval_width`, then ask whether
+near-zero branches are overrepresented in that high-uncertainty set.
 
 ```{r uncertainty_overlap_diagnostic}
 rate_intervals <- jaw_rate_map_equal$intervals
@@ -312,13 +316,12 @@ rate_map_table(
 )
 ```
 
-In this sweep, near-zero branches make up `31.8%` of all branches but `77.3%` of
-branches in the upper quartile of shortest-interval width. The uncertainty map
-therefore partly recapitulates the near-zero diagnostic, but the overlap is not
-exact: near-zero flags summarize the mean fitted branch rate, whereas
-uncertainty columns summarize how much threshold-specific fitted rates vary
-across runs. Regular branches can still be high-uncertainty when their rates move
-toward or away from the lower-tail category under different threshold settings.
+In this sweep, near-zero branches are enriched among high-uncertainty branches:
+`31.8%` of all branches are near-zero, compared with `77.3%` in the upper
+quartile of shortest-interval width. This overlap is diagnostic, not redundant:
+near-zero flags summarize mean fitted branch rate, while uncertainty columns
+summarize across-threshold variation. Regular branches can still be
+high-uncertainty when their rates move toward or away from the lower tail.
 
 High mean log-rate with low across-threshold uncertainty is the strongest visual
 cue for a robust fast-rate region. High mean log-rate with high uncertainty is
@@ -326,7 +329,7 @@ more fragile: it may depend on the threshold setting, or it may identify a
 branch whose regime assignment changes across the sweep.
 
 The plotted summary object still stores one row per branch under the default
-`summary = "branch"`; Appendix C shows how to sort those rows for reporting.
+`summary = "branch"`; Appendix D shows how to sort those rows for reporting.
 
 ```{r rebuild_static_tree_figures, include = FALSE, eval = FALSE}
 rate_map_save_arc_figure(
@@ -365,17 +368,18 @@ In that case, provide an explicit `target_tree` and relax the tree check from
 identical branch lengths to matching topology with
 `control = list(check = "topology")`. The target can be an MCC tree, a
 posterior mean chronogram, or another biologically preferred same-topology
-summary tree.
+summary tree. Topology-varying posterior samples are outside the current
+`rateMap()` workflow; supporting that case would require a future extension
+that can summarize clades absent from some sampled trees.
 
 For ordinary `bifrost` outputs, shifts are placed at nodes, so each branch has
 one fitted regime-rate value. With the default `summary = "branch"`,
 `rateMap()` matches each target-tree branch to the corresponding input-tree
 branch by descendant tip set. The matched input branch contributes its fitted
 regime rate for that run, and those branch-level values are averaged across
-runs using the requested weighting scheme. Branch-length differences among the
-fixed-topology posterior trees are not used to adjust or normalize the fitted
-branch-rate values in branch mode. The target tree supplies the reference
-topology, edge order, branch lengths, and plotting geometry for the final map.
+runs using the requested weighting scheme. The target tree supplies the
+reference topology, edge order, branch lengths, and plotting geometry for the
+final map.
 Use `summary = "interval"` only for true stochastic-map inputs where states can
 change within branches.
 
@@ -384,11 +388,9 @@ choice: each retained tree is one posterior draw, so the goal is to average
 over uncertainty in the underlying tree geometry rather than to weight
 alternative threshold or parameter-sweep outcomes by IC support. Keep
 `uncertainty = TRUE` to record how much the matched branch rates vary across
-the tree sample. Future extensions for varying topologies would need an
-additional branch-matching or clade-assignment step before applying the same
-rate-summary logic.
+the tree sample.
 
-The chunk below is a template for fixed-topology posterior tree samples. Because
+The chunk below is a template for same-topology posterior tree samples. Because
 this worked example uses the same jaw-shape tree as the target, it does not show
 a separate plot.
 
@@ -414,7 +416,7 @@ jaw_target_rate_map <- rateMap(
   constant while `shift_acceptance_threshold` changes.
 - Equal weights summarize robustness across selected threshold settings; IC
   weights emphasize lower-IC threshold outcomes.
-- For fixed-topology posterior tree samples with different branch lengths, use
+- For same-topology posterior tree samples with different branch lengths, use
   an explicit target tree, `control = list(check = "topology")`, branch
   summaries, and equal weights.
 - The default branch-level, log-rate-category map matches `bifrost`'s node-shift
@@ -444,7 +446,15 @@ choices.
 
 ## Appendix
 
-### A. Original-Scale Rates
+### A. Full IC Category Metadata
+
+The main IC-weighted category table above is intentionally condensed so it can be
+read next to the figure it explains. The full generated table, including
+`color_bin`, `lower`, `upper`, `color`, `value_min`, and `value_max`, is written
+with the vignette artifacts as `rate_map_ic_categories.csv` for readers who need
+the complete display metadata.
+
+### B. Original-Scale Rates
 
 The default log-rate scale is often the easier scale for comparing
 multiplicative differences in fitted rates. Use `log = FALSE` when you need the
@@ -466,7 +476,7 @@ plot(
 )
 ```
 
-### B. Continuous Interval Maps
+### C. Continuous Interval Maps
 
 The branch-category default is the closest match for ordinary `bifrost` output,
 because fitted `bifrost` shifts occur at nodes. The package stores these results
@@ -482,7 +492,7 @@ those intervals. That is useful for true within-branch histories, but it is less
 informative for the jaw-shape `bifrost` sweep, where the interval map would
 mostly restate the branch-level result with a different plotting convention.
 
-### C. Branch Summary Table
+### D. Branch Summary Table
 
 For reporting, sort branches by their central log-rate estimate and carry along
 the uncertainty columns. The rendered table translates the top rows into
@@ -499,6 +509,11 @@ highest_log_rate_branches <- branch_rates[
     "q025", "q975", "highest_density_interval_low", "highest_density_interval_high", "n"
   )
 ]
+highest_log_rate_branches$clade_key <- vapply(
+  highest_log_rate_branches$clade_key,
+  rate_map_format_clade_key,
+  character(1)
+)
 
 head(highest_log_rate_branches, 10)
 ```
@@ -521,11 +536,12 @@ rate_map_table(
     "default 95% shortest-interval width. Repeated values reflect a single",
     "high-rate region whose descendant branches share very similar fitted rate",
     "histories across the threshold sweep."
-  )
+  ),
+  full_width_caption = TRUE
 )
 ```
 
-### D. Weighting-Scheme Diagnostic
+### E. Weighting-Scheme Diagnostic
 
 The main comparison between weighting schemes is visual: compare the
 equal-weight map from Part 1 with the IC-weighted map in Figure 1. This
@@ -585,7 +601,8 @@ rate_map_table(
     "the descendant clade; `equal` and `ic` are the two mean log-rate summaries;",
     "`difference` is ic - equal; and `abs_diff` is the absolute magnitude of",
     "that change."
-  )
+  ),
+  full_width_caption = TRUE
 )
 ```
 

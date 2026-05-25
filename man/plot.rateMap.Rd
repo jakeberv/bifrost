@@ -74,7 +74,8 @@ supplied.}
 \code{color_mode = "category"}.}
 
 \item{ncolors}{Optional number of colors to use when recoloring this plot
-with \code{color_mode = "continuous"}.}
+with \code{color_mode = "continuous"}. If omitted, the stored \code{x$ncolors} value
+is used, falling back to \code{256} for older objects.}
 
 \item{legend_title}{Optional legend title override for this plot.}
 
@@ -158,7 +159,11 @@ are drawn as special categories when rate-valued columns are plotted; these
 special categories do not consume positions in the ordered palette used for
 regular rate bins. When special categories are present, the category legend
 spans the full plotted value range and marks the diagnostic cutoff separating
-special and regular bins.
+special and regular bins. When plotting non-rate columns such as \code{"sd"},
+diagnostic columns are preserved only as metadata with \code{rate_flag_source}
+provenance; special rate categories are not drawn for those non-rate values.
+The selected \code{value} column must contain at least one finite value;
+uncertainty columns such as \code{"sd"} may be all \code{NA} for single-fit objects.
 
 The \code{plot()} method handles \code{"phylogram"}, \code{"fan"}, and \code{"arc"} layouts.
 \code{legend} controls the length of the color bar; set \code{legend = FALSE} to
@@ -200,6 +205,14 @@ plot(rm_obj, n_categories = 5, category_bin_method = "equal")
 plot(rm_obj, category_breaks = c(-4, -2, 0, 2))
 }
 
+}
+\references{
+Revell, L. J. (2013). Two new graphical methods for mapping trait evolution
+on phylogenies. \emph{Methods in Ecology and Evolution}, 4, 754-759.
+
+Revell, L. J. (2024). phytools 2.0: an updated R ecosystem for phylogenetic
+comparative methods (and other things). \emph{PeerJ}, 12, e16505.
+\doi{10.7717/peerj.16505}
 }
 \seealso{
 \code{\link[=rateMap]{rateMap()}}, \code{\link[phytools:densityMap]{phytools::densityMap()}}, \code{\link[phytools:plotSimmap]{phytools::plotSimmap()}}

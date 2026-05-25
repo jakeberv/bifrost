@@ -31,13 +31,30 @@ rate_map_caption <- function(lead, ...) {
   paste(c(paste0("<strong>", lead, "</strong>"), ...), collapse = " ")
 }
 
-rate_map_format_taxon_examples <- function(clade_key, max_examples = 2) {
+rate_map_split_clade_key <- function(clade_key) {
   if (!is.character(clade_key) || length(clade_key) != 1L || is.na(clade_key)) {
+    return(character())
+  }
+
+  taxa <- unlist(
+    strsplit(clade_key, "\r\n|\n|\r|\\s*\\|\\s*", perl = TRUE),
+    use.names = FALSE
+  )
+  taxa <- trimws(taxa)
+  taxa[nzchar(taxa)]
+}
+
+rate_map_format_clade_key <- function(clade_key) {
+  taxa <- rate_map_split_clade_key(clade_key)
+  if (length(taxa) == 0L) {
     return(NA_character_)
   }
 
-  taxa <- unlist(strsplit(clade_key, "\r\n|\n|\r", perl = TRUE), use.names = FALSE)
-  taxa <- trimws(taxa[nzchar(trimws(taxa))])
+  paste(taxa, collapse = " | ")
+}
+
+rate_map_format_taxon_examples <- function(clade_key, max_examples = 2) {
+  taxa <- rate_map_split_clade_key(clade_key)
   if (length(taxa) == 0L) {
     return(NA_character_)
   }
@@ -137,7 +154,12 @@ rate_map_table <- function(file, digits = 4, keep = NULL, drop = NULL, n = NULL,
   }
   table <- knitr::kable(tab, caption = table_caption, row.names = FALSE)
   if (knitr::is_html_output()) {
-    table <- c('<div class="rate-map-table-spacer" aria-hidden="true"></div>', table)
+    table <- c(
+      '<div class="rate-map-table-spacer" aria-hidden="true"></div>',
+      '<div class="rate-map-table-scroller">',
+      table,
+      '</div>'
+    )
     if (isTRUE(full_width_caption) && !is.null(caption)) {
       table <- c(
         table,
@@ -169,7 +191,12 @@ rate_map_table_html <- function(file, digits = 4, keep = NULL, drop = NULL,
     escape = FALSE,
     row.names = FALSE
   )
-  table <- c('<div class="rate-map-table-spacer" aria-hidden="true"></div>', table)
+  table <- c(
+    '<div class="rate-map-table-spacer" aria-hidden="true"></div>',
+    '<div class="rate-map-table-scroller">',
+    table,
+    '</div>'
+  )
   paste(c("", "", table), collapse = "\n")
 }
 

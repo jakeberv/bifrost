@@ -42,7 +42,9 @@ discrete ordered bins or \code{"continuous"} for a continuous ramp.}
 
 \item{category_labels}{Optional labels for displayed categories.}
 
-\item{ncolors}{Optional number of colors for continuous ramps.}
+\item{ncolors}{Optional number of colors for continuous ramps. If omitted,
+the stored \code{x$ncolors} value is used, falling back to \code{256} for older
+objects.}
 
 \item{legend_title}{Optional legend title stored on the returned object.}
 }
@@ -53,6 +55,11 @@ category views, \code{rate_categories} includes bin-level summaries of the
 plotted branch values and is recomputed whenever the view changes. Rate
 diagnostic flags are recomputed for rate-valued views (\code{"value"}, \code{"mean"},
 or \code{"median"}) and preserved as metadata for non-rate views such as \code{"sd"}.
+When preserved for a non-rate view, \code{rate_flag_source} identifies the
+rate-valued column that the flags classify; the flags do not classify the
+displayed uncertainty value. The selected \code{value} column must contain at
+least one finite value; uncertainty columns such as \code{"sd"} may be all \code{NA}
+for single-fit objects.
 }
 \description{
 Recompute the display mapping for a computed \code{"rateMap"} object without

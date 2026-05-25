@@ -257,6 +257,23 @@
   force(expr)
 }
 
+.rateMap_stored_ncolors <- function(x) {
+  ncolors <- x$ncolors
+  if (is.numeric(ncolors) && length(ncolors) == 1L &&
+      is.finite(ncolors) && ncolors >= 2) {
+    return(as.integer(ncolors))
+  }
+  256L
+}
+
+.rateMap_validate_ncolors <- function(ncolors) {
+  if (!is.numeric(ncolors) || length(ncolors) != 1L ||
+      !is.finite(ncolors) || ncolors < 2) {
+    stop("'ncolors' must be a finite number >= 2.")
+  }
+  as.integer(ncolors)
+}
+
 .rateMap_recolor <- function(x,
                              value,
                              palette = NULL,
@@ -282,6 +299,13 @@
     seq_along(x$tree$maps),
     function(i) x$intervals[[value]][x$intervals$edge == i]
   )
+  flat_vals <- unlist(vals, use.names = FALSE)
+  if (!any(is.finite(flat_vals))) {
+    stop(
+      "Column '", value, "' contains no finite values to map. ",
+      "Choose a 'rateMap' interval column with at least one finite value."
+    )
+  }
   rate_value <- value %in% c("value", "mean", "median")
 
   selected_palette <- if (is.null(palette)) x$palette else palette
@@ -300,13 +324,11 @@
   } else {
     .rateMap_validate_n_categories(n_categories)
   }
+  stored_ncolors <- .rateMap_stored_ncolors(x)
   selected_ncolors <- if (is.null(ncolors)) {
-    length(x$cols)
+    stored_ncolors
   } else {
-    if (!is.numeric(ncolors) || length(ncolors) != 1L || !is.finite(ncolors) || ncolors < 2) {
-      stop("'ncolors' must be a finite number >= 2.")
-    }
-    as.integer(ncolors)
+    .rateMap_validate_ncolors(ncolors)
   }
   selected_category_bin_method <- if (is.null(category_bin_method)) {
     x$category_bin_method
@@ -395,11 +417,15 @@
   if (!is.null(rate_flag_info) && isTRUE(rate_flag_info$diagnostics$enabled)) {
     x$intervals$rate_for_flagging <- rate_flag_info$rate_for_flagging
     x$intervals$rate_flag <- rate_flag_info$rate_flag
+    x$intervals$rate_flag_source <- value
     x$intervals$is_near_zero <- x$intervals$rate_flag == x$rate_flags$zero_label
     x$intervals$is_high_outlier <- x$intervals$rate_flag == x$rate_flags$high_label
     x$rate_diagnostics <- rate_flag_info$diagnostics
+    x$rate_flag_source <- value
   } else if (!is.null(rate_flag_info)) {
     x$rate_diagnostics <- rate_flag_info$diagnostics
+  } else if ("rate_flag" %in% names(x$intervals)) {
+    x$intervals$rate_flag_source <- x$rate_flag_source
   }
   if (identical(selected_color_mode, "category")) {
     x$intervals$rate_category <- unlist(color_map$states_by_edge, use.names = FALSE)
@@ -414,6 +440,11 @@
   x$palette <- selected_palette
   x$reverse_palette <- selected_reverse
   x$color_mode <- selected_color_mode
+  x$ncolors <- if (identical(selected_color_mode, "continuous")) {
+    selected_ncolors
+  } else {
+    stored_ncolors
+  }
   x$n_categories <- selected_n_categories
   x$category_breaks <- color_map$category_breaks
   x$category_labels <- color_map$category_labels
@@ -461,7 +492,9 @@
 #'   `"pretty"` or `"equal"`.
 #' @param category_breaks Optional strictly increasing category boundaries.
 #' @param category_labels Optional labels for displayed categories.
-#' @param ncolors Optional number of colors for continuous ramps.
+#' @param ncolors Optional number of colors for continuous ramps. If omitted,
+#'   the stored `x$ncolors` value is used, falling back to `256` for older
+#'   objects.
 #' @param legend_title Optional legend title stored on the returned object.
 #'
 #' @return A `"rateMap"` object with updated tree maps, color palette,
@@ -470,6 +503,11 @@
 #'   plotted branch values and is recomputed whenever the view changes. Rate
 #'   diagnostic flags are recomputed for rate-valued views (`"value"`, `"mean"`,
 #'   or `"median"`) and preserved as metadata for non-rate views such as `"sd"`.
+#'   When preserved for a non-rate view, `rate_flag_source` identifies the
+#'   rate-valued column that the flags classify; the flags do not classify the
+#'   displayed uncertainty value. The selected `value` column must contain at
+#'   least one finite value; uncertainty columns such as `"sd"` may be all `NA`
+#'   for single-fit objects.
 #'
 #' @examples
 #' \dontrun{
@@ -848,7 +886,11 @@ rateMapView <- function(x,
 #' special categories do not consume positions in the ordered palette used for
 #' regular rate bins. When special categories are present, the category legend
 #' spans the full plotted value range and marks the diagnostic cutoff separating
-#' special and regular bins.
+#' special and regular bins. When plotting non-rate columns such as `"sd"`,
+#' diagnostic columns are preserved only as metadata with `rate_flag_source`
+#' provenance; special rate categories are not drawn for those non-rate values.
+#' The selected `value` column must contain at least one finite value;
+#' uncertainty columns such as `"sd"` may be all `NA` for single-fit objects.
 #'
 #' @param x An object of class `"rateMap"` returned by [rateMap()] or
 #'   [rateMapView()].
@@ -862,7 +904,8 @@ rateMapView <- function(x,
 #' @param reverse_palette Optional logical override for palette reversal used
 #'   for this plot.
 #' @param ncolors Optional number of colors to use when recoloring this plot
-#'   with `color_mode = "continuous"`.
+#'   with `color_mode = "continuous"`. If omitted, the stored `x$ncolors` value
+#'   is used, falling back to `256` for older objects.
 #' @param color_mode Optional color-mode override. Use `"continuous"` for a
 #'   numeric color ramp or `"category"` for ordered discrete rate categories.
 #'   If `NULL`, the stored mode in `x` is used. Category mode draws one color
@@ -948,6 +991,14 @@ rateMapView <- function(x,
 #' @return Invisibly returns the plotted `"rateMap"` object.
 #'
 #' @seealso [rateMap()], [phytools::densityMap()], [phytools::plotSimmap()]
+#'
+#' @references
+#' Revell, L. J. (2013). Two new graphical methods for mapping trait evolution
+#' on phylogenies. *Methods in Ecology and Evolution*, 4, 754-759.
+#'
+#' Revell, L. J. (2024). phytools 2.0: an updated R ecosystem for phylogenetic
+#' comparative methods (and other things). *PeerJ*, 12, e16505.
+#' \doi{10.7717/peerj.16505}
 #'
 #' @examples
 #' \dontrun{
@@ -1078,14 +1129,15 @@ print.rateMap <- function(x, ...) {
   }
 
   if (!is.null(x$rate_diagnostics) &&
-      isTRUE(x$rate_diagnostics$enabled) &&
-      (x$rate_diagnostics$n_near_zero > 0L || x$rate_diagnostics$n_high_outlier > 0L)) {
+      isTRUE(x$rate_diagnostics$enabled)) {
     cat(
       "- rate flags: ",
       x$rate_diagnostics$n_near_zero,
       " near-zero, ",
       x$rate_diagnostics$n_high_outlier,
-      " high-outlier\n",
+      " high-outlier (method: ",
+      x$rate_diagnostics$method,
+      ")\n",
       sep = ""
     )
     if (!is.na(x$rate_diagnostics$zero_floor)) {

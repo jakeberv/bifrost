@@ -5,7 +5,7 @@
 \title{Control Near-Zero and Tail Rate Diagnostics for \code{rateMap()}}
 \usage{
 rateMapRateFlags(
-  near_zero = TRUE,
+  near_zero = NULL,
   high_outlier = FALSE,
   method = NULL,
   zero_floor = NULL,
@@ -21,7 +21,9 @@ rateMapRateFlags(
 )
 }
 \arguments{
-\item{near_zero}{Logical; if \code{TRUE}, flag lower-tail or floor-level rates.}
+\item{near_zero}{Logical or \code{NULL}. If \code{TRUE}, flag lower-tail or floor-level
+rates. The default \code{NULL} resolves to \code{FALSE} for \code{method = "none"} and
+\code{TRUE} for \code{method = "floor"} or \code{method = "tail_cluster"}.}
 
 \item{high_outlier}{Logical; if \code{TRUE}, flag isolated upper-tail rates.}
 
@@ -30,7 +32,10 @@ rateMapRateFlags(
 \code{zero_floor} for near-zero rates. \code{"tail_cluster"} uses an Otsu-style
 guarded two-class split of log rates to identify a separated lower-tail
 cluster, and, when \code{high_outlier = TRUE}, a separated upper-tail cluster.
-\code{"none"} computes diagnostics without adding special rate flags.}
+\code{"none"} computes diagnostics without adding special rate flags. Inactive
+switches are normalized to \code{FALSE}: \code{method = "none"} sets \code{near_zero} and
+\code{high_outlier} to \code{FALSE}, and \code{method = "floor"} sets \code{high_outlier} to
+\code{FALSE}.}
 
 \item{zero_floor}{Optional non-negative rate floor. When supplied with
 \code{method = NULL}, the method resolves to \code{"floor"}. Finite rates less than
@@ -57,7 +62,8 @@ regular rate set after separating a cluster-defined tail.}
 category mode.}
 }
 \value{
-A \code{"rateMap_rate_flags"} object for \code{rateMapControl(rate_flags = )}.
+A normalized \code{"rateMap_rate_flags"} object for
+\code{rateMapControl(rate_flags = )}.
 }
 \description{
 Build a rate-flagging control object for \code{\link[=rateMapControl]{rateMapControl()}}. These options
@@ -65,6 +71,13 @@ identify branch-rate summaries that are effectively zero, or optionally in a
 separated high-rate tail, without deleting or changing the fitted rates. Flags
 are reported in the returned \code{intervals} table and summarized in
 \code{rate_diagnostics}.
+}
+\details{
+The \code{"tail_cluster"} method is an Otsu-style diagnostic adapted to sorted
+branch log rates. It evaluates two-class splits and keeps a tail only when
+guardrails for log-rate gap size, fold-range reduction, tail fraction, and
+minimum counts are all satisfied. It is display metadata, not data deletion,
+model correction, or formal threshold selection.
 }
 \examples{
 \dontrun{

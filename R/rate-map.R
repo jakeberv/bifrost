@@ -73,11 +73,7 @@
 
 .rateMap_extract_tree <- function(fit) {
   if (.rateMap_is_bifrost_search(fit)) {
-    tree <- fit$tree_no_uncertainty_untransformed
-    if (is.null(tree)) {
-      tree <- fit$tree_no_uncertainty_transformed
-    }
-    return(tree)
+    return(fit$tree_no_uncertainty_untransformed)
   }
 
   if (inherits(fit, "mvgls")) {
@@ -154,10 +150,10 @@
     return(paste0("Fit ", index, " contains non-finite rate parameters."))
   }
 
-  if (isTRUE(log) && !all(param > 0)) {
+  if (!all(param > 0)) {
     return(paste0(
       "Fit ", index,
-      " contains non-positive rate parameters and cannot be log-transformed."
+      " contains non-positive rate parameters; fitted rates must be strictly positive."
     ))
   }
 
@@ -1402,14 +1398,19 @@
 #' are reported in the returned `intervals` table and summarized in
 #' `rate_diagnostics`.
 #'
-#' @param near_zero Logical; if `TRUE`, flag lower-tail or floor-level rates.
+#' @param near_zero Logical or `NULL`. If `TRUE`, flag lower-tail or floor-level
+#'   rates. The default `NULL` resolves to `FALSE` for `method = "none"` and
+#'   `TRUE` for `method = "floor"` or `method = "tail_cluster"`.
 #' @param high_outlier Logical; if `TRUE`, flag isolated upper-tail rates.
 #' @param method Optional detection method. `NULL` chooses `"floor"` when
 #'   `zero_floor` is supplied and `"none"` otherwise. `"floor"` uses
 #'   `zero_floor` for near-zero rates. `"tail_cluster"` uses an Otsu-style
 #'   guarded two-class split of log rates to identify a separated lower-tail
 #'   cluster, and, when `high_outlier = TRUE`, a separated upper-tail cluster.
-#'   `"none"` computes diagnostics without adding special rate flags.
+#'   `"none"` computes diagnostics without adding special rate flags. Inactive
+#'   switches are normalized to `FALSE`: `method = "none"` sets `near_zero` and
+#'   `high_outlier` to `FALSE`, and `method = "floor"` sets `high_outlier` to
+#'   `FALSE`.
 #' @param zero_floor Optional non-negative rate floor. When supplied with
 #'   `method = NULL`, the method resolves to `"floor"`. Finite rates less than
 #'   or equal to this value are flagged as near-zero.
@@ -1427,7 +1428,15 @@
 #' @param zero_color,high_color Colors used for flagged display categories in
 #'   category mode.
 #'
-#' @return A `"rateMap_rate_flags"` object for `rateMapControl(rate_flags = )`.
+#' @details
+#' The `"tail_cluster"` method is an Otsu-style diagnostic adapted to sorted
+#' branch log rates. It evaluates two-class splits and keeps a tail only when
+#' guardrails for log-rate gap size, fold-range reduction, tail fraction, and
+#' minimum counts are all satisfied. It is display metadata, not data deletion,
+#' model correction, or formal threshold selection.
+#'
+#' @return A normalized `"rateMap_rate_flags"` object for
+#'   `rateMapControl(rate_flags = )`.
 #'
 #' @examples
 #' \dontrun{
@@ -1448,7 +1457,7 @@
 #' \doi{10.1109/TSMC.1979.4310076}
 #'
 #' @export
-rateMapRateFlags <- function(near_zero = TRUE,
+rateMapRateFlags <- function(near_zero = NULL,
                              high_outlier = FALSE,
                              method = NULL,
                              zero_floor = NULL,
@@ -1461,8 +1470,9 @@ rateMapRateFlags <- function(near_zero = TRUE,
                              high_label = "high-outlier",
                              zero_color = "grey70",
                              high_color = "black") {
-  if (!is.logical(near_zero) || length(near_zero) != 1L || is.na(near_zero)) {
-    stop("'near_zero' must be TRUE or FALSE.")
+  if (!is.null(near_zero) &&
+      (!is.logical(near_zero) || length(near_zero) != 1L || is.na(near_zero))) {
+    stop("'near_zero' must be NULL, TRUE, or FALSE.")
   }
   if (!is.logical(high_outlier) || length(high_outlier) != 1L || is.na(high_outlier)) {
     stop("'high_outlier' must be TRUE or FALSE.")
@@ -1485,6 +1495,15 @@ rateMapRateFlags <- function(near_zero = TRUE,
   }
   if (!identical(method, "floor") && !is.null(zero_floor)) {
     stop("'zero_floor' can only be used with method = 'floor'.")
+  }
+  if (is.null(near_zero)) {
+    near_zero <- !identical(method, "none")
+  }
+  if (identical(method, "none")) {
+    near_zero <- FALSE
+    high_outlier <- FALSE
+  } else if (identical(method, "floor")) {
+    high_outlier <- FALSE
   }
   if (!is.numeric(cluster_min_log_gap) || length(cluster_min_log_gap) != 1L ||
       !is.finite(cluster_min_log_gap) || cluster_min_log_gap <= 0) {
@@ -1570,6 +1589,9 @@ rateMapRateFlags <- function(near_zero = TRUE,
     stop("Unsupported rateMapRateFlags option(s): ", paste(unknown, collapse = ", "), ".")
   }
   defaults[rate_flag_names] <- unclass(rate_flags)[rate_flag_names]
+  if (!("near_zero" %in% rate_flag_names)) {
+    defaults$near_zero <- NULL
+  }
   if (!("method" %in% rate_flag_names) &&
       ("zero_floor" %in% rate_flag_names) &&
       !is.null(rate_flags$zero_floor)) {
@@ -1700,10 +1722,7 @@ rateMapControl <- function(res = 100,
 }
 
 .rateMap_normalize_control <- function(control) {
-  if (is.null(control)) {
-    control <- list()
-  }
-  if (!is.list(control)) {
+  if (is.null(control) || !is.list(control)) {
     stop("'control' must be created by rateMapControl() or be a named list.")
   }
 
@@ -2292,6 +2311,7 @@ rateMapControl <- function(res = 100,
         idx <- seq_len(nrow(base_row)) + sum(vapply(interval_lengths[seq_len(i - 1L)], length, integer(1)))
         base_row$rate_for_flagging <- rate_flag_info$rate_for_flagging[idx]
         base_row$rate_flag <- rate_flag_info$rate_flag[idx]
+        base_row$rate_flag_source <- "value"
         base_row$is_near_zero <- base_row$rate_flag == rate_flags$zero_label
         base_row$is_high_outlier <- base_row$rate_flag == rate_flags$high_label
       }
@@ -2344,6 +2364,7 @@ rateMapControl <- function(res = 100,
     highest_density_interval_prob = highest_density_interval_prob,
     rate_diagnostics = rate_flag_info$diagnostics,
     rate_flags = rate_flags,
+    rate_flag_source = if (isTRUE(rate_flag_info$diagnostics$enabled)) "value" else NA_character_,
     plot_value = "value",
     target = target_mode,
     check = check_mode,
@@ -2352,6 +2373,7 @@ rateMapControl <- function(res = 100,
     weight_table = weight_table,
     palette = palette,
     reverse_palette = reverse_palette,
+    ncolors = as.integer(ncolors),
     color_mode = color_mode,
     n_categories = n_categories,
     category_breaks = color_map$category_breaks,
@@ -2430,7 +2452,9 @@ rateMapControl <- function(res = 100,
 #' `sum(w_i * log(rate_i))`, which is the log of a weighted geometric mean. It
 #' is not `log(sum(w_i * rate_i))`, the log of a weighted arithmetic mean. Use
 #' `log = FALSE` when downstream interpretation requires arithmetic summaries on
-#' the original rate scale.
+#' the original rate scale. Raw fitted rate parameters must be strictly positive
+#' in either mode. Negative plotted values are therefore valid in log-rate maps
+#' whenever the positive raw fitted rates are less than one.
 #'
 #' **Tree checks and targets.** In [rateMapControl()], `check = TRUE` is
 #' equivalent to `check = "full"` and requires topology and branch lengths to
@@ -2458,7 +2482,10 @@ rateMapControl <- function(res = 100,
 #' each retained fit's `optimal_ic`, requiring all retained fits to share the
 #' same non-missing `IC_used`. A numeric `weights` vector can be supplied for
 #' custom weighting. Weights are subset to retained fits after
-#' `rateMapControl(na_action = "omit")` and are normalized to sum to one.
+#' `rateMapControl(na_action = "omit")` and are normalized to sum to one. IC
+#' weights are descriptive fit-level weights for comparable retained searches;
+#' they do not choose a formal threshold or make incomparable searches
+#' comparable.
 #'
 #' **Uncertainty summaries.** The returned `intervals` data frame is the plotted
 #' summary table. With `summary = "branch"`, it has one row per branch. With
@@ -2469,16 +2496,18 @@ rateMapControl <- function(res = 100,
 #' interval widths, coefficient of variation, and the number of finite run-level
 #' values. The run-level values are also returned in `run_values` as one matrix
 #' per edge.
-#' These are weighted empirical summaries of run-level values. For posterior
-#' tree samples, use `weights = "equal"` if each retained run represents one
-#' posterior draw. `value_summary` controls whether the plotted `value` column
-#' uses the weighted mean or weighted median. These summaries are computed on
-#' the log-rate scale when `log = TRUE`. Highest-density intervals use the same
-#' shortest empirical interval calculation for both equal and unequal fit
-#' weights. For `weights = "equal"`, `sd` is the ordinary sample standard
-#' deviation of retained run-level values. For unequal weights, `sd` is the
-#' square root of the normalized weighted variance, `sum(w * (x - mu)^2)`, with
-#' weights normalized to sum to one.
+#' These are weighted empirical summaries of run-level values, not posterior
+#' uncertainty or model-internal uncertainty unless the retained inputs
+#' themselves have that interpretation. For posterior tree samples, use
+#' `weights = "equal"` if each retained run represents one posterior draw.
+#' `value_summary` controls whether the plotted `value` column uses the weighted
+#' mean or weighted median. These summaries are computed on the log-rate scale
+#' when `log = TRUE`. Highest-density intervals use the same shortest empirical
+#' interval calculation for both equal and unequal fit weights. For
+#' `weights = "equal"`, `sd` is the ordinary sample standard deviation of
+#' retained run-level values. For unequal weights, `sd` is the square root of the
+#' normalized weighted variance, `sum(w * (x - mu)^2)`, with weights normalized
+#' to sum to one.
 #'
 #' **Display views.** Returned objects include a default category-style display
 #' mapping so they can be plotted immediately. Palette, category-bin, legend
@@ -2498,19 +2527,21 @@ rateMapControl <- function(res = 100,
 #' **Rate diagnostics.** Branch-summary maps compute rate diagnostics through
 #' `rateMapControl(rate_flags = rateMapRateFlags())`. The default
 #' `rateMapRateFlags()` setting records the fitted-rate range and fold range but
-#' applies no special near-zero rule. Supplying `zero_floor`, equivalently
+#' applies no special near-zero or high-outlier rule. Supplying `zero_floor`, equivalently
 #' `rateMapRateFlags(method = "floor", zero_floor = ...)`, flags finite rates at
 #' or below an explicit manual floor. Use `rateMapRateFlags(method =
 #' "tail_cluster")` to apply a deterministic, Otsu-style guarded two-class split
-#' on log rates when the near-zero values form a broader separated lower-tail
-#' cluster rather than one extreme adjacent gap. These flags never remove
-#' branches and never alter `intervals$value`; they add `rate_flag` metadata,
-#' object-level `rate_diagnostics`, and, in category display mode, special
-#' display categories such as `"near-zero"`. Special categories are colored
-#' outside the ordered palette, so the remaining regular categories still use
-#' the full low-to-high palette range. In category legends, diagnostic cutoffs
-#' mark where special categories end and regular bins begin. Set `rate_flags =
-#' NULL` to turn off rate-flag metadata and diagnostics entirely.
+#' on sorted log rates when the near-zero values form a broader separated
+#' lower-tail cluster rather than one extreme adjacent gap. The split is kept
+#' only when gap, fold-reduction, tail-fraction, and minimum-count guardrails are
+#' satisfied. These flags never remove branches and never alter
+#' `intervals$value`; they add `rate_flag` metadata, `rate_flag_source`
+#' provenance, object-level `rate_diagnostics`, and, in category display mode,
+#' special display categories such as `"near-zero"`. Special categories are
+#' colored outside the ordered palette, so the remaining regular categories
+#' still use the full low-to-high palette range. In category legends, diagnostic
+#' cutoffs mark where special categories end and regular bins begin. Set
+#' `rate_flags = NULL` to turn off rate-flag metadata and diagnostics entirely.
 #'
 #' @param fits A completed run, fitted model object, or non-empty list of these
 #'   objects. Supported shapes are `bifrost_search` objects, `mvgls` objects,
@@ -2563,7 +2594,7 @@ rateMapControl <- function(res = 100,
 #'   has one row per branch. With `summary = "interval"`, this has one row per
 #'   plotted depth-grid interval. When branch-level rate diagnostics are
 #'   enabled, this table also includes `rate_for_flagging`, `rate_flag`,
-#'   `is_near_zero`, and `is_high_outlier`.}
+#'   `rate_flag_source`, `is_near_zero`, and `is_high_outlier`.}
 #'   \item{`rate_categories`}{Data frame describing discrete rate categories
 #'   when `color_mode = "category"`; otherwise `NULL`. With `summary =
 #'   "branch"`, this table also includes bin-level summaries of the plotted
@@ -2588,6 +2619,9 @@ rateMapControl <- function(res = 100,
 #'   branches.}
 #'   \item{`rate_flags`}{The normalized `"rateMap_rate_flags"` control object
 #'   used for rate diagnostics.}
+#'   \item{`rate_flag_source`}{Character name of the rate-valued column used to
+#'   compute or preserve `rate_flag` metadata, or `NA` when diagnostics are
+#'   disabled.}
 #'   \item{`plot_value`}{Current interval column mapped to branch colors.}
 #'   \item{`target`}{Target-tree selection mode used.}
 #'   \item{`check`}{Tree compatibility check mode used.}
@@ -2599,6 +2633,8 @@ rateMapControl <- function(res = 100,
 #'   \item{`palette`}{Original palette specification.}
 #'   \item{`reverse_palette`}{Logical indicating whether the palette was
 #'   reversed.}
+#'   \item{`ncolors`}{Stored continuous-ramp resolution used when recoloring
+#'   with `color_mode = "continuous"` and no explicit `ncolors`.}
 #'   \item{`color_mode`}{Coloring mode used for the current tree.}
 #'   \item{`n_categories`}{Category count target used when
 #'   `color_mode = "category"`.}
@@ -2615,6 +2651,23 @@ rateMapControl <- function(res = 100,
 #'
 #' @seealso [plot.rateMap()], [rateMapView()], [rateMapControl()],
 #'   [phytools::densityMap()], [phytools::plotSimmap()]
+#'
+#' @references
+#' Paradis, E., and Schliep, K. (2019). ape 5.0: an environment for modern
+#' phylogenetics and evolutionary analyses in R. *Bioinformatics*, 35, 526-528.
+#' \doi{10.1093/bioinformatics/bty633}
+#'
+#' Clavel, J., Aristide, L., and Morlon, H. (2019). A penalized likelihood
+#' framework for high-dimensional phylogenetic comparative methods and an
+#' application to new-world monkeys brain evolution. *Systematic Biology*, 68,
+#' 93-116. \doi{10.1093/sysbio/syy045}
+#'
+#' Revell, L. J. (2013). Two new graphical methods for mapping trait evolution
+#' on phylogenies. *Methods in Ecology and Evolution*, 4, 754-759.
+#'
+#' Revell, L. J. (2024). phytools 2.0: an updated R ecosystem for phylogenetic
+#' comparative methods (and other things). *PeerJ*, 12, e16505.
+#' \doi{10.7717/peerj.16505}
 #'
 #' @examples
 #' \dontrun{
