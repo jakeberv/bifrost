@@ -11,6 +11,7 @@ rateMapControl(
   tree_fun = NULL,
   param_fun = NULL,
   na_action = c("error", "omit"),
+  rate_flags = rateMapRateFlags(),
   quantile_probs = c(0.025, 0.975),
   highest_density_interval_prob = 0.95,
   future_strategy = c("multisession", "multicore"),
@@ -45,6 +46,10 @@ state-specific fitted rates from each element of \code{fits}. If \code{NULL}, co
 
 \item{na_action}{What to do when a run has invalid parameters. \code{"error"}
 stops immediately. \code{"omit"} drops invalid runs before aggregation.}
+
+\item{rate_flags}{A \code{"rateMap_rate_flags"} object from \code{\link[=rateMapRateFlags]{rateMapRateFlags()}},
+or a named list of rate-flagging options. Use \code{NULL} to disable rate
+diagnostics.}
 
 \item{quantile_probs}{Numeric length-2 vector of quantile probabilities to
 report when \code{uncertainty = TRUE}.}

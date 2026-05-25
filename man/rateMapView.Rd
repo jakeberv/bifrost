@@ -48,7 +48,11 @@ discrete ordered bins or \code{"continuous"} for a continuous ramp.}
 }
 \value{
 A \code{"rateMap"} object with updated tree maps, color palette,
-\code{intervals$value}, \code{rate_categories}, and legend title.
+\code{intervals$value}, \code{rate_categories}, and legend title. For branch-summary
+category views, \code{rate_categories} includes bin-level summaries of the
+plotted branch values and is recomputed whenever the view changes. Rate
+diagnostic flags are recomputed for rate-valued views (\code{"value"}, \code{"mean"},
+or \code{"median"}) and preserved as metadata for non-rate views such as \code{"sd"}.
 }
 \description{
 Recompute the display mapping for a computed \code{"rateMap"} object without

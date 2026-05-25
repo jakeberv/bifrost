@@ -1,0 +1,61 @@
+img, .figure img, .figure > p > img {
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: none !important;
+  background: transparent !important;
+}
+.figure p.caption,
+table caption,
+.rate-map-table-caption-full {
+  background-color: #f6f6f6;
+  margin: 0.5em 0;
+  padding: 0.25em 0.75em;
+  text-align: left;
+  font-family: inherit;
+  font-size: 1rem;
+  line-height: 1.45;
+  font-weight: normal;
+}
+table caption {
+  caption-side: bottom;
+  color: #111111;
+}
+.rate-map-table-caption-full {
+  box-sizing: border-box;
+  width: 100%;
+  color: #111111;
+}
+.figure p.caption strong,
+table caption strong,
+.rate-map-table-caption-full strong {
+  font-weight: 700;
+}
+.rate-map-table-spacer {
+  height: 0.6rem;
+}
+.rate-map-table-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+  margin: 0.75em 0;
+}
+.rate-map-table-grid.rate-map-table-grid-wide-left {
+  grid-template-columns: minmax(0, 1.35fr) minmax(16rem, 0.65fr);
+}
+.rate-map-table-grid > div {
+  min-width: 0;
+  overflow-x: auto;
+}
+.rate-map-table-grid table {
+  width: 100%;
+  font-size: 0.9rem;
+}
+@media (max-width: 760px) {
+  .rate-map-table-grid {
+    grid-template-columns: 1fr;
+  }
+  .rate-map-table-grid.rate-map-table-grid-wide-left {
+    grid-template-columns: 1fr;
+  }
+}

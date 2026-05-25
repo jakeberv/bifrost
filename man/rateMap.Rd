@@ -78,9 +78,13 @@ mode, or category boundaries/values in category mode.}
 binning.}
 \item{\code{intervals}}{Plotted summary table. With \code{summary = "branch"}, this
 has one row per branch. With \code{summary = "interval"}, this has one row per
-plotted depth-grid interval.}
+plotted depth-grid interval. When branch-level rate diagnostics are
+enabled, this table also includes \code{rate_for_flagging}, \code{rate_flag},
+\code{is_near_zero}, and \code{is_high_outlier}.}
 \item{\code{rate_categories}}{Data frame describing discrete rate categories
-when \code{color_mode = "category"}; otherwise \code{NULL}.}
+when \code{color_mode = "category"}; otherwise \code{NULL}. With \code{summary = "branch"}, this table also includes bin-level summaries of the plotted
+branch values, including \code{n_branches}, \code{value_mean}, \code{value_median},
+\code{value_min}, \code{value_max}, \code{value_sd}, and \code{total_branch_length}.}
 \item{\code{run_values}}{When \code{uncertainty = TRUE}, list of numeric matrices
 containing run-level values for each edge. Matrix rows match the plotted
 rows for that edge and columns are retained fits. Otherwise \code{NULL}.}
@@ -95,6 +99,11 @@ column \code{intervals$value}.}
 \item{\code{quantile_probs}}{Quantile probabilities used for uncertainty
 summaries.}
 \item{\code{highest_density_interval_prob}}{Highest-density interval mass used for uncertainty summaries.}
+\item{\code{rate_diagnostics}}{List summarizing rate-flag settings, counts,
+detected tail cutoffs, and fold-rate ranges with and without flagged
+branches.}
+\item{\code{rate_flags}}{The normalized \code{"rateMap_rate_flags"} control object
+used for rate diagnostics.}
 \item{\code{plot_value}}{Current interval column mapped to branch colors.}
 \item{\code{target}}{Target-tree selection mode used.}
 \item{\code{check}}{Tree compatibility check mode used.}
@@ -239,7 +248,27 @@ title, and alternative-value choices are intentionally controlled by
 search with \code{log = FALSE}, category display is the closest formal analogue to
 the illustrative \code{generateViridisColorScale()} plot. For multi-run summaries,
 displayed categories are bins for summarized branch values; they should not be
-read as newly inferred \code{bifrost} regimes.
+read as newly inferred \code{bifrost} regimes. When \code{summary = "branch"} and
+\code{color_mode = "category"}, the \code{rate_categories} table also reports
+branch-level summaries for the plotted values assigned to each bin. These
+summaries are recomputed by \code{\link[=rateMapView]{rateMapView()}} or \code{plot()} whenever the plotted
+value or category breaks change. They are not computed for \code{summary = "interval"} because interval rows depend on the plotting grid rather than on
+discrete biological branch units.
+
+\strong{Rate diagnostics.} Branch-summary maps compute rate diagnostics through
+\code{rateMapControl(rate_flags = rateMapRateFlags())}. The default
+\code{rateMapRateFlags()} setting records the fitted-rate range and fold range but
+applies no special near-zero rule. Supplying \code{zero_floor}, equivalently
+\code{rateMapRateFlags(method = "floor", zero_floor = ...)}, flags finite rates at
+or below an explicit manual floor. Use \code{rateMapRateFlags(method = "tail_cluster")} to apply a deterministic, Otsu-style guarded two-class split
+on log rates when the near-zero values form a broader separated lower-tail
+cluster rather than one extreme adjacent gap. These flags never remove
+branches and never alter \code{intervals$value}; they add \code{rate_flag} metadata,
+object-level \code{rate_diagnostics}, and, in category display mode, special
+display categories such as \code{"near-zero"}. Special categories are colored
+outside the ordered palette, so the remaining regular categories still use
+the full low-to-high palette range. In category legends, diagnostic cutoffs
+mark where special categories end and regular bins begin. Set \code{rate_flags = NULL} to turn off rate-flag metadata and diagnostics entirely.
 }
 \examples{
 \dontrun{

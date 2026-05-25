@@ -19,6 +19,9 @@
   if (is.null(categories) || nrow(categories) == 0L) {
     return(x$lims)
   }
+  if (isTRUE(.rateMap_has_special_categories(x))) {
+    return(x$lims)
+  }
 
   if (all(c("lower", "upper") %in% names(categories))) {
     bounds <- c(categories$lower, categories$upper)
@@ -44,6 +47,55 @@
   x$lims
 }
 
+.rateMap_has_special_categories <- function(x) {
+  categories <- x$rate_categories
+  flags <- x$rate_flags
+  labels <- if (is.null(categories)) character() else categories$rate_category
+  any(labels %in% c(flags$zero_label, flags$high_label))
+}
+
+.rateMap_rate_marker_to_value <- function(rate, log) {
+  if (!is.numeric(rate) || length(rate) != 1L || !is.finite(rate)) {
+    return(NA_real_)
+  }
+  if (isTRUE(log)) {
+    if (rate <= 0) {
+      return(NA_real_)
+    }
+    return(base::log(rate))
+  }
+  rate
+}
+
+.rateMap_category_marker_values <- function(x) {
+  categories <- x$rate_categories
+  flags <- x$rate_flags
+  diagnostics <- x$rate_diagnostics
+  if (is.null(categories) || is.null(flags) || is.null(diagnostics)) {
+    return(numeric())
+  }
+
+  markers <- numeric()
+  labels <- categories$rate_category
+  if (flags$zero_label %in% labels) {
+    marker <- .rateMap_rate_marker_to_value(diagnostics$zero_floor, x$log)
+    if (!is.finite(marker)) {
+      marker <- .rateMap_rate_marker_to_value(diagnostics$zero_cluster_cutoff_rate, x$log)
+    }
+    if (is.finite(marker)) {
+      markers[flags$zero_label] <- marker
+    }
+  }
+  if (flags$high_label %in% labels) {
+    marker <- .rateMap_rate_marker_to_value(diagnostics$high_cluster_cutoff_rate, x$log)
+    if (is.finite(marker)) {
+      markers[flags$high_label] <- marker
+    }
+  }
+
+  markers
+}
+
 .rateMap_add_category_legend <- function(x,
                                          legend,
                                          x_pos,
@@ -58,16 +110,7 @@
     return(invisible(NULL))
   }
 
-  bar_cols <- x$cols
-  if (length(bar_cols) == 1L) {
-    bar_cols <- rep(bar_cols, 2L)
-  }
-
   lims <- .rateMap_category_lims(x)
-  if (identical(direction, "leftwards")) {
-    bar_cols <- rev(bar_cols)
-    lims <- rev(lims)
-  }
 
   op <- graphics::par(xpd = NA)
   on.exit(graphics::par(op), add = TRUE)
@@ -82,26 +125,97 @@
   x1 <- x_pos + legend
   y0 <- y_pos
   y1 <- y_pos + bar_height
-  xs <- seq(x0, x1, length.out = length(bar_cols) + 1L)
+  markers <- .rateMap_category_marker_values(x)
+  draw_special_scale <- isTRUE(.rateMap_has_special_categories(x)) &&
+    length(markers) > 0L &&
+    is.finite(diff(x$lims)) &&
+    diff(x$lims) > 0
 
-  graphics::rect(
-    xs[-length(xs)],
-    y0,
-    xs[-1L],
-    y1,
-    col = unname(bar_cols),
-    border = NA
-  )
+  if (isTRUE(draw_special_scale)) {
+    full_lims <- x$lims
+    markers <- pmin(pmax(markers, full_lims[1L]), full_lims[2L])
+    value_to_x <- function(value) {
+      frac <- (value - full_lims[1L]) / diff(full_lims)
+      if (identical(direction, "leftwards")) {
+        x1 - frac * legend
+      } else {
+        x0 + frac * legend
+      }
+    }
+    rect_by_value <- function(left, right, col) {
+      xs <- sort(c(value_to_x(left), value_to_x(right)))
+      graphics::rect(xs[1L], y0, xs[2L], y1, col = col, border = NA)
+    }
+
+    flags <- x$rate_flags
+    labels <- categories$rate_category
+    regular <- !labels %in% c(flags$zero_label, flags$high_label)
+    regular_cols <- categories$color[regular]
+    zero_marker <- markers[flags$zero_label]
+    high_marker <- markers[flags$high_label]
+    regular_min <- if (is.finite(zero_marker)) zero_marker else full_lims[1L]
+    regular_max <- if (is.finite(high_marker)) high_marker else full_lims[2L]
+
+    if (is.finite(zero_marker)) {
+      rect_by_value(full_lims[1L], zero_marker, flags$zero_color)
+    }
+    if (length(regular_cols) > 0L && regular_max > regular_min) {
+      regular_x <- c(value_to_x(regular_min), value_to_x(regular_max))
+      draw_cols <- if (regular_x[1L] <= regular_x[2L]) regular_cols else rev(regular_cols)
+      xs <- seq(min(regular_x), max(regular_x), length.out = length(draw_cols) + 1L)
+      graphics::rect(
+        xs[-length(xs)],
+        y0,
+        xs[-1L],
+        y1,
+        col = unname(draw_cols),
+        border = NA
+      )
+    }
+    if (is.finite(high_marker)) {
+      rect_by_value(high_marker, full_lims[2L], flags$high_color)
+    }
+
+    label_values <- unique(c(full_lims[1L], unname(markers), full_lims[2L]))
+    label_values <- label_values[is.finite(label_values)]
+    tick_x <- value_to_x(label_values)
+    graphics::segments(tick_x, y0, tick_x, y1, col = "grey20", lwd = 0.5)
+    graphics::text(
+      tick_x,
+      rep(y1 + label_gap, length(tick_x)),
+      labels = formatC(label_values, digits = digits, format = "fg"),
+      cex = fsize,
+      adj = c(0.5, 0.5)
+    )
+  } else {
+    bar_cols <- x$cols
+    if (length(bar_cols) == 1L) {
+      bar_cols <- rep(bar_cols, 2L)
+    }
+    if (identical(direction, "leftwards")) {
+      bar_cols <- rev(bar_cols)
+      lims <- rev(lims)
+    }
+    xs <- seq(x0, x1, length.out = length(bar_cols) + 1L)
+    graphics::rect(
+      xs[-length(xs)],
+      y0,
+      xs[-1L],
+      y1,
+      col = unname(bar_cols),
+      border = NA
+    )
+    graphics::text(
+      c(x0, x1),
+      rep(y1 + label_gap, 2L),
+      labels = formatC(lims, digits = digits, format = "fg"),
+      cex = fsize,
+      adj = c(0.5, 0.5)
+    )
+  }
   if (isTRUE(outline)) {
     graphics::rect(x0, y0, x1, y1, border = "grey30")
   }
-  graphics::text(
-    c(x0, x1),
-    rep(y1 + label_gap, 2L),
-    labels = formatC(lims, digits = digits, format = "fg"),
-    cex = fsize,
-    adj = c(0.5, 0.5)
-  )
   graphics::text(
     mean(c(x0, x1)),
     y1 + title_gap,
@@ -168,6 +282,7 @@
     seq_along(x$tree$maps),
     function(i) x$intervals[[value]][x$intervals$edge == i]
   )
+  rate_value <- value %in% c("value", "mean", "median")
 
   selected_palette <- if (is.null(palette)) x$palette else palette
   selected_reverse <- if (is.null(reverse_palette)) {
@@ -176,12 +291,12 @@
     reverse_palette
   }
   selected_color_mode <- if (is.null(color_mode)) {
-    if (is.null(x$color_mode)) "continuous" else x$color_mode
+    x$color_mode
   } else {
     match.arg(color_mode, c("continuous", "category"))
   }
   selected_n_categories <- if (is.null(n_categories)) {
-    if (is.null(x$n_categories)) 6L else x$n_categories
+    x$n_categories
   } else {
     .rateMap_validate_n_categories(n_categories)
   }
@@ -194,11 +309,11 @@
     as.integer(ncolors)
   }
   selected_category_bin_method <- if (is.null(category_bin_method)) {
-    if (is.null(x$category_bin_method)) "pretty" else x$category_bin_method
+    x$category_bin_method
   } else {
     match.arg(category_bin_method, c("pretty", "equal"))
   }
-  current_plot_value <- if (is.null(x$plot_value)) "value" else x$plot_value
+  current_plot_value <- x$plot_value
   reuse_categories <- is.null(color_mode) &&
     identical(selected_color_mode, "category") &&
     identical(value, current_plot_value)
@@ -230,6 +345,23 @@
   } else {
     max(length(x$cols), 2L)
   }
+  rate_flag_info <- if (isTRUE(rate_value)) {
+    .rateMap_compute_rate_flags(
+      values_by_edge = vals,
+      summary = x$summary,
+      log = x$log,
+      rate_flags = x$rate_flags
+    )
+  } else {
+    NULL
+  }
+  display_flags <- if (identical(selected_color_mode, "category") &&
+                       !is.null(rate_flag_info) &&
+                       isTRUE(rate_flag_info$diagnostics$enabled)) {
+    rate_flag_info$flags_by_edge
+  } else {
+    NULL
+  }
   color_map <- .rateMap_build_color_map(
     values_by_edge = vals,
     ncolors = ncolors,
@@ -239,7 +371,14 @@
     n_categories = selected_n_categories,
     category_breaks = selected_category_breaks,
     category_labels = selected_category_labels,
-    category_bin_method = selected_category_bin_method
+    category_bin_method = selected_category_bin_method,
+    display_flags_by_edge = display_flags,
+    special_categories = list(
+      zero_label = x$rate_flags$zero_label,
+      high_label = x$rate_flags$high_label,
+      zero_color = x$rate_flags$zero_color,
+      high_color = x$rate_flags$high_color
+    )
   )
 
   for (i in seq_along(x$tree$maps)) {
@@ -253,12 +392,25 @@
   x$breaks <- color_map$breaks
   x$intervals$value <- x$intervals[[value]]
   x$intervals$color_bin <- unlist(color_map$bins_by_edge, use.names = FALSE)
+  if (!is.null(rate_flag_info) && isTRUE(rate_flag_info$diagnostics$enabled)) {
+    x$intervals$rate_for_flagging <- rate_flag_info$rate_for_flagging
+    x$intervals$rate_flag <- rate_flag_info$rate_flag
+    x$intervals$is_near_zero <- x$intervals$rate_flag == x$rate_flags$zero_label
+    x$intervals$is_high_outlier <- x$intervals$rate_flag == x$rate_flags$high_label
+    x$rate_diagnostics <- rate_flag_info$diagnostics
+  } else if (!is.null(rate_flag_info)) {
+    x$rate_diagnostics <- rate_flag_info$diagnostics
+  }
   if (identical(selected_color_mode, "category")) {
     x$intervals$rate_category <- unlist(color_map$states_by_edge, use.names = FALSE)
   } else if ("rate_category" %in% names(x$intervals)) {
     x$intervals$rate_category <- NULL
   }
-  x$rate_categories <- color_map$rate_categories
+  x$rate_categories <- .rateMap_add_category_summaries(
+    rate_categories = color_map$rate_categories,
+    intervals = x$intervals,
+    summary = x$summary
+  )
   x$palette <- selected_palette
   x$reverse_palette <- selected_reverse
   x$color_mode <- selected_color_mode
@@ -313,7 +465,11 @@
 #' @param legend_title Optional legend title stored on the returned object.
 #'
 #' @return A `"rateMap"` object with updated tree maps, color palette,
-#'   `intervals$value`, `rate_categories`, and legend title.
+#'   `intervals$value`, `rate_categories`, and legend title. For branch-summary
+#'   category views, `rate_categories` includes bin-level summaries of the
+#'   plotted branch values and is recomputed whenever the view changes. Rate
+#'   diagnostic flags are recomputed for rate-valued views (`"value"`, `"mean"`,
+#'   or `"median"`) and preserved as metadata for non-rate views such as `"sd"`.
 #'
 #' @examples
 #' \dontrun{
@@ -687,6 +843,12 @@ rateMapView <- function(x,
 #' color-bar legend or a segmented rate-category color bar.
 #' The plotting controls intentionally mirror the `phytools` density-map
 #' plotting style for phylogram, fan, and arc layouts.
+#' In branch-summary category mode, near-zero or high-outlier rate diagnostics
+#' are drawn as special categories when rate-valued columns are plotted; these
+#' special categories do not consume positions in the ordered palette used for
+#' regular rate bins. When special categories are present, the category legend
+#' spans the full plotted value range and marks the diagnostic cutoff separating
+#' special and regular bins.
 #'
 #' @param x An object of class `"rateMap"` returned by [rateMap()] or
 #'   [rateMapView()].
@@ -718,23 +880,45 @@ rateMapView <- function(x,
 #'   `color_mode = "category"`.
 #' @param legend_title Optional legend title override for this plot.
 #' @param legend Legend length. If `NULL` or `TRUE`, a layout-specific default is
-#'   used. Set `legend = FALSE` to suppress the legend.
-#' @param fsize Numeric font-size vector passed to the underlying tree plot.
-#' @param tip_fsize Optional override for tip-label font size.
-#' @param legend_fsize Optional override for legend font size.
-#' @param ftype Font type passed to the underlying tree plot.
-#' @param show_tip_labels Logical; if `FALSE`, suppress tip labels.
+#'   used. Set `legend = FALSE` to suppress the legend. Continuous legends are
+#'   drawn with [phytools::add.color.bar()]; category legends are drawn by
+#'   `rateMap` so bin labels can reflect rate categories and diagnostics.
+#' @param fsize Numeric font-size vector. The first element is passed as the tip
+#'   label `fsize` to [phytools::plotSimmap()] and, when `outline = TRUE`, to
+#'   [phytools::plotTree()]. The second element is used by the legend.
+#' @param tip_fsize Optional override for the first `fsize` element passed to
+#'   the underlying tree plot.
+#' @param legend_fsize Optional override for the legend font size.
+#' @param ftype Font type. The first element is passed as `ftype` to
+#'   [phytools::plotSimmap()] and, when `outline = TRUE`, to
+#'   [phytools::plotTree()]. The second element is reserved for legends.
+#' @param show_tip_labels Logical; if `FALSE`, `rateMap` sets the tree-plot
+#'   `ftype` to `"off"` before calling the underlying `phytools` plotter.
 #' @param outline Logical; if `TRUE`, draw a branch outline beneath the rate map.
-#' @param lwd Branch and legend line widths.
-#' @param type Plot type: `"phylogram"`, `"fan"`, or `"arc"`.
-#' @param mar Plot margins.
-#' @param direction Plotting direction for `type = "phylogram"`.
-#' @param offset Tip-label offset.
-#' @param xlim,ylim Optional plot limits.
-#' @param hold Logical passed through to the plotting device hold/flush guard.
+#'   The outline pass is drawn with [phytools::plotTree()] before the colored
+#'   [phytools::plotSimmap()] pass.
+#' @param lwd Branch and legend line widths. The first element is passed to
+#'   [phytools::plotSimmap()] and, with `+ 2`, to [phytools::plotTree()] for
+#'   outlines. The second element is used for the legend.
+#' @param type Plot type: `"phylogram"`, `"fan"`, or `"arc"`. This is passed to
+#'   [phytools::plotSimmap()] for fan and arc layouts and to
+#'   [phytools::plotTree()] for outline passes.
+#' @param mar Plot margins passed to [phytools::plotSimmap()] and, when
+#'   `outline = TRUE`, to [phytools::plotTree()].
+#' @param direction Plotting direction for `type = "phylogram"`; passed to
+#'   [phytools::plotSimmap()] and [phytools::plotTree()].
+#' @param offset Tip-label offset passed to [phytools::plotSimmap()] and, when
+#'   `outline = TRUE`, to [phytools::plotTree()].
+#' @param xlim,ylim Optional plot limits passed to [phytools::plotSimmap()] and,
+#'   when `outline = TRUE`, to [phytools::plotTree()].
+#' @param hold Logical controlling `rateMap`'s device hold/flush guard.
+#'   `rateMap` passes `hold = FALSE` to the internal `phytools` calls so the
+#'   two-pass outline/color drawing is controlled in one place.
 #' @param underscore Logical; if `FALSE`, underscores in tip labels may be shown
-#'   as spaces by the underlying plotting functions.
-#' @param arc_height Arc height passed through for `type = "arc"`.
+#'   as spaces by the underlying [phytools::plotSimmap()] and
+#'   [phytools::plotTree()] calls.
+#' @param arc_height Arc height passed through to [phytools::plotSimmap()] and,
+#'   for outlines, [phytools::plotTree()] when `type = "arc"`.
 #' @param legend_digits Optional number of digits for legend endpoint labels. If
 #'   omitted, small-magnitude values use enough digits to avoid zero-valued
 #'   legend endpoints.
@@ -748,6 +932,18 @@ rateMapView <- function(x,
 #' to enough precision to avoid rounding small values to zero. Single fitted
 #' objects should be converted explicitly with [rateMap()] before plotting, for
 #' example `plot(rateMap(search_a), ...)`.
+#'
+#' **Relationship to `phytools` plotting arguments.** `plot.rateMap()` keeps the
+#' tree-layout argument names close to `phytools`: `type`, `fsize`, `ftype`,
+#' `lwd`, `mar`, `direction`, `offset`, `xlim`, `ylim`, `underscore`, and
+#' `arc_height` are forwarded to [phytools::plotSimmap()] or
+#' [phytools::plotTree()] as described above. `rateMap` fixes
+#' `phytools::plotSimmap()` options such as `colors`, `pts`, `node.numbers`,
+#' `add`, and `hold` internally, because those are determined by the computed
+#' `"rateMap"` object and by the optional outline pass. `palette`,
+#' `color_mode`, `n_categories`, `category_breaks`, `category_labels`,
+#' `legend_title`, `legend_digits`, and the rate-flag display behavior are
+#' `rateMap` controls, not `phytools` arguments.
 #'
 #' @return Invisibly returns the plotted `"rateMap"` object.
 #'
@@ -844,7 +1040,8 @@ plot.rateMap <- function(x,
 #'
 #' Print a concise summary of a `"rateMap"` object, including the number of fits,
 #' summary mode, target/check mode, weighting mode, uncertainty status, color
-#' mode, plotted value, value range, and uncertainty ranges when available.
+#' mode, plotted value, value range, rate-flag diagnostics when active, and
+#' uncertainty ranges when available.
 #'
 #' @param x An object of class `"rateMap"` returned by [rateMap()].
 #' @param ... Ignored.
@@ -878,6 +1075,38 @@ print.rateMap <- function(x, ...) {
       "\n",
       sep = ""
     )
+  }
+
+  if (!is.null(x$rate_diagnostics) &&
+      isTRUE(x$rate_diagnostics$enabled) &&
+      (x$rate_diagnostics$n_near_zero > 0L || x$rate_diagnostics$n_high_outlier > 0L)) {
+    cat(
+      "- rate flags: ",
+      x$rate_diagnostics$n_near_zero,
+      " near-zero, ",
+      x$rate_diagnostics$n_high_outlier,
+      " high-outlier\n",
+      sep = ""
+    )
+    if (!is.na(x$rate_diagnostics$zero_floor)) {
+      cat(
+        "- near-zero floor: ",
+        formatC(x$rate_diagnostics$zero_floor, digits = 4, format = "fg"),
+        "\n",
+        sep = ""
+      )
+    }
+    if (is.finite(x$rate_diagnostics$full_fold_range) &&
+        is.finite(x$rate_diagnostics$regular_fold_range)) {
+      cat(
+        "- fold range: ",
+        trimws(formatC(x$rate_diagnostics$full_fold_range, digits = 4, format = "fg")),
+        " full, ",
+        trimws(formatC(x$rate_diagnostics$regular_fold_range, digits = 4, format = "fg")),
+        " regular\n",
+        sep = ""
+      )
+    }
   }
 
   if (isTRUE(x$uncertainty) && "sd" %in% names(x$intervals)) {

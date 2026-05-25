@@ -1,16 +1,16 @@
 ---
-title: "Mapping Sensitivity in Jaw-Shape Evolutionary Rates with rateMap"
+title: "Mapping Sensitivity in Jaw-Shape Evolutionary Rates with rateMap, Part 1"
 output:
   rmarkdown::html_vignette: default
   rmarkdown::pdf_document:
     latex_engine: xelatex
 vignette: >
-  %\VignetteIndexEntry{Mapping Sensitivity in Jaw-Shape Evolutionary Rates with rateMap}
+  %\VignetteIndexEntry{Mapping Sensitivity in Jaw-Shape Evolutionary Rates with rateMap, Part 1}
   %\VignetteEncoding{UTF-8}
   %\VignetteEngine{knitr::rmarkdown}
 ---
 
-```{r, include = FALSE}
+```{r setup, include = FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
   comment = "#>",
@@ -21,280 +21,11 @@ knitr::opts_chunk$set(
   dev = "png",
   eval = FALSE
 )
+source("rate-map-jaw-shape/rate-map-helpers.R")
 ```
 
-```{r, echo = FALSE, results = "asis", eval = TRUE}
-if (knitr::is_html_output()) cat("
-<style>
-img, .figure img, .figure > p > img {
-  border: 0 !important;
-  box-shadow: none !important;
-  outline: none !important;
-  background: transparent !important;
-}
-.figure p.caption,
-table caption {
-  background-color: #f6f6f6;
-  margin: 0.5em 0;
-  padding: 0.25em 0.75em;
-  text-align: left;
-  font-family: inherit;
-  font-size: 1rem;
-  line-height: 1.45;
-  font-weight: normal;
-}
-table caption {
-  caption-side: bottom;
-  color: #111111;
-}
-.figure p.caption strong,
-table caption strong {
-  font-weight: 700;
-}
-.rate-map-table-spacer {
-  height: 0.6rem;
-}
-.rate-map-table-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 1rem;
-  align-items: start;
-  margin: 0.75em 0;
-}
-.rate-map-table-grid > div {
-  min-width: 0;
-  overflow-x: auto;
-}
-.rate-map-table-grid table {
-  width: 100%;
-  font-size: 0.9rem;
-}
-@media (max-width: 760px) {
-  .rate-map-table-grid {
-    grid-template-columns: 1fr;
-  }
-}
-</style>
-")
-```
-
-```{r static_helpers, include = FALSE, eval = TRUE}
-rate_map_artifact <- function(file) {
-  file.path("rate-map-jaw-shape", file)
-}
-
-rate_map_print_file <- function(file) {
-  cat(readLines(rate_map_artifact(file)), sep = "\n")
-}
-
-rate_map_cache_path <- function() {
-  cache_rel <- file.path(
-    "local-cache",
-    "rate-map-jaw-shape",
-    "jaw_threshold_runs_full.rds"
-  )
-  candidates <- c(
-    file.path("..", cache_rel),
-    cache_rel,
-    "jaw_threshold_runs.rds"
-  )
-  existing <- candidates[file.exists(candidates)]
-  if (length(existing) > 0L) {
-    return(existing[1L])
-  }
-  if (file.exists(file.path("..", "DESCRIPTION"))) {
-    return(file.path("..", cache_rel))
-  }
-  cache_rel
-}
-
-rate_map_caption <- function(lead, ...) {
-  paste(c(paste0("<strong>", lead, "</strong>"), ...), collapse = " ")
-}
-
-rate_map_table_data <- function(file, digits = 4, keep = NULL, drop = NULL,
-                                n = NULL, arrange = NULL,
-                                decreasing = FALSE) {
-  tab <- utils::read.csv(rate_map_artifact(file), check.names = FALSE)
-  if (!is.null(arrange) && arrange %in% names(tab)) {
-    tab <- tab[order(tab[[arrange]], decreasing = decreasing), , drop = FALSE]
-  }
-  if (!is.null(keep)) {
-    missing <- setdiff(keep, names(tab))
-    if (length(missing) > 0L) {
-      stop(
-        "Static table artifact '", file, "' is missing column(s): ",
-        paste(missing, collapse = ", ")
-      )
-    }
-    tab <- tab[, intersect(keep, names(tab)), drop = FALSE]
-  }
-  if (!is.null(drop)) {
-    tab <- tab[, setdiff(names(tab), drop), drop = FALSE]
-  }
-  if (!is.null(n)) {
-    tab <- utils::head(tab, n)
-  }
-  numeric_cols <- vapply(tab, is.numeric, logical(1))
-  tab[numeric_cols] <- lapply(tab[numeric_cols], function(x) {
-    if (all(is.na(x) | x == round(x))) {
-      return(x)
-    }
-    vapply(x, function(z) {
-      if (is.na(z)) {
-        return(NA_character_)
-      }
-      if (abs(z) >= 1000) {
-        return(formatC(z, digits = 1, format = "f"))
-      }
-      if (z == 0 || abs(z) >= 1e-3) {
-        return(as.character(signif(z, digits)))
-      }
-      formatC(z, digits = 3, format = "e")
-    }, character(1))
-  })
-  tab
-}
-
-rate_map_table <- function(file, digits = 4, keep = NULL, drop = NULL, n = NULL,
-                           arrange = NULL, decreasing = FALSE,
-                           caption = NULL) {
-  tab <- rate_map_table_data(
-    file,
-    digits = digits,
-    keep = keep,
-    drop = drop,
-    n = n,
-    arrange = arrange,
-    decreasing = decreasing
-  )
-  table <- knitr::kable(tab, caption = caption, row.names = FALSE)
-  if (knitr::is_html_output()) {
-    table <- c('<div class="rate-map-table-spacer" aria-hidden="true"></div>', table)
-  }
-  knitr::asis_output(paste(c("", "", table), collapse = "\n"))
-}
-
-rate_map_table_html <- function(file, digits = 4, keep = NULL, drop = NULL,
-                                n = NULL, arrange = NULL,
-                                decreasing = FALSE,
-                                caption = NULL) {
-  tab <- rate_map_table_data(
-    file,
-    digits = digits,
-    keep = keep,
-    drop = drop,
-    n = n,
-    arrange = arrange,
-    decreasing = decreasing
-  )
-  table <- knitr::kable(
-    tab,
-    format = "html",
-    caption = caption,
-    escape = FALSE,
-    row.names = FALSE
-  )
-  table <- c('<div class="rate-map-table-spacer" aria-hidden="true"></div>', table)
-  paste(c("", "", table), collapse = "\n")
-}
-
-rate_map_legend_limits <- function(x) {
-  categories <- x$rate_categories
-  if (!is.null(categories) && nrow(categories) > 0L) {
-    return(range(c(categories$lower, categories$upper), finite = TRUE))
-  }
-  x$lims
-}
-
-rate_map_format_legend <- function(x) {
-  formatC(x, digits = 3, format = "fg")
-}
-
-rate_map_add_color_bar <- function(x, legend, y_frac = 0.19, fsize = 0.8,
-                                   lwd = 3) {
-  usr <- graphics::par("usr")
-  yr <- diff(usr[3:4])
-  x0 <- mean(usr[1:2]) - 0.5 * legend
-  x1 <- x0 + legend
-  y0 <- usr[3] + y_frac * yr
-
-  cols <- unname(x$cols)
-  if (length(cols) == 1L) {
-    cols <- rep(cols, 2L)
-  }
-
-  bar_height <- 0.012 * yr * max(lwd / 3, 0.75)
-  label_gap <- 0.018 * yr * max(fsize, 0.75)
-  title_gap <- 0.06 * yr * max(fsize, 0.75)
-  xs <- seq(x0, x1, length.out = length(cols) + 1L)
-  lims <- rate_map_legend_limits(x)
-
-  op <- graphics::par(xpd = NA)
-  on.exit(graphics::par(op), add = TRUE)
-
-  graphics::rect(
-    xs[-length(xs)],
-    y0,
-    xs[-1L],
-    y0 + bar_height,
-    col = cols,
-    border = NA
-  )
-  graphics::text(
-    c(x0, x1),
-    rep(y0 + bar_height + label_gap, 2L),
-    labels = rate_map_format_legend(lims),
-    cex = fsize,
-    adj = c(0.5, 0.5)
-  )
-  graphics::text(
-    mean(c(x0, x1)),
-    y0 + bar_height + title_gap,
-    labels = x$title,
-    cex = fsize,
-    font = 2
-  )
-}
-
-rate_map_trim_bottom <- function(path, pixels) {
-  if (!requireNamespace("png", quietly = TRUE)) {
-    stop("The png package is needed to rebuild static vignette figures.")
-  }
-  if (!is.numeric(pixels) || length(pixels) != 1L || pixels <= 0) {
-    return(invisible(path))
-  }
-  img <- png::readPNG(path)
-  keep <- seq_len(max(1L, dim(img)[1L] - as.integer(pixels)))
-  png::writePNG(img[keep, , , drop = FALSE], path)
-  invisible(path)
-}
-
-rate_map_save_arc_figure <- function(file, x, ..., width = 8, height = 5.2,
-                                     dpi = 225) {
-  path <- rate_map_artifact(file)
-  dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
-  grDevices::png(path, width = width, height = height, units = "in", res = dpi)
-  device_open <- TRUE
-  on.exit(if (isTRUE(device_open)) grDevices::dev.off(), add = TRUE)
-  legend <- 0.7 * max(phytools::nodeHeights(x$tree))
-  plotted <- plot(
-    x,
-    type = "arc",
-    show_tip_labels = FALSE,
-    legend = FALSE,
-    legend_fsize = 0.8,
-    arc_height = 0.5,
-    mar = rep(1.2, 4),
-    ylim = c(-25, 80),
-    ...
-  )
-  rate_map_add_color_bar(plotted, legend = legend)
-  grDevices::dev.off()
-  device_open <- FALSE
-  rate_map_trim_bottom(path, pixels = round(0.7 * dpi))
-  invisible(path)
-}
+```{r rate_map_style, echo = FALSE, results = "asis", eval = TRUE}
+rate_map_include_style()
 ```
 
 ## Overview
@@ -306,19 +37,28 @@ colors the selected SIMMAP-style tree by fitted regime-specific rates.
 
 Here we use `rateMap()` in two steps. First, compute a reusable `"rateMap"`
 object from a list of completed `bifrost` searches. Then, call `plot()` on that
-object to render equal-weight, IC-weighted, and uncertainty views. Because
-ordinary `bifrost` shifts occur at nodes, the default computed summary is one
-fitted log-rate per branch.
+object to render a first-pass equal-weight map, inspect the fitted-rate range,
+and redraw the map with explicit near-zero metadata. Because ordinary
+`bifrost` shifts occur at nodes, the default computed summary is one fitted
+log-rate per branch.
 
-The workflow stands on its own, but it assumes you have seen the main jaw-shape
-analysis. Long-running search chunks are shown for interactive use; run them
-once, save the fitted objects, and then use the lighter `rateMap()` chunks for
-summaries and `plot(x, ...)` chunks for display. Later sections also show how
-the same branch-matching
-logic can be used with fixed-topology posterior tree samples whose branch
-lengths differ.
+The same rate-diagnostic controls can be used with a single fitted search; here
+we introduce them after the first-pass sensitivity map, where the broad
+fitted-rate range makes the display choice visible.
 
-```{r single_run_rate_map, echo = FALSE, eval = TRUE, fig.align = "center", out.width = "80%", fig.cap = "**Figure 1. Single-run branch-rate visualization from the jaw-shape example.** This tree shows the fitted branch-rate categories for one selected `bifrost` search on the jaw-shape data; branch colors encode the regime-specific fitted evolutionary rates from that single model. The multi-run `rateMap()` workflow below asks which parts of this single-run pattern persist when the search threshold changes.", fig.alt = "Upward-oriented phylogenetic tree without tip labels. Branches are colored using a viridis gradient, with yellow branches representing faster inferred evolutionary rates and dark purple branches representing slower rates."}
+Methodologically, `rateMap()` follows the `phytools` SIMMAP plotting ecosystem:
+it is a rate-valued analogue of `densityMap()`, and the plot method renders
+through `plotSimmap()` and `plotTree()`. Details and acknowledgements are
+collected near the end of the vignette and in `?plot.rateMap`.
+
+This vignette is self-contained for the `rateMap()` workflow, while the
+biological setup comes from the main jaw-shape analysis. Long-running search
+chunks are shown for interactive use; run them once, save the fitted objects,
+and then use the lighter `rateMap()` chunks for summaries and `plot(x, ...)`
+chunks for display. Part 2 continues with IC weighting, uncertainty views, and
+fixed-topology posterior tree samples.
+
+```{r single_run_rate_map, echo = FALSE, eval = TRUE, fig.align = "center", out.width = "80%", fig.cap = "**Figure 1. Single-run branch-rate visualization from the jaw-shape example.** This tree shows the fitted branch-rate categories for one selected `bifrost` search on the jaw-shape data; branch colors encode the regime-specific fitted evolutionary rates from that single model. The multi-run `rateMap()` workflow below asks which parts of this single-run pattern persist when the search threshold changes; subsequent maps use log fitted rates by default.", fig.alt = "Upward-oriented phylogenetic tree without tip labels. Branches are colored using a viridis gradient, with yellow branches representing faster inferred evolutionary rates and dark purple branches representing slower rates."}
 knitr::include_graphics("jaw-shape/branch_rates.png")
 ```
 
@@ -333,19 +73,23 @@ logic: values near 20 are conservative, but neighboring thresholds still deserve
 a dataset-specific sensitivity check.
 
 The sweep here asks a narrower empirical question: does the jaw-shape rate
-pattern persist as shift acceptance becomes more or less conservative?
-`rateMap()` turns repeated fits into branchwise summaries that separate
-persistent high-rate regions from features that appear only under permissive
-settings. This complements simulation-based model-performance assessment:
-simulations benchmark the method, while threshold sweeps diagnose robustness in
-this dataset.
+pattern persist as the shift acceptance threshold becomes more or less
+conservative?
+`rateMap()` turns repeated `bifrost` searches into branchwise summaries that
+help distinguish high-rate regions that persist across threshold settings from
+features that appear only under permissive settings. This complements
+simulation-based model-performance assessment: simulations benchmark the method,
+while threshold sweeps diagnose robustness in this dataset.
 
 We keep `min_descendant_tips` fixed throughout the sweep. That argument defines
 which internal nodes may receive candidate shifts; changing it would change the
 candidate-shift universe and the evidence threshold at the same time. Holding it
 constant isolates the acceptance threshold. For the jaw-shape data,
 `min_descendant_tips = 10` also avoids fitting separate high-dimensional
-covariance structure to very small clades.
+covariance structure to very small clades. That value is a worked-example
+choice, not a general default: real analyses may need smaller or larger values
+depending on tree size, trait dimensionality, and the smallest clades that
+should be allowed to carry their own fitted regime.
 
 ## Setup
 
@@ -400,9 +144,10 @@ individual search. They differ from the fit-level weights used by
 `rateMap(weights = "ic")`, which come from each retained run's `optimal_ic` and
 `IC_used`.
 
-Think of `rateMap()` as the compute step: it extracts fitted branch-rate trees
-and regime-rate parameters, matches branches across retained runs, and returns a
-reusable `"rateMap"` object. The common compute controls in this vignette are
+Think of `rateMap()` as the post-processing compute step: it extracts fitted
+branch-rate trees and regime-rate parameters, matches branches across retained
+runs, and returns a reusable `"rateMap"` object. The common compute controls in
+this vignette are
 `weights`, `uncertainty`, `summary`, and `log`. Once the object exists, use
 `plot(x, ...)` for display. Most users can stop there. Use `rateMapView(x, ...)`
 only when you want to freeze a display mapping before printing category tables
@@ -477,6 +222,7 @@ sweep_summary
 rate_map_table(
   "sweep_summary.csv",
   drop = "shift_nodes",
+  full_width_caption = TRUE,
   caption = rate_map_caption(
     "Table 1. Observed threshold sweep.",
     "Each row is one completed search with min_descendant_tips = 10.",
@@ -492,58 +238,123 @@ rate_map_table(
 
 This table gives a first diagnostic. In this run, the main jaw-shape threshold
 (`20`) gives the lowest GIC among the six retained searches, closely followed by
-threshold `30`. Those two model outcomes dominate the IC-weighted rate map
-below.
+threshold `30`. Those two model outcomes dominate the IC-weighted rate map in
+Part 2.
 
 ## Equal-Weight Rate Map
 
-The most transparent sensitivity summary gives every threshold run equal
-weight. It asks which branch log-rate pattern appears across the threshold
-settings considered here.
+A simple first diagnostic gives every threshold run equal weight. This asks
+whether the same branch log-rate pattern appears across the threshold settings
+considered here.
 
-By default, `rateMap()` follows `bifrost`'s branch-level framing and computes
-log-rates. Each branch receives one summarized log-rate. `plot(x, ...)` then
-colors those summaries as ordered log-rate categories. This default matches
-`bifrost`'s node-shift model: shifts occur at nodes, so a fitted `bifrost`
-branch does not change regimes internally.
+By default, `rateMap()` follows `bifrost`'s branch-level framing: shifts occur
+at nodes, so each branch receives one summarized fitted rate. With the default
+`log = TRUE`, across-run means are mean log-rates, equivalent to the log of a
+weighted geometric mean on the original rate scale.
 
-Because this map uses `summary = "branch"`, the `rateMap()` summary table has
-one row per branch. In a multi-run `rateMap()` summary, the displayed values are
-branch summaries rather than named regimes. Because `log = TRUE` is the default,
-`rateMap()` transforms rates before computing branch and across-run summaries.
-The mapped mean is a mean log-rate, equivalent to the log of a weighted
-geometric mean, not the log of an arithmetic mean rate. `summary = "interval"`
-is also available for stochastic-map inputs with true within-branch changes; the
-appendix describes why that mode is not the main jaw-shape example.
+`plot(x, ...)` then colors those branch summaries as ordered log-rate
+categories. In multi-run summaries, these categories are plotting bins for
+summarized branch values; they should not be read as newly inferred `bifrost`
+regimes. For branch summaries, `rate_categories` reports how many branches fall
+into each displayed bin and summarizes the plotted branch values assigned to
+that bin.
 
-Category colors provide the visualization layer. In `plot(x, ...)`,
-`color_mode = "category"` is the default, so branches are assigned to ordered
-rate categories rather than to a many-color continuous ramp. For a single
-`bifrost` search with `log = FALSE`, category mode is closest to the
-illustrative `generateViridisColorScale()` plot from the jaw-shape vignette:
-exact fitted rates become ordered categories when there are few enough unique
-values.
+Branch maps also carry rate diagnostics for near-zero or isolated high-tail
+rates. These diagnostics add `rate_flag` metadata without removing branches or
+changing fitted values. By default, no near-zero rule is applied. Supplying
+`zero_floor` activates the manual floor rule; using `method = "tail_cluster"`
+requests the data-driven lower-tail diagnostic.
 
-For multi-run summaries, the plotted branch summaries usually have many unique
-values, so `plot(x, ...)` bins them. The defaults choose readable category
-breaks. When comparisons require tighter control, set `n_categories`, switch to
-equal-width bins, supply exact `category_breaks`, or use
-`color_mode = "continuous"`. In multi-run summaries, categories are plotting
-bins for summarized branch values; they should not be read as newly inferred
-`bifrost` regimes.
+That conservative default matters because `bifrost` can infer very low but
+positive fitted rates for clades with little observed trait variation. Leaving
+those branches unflagged is not wrong; it shows the fitted branch summaries
+directly. If you have a biologically or numerically meaningful threshold in
+mind, supply `zero_floor` to mark rates below that value as effectively zero for
+display. `rateMap()` leaves that choice explicit rather than guessing a
+universal cutoff.
 
-```{r category_controls_example, eval = FALSE}
-plot(jaw_rate_map_equal, n_categories = 5)
-plot(jaw_rate_map_equal, n_categories = 5, category_bin_method = "equal")
-plot(jaw_rate_map_equal, category_breaks = c(-26, -22, -18, -14, -10))
+Start with the default map and inspect its range before deciding how to display
+it.
+
+```{r equal_weight_first_pass}
+jaw_rate_map_equal_first <- rateMap(
+  jaw_threshold_runs,
+  weights = "equal",
+  uncertainty = TRUE,
+  progress = TRUE
+)
+jaw_rate_map_equal_first <- rateMapView(
+  jaw_rate_map_equal_first,
+  palette = "Viridis",
+  legend_title = "Mean log fitted rate"
+)
+
+jaw_rate_map_equal_first
+jaw_rate_map_equal_first$rate_diagnostics
 ```
+
+```{r equal_weight_first_pass_print_static, echo = FALSE, eval = TRUE}
+rate_map_print_file("rate_map_equal_initial_print.txt")
+```
+
+```{r equal_weight_first_pass_diagnostics_static, echo = FALSE, results = "asis", eval = TRUE}
+rate_map_table(
+  "rate_map_equal_initial_diagnostics.csv",
+  full_width_caption = TRUE,
+  caption = rate_map_caption(
+    "Table 2. First-pass equal-weight rate diagnostics.",
+    "The default diagnostic pass leaves all branches in the regular category,",
+    "but the fitted log-rate range is still enormous. This is a flag that the",
+    "researcher should inspect the map and fitted-rate range before accepting",
+    "the default color scale."
+  )
+)
+```
+
+The first pass is a useful warning rather than a final display choice. The
+branch summaries run from about `-24.2` to `-11.4` on the log-rate scale, which
+corresponds to original fitted rates of about `3.08e-11` to `1.11e-5`. A
+`361,000`-fold range is possible under the fitted model, but it is biologically
+hard to interpret as ordinary rate variation. That is the reason to inspect the
+lower tail and, when appropriate, display the effectively zero-rate branches as
+a separate diagnostic category. The default plot legend spans the prettier
+category boundaries, here `-26` to `-10`, so its lower limit is a bin edge rather
+than the observed minimum branch summary.
+
+```{r plot_equal_weight_first_pass_ratemap, fig.width = 8, fig.height = 6, fig.cap = "**Figure 2. Default equal-weight branch-category rate map.** This first-pass arc tree shows the unmodified default display: all branches are binned into the ordinary ordered log-rate categories, with no manual near-zero flagging.", fig.alt = "Arc-style phylogenetic tree colored by the default equal-weight branch log-rate categories across the jaw-shape threshold sweep."}
+plot(
+  jaw_rate_map_equal_first,
+  type = "arc",
+  show_tip_labels = FALSE,
+  legend_fsize = 0.8,
+  arc_height = 0.5
+)
+```
+
+```{r equal_weight_first_pass_ratemap_static, echo = FALSE, eval = TRUE, fig.align = "center", out.width = "100%", fig.cap = "**Figure 2. Default equal-weight branch-category rate map.** This first-pass arc tree shows the unmodified default display: all branches are binned into the ordinary ordered log-rate categories, with no manual near-zero flagging.", fig.alt = "Arc-style phylogenetic tree colored by the default equal-weight branch log-rate categories across the jaw-shape threshold sweep."}
+knitr::include_graphics(rate_map_artifact("equal_weight_branch_category_ratemap_default.png"))
+```
+
+In this jaw-shape example, the lowest-rate branches form a broader lower-tail
+cluster that deserves an explicit diagnostic display choice.
+
+The second pass keeps the same fitted values but uses the `tail_cluster`
+diagnostic. This Otsu-style rule, adapted from Otsu's histogram thresholding
+criterion ([Otsu 1979](https://doi.org/10.1109/TSMC.1979.4310076)), works on
+log-rates, chooses the guarded two-class split that maximizes separation between
+the tail and the remaining branches, and only accepts it when the lower cluster
+is separated from the regular branches and greatly reduces the regular fold
+range.
 
 ```{r equal_weight_branch_category_ratemap}
 jaw_rate_map_equal <- rateMap(
   jaw_threshold_runs,
   weights = "equal",
   uncertainty = TRUE,
-  progress = TRUE
+  progress = TRUE,
+  control = rateMapControl(
+    rate_flags = rateMapRateFlags(method = "tail_cluster")
+  )
 )
 jaw_rate_map_equal <- rateMapView(
   jaw_rate_map_equal,
@@ -555,25 +366,82 @@ jaw_rate_map_equal
 jaw_rate_map_equal$rate_categories
 ```
 
+After flagging, the grey near-zero category sits outside the ordered palette.
+The Viridis colors are regenerated for the remaining regular categories, so
+the unflagged branches use the full low-to-high color range. The legend still
+spans the full plotted data range and marks the cluster cutoff, here about
+`-18.39`, between the highest near-zero branch (`-19.79`) and the first regular
+branch (`-16.99`). In this example the first occupied regular automatic bin
+starts at `-17`; use explicit `category_breaks` if you want the display anchored
+to a particular numeric cutoff.
+
 ```{r equal_weight_print_static, echo = FALSE, eval = TRUE}
 rate_map_print_file("rate_map_equal_print.txt")
 ```
 
-```{r equal_weight_categories_static, echo = FALSE, results = "asis", eval = TRUE}
-rate_map_table(
-  "rate_map_equal_categories.csv",
-  drop = "value",
-  caption = rate_map_caption(
-    "Table 2. Equal-weight rate categories.",
-    "Ordered log-rate bins used to color the equal-weight branch-category map.",
-    "`color_bin` is the plotted bin index; `rate_category` is the displayed",
-    "log-rate interval; `lower` and `upper` are the bin boundaries; and",
-    "`color` is the hex color assigned to that bin."
-  )
+The category table and diagnostic table should be read together: the left table
+shows how branch summaries are binned for display, and the right table records
+the near-zero rule that created the grey category.
+
+```{r equal_weight_category_diagnostics_static, echo = FALSE, results = "asis", eval = TRUE}
+equal_category_caption <- rate_map_caption(
+  "Table 3. Equal-weight rate categories after near-zero flagging.",
+  "Ordered log-rate bins used to color the equal-weight branch-category map.",
+  "`rate_category` is the displayed interval or special near-zero category;",
+  "`n_branches` counts branches in each displayed category; and `value_mean`",
+  "summarizes the plotted branch log-rates assigned to each bin."
 )
+
+equal_diagnostic_caption <- rate_map_caption(
+  "Table 4. Equal-weight rate diagnostics after near-zero flagging.",
+  "Diagnostic companion to Table 3.",
+  "`method = \"tail_cluster\"` marks the separated lower log-rate cluster as a",
+  "display category without removing branches or changing fitted values.",
+  "Fitted-rate bounds are shown on the plotted log scale."
+)
+
+equal_category_keep <- c(
+  "rate_category",
+  "n_branches",
+  "value_mean"
+)
+
+if (knitr::is_html_output()) {
+  cat('<div class="rate-map-table-grid rate-map-table-grid-wide-left">\n<div>\n')
+  cat(rate_map_table_html(
+    "rate_map_equal_categories.csv",
+    keep = equal_category_keep,
+    caption = equal_category_caption
+  ))
+  cat('\n</div>\n<div>\n')
+  cat(rate_map_table_html(
+    "rate_map_equal_rate_diagnostics.csv",
+    caption = equal_diagnostic_caption
+  ))
+  cat('\n</div>\n</div>\n')
+} else {
+  cat(
+    paste(rate_map_table(
+      "rate_map_equal_categories.csv",
+      keep = equal_category_keep,
+      caption = equal_category_caption
+    ), collapse = "\n"),
+    "\n\n",
+    paste(rate_map_table(
+      "rate_map_equal_rate_diagnostics.csv",
+      caption = equal_diagnostic_caption
+    ), collapse = "\n"),
+    sep = ""
+  )
+}
 ```
 
-```{r plot_equal_weight_branch_category_ratemap, fig.width = 8, fig.height = 6, fig.cap = "**Figure 2. Equal-weight branch-category rate map.** This arc tree summarizes the six GIC-threshold searches by giving each completed search the same weight. Each branch is colored by an ordered category of its mean fitted branch log-rate, so nearby colors indicate similar across-threshold average rates and the color bar gives the log-rate bin range.", fig.alt = "Arc-style phylogenetic tree with branches colored by equal-weight branch log-rate categories across the jaw-shape threshold sweep."}
+The near-zero category is metadata, not a data filter. The full fitted-rate
+range is still available in `jaw_rate_map_equal$intervals`, but the ordinary
+rate bins and the visual color scale now describe the remaining regular
+branches rather than stretching across a numerical floor.
+
+```{r plot_equal_weight_branch_category_ratemap, fig.width = 8, fig.height = 6, fig.cap = "**Figure 3. Equal-weight branch-category rate map after near-zero flagging.** This arc tree summarizes the six GIC-threshold searches by giving each completed search the same weight. Branches in the separated lower log-rate cluster are shown as a separate grey category; remaining regular branches are colored by ordered categories of their mean fitted branch log-rate.", fig.alt = "Arc-style phylogenetic tree with grey near-zero branches and colored equal-weight branch log-rate categories across the jaw-shape threshold sweep."}
 plot(
   jaw_rate_map_equal,
   type = "arc",
@@ -583,7 +451,7 @@ plot(
 )
 ```
 
-```{r equal_weight_branch_category_ratemap_static, echo = FALSE, eval = TRUE, fig.align = "center", out.width = "100%", fig.cap = "**Figure 2. Equal-weight branch-category rate map.** This arc tree summarizes the six GIC-threshold searches by giving each completed search the same weight. Each branch is colored by an ordered category of its mean fitted branch log-rate, so nearby colors indicate similar across-threshold average rates and the color bar gives the log-rate bin range.", fig.alt = "Arc-style phylogenetic tree with branches colored by equal-weight branch log-rate categories across the jaw-shape threshold sweep."}
+```{r equal_weight_branch_category_ratemap_static, echo = FALSE, eval = TRUE, fig.align = "center", out.width = "100%", fig.cap = "**Figure 3. Equal-weight branch-category rate map after near-zero flagging.** This arc tree summarizes the six GIC-threshold searches by giving each completed search the same weight. Branches in the separated lower log-rate cluster are shown as a separate grey category; remaining regular branches are colored by ordered categories of their mean fitted branch log-rate.", fig.alt = "Arc-style phylogenetic tree with grey near-zero branches and colored equal-weight branch log-rate categories across the jaw-shape threshold sweep."}
 knitr::include_graphics(rate_map_artifact("equal_weight_branch_category_ratemap.png"))
 ```
 
@@ -598,461 +466,68 @@ faster regimes across the threshold sweep; intermediate categories may reflect
 either genuinely moderate rates or a mixture of low- and high-rate assignments
 across thresholds.
 
-`bifrost` can also infer very low fitted rates for clades with little observed
-trait variation. When one part of the tree is assigned a near-zero rate, rate
-ratios and log-rate contrasts can look extreme. Treat those cases with care,
-especially if the low-rate clade has few taxa or little shape dispersion. This
-behavior is still expected under the search: `bifrost` estimates data-driven
-branch regimes, unlike relaxed-clock models that impose a parametric
-among-branch rate distribution.
+If you want tighter control over the display categories after this diagnostic
+step, adjust the plotting bins directly.
 
-## IC-Weighted Rate Map
-
-An IC-weighted map asks a different question: which log-rate pattern is
-emphasized when lower-GIC threshold outcomes contribute more heavily?
-
-```{r ic_weighted_branch_category_ratemap}
-jaw_rate_map_ic <- rateMap(
-  jaw_threshold_runs,
-  weights = "ic",
-  uncertainty = TRUE,
-  progress = TRUE
-)
-jaw_rate_map_ic <- rateMapView(
-  jaw_rate_map_ic,
-  palette = "Viridis",
-  legend_title = "IC-weighted mean log fitted rate"
-)
-
-jaw_rate_map_ic
-jaw_rate_map_ic$weight_table
-jaw_rate_map_ic$rate_categories
-```
-
-```{r ic_weighted_print_static, echo = FALSE, eval = TRUE}
-rate_map_print_file("rate_map_ic_print.txt")
-```
-
-```{r ic_weighted_tables_static, echo = FALSE, results = "asis", eval = TRUE}
-ic_weight_caption <- rate_map_caption(
-  "Table 3. IC weights.",
-  "Relative fit weights used in the IC-weighted branch-category map.",
-  "`input_index` identifies the retained search in the input list; `weight`",
-  "is the normalized IC weight used by `rateMap()`; `ic` is the selected",
-  "model's IC value; and `IC_used` records the criterion used to compute",
-  "comparable weights. In this sweep, inputs 3 and 5 carry nearly all of the",
-  "IC weight, while the other retained runs have effectively zero weight."
-)
-
-ic_category_caption <- rate_map_caption(
-  "Table 4. IC-weighted rate categories.",
-  "Ordered log-rate bins used to color the IC-weighted branch-category map.",
-  "`color_bin` is the plotted bin index; `rate_category` is the displayed",
-  "log-rate interval; `lower` and `upper` are the bin boundaries; and",
-  "`color` is the hex color assigned to that bin."
-)
-
-if (knitr::is_html_output()) {
-  cat('<div class="rate-map-table-grid">\n<div>\n')
-  cat(rate_map_table_html(
-    "rate_map_ic_weights.csv",
-    arrange = "weight",
-    decreasing = TRUE,
-    caption = ic_weight_caption
-  ))
-  cat('\n</div>\n<div>\n')
-  cat(rate_map_table_html(
-    "rate_map_ic_categories.csv",
-    drop = "value",
-    caption = ic_category_caption
-  ))
-  cat('\n</div>\n</div>\n')
-} else {
-  cat(
-    paste(rate_map_table(
-      "rate_map_ic_weights.csv",
-      arrange = "weight",
-      decreasing = TRUE,
-      caption = ic_weight_caption
-    ), collapse = "\n"),
-    "\n\n",
-    paste(rate_map_table(
-      "rate_map_ic_categories.csv",
-      drop = "value",
-      caption = ic_category_caption
-    ), collapse = "\n"),
-    sep = ""
-  )
-}
-```
-
-```{r plot_ic_weighted_branch_category_ratemap, fig.width = 8, fig.height = 6, fig.cap = "**Figure 3. IC-weighted branch-category rate map.** This arc tree summarizes the same threshold sweep after weighting each completed search by its relative GIC support. Branch colors show ordered categories of the IC-weighted mean fitted log-rate, so regions emphasized by lower-GIC searches contribute more strongly than regions supported only by weaker threshold outcomes.", fig.alt = "Arc-style phylogenetic tree with branches colored by IC-weighted branch log-rate categories across the jaw-shape threshold sweep."}
-plot(
-  jaw_rate_map_ic,
-  type = "arc",
-  show_tip_labels = FALSE,
-  legend_fsize = 0.8,
-  arc_height = 0.5
-)
-```
-
-```{r ic_weighted_branch_category_ratemap_static, echo = FALSE, eval = TRUE, fig.align = "center", out.width = "100%", fig.cap = "**Figure 3. IC-weighted branch-category rate map.** This arc tree summarizes the same threshold sweep after weighting each completed search by its relative GIC support. Branch colors show ordered categories of the IC-weighted mean fitted log-rate, so regions emphasized by lower-GIC searches contribute more strongly than regions supported only by weaker threshold outcomes.", fig.alt = "Arc-style phylogenetic tree with branches colored by IC-weighted branch log-rate categories across the jaw-shape threshold sweep."}
-knitr::include_graphics(rate_map_artifact("ic_weighted_branch_category_ratemap.png"))
-```
-
-Use this view when the threshold-generated fits form a small set of comparable
-model outcomes. All retained runs must use the same IC family, so do not mix GIC
-and BIC runs in a single `weights = "ic"` map. If one threshold dominates the IC
-weights, the result will resemble that single model more than an
-across-threshold robustness summary. In a threshold sweep, this can favor a more
-permissive fitted configuration, so read the map as a model-outcome weighting
-over retained fits rather than as a formal threshold-selection rule.
-
-Here the IC weights concentrate on thresholds `20` and `30`, with threshold
-`20` carrying most of the weight. The weighting choice does not change the
-log-rate scale; `weights = "ic"` changes only the fit-level weights in the
-weighted mean log-rate. The IC-weighted map is visually similar to the
-equal-weight map because the dominant lower-GIC searches preserve the same
-broad branch-rate structure. The maps are not identical: branch values are
-recomputed under IC weights, and some branches shift color categories, but the
-main high-rate regions remain stable. Appendix D shows the largest branch-level
-differences between weighting schemes.
-
-## Mapping Uncertainty Across Thresholds
-
-With `uncertainty = TRUE`, `rateMap()` stores run-level log-rate values and adds
-branch-level summaries: weighted mean, weighted median, standard deviation,
-quantiles, highest-density interval bounds, and coefficient of variation.
-The highest-density interval contains 95% of the weighted run-level values by
-default; set `control = list(highest_density_interval_prob = ...)` to change
-that probability.
-For equal weights, `sd` is the ordinary sample standard deviation across runs;
-for IC or custom weights, it is computed from the normalized weighted variance.
-In this threshold sweep, these columns summarize variation across fitted
-searches. They do not measure landmark error, posterior tree uncertainty, or
-uncertainty inside the original fitted models.
-
-Because this worked example has only six threshold runs, the default 95%
-highest-density interval is deliberately conservative and effectively spans all
-retained run-level values for each branch. With denser run stacks, the same
-column behaves more like the familiar shortest interval containing the requested
-probability mass; for small sensitivity sweeps, interpret it as a range-like
-stability diagnostic.
-
-You can recolor the same object by any compatible numeric column. For
-uncertainty summaries, continuous color ramps are often easier to read than
-discrete categories. The plotted summary table can still be sorted by `sd` or
-`highest_density_interval_width` for reporting, but the tree views are the most
-direct way to see where threshold sensitivity sits on the phylogeny. For
-example, plot the across-threshold standard deviation:
-
-```{r plot_rate_sd, fig.width = 8, fig.height = 6, fig.cap = "**Figure 4. Across-threshold standard deviation.** This uncertainty map recolors the equal-weight `rateMap()` object by the standard deviation of fitted branch log-rates across the six threshold searches. Larger values mark branches whose inferred rates change more across the threshold sweep, while smaller values mark branches with more stable rate assignments.", fig.alt = "Arc-style phylogenetic tree with branches colored by across-threshold standard deviation in fitted log-rate."}
-plot(
-  jaw_rate_map_equal,
-  value = "sd",
-  type = "arc",
-  show_tip_labels = FALSE,
-  palette = "Inferno",
-  color_mode = "continuous",
-  legend_fsize = 0.8,
-  arc_height = 0.5
-)
-```
-
-```{r plot_rate_sd_static, echo = FALSE, eval = TRUE, fig.align = "center", out.width = "100%", fig.cap = "**Figure 4. Across-threshold standard deviation.** This uncertainty map recolors the equal-weight `rateMap()` object by the standard deviation of fitted branch log-rates across the six threshold searches. Larger values mark branches whose inferred rates change more across the threshold sweep, while smaller values mark branches with more stable rate assignments.", fig.alt = "Arc-style phylogenetic tree with branches colored by across-threshold standard deviation in fitted log-rate."}
-knitr::include_graphics(rate_map_artifact("rate_sd_ratemap.png"))
-```
-
-Or plot the highest-density interval width:
-
-```{r plot_rate_highest_density_interval_width, fig.width = 8, fig.height = 6, fig.cap = "**Figure 5. Across-threshold 95% highest-density interval width.** This uncertainty map recolors the equal-weight `rateMap()` object by the width of the shortest interval containing 95% of the weighted run-level log-rate values for each branch. Wider intervals indicate less stable fitted rate assignments across threshold searches; narrower intervals indicate stronger agreement among runs.", fig.alt = "Arc-style phylogenetic tree with branches colored by the width of the across-threshold highest-density interval in fitted log-rate."}
-plot(
-  jaw_rate_map_equal,
-  value = "highest_density_interval_width",
-  type = "arc",
-  show_tip_labels = FALSE,
-  palette = "Plasma",
-  color_mode = "continuous",
-  legend_fsize = 0.8,
-  arc_height = 0.5
-)
-```
-
-```{r plot_rate_highest_density_interval_width_static, echo = FALSE, eval = TRUE, fig.align = "center", out.width = "100%", fig.cap = "**Figure 5. Across-threshold 95% highest-density interval width.** This uncertainty map recolors the equal-weight `rateMap()` object by the width of the shortest interval containing 95% of the weighted run-level log-rate values for each branch. Wider intervals indicate less stable fitted rate assignments across threshold searches; narrower intervals indicate stronger agreement among runs.", fig.alt = "Arc-style phylogenetic tree with branches colored by the width of the across-threshold highest-density interval in fitted log-rate."}
-knitr::include_graphics(rate_map_artifact("rate_highest_density_interval_width_ratemap.png"))
-```
-
-High mean log-rate with low across-threshold uncertainty is the strongest visual
-cue for a robust fast-rate region. High mean log-rate with high uncertainty is
-more fragile: it may depend on the threshold setting, or it may identify a
-branch whose regime assignment changes across the sweep.
-
-The plotted summary object still stores one row per branch under the default
-`summary = "branch"`; Appendix C shows how to sort those rows for reporting.
-
-```{r rebuild_static_tree_figures, include = FALSE, eval = FALSE}
-rate_map_save_arc_figure(
-  "equal_weight_branch_category_ratemap.png",
-  jaw_rate_map_equal
-)
-rate_map_save_arc_figure(
-  "ic_weighted_branch_category_ratemap.png",
-  jaw_rate_map_ic
-)
-rate_map_save_arc_figure(
-  "rate_sd_ratemap.png",
-  jaw_rate_map_equal,
-  value = "sd",
-  palette = "Inferno",
-  color_mode = "continuous"
-)
-rate_map_save_arc_figure(
-  "rate_highest_density_interval_width_ratemap.png",
-  jaw_rate_map_equal,
-  value = "highest_density_interval_width",
-  palette = "Plasma",
-  color_mode = "continuous"
-)
-```
-
-## Same-Topology Tree Samples
-
-The same machinery can summarize fitted rates across a posterior sample of
-time-calibrated trees when the topology is fixed but divergence times and
-branch lengths vary. For example, a researcher might fit `bifrost` to a set of
-posterior chronograms from a divergence-time analysis, then ask how the fitted
-branch-rate pattern can be summarized on one reference tree.
-
-In that case, provide an explicit `target_tree` and relax the tree check from
-identical branch lengths to matching topology with
-`control = list(check = "topology")`. The target can be an MCC tree, a
-posterior mean chronogram, or another biologically preferred same-topology
-summary tree.
-
-For ordinary `bifrost` outputs, shifts are placed at nodes, so each branch has
-one fitted regime-rate value. With the default `summary = "branch"`,
-`rateMap()` matches each target-tree branch to the corresponding input-tree
-branch by descendant tip set. The matched input branch contributes its fitted
-regime rate for that run, and those branch-level values are averaged across
-runs using the requested weighting scheme. Branch-length differences among the
-fixed-topology posterior trees are not used to adjust or normalize the fitted
-branch-rate values in branch mode. The target tree supplies the reference
-topology, edge order, branch lengths, and plotting geometry for the final map.
-Use `summary = "interval"` only for true stochastic-map inputs where states can
-change within branches.
-
-For posterior tree samples, `weights = "equal"` is usually the appropriate
-choice: each retained tree is one posterior draw, so the goal is to average
-over uncertainty in the underlying tree geometry rather than to weight
-alternative threshold or parameter-sweep outcomes by IC support. Keep
-`uncertainty = TRUE` to record how much the matched branch rates vary across
-the tree sample. Future extensions for varying topologies would need an
-additional branch-matching or clade-assignment step before applying the same
-rate-summary logic.
-
-The chunk below is a template for fixed-topology posterior tree samples. Because
-this worked example uses the same jaw-shape tree as the target, it does not show
-a separate plot.
-
-```{r target_tree_ratemap}
-# Replace this with an MCC tree, posterior mean chronogram, or other
-# same-topology reference tree when analyzing posterior tree samples.
-jaw_target_tree <- fish.tree
-
-jaw_target_rate_map <- rateMap(
-  jaw_threshold_runs,
-  target_tree = jaw_target_tree,
-  weights = "equal",
-  summary = "branch",
-  uncertainty = TRUE,
-  progress = TRUE,
-  control = list(check = "topology")
-)
+```{r category_controls_example, eval = FALSE}
+plot(jaw_rate_map_equal, n_categories = 5)
+plot(jaw_rate_map_equal, n_categories = 5, category_bin_method = "equal")
+plot(jaw_rate_map_equal, category_breaks = c(-17, -15, -13, -11))
 ```
 
 ## Practical Takeaways
 
 - Holding `min_descendant_tips = 10` fixed keeps the candidate-node filter
   constant while `shift_acceptance_threshold` changes.
-- Equal weights summarize robustness across selected threshold settings; IC
-  weights emphasize lower-IC threshold outcomes.
-- For fixed-topology posterior tree samples with different branch lengths, use
-  an explicit target tree, `control = list(check = "topology")`, branch
-  summaries, and equal weights.
-- The default branch-level, log-rate-category map matches `bifrost`'s node-shift
-  model.
+- Equal weights summarize robustness across selected threshold settings.
+- The first-pass rate diagnostics are part of the workflow: inspect the
+  fitted-rate range before accepting the default color scale.
+- The default diagnostic pass applies no near-zero rule; manual floors and
+  broader tail structure should be requested explicitly.
+- `method = "tail_cluster"` is display metadata, not a data filter. It uses an
+  Otsu-style two-class split to mark a separated lower log-rate cluster while
+  preserving fitted values in the output object.
 - In `plot(x, ...)`, `n_categories` sets the target number of automatic
   category bins; `category_bin_method = "equal"` and `category_breaks` give
   more direct bin control; `ncolors` controls continuous ramps.
-- Uncertainty maps identify branches where inferred log-rates are stable or
-  threshold-sensitive.
 
-## Conclusion
+## Next Steps
 
-The single-run jaw-shape analysis identifies one supported multi-regime
-configuration, but it is not the only useful view of the empirical signal. A
-threshold sweep keeps the biological sampling constraint fixed and asks whether
-the inferred rate pattern survives more permissive or more conservative shift
-acceptance. `rateMap()` turns that sweep into maps and tables that separate
-robust high-rate regions from threshold-sensitive ones. In this jaw-shape sweep,
-the highest log-rate lungfish-rich region remains stable across equal-weight and
-IC-weighted summaries, while several moderate-rate branches are more sensitive
-to threshold and weighting choices.
+Part 2 continues from this adjusted equal-weight map and asks how the
+interpretation changes under IC weighting, across-threshold uncertainty maps,
+same-topology tree samples, original-scale rates, and branch-level diagnostic
+tables.
 
-This empirical sensitivity analysis complements simulation-based model
-performance assessment. Simulations show how the method behaves when the truth
-is known; rate maps show how one dataset behaves across plausible analysis
-choices.
+Read [Part 2: Weighting, uncertainty, and diagnostics](rate-map-jaw-shape-part-2-comparisons.html).
 
-## Appendix
+## Acknowledgements and Provenance
 
-### A. Original-Scale Rates
+The core idea is adapted from
+[`phytools::densityMap()`](https://rdrr.io/cran/phytools/man/densityMap.html):
+summarize mapped histories on a shared tree and display the summary as a
+colored phylogeny. `rateMap()` changes the mapped quantity from posterior state
+probability to fitted branch-rate summaries from completed `bifrost` searches.
 
-The default log-rate scale is often the easier scale for comparing
-multiplicative differences in fitted rates. Use `log = FALSE` when you need the
-original fitted-rate units. Print or plot the resulting object the same way as
-the log-rate maps above.
+The drawing layer uses
+[`phytools::plotSimmap()`](https://rdrr.io/cran/phytools/man/plotSimmap.html),
+with [`phytools::plotTree()`](https://rdrr.io/cran/phytools/man/plotTree.html)
+for outline and base-tree passes. `plot.rateMap()` forwards tree-layout controls
+such as `type`, `fsize`, `ftype`, `lwd`, `mar`, `direction`, `offset`, `xlim`,
+`ylim`, `underscore`, and `arc_height`; rate-map controls such as `palette`,
+`color_mode`, `n_categories`, `category_breaks`, `legend_title`, and near-zero
+diagnostics are handled by `rateMap()` before the colored tree is drawn.
 
-```{r raw_rate_ratemap}
-jaw_raw_rate_map <- rateMap(
-  jaw_threshold_runs,
-  weights = "equal",
-  uncertainty = TRUE,
-  log = FALSE,
-  progress = TRUE
-)
-plot(
-  jaw_raw_rate_map,
-  palette = "Viridis",
-  legend_title = "Mean fitted rate"
-)
-```
-
-### B. Continuous Interval Maps
-
-The branch-category default is the closest match for ordinary `bifrost` output,
-because fitted `bifrost` shifts occur at nodes. The package stores these results
-using stochastic-map infrastructure, but the fitted map is not a simulated
-stochastic history with additional state changes inside branches. For that
-reason, the main summaries above use `summary = "branch"`.
-
-`rateMap()` can also use `summary = "interval"` for inputs that really do
-change state within branches, such as stochastic maps whose states can be mapped
-to numerical rates. In that setting, interval mode slices each target-tree
-branch on a shared depth grid and projects the stochastic-map segments onto
-those intervals. That is useful for true within-branch histories, but it is less
-informative for the jaw-shape `bifrost` sweep, where the interval map would
-mostly restate the branch-level result with a different plotting convention.
-
-### C. Branch Summary Table
-
-For reporting, sort branches by their central log-rate estimate and carry along
-the uncertainty columns. The rendered table translates the top rows into
-descendant-tip counts and representative taxa. In this run, the highest log-rate
-whole-branch summaries point to the same lungfish-rich region highlighted above.
-
-```{r highest_log_rate_branch_table}
-branch_rates <- jaw_rate_map_equal$intervals
-highest_log_rate_branches <- branch_rates[
-  order(branch_rates$value, decreasing = TRUE),
-  c(
-    "edge", "parent", "child", "clade_key",
-    "value", "mean", "median", "sd",
-    "q025", "q975", "highest_density_interval_low", "highest_density_interval_high", "n"
-  )
-]
-
-head(highest_log_rate_branches, 10)
-```
-
-```{r highest_log_rate_branch_table_static, echo = FALSE, results = "asis", eval = TRUE}
-rate_map_table(
-  "highest_log_rate_branches.csv",
-  n = 10,
-  keep = c("edge", "child", "descendant_tips", "descendant_examples", "value", "sd", "highest_density_interval_width", "n"),
-  caption = rate_map_caption(
-    "Table 5. Highest log-rate branches.",
-    "The 10 highest branch-level summaries after sorting by the equal-weight mean",
-    "fitted log-rate. `edge` and `child` identify the tree edge; `descendant_tips`",
-    "is the number of tips descended from that edge; `descendant_examples` lists",
-    "representative taxa; `value` is the equal-weight mean fitted log-rate; `sd`",
-    "is the across-run standard deviation; `highest_density_interval_width` is the default 95%",
-    "highest-density interval width; and `n` is the number of finite run-level",
-    "values. The repeated `value`, `sd`, and interval-width entries reflect a",
-    "single high-rate region whose descendant branches share the same or very",
-    "similar fitted rate histories across the threshold sweep."
-  )
-)
-```
-
-### D. Weighting-Scheme Diagnostic
-
-The main comparison between weighting schemes is visual: compare the equal-weight
-map in Figure 2 with the IC-weighted map in Figure 3. This appendix section gives the
-code and table for a more mechanical diagnostic: compare equal-weight and
-IC-weighted branch summaries directly to find branches where the
-better-supported threshold outcomes emphasize different log-rates than the
-unweighted sensitivity average.
-
-```{r compare_weighting_schemes}
-equal_branch_map <- rateMap(
-  jaw_threshold_runs,
-  summary = "branch",
-  weights = "equal",
-  progress = TRUE
-)
-
-ic_branch_map <- rateMap(
-  jaw_threshold_runs,
-  summary = "branch",
-  weights = "ic",
-  progress = TRUE
-)
-
-comparison <- merge(
-  equal_branch_map$intervals[, c("edge", "value")],
-  ic_branch_map$intervals[, c("edge", "value")],
-  by = "edge",
-  suffixes = c("_equal", "_ic")
-)
-comparison$difference <- comparison$value_ic - comparison$value_equal
-comparison$abs_difference <- abs(comparison$difference)
-comparison <- comparison[order(comparison$abs_difference, decreasing = TRUE), ]
-
-head(comparison, 10)
-```
-
-```{r compare_weighting_schemes_static, echo = FALSE, results = "asis", eval = TRUE}
-rate_map_table(
-  "weighting_comparison.csv",
-  n = 10,
-  keep = c(
-    "edge", "child", "descendant_tips", "descendant_examples",
-    "value_equal", "value_ic", "difference", "abs_difference"
-  ),
-  caption = rate_map_caption(
-    "Table 6. Equal-weight and IC-weighted branch differences.",
-    "The 10 branches with the largest absolute differences between equal-weight",
-    "and IC-weighted mean log-rate summaries. `edge` and `child` identify the",
-    "tree edge; `descendant_tips` and `descendant_examples` summarize the",
-    "descendant clade; `value_equal` and `value_ic` are the two mean log-rate",
-    "summaries; `difference` is value_ic - value_equal; and `abs_difference`",
-    "is the absolute magnitude of that change."
-  )
-)
-```
-
-Small differences suggest the broad branch log-rate picture is not very
-sensitive to weighting choice. Large differences deserve closer inspection,
-especially on branches central to the biological interpretation. Here the
-largest differences occur on a few moderate-rate clades and singleton branches;
-the highest log-rate lungfish-rich branches remain high under both weighting
-schemes.
+This vignette was developed with assistance from OpenAI tools for drafting and
+editing; all scientific content, interpretation, and final decisions were
+reviewed by the authors.
 
 ## References
 
 - Clavel, J., Aristide, L., and Morlon, H. (2019). *A Penalized Likelihood Framework for High-Dimensional Phylogenetic Comparative Methods and an Application to New-World Monkeys Brain Evolution*. [https://doi.org/10.1093/sysbio/syy045](https://doi.org/10.1093/sysbio/syy045)
+- Otsu, N. (1979). *A threshold selection method from gray-level histograms*. *IEEE Transactions on Systems, Man, and Cybernetics*, 9(1), 62-66. [https://doi.org/10.1109/TSMC.1979.4310076](https://doi.org/10.1109/TSMC.1979.4310076)
 - Paradis, E., and Schliep, K. (2019). *ape 5.0: an environment for modern phylogenetics and evolutionary analyses in R*. *Bioinformatics*, 35, 526-528. [https://doi.org/10.1093/bioinformatics/bty633](https://doi.org/10.1093/bioinformatics/bty633)
+- Revell, L. J. (2013). *Two new graphical methods for mapping trait evolution on phylogenies*. *Methods in Ecology and Evolution*, 4, 754-759.
+- Revell, L. J. (2014). *Graphical methods for visualizing comparative data on phylogenies*. Chapter 4 in *Modern Phylogenetic Comparative Methods and Their Application in Evolutionary Biology: Concepts and Practice*, 77-103.
 - Revell, L. J. (2024). *phytools 2.0: an updated R ecosystem for phylogenetic comparative methods (and other things).* *PeerJ*, 12, e16505. [https://doi.org/10.7717/peerj.16505](https://doi.org/10.7717/peerj.16505)
 - Troyer, E. M., et al. (2025). *Macroevolutionary patterns of jaw shape in early bony fishes*. [https://doi.org/10.1016/j.cub.2025.08.008](https://doi.org/10.1016/j.cub.2025.08.008)
 
@@ -1061,9 +536,3 @@ schemes.
 - `bifrost` for shift searches and `rateMap()` summaries.
 - `geomorph` for converting landmark arrays to species-by-trait matrices.
 - `ape` and `phytools` for phylogenetic data structures, SIMMAP trees, and plotting.
-
-## AI Assistance
-
-This vignette was developed with assistance from OpenAI tools for drafting and
-editing; all scientific content, interpretation, and final decisions were
-reviewed by the authors.

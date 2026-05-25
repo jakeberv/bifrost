@@ -67,6 +67,16 @@
   tr
 }
 
+.rate_map_state_fit <- function(rates, edge_length = 1) {
+  tr <- ape::stree(length(rates), type = "star")
+  tr$edge.length <- rep(edge_length, nrow(tr$edge))
+  states <- paste0("s", seq_len(nrow(tr$edge)))
+  tr$maps <- lapply(states, function(state) stats::setNames(edge_length, state))
+  tr$mapped.edge <- .rateMap_make_mapped_edge(tr$edge, tr$maps)
+  class(tr) <- c("simmap", "phylo")
+  .rate_map_fit(tr, stats::setNames(rates, states))
+}
+
 test_that("rateMap summarizes small synthetic stochastic-map fits", {
   .rate_map_skip_if_missing_deps()
   fx <- .rate_map_fixture()
@@ -88,6 +98,15 @@ test_that("rateMap summarizes small synthetic stochastic-map fits", {
   testthat::expect_equal(out$color_mode, "category")
   testthat::expect_true(out$log)
   testthat::expect_s3_class(out$rate_categories, "data.frame")
+  testthat::expect_true(all(c(
+    "n_branches",
+    "value_mean",
+    "value_median",
+    "value_min",
+    "value_max",
+    "value_sd",
+    "total_branch_length"
+  ) %in% names(out$rate_categories)))
   testthat::expect_length(out$lims, 2)
   testthat::expect_true(is.data.frame(out$intervals))
   testthat::expect_true(all(c(
@@ -508,6 +527,241 @@ test_that("rateMap computes whole-branch summaries without splitting branches", 
   testthat::expect_true(all(vapply(out$tree$maps, length, integer(1)) == 1L))
 })
 
+test_that("rateMap floor flags near-zero branch rates without changing values", {
+  .rate_map_skip_if_missing_deps()
+
+  default_no_rule_out <- rateMap(
+    list(.rate_map_state_fit(c(0.001, 1, 2))),
+    summary = "branch",
+    log = FALSE,
+    progress = FALSE,
+    control = rateMapControl(
+      rate_flags = rateMapRateFlags()
+    )
+  )
+  testthat::expect_true(default_no_rule_out$rate_diagnostics$enabled)
+  testthat::expect_equal(default_no_rule_out$rate_diagnostics$method, "none")
+  testthat::expect_equal(default_no_rule_out$rate_diagnostics$n_near_zero, 0L)
+  testthat::expect_equal(default_no_rule_out$rate_diagnostics$full_fold_range, 2000)
+  testthat::expect_false("near-zero" %in% default_no_rule_out$rate_categories$rate_category)
+
+  floor_out <- rateMap(
+    list(.rate_map_state_fit(c(0.001, 0.005, 1, 2))),
+    summary = "branch",
+    log = FALSE,
+    progress = FALSE,
+    control = rateMapControl(
+      rate_flags = rateMapRateFlags(
+        zero_floor = 0.01,
+        zero_color = "grey60"
+      )
+    )
+  )
+
+  testthat::expect_equal(floor_out$intervals$value, c(0.001, 0.005, 1, 2))
+  testthat::expect_equal(
+    floor_out$intervals$rate_flag,
+    c("near-zero", "near-zero", "regular", "regular")
+  )
+  testthat::expect_equal(
+    floor_out$intervals$rate_category,
+    c("near-zero", "near-zero", "1", "2")
+  )
+  testthat::expect_equal(floor_out$rate_categories$rate_category[1L], "near-zero")
+  testthat::expect_equal(floor_out$rate_categories$color[1L], "grey60")
+  testthat::expect_equal(floor_out$rate_diagnostics$n_near_zero, 2L)
+  testthat::expect_equal(floor_out$rate_diagnostics$n_high_outlier, 0L)
+  testthat::expect_equal(floor_out$rate_diagnostics$full_fold_range, 2000)
+  testthat::expect_equal(floor_out$rate_diagnostics$regular_fold_range, 2)
+  testthat::expect_equal(.rateMap_category_lims(floor_out), c(0.001, 2))
+  testthat::expect_equal(
+    .rateMap_category_marker_values(floor_out)["near-zero"],
+    c("near-zero" = 0.01)
+  )
+  testthat::expect_true(is.na(.rateMap_rate_marker_to_value(NA_real_, log = FALSE)))
+  testthat::expect_true(is.na(.rateMap_rate_marker_to_value(0, log = TRUE)))
+  floor_print <- utils::capture.output(print(floor_out))
+  testthat::expect_true(any(grepl("rate flags: 2 near-zero", floor_print)))
+  testthat::expect_true(any(grepl("near-zero floor:", floor_print)))
+
+  palette_out <- rateMapView(
+    floor_out,
+    palette = c("blue", "red"),
+    color_mode = "category"
+  )
+  regular_category_rows <- palette_out$rate_categories$rate_category != "near-zero"
+  testthat::expect_equal(
+    unname(palette_out$rate_categories$color[regular_category_rows]),
+    grDevices::colorRampPalette(c("blue", "red"))(2)
+  )
+
+  log_floor_out <- rateMap(
+    list(.rate_map_state_fit(c(1e-10, 1e-5, 1e-4))),
+    summary = "branch",
+    log = TRUE,
+    progress = FALSE,
+    control = rateMapControl(
+      rate_flags = rateMapRateFlags(method = "floor", zero_floor = 1e-8)
+    )
+  )
+  testthat::expect_equal(
+    .rateMap_category_marker_values(log_floor_out)["near-zero"],
+    c("near-zero" = log(1e-8))
+  )
+  plot_file <- tempfile(fileext = ".png")
+  grDevices::png(plot_file)
+  on.exit(if (grDevices::dev.cur() > 1L) grDevices::dev.off(), add = TRUE)
+  plot(floor_out, legend = 1, show_tip_labels = FALSE)
+  grDevices::dev.off()
+
+  finite_floor_out <- rateMap(
+    list(.rate_map_state_fit(c(0.001, 1, 2))),
+    summary = "branch",
+    log = FALSE,
+    progress = FALSE,
+    control = rateMapControl(
+      rate_flags = rateMapRateFlags(method = "floor", zero_floor = 0.01)
+    )
+  )
+  finite_floor_print <- utils::capture.output(print(finite_floor_out))
+  testthat::expect_true(any(grepl("fold range: 2000 full, 2 regular", finite_floor_print)))
+
+  all_floor_out <- rateMap(
+    list(.rate_map_state_fit(c(0.001, 0.005))),
+    summary = "branch",
+    log = FALSE,
+    progress = FALSE,
+    control = rateMapControl(
+      rate_flags = rateMapRateFlags(method = "floor", zero_floor = 0.01)
+    )
+  )
+  testthat::expect_equal(unique(all_floor_out$intervals$rate_category), "near-zero")
+  testthat::expect_true(is.na(all_floor_out$rate_diagnostics$regular_fold_range))
+  testthat::expect_equal(nrow(all_floor_out$rate_categories), 1L)
+
+})
+
+test_that("rateMap rate flags support tail clustering, disabled, and interval-mode behavior", {
+  .rate_map_skip_if_missing_deps()
+
+  cluster_rates <- exp(c(
+    -24, -22, -20,
+    -17, -16.5, -16, -15.5, -15, -14.5, -14, -13.5, -13, -12.5, -12
+  ))
+  cluster_out <- rateMap(
+    list(.rate_map_state_fit(cluster_rates)),
+    summary = "branch",
+    log = FALSE,
+    progress = FALSE,
+    control = rateMapControl(
+      rate_flags = rateMapRateFlags(method = "tail_cluster")
+    )
+  )
+  testthat::expect_equal(cluster_out$rate_diagnostics$n_near_zero, 3L)
+  testthat::expect_equal(cluster_out$rate_diagnostics$zero_cluster_n_tail, 3L)
+  testthat::expect_equal(cluster_out$rate_diagnostics$zero_cluster_n_regular, 11L)
+  testthat::expect_equal(cluster_out$rate_diagnostics$zero_cluster_log_gap, 3)
+  testthat::expect_equal(
+    cluster_out$rate_diagnostics$zero_cluster_log_cutoff,
+    -18.5
+  )
+  testthat::expect_true(all(cluster_out$intervals$is_near_zero[1:3]))
+  testthat::expect_false(any(cluster_out$intervals$is_near_zero[-(1:3)]))
+  testthat::expect_equal(
+    .rateMap_category_marker_values(cluster_out)["near-zero"],
+    c("near-zero" = exp(-18.5))
+  )
+
+  no_cluster_out <- rateMap(
+    list(.rate_map_state_fit(exp(seq(-10, -4, length.out = 14)))),
+    summary = "branch",
+    log = FALSE,
+    progress = FALSE,
+    control = rateMapControl(
+      rate_flags = rateMapRateFlags(method = "tail_cluster")
+    )
+  )
+  testthat::expect_equal(no_cluster_out$rate_diagnostics$n_near_zero, 0L)
+  testthat::expect_true(is.na(no_cluster_out$rate_diagnostics$zero_cluster_cutoff_rate))
+
+  too_small_cluster_out <- rateMap(
+    list(.rate_map_state_fit(exp(c(-20, -19, -10, -9)))),
+    summary = "branch",
+    log = FALSE,
+    progress = FALSE,
+    control = rateMapControl(
+      rate_flags = rateMapRateFlags(method = "tail_cluster")
+    )
+  )
+  testthat::expect_equal(too_small_cluster_out$rate_diagnostics$n_near_zero, 0L)
+  testthat::expect_equal(too_small_cluster_out$rate_diagnostics$zero_cluster_n_tail, 0L)
+  testthat::expect_equal(too_small_cluster_out$rate_diagnostics$zero_cluster_n_regular, 4L)
+
+  high_cluster_out <- rateMap(
+    list(.rate_map_state_fit(exp(c(
+      -16, -15.5, -15, -14.5, -14, -13.5, -13, -12.5, -12, -11.5, -11,
+      -8, -6, -4
+    )))),
+    summary = "branch",
+    log = FALSE,
+    progress = FALSE,
+    control = rateMapControl(
+      rate_flags = rateMapRateFlags(
+        near_zero = FALSE,
+        high_outlier = TRUE,
+        method = "tail_cluster"
+      )
+    )
+  )
+  testthat::expect_equal(high_cluster_out$rate_diagnostics$n_high_outlier, 3L)
+  testthat::expect_equal(high_cluster_out$rate_diagnostics$high_cluster_n_tail, 3L)
+  testthat::expect_true(all(utils::tail(high_cluster_out$intervals$is_high_outlier, 3)))
+  testthat::expect_equal(
+    .rateMap_category_marker_values(high_cluster_out)["high-outlier"],
+    c("high-outlier" = exp(-9.5))
+  )
+  plot_file <- tempfile(fileext = ".png")
+  grDevices::png(plot_file)
+  on.exit(if (grDevices::dev.cur() > 1L) grDevices::dev.off(), add = TRUE)
+  plot(
+    high_cluster_out,
+    legend = 1,
+    show_tip_labels = FALSE,
+    xlim = rev(range(phytools::nodeHeights(high_cluster_out$tree)))
+  )
+  grDevices::dev.off()
+
+  disabled <- rateMap(
+    list(.rate_map_state_fit(c(1e-9, 1, 2))),
+    summary = "branch",
+    log = FALSE,
+    progress = FALSE,
+    control = rateMapControl(rate_flags = NULL)
+  )
+  testthat::expect_false("rate_flag" %in% names(disabled$intervals))
+  testthat::expect_false(disabled$rate_diagnostics$enabled)
+  testthat::expect_equal(disabled$rate_diagnostics$reason, "rate flagging is disabled")
+  disabled_view <- rateMapView(disabled, color_mode = "category")
+  testthat::expect_false(disabled_view$rate_diagnostics$enabled)
+
+  interval_out <- rateMap(
+    list(.rate_map_state_fit(c(1e-9, 1, 2))),
+    summary = "interval",
+    log = FALSE,
+    progress = FALSE,
+    control = rateMapControl(
+      res = 2,
+      rate_flags = rateMapRateFlags(method = "tail_cluster")
+    )
+  )
+  testthat::expect_false("rate_flag" %in% names(interval_out$intervals))
+  testthat::expect_false(interval_out$rate_diagnostics$enabled)
+  testthat::expect_equal(
+    interval_out$rate_diagnostics$reason,
+    "rate flags are only computed for branch summaries"
+  )
+})
+
 test_that("rateMapView can color by discrete rate categories", {
   .rate_map_skip_if_missing_deps()
 
@@ -533,6 +787,13 @@ test_that("rateMapView can color by discrete rate categories", {
   testthat::expect_equal(out$color_mode, "category")
   testthat::expect_equal(out$category_labels, c("1", "4"))
   testthat::expect_equal(out$rate_categories$value, c(1, 4))
+  testthat::expect_equal(out$rate_categories$n_branches, c(1L, 1L))
+  testthat::expect_equal(out$rate_categories$value_mean, c(1, 4))
+  testthat::expect_equal(out$rate_categories$value_median, c(1, 4))
+  testthat::expect_equal(out$rate_categories$value_min, c(1, 4))
+  testthat::expect_equal(out$rate_categories$value_max, c(1, 4))
+  testthat::expect_true(all(is.na(out$rate_categories$value_sd)))
+  testthat::expect_equal(out$rate_categories$total_branch_length, c(1, 1))
   testthat::expect_equal(names(out$cols), c("1", "4"))
   testthat::expect_equal(length(out$cols), nrow(out$rate_categories))
   testthat::expect_equal(out$intervals$rate_category, c("1", "4"))
@@ -554,6 +815,20 @@ test_that("rateMapView can color by discrete rate categories", {
   testthat::expect_equal(custom$rate_categories$upper, c(2, 5))
   testthat::expect_equal(length(custom$cols), nrow(custom$rate_categories))
 
+  empty_bin <- rateMapView(
+    base,
+    color_mode = "category",
+    category_breaks = c(0, 2, 3, 5),
+    category_labels = c("slow", "middle", "fast")
+  )
+  testthat::expect_equal(empty_bin$rate_categories$n_branches, c(1L, 0L, 1L))
+  testthat::expect_equal(empty_bin$rate_categories$value_mean, c(1, NA, 4))
+  testthat::expect_equal(empty_bin$rate_categories$value_median, c(1, NA, 4))
+  testthat::expect_equal(empty_bin$rate_categories$value_min, c(1, NA, 4))
+  testthat::expect_equal(empty_bin$rate_categories$value_max, c(1, NA, 4))
+  testthat::expect_true(all(is.na(empty_bin$rate_categories$value_sd)))
+  testthat::expect_equal(empty_bin$rate_categories$total_branch_length, c(1, 0, 1))
+
   equal_binned <- rateMapView(
     base,
     color_mode = "category",
@@ -563,6 +838,28 @@ test_that("rateMapView can color by discrete rate categories", {
   testthat::expect_equal(equal_binned$category_bin_method, "equal")
   testthat::expect_equal(equal_binned$category_breaks, c(1, 4))
   testthat::expect_equal(equal_binned$category_labels, "1 to 4")
+  testthat::expect_equal(equal_binned$rate_categories$n_branches, 2L)
+  testthat::expect_equal(equal_binned$rate_categories$value_mean, 2.5)
+  testthat::expect_equal(equal_binned$rate_categories$value_median, 2.5)
+  testthat::expect_equal(equal_binned$rate_categories$value_min, 1)
+  testthat::expect_equal(equal_binned$rate_categories$value_max, 4)
+  testthat::expect_equal(equal_binned$rate_categories$value_sd, stats::sd(c(1, 4)))
+  testthat::expect_equal(equal_binned$rate_categories$total_branch_length, 2)
+
+  near_constant <- rateMap(
+    list(.rate_map_state_fit(c(1, 1 + 1e-12))),
+    summary = "branch",
+    log = FALSE,
+    progress = FALSE
+  )
+  near_constant <- rateMapView(
+    near_constant,
+    color_mode = "category",
+    category_breaks = c(0, 2),
+    category_labels = "one"
+  )
+  testthat::expect_equal(near_constant$rate_categories$n_branches, 2L)
+  testthat::expect_equal(near_constant$rate_categories$value_sd, 0)
 
   continuous_three <- rateMapView(
     base,
@@ -571,6 +868,16 @@ test_that("rateMapView can color by discrete rate categories", {
   )
   testthat::expect_equal(continuous_three$color_mode, "continuous")
   testthat::expect_length(continuous_three$cols, 3)
+  testthat::expect_null(continuous_three$rate_categories)
+
+  interval_base <- rateMap(
+    list(fit),
+    summary = "interval",
+    log = FALSE,
+    progress = FALSE,
+    control = rateMapControl(res = 2)
+  )
+  testthat::expect_false("n_branches" %in% names(interval_base$rate_categories))
 
   many <- .rateMap_resolve_categories(1:10, n_categories = 3)
   testthat::expect_equal(many$breaks, c(0, 5, 10))
@@ -686,6 +993,25 @@ test_that("rateMap computes optional uncertainty summaries", {
   sd_map <- .rateMap_recolor(out, "sd")
   testthat::expect_equal(sd_map$plot_value, "sd")
   testthat::expect_true(diff(sd_map$lims) > 0)
+
+  flagged_uncertainty <- rateMap(
+    list(
+      .rate_map_state_fit(c(1e-9, 1, 2)),
+      .rate_map_state_fit(c(1e-9, 1.2, 3))
+    ),
+    summary = "branch",
+    uncertainty = TRUE,
+    log = FALSE,
+    progress = FALSE,
+    control = rateMapControl(
+      rate_flags = rateMapRateFlags(method = "floor", zero_floor = 1e-8)
+    )
+  )
+  flagged_sd <- rateMapView(flagged_uncertainty, value = "sd", color_mode = "category")
+  testthat::expect_equal(flagged_uncertainty$rate_diagnostics$n_near_zero, 1L)
+  testthat::expect_equal(flagged_sd$rate_diagnostics$n_near_zero, 1L)
+  testthat::expect_true(flagged_sd$intervals$is_near_zero[1L])
+  testthat::expect_false("near-zero" %in% flagged_sd$intervals$rate_category)
 
   median_out <- rateMap(
     list(
@@ -940,6 +1266,44 @@ test_that("rateMap palette resolution handles names, vectors, and reversal", {
   testthat::expect_equal(.rateMap_format_rate(1e-9, c(1e-9, 1e-5)), "0.000000001")
   testthat::expect_error(.rateMap_validate_n_categories(NA_real_), "n_categories")
   testthat::expect_error(.rateMap_category_labels(c("a", NA), 2, TRUE), "non-missing")
+  testthat::expect_equal(rateMapRateFlags()$method, "none")
+  flag_control <- rateMapRateFlags(zero_floor = 1e-8)
+  testthat::expect_s3_class(flag_control, "rateMap_rate_flags")
+  testthat::expect_equal(flag_control$method, "floor")
+  testthat::expect_equal(
+    rateMapControl(rate_flags = list(zero_floor = 1e-8))$rate_flags$method,
+    "floor"
+  )
+  testthat::expect_equal(
+    rateMapControl(rate_flags = list(method = "none"))$rate_flags$method,
+    "none"
+  )
+  testthat::expect_error(rateMapRateFlags(near_zero = NA), "near_zero")
+  testthat::expect_error(rateMapRateFlags(high_outlier = NA), "high_outlier")
+  testthat::expect_error(rateMapRateFlags(method = TRUE), "method")
+  testthat::expect_error(rateMapRateFlags(method = "floor"), "zero_floor")
+  testthat::expect_error(
+    rateMapRateFlags(method = "tail_cluster", zero_floor = 1e-8),
+    "zero_floor"
+  )
+  testthat::expect_error(rateMapRateFlags(method = "none", zero_floor = 1e-8), "zero_floor")
+  testthat::expect_error(rateMapRateFlags(zero_floor = -1), "zero_floor")
+  testthat::expect_error(rateMapRateFlags(cluster_min_log_gap = 0), "cluster_min_log_gap")
+  testthat::expect_error(
+    rateMapRateFlags(cluster_min_fold_reduction = 1),
+    "cluster_min_fold_reduction"
+  )
+  testthat::expect_error(
+    rateMapRateFlags(cluster_max_tail_fraction = 0.75),
+    "cluster_max_tail_fraction"
+  )
+  testthat::expect_error(rateMapRateFlags(cluster_min_flagged = 0), "cluster_min_flagged")
+  testthat::expect_error(rateMapRateFlags(cluster_min_regular = 0), "cluster_min_regular")
+  testthat::expect_error(rateMapRateFlags(zero_label = "same", high_label = "same"), "unique")
+  testthat::expect_error(rateMapRateFlags(zero_color = ""), "color")
+  testthat::expect_error(rateMapControl(rate_flags = TRUE), "rate_flags")
+  testthat::expect_error(rateMapControl(rate_flags = list(TRUE)), "rate_flags")
+  testthat::expect_error(rateMapControl(rate_flags = list(nope = TRUE)), "Unsupported")
   testthat::expect_equal(
     .rateMap_category_labels(c("a", "a"), 2, FALSE),
     c("a", "a_1")
@@ -1100,15 +1464,6 @@ test_that("plot.rateMap draws rate maps on a graphics device", {
     progress = FALSE,
     control = rateMapControl(res = 4)
   )
-
-  legacy_like <- out
-  legacy_like$color_mode <- NULL
-  legacy_like$n_categories <- NULL
-  legacy_like$category_bin_method <- NULL
-  legacy_like$category_breaks <- NULL
-  legacy_like$category_labels <- NULL
-  legacy_recolored <- .rateMap_recolor(legacy_like, "value")
-  testthat::expect_equal(legacy_recolored$color_mode, "continuous")
 
   binned_like <- out
   binned_like$color_mode <- "category"

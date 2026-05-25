@@ -17,5 +17,6 @@ Invisibly returns \code{x}.
 \description{
 Print a concise summary of a \code{"rateMap"} object, including the number of fits,
 summary mode, target/check mode, weighting mode, uncertainty status, color
-mode, plotted value, value range, and uncertainty ranges when available.
+mode, plotted value, value range, rate-flag diagnostics when active, and
+uncertainty ranges when available.
 }

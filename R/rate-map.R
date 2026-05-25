@@ -260,6 +260,20 @@
   labels
 }
 
+.rateMap_category_sd <- function(values) {
+  if (length(values) <= 1L) {
+    return(NA_real_)
+  }
+
+  span <- diff(range(values))
+  tolerance <- sqrt(.Machine$double.eps) * max(1, max(abs(values)))
+  if (span <= tolerance) {
+    return(0)
+  }
+
+  stats::sd(values)
+}
+
 .rateMap_resolve_categories <- function(values,
                                         n_categories,
                                         category_breaks = NULL,
@@ -394,7 +408,9 @@
                                      n_categories,
                                      category_breaks = NULL,
                                      category_labels = NULL,
-                                     category_bin_method = "pretty") {
+                                     category_bin_method = "pretty",
+                                     display_flags_by_edge = NULL,
+                                     special_categories = NULL) {
   flat_values <- unlist(values_by_edge, use.names = FALSE)
   lims <- range(flat_values, finite = TRUE)
   # nocov start
@@ -434,30 +450,118 @@
     ))
   }
 
-  categories <- .rateMap_resolve_categories(
-    values = flat_values,
-    n_categories = n_categories,
-    category_breaks = category_breaks,
-    category_labels = category_labels,
-    category_bin_method = category_bin_method
-  )
-  category_count <- length(categories$labels)
-  cols <- .rateMap_colors(
-    ncolors = max(category_count, 2L),
-    palette = palette,
-    reverse_palette = reverse_palette
-  )[seq_len(category_count)]
-  names(cols) <- categories$labels
-  categories$table$color <- unname(cols[categories$table$rate_category])
+  flat_flags <- if (is.null(display_flags_by_edge)) {
+    rep("regular", length(flat_values))
+  } else {
+    unlist(display_flags_by_edge, use.names = FALSE)
+  }
+  flat_flags[is.na(flat_flags) | !nzchar(flat_flags)] <- "regular"
+  use_special <- !is.null(special_categories) && any(flat_flags != "regular")
+  regular <- flat_flags == "regular"
+  regular_values <- flat_values[regular]
+
+  if (length(regular_values) > 0L) {
+    categories <- .rateMap_resolve_categories(
+      values = regular_values,
+      n_categories = n_categories,
+      category_breaks = category_breaks,
+      category_labels = category_labels,
+      category_bin_method = category_bin_method
+    )
+    regular_table <- categories$table
+    regular_breaks <- categories$breaks
+    regular_labels <- categories$labels
+    regular_index <- categories$index
+  } else {
+    regular_table <- data.frame(
+      color_bin = integer(),
+      rate_category = character(),
+      lower = numeric(),
+      upper = numeric(),
+      value = numeric(),
+      stringsAsFactors = FALSE
+    )
+    regular_breaks <- numeric()
+    regular_labels <- character()
+    regular_index <- integer()
+  }
+
+  zero_present <- isTRUE(use_special) && any(flat_flags == special_categories$zero_label)
+  high_present <- isTRUE(use_special) && any(flat_flags == special_categories$high_label)
+  special_rows <- list()
+  if (zero_present) {
+    special_rows <- c(special_rows, list(data.frame(
+      color_bin = NA_integer_,
+      rate_category = special_categories$zero_label,
+      lower = NA_real_,
+      upper = NA_real_,
+      value = NA_real_,
+      stringsAsFactors = FALSE
+    )))
+  }
+  if (high_present) {
+    special_rows <- c(special_rows, list(data.frame(
+      color_bin = NA_integer_,
+      rate_category = special_categories$high_label,
+      lower = NA_real_,
+      upper = NA_real_,
+      value = NA_real_,
+      stringsAsFactors = FALSE
+    )))
+  }
+
+  if (nrow(regular_table) > 0L) {
+    regular_cols <- .rateMap_colors(
+      ncolors = max(nrow(regular_table), 2L),
+      palette = palette,
+      reverse_palette = reverse_palette
+    )[seq_len(nrow(regular_table))]
+    names(regular_cols) <- regular_table$rate_category
+    regular_table$color <- unname(regular_cols[regular_table$rate_category])
+  } else {
+    regular_cols <- character()
+    regular_table$color <- character()
+  }
+
+  category_table <- regular_table
+  if (zero_present) {
+    zero_row <- special_rows[[1L]]
+    zero_row$color <- special_categories$zero_color
+    category_table <- rbind(zero_row, category_table)
+  }
+  if (high_present) {
+    high_row <- special_rows[[length(special_rows)]]
+    high_row$color <- special_categories$high_color
+    category_table <- rbind(category_table, high_row)
+  }
+  category_table$color_bin <- seq_len(nrow(category_table))
+  cols <- category_table$color
+  names(cols) <- category_table$rate_category
+  category_lookup <- stats::setNames(category_table$color_bin, category_table$rate_category)
+
+  regular_bins_flat <- rep(NA_integer_, length(flat_values))
+  regular_bins_flat[regular] <- regular_index
+  if (zero_present || high_present) {
+    regular_bins_flat[regular] <- category_lookup[regular_labels[regular_index]]
+  }
 
   bins_by_edge <- vector("list", length(values_by_edge))
   states_by_edge <- vector("list", length(values_by_edge))
   start <- 1L
   for (i in seq_along(values_by_edge)) {
     n_i <- length(values_by_edge[[i]])
-    idx <- categories$index[start:(start + n_i - 1L)]
+    row_idx <- start:(start + n_i - 1L)
+    idx <- regular_bins_flat[row_idx]
+    states <- flat_flags[row_idx]
+    regular_i <- states == "regular"
+    if (any(regular_i)) {
+      states[regular_i] <- category_table$rate_category[idx[regular_i]]
+    }
+    if (any(!regular_i)) {
+      idx[!regular_i] <- category_lookup[states[!regular_i]]
+    }
     bins_by_edge[[i]] <- idx
-    states_by_edge[[i]] <- categories$labels[idx]
+    states_by_edge[[i]] <- states
     start <- start + n_i
   }
 
@@ -465,13 +569,285 @@
     color_mode = color_mode,
     cols = cols,
     lims = lims,
-    breaks = categories$breaks,
+    breaks = regular_breaks,
     bins_by_edge = bins_by_edge,
     states_by_edge = states_by_edge,
-    rate_categories = categories$table,
-    category_breaks = categories$breaks,
-    category_labels = categories$labels,
+    rate_categories = category_table,
+    category_breaks = regular_breaks,
+    category_labels = regular_labels,
     category_bin_method = category_bin_method
+  )
+}
+
+.rateMap_summarize_category_values <- function(values, lengths) {
+  finite_values <- values[is.finite(values)]
+  finite_lengths <- lengths[is.finite(lengths)]
+
+  data.frame(
+    n_branches = length(values),
+    value_mean = if (length(finite_values) > 0L) mean(finite_values) else NA_real_,
+    value_median = if (length(finite_values) > 0L) stats::median(finite_values) else NA_real_,
+    value_min = if (length(finite_values) > 0L) min(finite_values) else NA_real_,
+    value_max = if (length(finite_values) > 0L) max(finite_values) else NA_real_,
+    value_sd = .rateMap_category_sd(finite_values),
+    total_branch_length = if (length(finite_lengths) > 0L) sum(finite_lengths) else 0,
+    stringsAsFactors = FALSE
+  )
+}
+
+.rateMap_add_category_summaries <- function(rate_categories,
+                                            intervals,
+                                            summary) {
+  if (is.null(rate_categories) || !identical(summary, "branch")) {
+    return(rate_categories)
+  }
+
+  summaries <- do.call(
+    rbind,
+    lapply(rate_categories$color_bin, function(bin) {
+      rows <- intervals$color_bin == bin
+      rows[is.na(rows)] <- FALSE
+      .rateMap_summarize_category_values(
+        values = intervals$value[rows],
+        lengths = intervals$interval_length[rows]
+      )
+    })
+  )
+  rownames(summaries) <- NULL
+
+  cbind(rate_categories, summaries)
+}
+
+.rateMap_fold_range <- function(rates) {
+  rates <- rates[is.finite(rates)]
+  if (length(rates) == 0L) {
+    return(NA_real_)
+  }
+  rate_range <- range(rates)
+  rate_range[2L] / rate_range[1L]
+}
+
+.rateMap_tail_cluster_flags <- function(rates,
+                                        tail = c("lower", "upper"),
+                                        min_log_gap,
+                                        min_fold_reduction,
+                                        max_tail_fraction,
+                                        min_flagged,
+                                        min_regular) {
+  tail <- match.arg(tail)
+  out <- rep(FALSE, length(rates))
+  ok <- is.finite(rates) & rates > 0
+  n_ok <- sum(ok)
+  empty <- list(
+    flag = out,
+    cutoff = NA_real_,
+    log_cutoff = NA_real_,
+    gap = NA_real_,
+    fold_reduction = NA_real_,
+    score = NA_real_,
+    tail_fraction = NA_real_,
+    n_tail = 0L,
+    n_regular = n_ok
+  )
+  if (n_ok < min_flagged + min_regular) {
+    return(empty)
+  }
+
+  log_rates <- log(rates[ok])
+  ord <- order(log_rates)
+  sorted <- log_rates[ord]
+  n <- length(sorted)
+  candidates <- seq_len(n - 1L)
+  gaps <- diff(sorted)
+  total <- sum(sorted)
+  cumulative <- cumsum(sorted)
+  overall_mean <- mean(sorted)
+  lower_n <- candidates
+  upper_n <- n - candidates
+  lower_mean <- cumulative[candidates] / lower_n
+  upper_mean <- (total - cumulative[candidates]) / upper_n
+  score <- lower_n * (lower_mean - overall_mean)^2 +
+    upper_n * (upper_mean - overall_mean)^2
+  full_log_range <- sorted[n] - sorted[1L]
+
+  if (identical(tail, "lower")) {
+    n_tail <- candidates
+    n_regular <- n - candidates
+    tail_fraction <- n_tail / n
+    regular_log_range <- sorted[n] - sorted[candidates + 1L]
+  } else {
+    n_tail <- n - candidates
+    n_regular <- candidates
+    tail_fraction <- n_tail / n
+    regular_log_range <- sorted[candidates] - sorted[1L]
+  }
+  log_reduction <- full_log_range - regular_log_range
+
+  valid <- n_tail >= min_flagged &
+    n_regular >= min_regular &
+    tail_fraction <= max_tail_fraction &
+    gaps >= min_log_gap &
+    log_reduction >= log(min_fold_reduction) &
+    is.finite(score)
+  if (!any(valid)) {
+    return(empty)
+  }
+
+  valid_candidates <- candidates[valid]
+  best <- valid_candidates[which.max(score[valid])]
+  ok_indices <- which(ok)[ord]
+  if (identical(tail, "lower")) {
+    selected <- ok_indices[seq_len(best)]
+  } else {
+    selected <- ok_indices[(best + 1L):n]
+  }
+  out[selected] <- TRUE
+
+  log_cutoff <- mean(sorted[c(best, best + 1L)])
+  list(
+    flag = out,
+    cutoff = exp(log_cutoff),
+    log_cutoff = log_cutoff,
+    gap = gaps[best],
+    fold_reduction = exp(log_reduction[best]),
+    score = score[best],
+    tail_fraction = tail_fraction[best],
+    n_tail = n_tail[best],
+    n_regular = n_regular[best]
+  )
+}
+
+.rateMap_compute_rate_flags <- function(values_by_edge,
+                                        summary,
+                                        log,
+                                        rate_flags) {
+  flat_values <- unlist(values_by_edge, use.names = FALSE)
+  regular <- rep("regular", length(flat_values))
+  flags_by_edge <- rep(list(character()), length(values_by_edge))
+
+  if (isTRUE(rate_flags$disabled)) {
+    return(list(
+      rate_for_flagging = rep(NA_real_, length(flat_values)),
+      rate_flag = regular,
+      flags_by_edge = flags_by_edge,
+      diagnostics = list(
+        enabled = FALSE,
+        reason = "rate flagging is disabled",
+        method = "disabled"
+      )
+    ))
+  }
+
+  diagnostics <- list(
+    enabled = FALSE,
+    reason = NA_character_,
+    method = rate_flags$method,
+    zero_floor = if (is.null(rate_flags$zero_floor)) NA_real_ else rate_flags$zero_floor,
+    cluster_min_log_gap = rate_flags$cluster_min_log_gap,
+    cluster_min_fold_reduction = rate_flags$cluster_min_fold_reduction,
+    cluster_max_tail_fraction = rate_flags$cluster_max_tail_fraction,
+    cluster_min_flagged = rate_flags$cluster_min_flagged,
+    cluster_min_regular = rate_flags$cluster_min_regular,
+    zero_label = rate_flags$zero_label,
+    high_label = rate_flags$high_label
+  )
+
+  if (!identical(summary, "branch")) {
+    diagnostics$reason <- "rate flags are only computed for branch summaries"
+    return(list(
+      rate_for_flagging = rep(NA_real_, length(flat_values)),
+      rate_flag = regular,
+      flags_by_edge = flags_by_edge,
+      diagnostics = diagnostics
+    ))
+  }
+
+  rates <- if (isTRUE(log)) base::exp(flat_values) else flat_values
+  near_zero <- rep(FALSE, length(rates))
+  high_outlier <- rep(FALSE, length(rates))
+  lower_cluster <- list(
+    flag = near_zero, cutoff = NA_real_, log_cutoff = NA_real_,
+    gap = NA_real_, fold_reduction = NA_real_, score = NA_real_,
+    tail_fraction = NA_real_, n_tail = 0L, n_regular = length(rates)
+  )
+  upper_cluster <- list(
+    flag = high_outlier, cutoff = NA_real_, log_cutoff = NA_real_,
+    gap = NA_real_, fold_reduction = NA_real_, score = NA_real_,
+    tail_fraction = NA_real_, n_tail = 0L, n_regular = length(rates)
+  )
+
+  if (isTRUE(rate_flags$near_zero) &&
+      identical(rate_flags$method, "floor") &&
+      !is.null(rate_flags$zero_floor)) {
+    near_zero <- near_zero | (is.finite(rates) & rates <= rate_flags$zero_floor)
+  }
+  if (isTRUE(rate_flags$near_zero) && identical(rate_flags$method, "tail_cluster")) {
+    lower_cluster <- .rateMap_tail_cluster_flags(
+      rates,
+      tail = "lower",
+      min_log_gap = rate_flags$cluster_min_log_gap,
+      min_fold_reduction = rate_flags$cluster_min_fold_reduction,
+      max_tail_fraction = rate_flags$cluster_max_tail_fraction,
+      min_flagged = rate_flags$cluster_min_flagged,
+      min_regular = rate_flags$cluster_min_regular
+    )
+    near_zero <- near_zero | lower_cluster$flag
+  }
+  if (isTRUE(rate_flags$high_outlier) && identical(rate_flags$method, "tail_cluster")) {
+    upper_cluster <- .rateMap_tail_cluster_flags(
+      rates,
+      tail = "upper",
+      min_log_gap = rate_flags$cluster_min_log_gap,
+      min_fold_reduction = rate_flags$cluster_min_fold_reduction,
+      max_tail_fraction = rate_flags$cluster_max_tail_fraction,
+      min_flagged = rate_flags$cluster_min_flagged,
+      min_regular = rate_flags$cluster_min_regular
+    )
+    high_outlier <- high_outlier | upper_cluster$flag
+  }
+
+  high_outlier <- high_outlier & !near_zero
+  flag <- regular
+  flag[near_zero] <- rate_flags$zero_label
+  flag[high_outlier] <- rate_flags$high_label
+  groups <- rep(seq_along(values_by_edge), lengths(values_by_edge))
+  regular_rates <- rates[flag == "regular"]
+
+  diagnostics$enabled <- TRUE
+  diagnostics$reason <- NA_character_
+  diagnostics$n_total <- length(rates)
+  diagnostics$n_regular <- sum(flag == "regular")
+  diagnostics$n_near_zero <- sum(near_zero)
+  diagnostics$n_high_outlier <- sum(high_outlier)
+  diagnostics$min_rate <- if (any(is.finite(rates))) min(rates, na.rm = TRUE) else NA_real_
+  diagnostics$max_rate <- if (any(is.finite(rates))) max(rates, na.rm = TRUE) else NA_real_
+  diagnostics$min_regular_rate <- if (any(is.finite(regular_rates))) min(regular_rates, na.rm = TRUE) else NA_real_
+  diagnostics$max_regular_rate <- if (any(is.finite(regular_rates))) max(regular_rates, na.rm = TRUE) else NA_real_
+  diagnostics$full_fold_range <- .rateMap_fold_range(rates)
+  diagnostics$regular_fold_range <- .rateMap_fold_range(regular_rates)
+  diagnostics$zero_cluster_cutoff_rate <- lower_cluster$cutoff
+  diagnostics$zero_cluster_log_cutoff <- lower_cluster$log_cutoff
+  diagnostics$zero_cluster_log_gap <- lower_cluster$gap
+  diagnostics$zero_cluster_fold_reduction <- lower_cluster$fold_reduction
+  diagnostics$zero_cluster_score <- lower_cluster$score
+  diagnostics$zero_cluster_tail_fraction <- lower_cluster$tail_fraction
+  diagnostics$zero_cluster_n_tail <- lower_cluster$n_tail
+  diagnostics$zero_cluster_n_regular <- lower_cluster$n_regular
+  diagnostics$high_cluster_cutoff_rate <- upper_cluster$cutoff
+  diagnostics$high_cluster_log_cutoff <- upper_cluster$log_cutoff
+  diagnostics$high_cluster_log_gap <- upper_cluster$gap
+  diagnostics$high_cluster_fold_reduction <- upper_cluster$fold_reduction
+  diagnostics$high_cluster_score <- upper_cluster$score
+  diagnostics$high_cluster_tail_fraction <- upper_cluster$tail_fraction
+  diagnostics$high_cluster_n_tail <- upper_cluster$n_tail
+  diagnostics$high_cluster_n_regular <- upper_cluster$n_regular
+  diagnostics$value_scale <- if (isTRUE(log)) "rate (exp plotted values)" else "rate"
+
+  list(
+    rate_for_flagging = rates,
+    rate_flag = flag,
+    flags_by_edge = split(flag, groups),
+    diagnostics = diagnostics
   )
 }
 
@@ -1008,6 +1384,7 @@
     tree_fun = NULL,
     param_fun = NULL,
     na_action = "error",
+    rate_flags = rateMapRateFlags(),
     quantile_probs = c(0.025, 0.975),
     highest_density_interval_prob = 0.95,
     future_strategy = "multisession",
@@ -1015,6 +1392,190 @@
     future_scheduling = 1,
     future_chunk_size = NULL
   )
+}
+
+#' Control Near-Zero and Tail Rate Diagnostics for `rateMap()`
+#'
+#' Build a rate-flagging control object for [rateMapControl()]. These options
+#' identify branch-rate summaries that are effectively zero, or optionally in a
+#' separated high-rate tail, without deleting or changing the fitted rates. Flags
+#' are reported in the returned `intervals` table and summarized in
+#' `rate_diagnostics`.
+#'
+#' @param near_zero Logical; if `TRUE`, flag lower-tail or floor-level rates.
+#' @param high_outlier Logical; if `TRUE`, flag isolated upper-tail rates.
+#' @param method Optional detection method. `NULL` chooses `"floor"` when
+#'   `zero_floor` is supplied and `"none"` otherwise. `"floor"` uses
+#'   `zero_floor` for near-zero rates. `"tail_cluster"` uses an Otsu-style
+#'   guarded two-class split of log rates to identify a separated lower-tail
+#'   cluster, and, when `high_outlier = TRUE`, a separated upper-tail cluster.
+#'   `"none"` computes diagnostics without adding special rate flags.
+#' @param zero_floor Optional non-negative rate floor. When supplied with
+#'   `method = NULL`, the method resolves to `"floor"`. Finite rates less than
+#'   or equal to this value are flagged as near-zero.
+#' @param cluster_min_log_gap Minimum log-rate gap required between a
+#'   cluster-defined tail and the remaining regular rates.
+#' @param cluster_min_fold_reduction Minimum fold-range reduction required after
+#'   separating a cluster-defined tail from the regular rates.
+#' @param cluster_max_tail_fraction Maximum fraction of positive finite rates
+#'   that can be assigned to a cluster-defined tail.
+#' @param cluster_min_flagged Minimum number of branches required for a
+#'   cluster-defined tail.
+#' @param cluster_min_regular Minimum number of branches that must remain in the
+#'   regular rate set after separating a cluster-defined tail.
+#' @param zero_label,high_label Labels used for flagged display categories.
+#' @param zero_color,high_color Colors used for flagged display categories in
+#'   category mode.
+#'
+#' @return A `"rateMap_rate_flags"` object for `rateMapControl(rate_flags = )`.
+#'
+#' @examples
+#' \dontrun{
+#' ctrl <- rateMapControl(rate_flags = rateMapRateFlags(zero_floor = 1e-8))
+#' rm_obj <- rateMap(fits, control = ctrl)
+#' rm_obj$rate_diagnostics
+#'
+#' cluster_ctrl <- rateMapControl(
+#'   rate_flags = rateMapRateFlags(method = "tail_cluster")
+#' )
+#' rm_obj <- rateMap(fits, control = cluster_ctrl)
+#' rm_obj$rate_diagnostics
+#' }
+#'
+#' @references
+#' Otsu, N. (1979). A threshold selection method from gray-level histograms.
+#' *IEEE Transactions on Systems, Man, and Cybernetics*, 9(1), 62-66.
+#' \doi{10.1109/TSMC.1979.4310076}
+#'
+#' @export
+rateMapRateFlags <- function(near_zero = TRUE,
+                             high_outlier = FALSE,
+                             method = NULL,
+                             zero_floor = NULL,
+                             cluster_min_log_gap = log(10),
+                             cluster_min_fold_reduction = 10,
+                             cluster_max_tail_fraction = 0.4,
+                             cluster_min_flagged = 3,
+                             cluster_min_regular = 10,
+                             zero_label = "near-zero",
+                             high_label = "high-outlier",
+                             zero_color = "grey70",
+                             high_color = "black") {
+  if (!is.logical(near_zero) || length(near_zero) != 1L || is.na(near_zero)) {
+    stop("'near_zero' must be TRUE or FALSE.")
+  }
+  if (!is.logical(high_outlier) || length(high_outlier) != 1L || is.na(high_outlier)) {
+    stop("'high_outlier' must be TRUE or FALSE.")
+  }
+  if (!is.null(zero_floor) &&
+      (!is.numeric(zero_floor) || length(zero_floor) != 1L ||
+       !is.finite(zero_floor) || zero_floor < 0)) {
+    stop("'zero_floor' must be NULL or a finite non-negative number.")
+  }
+  if (is.null(method)) {
+    method <- if (is.null(zero_floor)) "none" else "floor"
+  } else {
+    if (!is.character(method) || length(method) != 1L || is.na(method)) {
+      stop("'method' must be one of 'none', 'floor', or 'tail_cluster'.")
+    }
+    method <- match.arg(method, c("none", "floor", "tail_cluster"))
+  }
+  if (identical(method, "floor") && is.null(zero_floor)) {
+    stop("method = 'floor' requires 'zero_floor'.")
+  }
+  if (!identical(method, "floor") && !is.null(zero_floor)) {
+    stop("'zero_floor' can only be used with method = 'floor'.")
+  }
+  if (!is.numeric(cluster_min_log_gap) || length(cluster_min_log_gap) != 1L ||
+      !is.finite(cluster_min_log_gap) || cluster_min_log_gap <= 0) {
+    stop("'cluster_min_log_gap' must be a finite positive number.")
+  }
+  if (!is.numeric(cluster_min_fold_reduction) ||
+      length(cluster_min_fold_reduction) != 1L ||
+      !is.finite(cluster_min_fold_reduction) ||
+      cluster_min_fold_reduction <= 1) {
+    stop("'cluster_min_fold_reduction' must be a finite number greater than 1.")
+  }
+  if (!is.numeric(cluster_max_tail_fraction) ||
+      length(cluster_max_tail_fraction) != 1L ||
+      !is.finite(cluster_max_tail_fraction) ||
+      cluster_max_tail_fraction <= 0 ||
+      cluster_max_tail_fraction > 0.5) {
+    stop("'cluster_max_tail_fraction' must be a finite number in (0, 0.5].")
+  }
+  if (!is.numeric(cluster_min_flagged) || length(cluster_min_flagged) != 1L ||
+      !is.finite(cluster_min_flagged) || cluster_min_flagged < 1) {
+    stop("'cluster_min_flagged' must be a finite number >= 1.")
+  }
+  if (!is.numeric(cluster_min_regular) || length(cluster_min_regular) != 1L ||
+      !is.finite(cluster_min_regular) || cluster_min_regular < 1) {
+    stop("'cluster_min_regular' must be a finite number >= 1.")
+  }
+  labels <- c(zero_label, high_label)
+  if (!is.character(labels) || anyNA(labels) || any(!nzchar(labels)) || anyDuplicated(labels)) {
+    stop("'zero_label' and 'high_label' must be non-empty unique strings.")
+  }
+  colors <- c(zero_color, high_color)
+  if (!is.character(colors) || anyNA(colors) || any(!nzchar(colors))) {
+    stop("'zero_color' and 'high_color' must be non-empty strings.")
+  }
+
+  structure(
+    list(
+      near_zero = near_zero,
+      high_outlier = high_outlier,
+      method = method,
+      zero_floor = zero_floor,
+      cluster_min_log_gap = cluster_min_log_gap,
+      cluster_min_fold_reduction = cluster_min_fold_reduction,
+      cluster_max_tail_fraction = cluster_max_tail_fraction,
+      cluster_min_flagged = as.integer(cluster_min_flagged),
+      cluster_min_regular = as.integer(cluster_min_regular),
+      zero_label = zero_label,
+      high_label = high_label,
+      zero_color = zero_color,
+      high_color = high_color
+    ),
+    class = c("rateMap_rate_flags", "list")
+  )
+}
+
+.rateMap_disabled_rate_flags <- function() {
+  defaults <- unclass(rateMapRateFlags())
+  defaults$disabled <- TRUE
+  defaults$method <- "disabled"
+  class(defaults) <- c("rateMap_rate_flags", "list")
+  defaults
+}
+
+.rateMap_normalize_rate_flags <- function(rate_flags) {
+  if (is.null(rate_flags)) {
+    return(.rateMap_disabled_rate_flags())
+  }
+  if (!is.list(rate_flags)) {
+    stop("'rate_flags' must be created by rateMapRateFlags() or be a named list.")
+  }
+  if (isTRUE(rate_flags$disabled)) {
+    return(.rateMap_disabled_rate_flags())
+  }
+  rate_flag_names <- names(rate_flags)
+  if (length(rate_flags) > 0L &&
+      (is.null(rate_flag_names) || any(!nzchar(rate_flag_names)))) {
+    stop("'rate_flags' must be a named list.")
+  }
+
+  defaults <- unclass(rateMapRateFlags())
+  unknown <- setdiff(rate_flag_names, names(defaults))
+  if (length(unknown) > 0L) {
+    stop("Unsupported rateMapRateFlags option(s): ", paste(unknown, collapse = ", "), ".")
+  }
+  defaults[rate_flag_names] <- unclass(rate_flags)[rate_flag_names]
+  if (!("method" %in% rate_flag_names) &&
+      ("zero_floor" %in% rate_flag_names) &&
+      !is.null(rate_flags$zero_floor)) {
+    defaults$method <- NULL
+  }
+  do.call(rateMapRateFlags, defaults)
 }
 
 #' Control Advanced `rateMap()` Options
@@ -1043,6 +1604,9 @@
 #'   `bifrost` and mvgls shapes are auto-detected.
 #' @param na_action What to do when a run has invalid parameters. `"error"`
 #'   stops immediately. `"omit"` drops invalid runs before aggregation.
+#' @param rate_flags A `"rateMap_rate_flags"` object from [rateMapRateFlags()],
+#'   or a named list of rate-flagging options. Use `NULL` to disable rate
+#'   diagnostics.
 #' @param quantile_probs Numeric length-2 vector of quantile probabilities to
 #'   report when `uncertainty = TRUE`.
 #' @param highest_density_interval_prob Numeric scalar giving the
@@ -1084,6 +1648,7 @@ rateMapControl <- function(res = 100,
                            tree_fun = NULL,
                            param_fun = NULL,
                            na_action = c("error", "omit"),
+                           rate_flags = rateMapRateFlags(),
                            quantile_probs = c(0.025, 0.975),
                            highest_density_interval_prob = 0.95,
                            future_strategy = c("multisession", "multicore"),
@@ -1112,6 +1677,7 @@ rateMapControl <- function(res = 100,
   if (!is.null(param_fun) && !is.function(param_fun)) {
     stop("'param_fun' must be NULL or a function.")
   }
+  rate_flags <- .rateMap_normalize_rate_flags(rate_flags)
 
   structure(
     list(
@@ -1121,6 +1687,7 @@ rateMapControl <- function(res = 100,
       tree_fun = tree_fun,
       param_fun = param_fun,
       na_action = summary_options$na_action,
+      rate_flags = rate_flags,
       quantile_probs = uncertainty_options$quantile_probs,
       highest_density_interval_prob = uncertainty_options$highest_density_interval_prob,
       future_strategy = future_strategy,
@@ -1185,6 +1752,7 @@ rateMapControl <- function(res = 100,
   category_labels = NULL,
   legend_title = NULL,
   na_action = c("error", "omit"),
+  rate_flags = rateMapRateFlags(),
   summary = c("branch", "interval"),
   target = c("first", "mcc"),
   target_tree = NULL,
@@ -1230,6 +1798,7 @@ rateMapControl <- function(res = 100,
     future_chunk_size = future_chunk_size,
     progress = progress
   )
+  rate_flags <- .rateMap_normalize_rate_flags(rate_flags)
 
   structure(
     list(
@@ -1238,6 +1807,7 @@ rateMapControl <- function(res = 100,
       uncertainty = uncertainty_options,
       color = color_options,
       compute = compute_options,
+      rate_flags = rate_flags,
       flat = list(
         res = summary_options$res,
         check = target_options$check,
@@ -1258,6 +1828,7 @@ rateMapControl <- function(res = 100,
         category_labels = color_options$category_labels,
         legend_title = color_options$title,
         na_action = summary_options$na_action,
+        rate_flags = rate_flags,
         summary = summary_options$mode,
         target = target_options$selection,
         target_tree = target_options$tree,
@@ -1288,7 +1859,8 @@ rateMapControl <- function(res = 100,
                                        quantile_probs,
                                        highest_density_interval_prob,
                                        log,
-                                       target_tree) {
+                                       target_tree,
+                                       rate_flags) {
   grouped <- .rateMap_normalize_grouped_options(
     res = res,
     check = check,
@@ -1300,6 +1872,7 @@ rateMapControl <- function(res = 100,
     progress = progress,
     log = log,
     na_action = na_action,
+    rate_flags = rate_flags,
     summary = summary,
     target = target,
     target_tree = target_tree,
@@ -1326,6 +1899,7 @@ rateMapControl <- function(res = 100,
     target = flat$target,
     target_mode = flat$target_mode,
     check_mode = flat$check,
+    rate_flags = flat$rate_flags,
     value_summary = flat$value_summary,
     color_mode = flat$color_mode,
     n_categories = flat$n_categories,
@@ -1647,11 +2221,24 @@ rateMapControl <- function(res = 100,
                                   category_labels,
                                   category_bin_method,
                                   log,
-                                  legend_title) {
+                                  legend_title,
+                                  rate_flags) {
   interval_values <- lapply(edge_results, `[[`, "values")
   interval_lengths <- lapply(edge_results, `[[`, "lengths")
   run_values <- if (isTRUE(uncertainty)) {
     lapply(edge_results, `[[`, "run_values")
+  } else {
+    NULL
+  }
+  rate_flag_info <- .rateMap_compute_rate_flags(
+    values_by_edge = interval_values,
+    summary = summary,
+    log = log,
+    rate_flags = rate_flags
+  )
+  display_flags <- if (identical(color_mode, "category") &&
+                       isTRUE(rate_flag_info$diagnostics$enabled)) {
+    rate_flag_info$flags_by_edge
   } else {
     NULL
   }
@@ -1665,7 +2252,14 @@ rateMapControl <- function(res = 100,
     n_categories = n_categories,
     category_breaks = category_breaks,
     category_labels = category_labels,
-    category_bin_method = category_bin_method
+    category_bin_method = category_bin_method,
+    display_flags_by_edge = display_flags,
+    special_categories = list(
+      zero_label = rate_flags$zero_label,
+      high_label = rate_flags$high_label,
+      zero_color = rate_flags$zero_color,
+      high_color = rate_flags$high_color
+    )
   )
 
   tree <- target_tree
@@ -1694,6 +2288,13 @@ rateMapControl <- function(res = 100,
         color_bin = color_map$bins_by_edge[[i]],
         stringsAsFactors = FALSE
       )
+      if (isTRUE(rate_flag_info$diagnostics$enabled)) {
+        idx <- seq_len(nrow(base_row)) + sum(vapply(interval_lengths[seq_len(i - 1L)], length, integer(1)))
+        base_row$rate_for_flagging <- rate_flag_info$rate_for_flagging[idx]
+        base_row$rate_flag <- rate_flag_info$rate_flag[idx]
+        base_row$is_near_zero <- base_row$rate_flag == rate_flags$zero_label
+        base_row$is_high_outlier <- base_row$rate_flag == rate_flags$high_label
+      }
       if (identical(color_mode, "category")) {
         base_row$rate_category <- color_map$states_by_edge[[i]]
       }
@@ -1710,6 +2311,11 @@ rateMapControl <- function(res = 100,
   intervals$clade_key <- rep(
     target_clade_keys,
     times = vapply(interval_lengths, length, integer(1))
+  )
+  rate_categories <- .rateMap_add_category_summaries(
+    rate_categories = color_map$rate_categories,
+    intervals = intervals,
+    summary = summary
   )
 
   weight_table <- data.frame(
@@ -1728,7 +2334,7 @@ rateMapControl <- function(res = 100,
     values = interval_values,
     intervals = intervals,
     run_values = run_values,
-    rate_categories = color_map$rate_categories,
+    rate_categories = rate_categories,
     clade_key = target_clade_keys,
     edge_matches = do.call(cbind, edge_matches),
     summary = summary,
@@ -1736,6 +2342,8 @@ rateMapControl <- function(res = 100,
     value_summary = value_summary,
     quantile_probs = quantile_probs,
     highest_density_interval_prob = highest_density_interval_prob,
+    rate_diagnostics = rate_flag_info$diagnostics,
+    rate_flags = rate_flags,
     plot_value = "value",
     target = target_mode,
     check = check_mode,
@@ -1879,7 +2487,30 @@ rateMapControl <- function(res = 100,
 #' search with `log = FALSE`, category display is the closest formal analogue to
 #' the illustrative `generateViridisColorScale()` plot. For multi-run summaries,
 #' displayed categories are bins for summarized branch values; they should not be
-#' read as newly inferred `bifrost` regimes.
+#' read as newly inferred `bifrost` regimes. When `summary = "branch"` and
+#' `color_mode = "category"`, the `rate_categories` table also reports
+#' branch-level summaries for the plotted values assigned to each bin. These
+#' summaries are recomputed by [rateMapView()] or `plot()` whenever the plotted
+#' value or category breaks change. They are not computed for `summary =
+#' "interval"` because interval rows depend on the plotting grid rather than on
+#' discrete biological branch units.
+#'
+#' **Rate diagnostics.** Branch-summary maps compute rate diagnostics through
+#' `rateMapControl(rate_flags = rateMapRateFlags())`. The default
+#' `rateMapRateFlags()` setting records the fitted-rate range and fold range but
+#' applies no special near-zero rule. Supplying `zero_floor`, equivalently
+#' `rateMapRateFlags(method = "floor", zero_floor = ...)`, flags finite rates at
+#' or below an explicit manual floor. Use `rateMapRateFlags(method =
+#' "tail_cluster")` to apply a deterministic, Otsu-style guarded two-class split
+#' on log rates when the near-zero values form a broader separated lower-tail
+#' cluster rather than one extreme adjacent gap. These flags never remove
+#' branches and never alter `intervals$value`; they add `rate_flag` metadata,
+#' object-level `rate_diagnostics`, and, in category display mode, special
+#' display categories such as `"near-zero"`. Special categories are colored
+#' outside the ordered palette, so the remaining regular categories still use
+#' the full low-to-high palette range. In category legends, diagnostic cutoffs
+#' mark where special categories end and regular bins begin. Set `rate_flags =
+#' NULL` to turn off rate-flag metadata and diagnostics entirely.
 #'
 #' @param fits A completed run, fitted model object, or non-empty list of these
 #'   objects. Supported shapes are `bifrost_search` objects, `mvgls` objects,
@@ -1930,9 +2561,14 @@ rateMapControl <- function(res = 100,
 #'   binning.}
 #'   \item{`intervals`}{Plotted summary table. With `summary = "branch"`, this
 #'   has one row per branch. With `summary = "interval"`, this has one row per
-#'   plotted depth-grid interval.}
+#'   plotted depth-grid interval. When branch-level rate diagnostics are
+#'   enabled, this table also includes `rate_for_flagging`, `rate_flag`,
+#'   `is_near_zero`, and `is_high_outlier`.}
 #'   \item{`rate_categories`}{Data frame describing discrete rate categories
-#'   when `color_mode = "category"`; otherwise `NULL`.}
+#'   when `color_mode = "category"`; otherwise `NULL`. With `summary =
+#'   "branch"`, this table also includes bin-level summaries of the plotted
+#'   branch values, including `n_branches`, `value_mean`, `value_median`,
+#'   `value_min`, `value_max`, `value_sd`, and `total_branch_length`.}
 #'   \item{`run_values`}{When `uncertainty = TRUE`, list of numeric matrices
 #'   containing run-level values for each edge. Matrix rows match the plotted
 #'   rows for that edge and columns are retained fits. Otherwise `NULL`.}
@@ -1947,6 +2583,11 @@ rateMapControl <- function(res = 100,
 #'   \item{`quantile_probs`}{Quantile probabilities used for uncertainty
 #'   summaries.}
 #'   \item{`highest_density_interval_prob`}{Highest-density interval mass used for uncertainty summaries.}
+#'   \item{`rate_diagnostics`}{List summarizing rate-flag settings, counts,
+#'   detected tail cutoffs, and fold-rate ranges with and without flagged
+#'   branches.}
+#'   \item{`rate_flags`}{The normalized `"rateMap_rate_flags"` control object
+#'   used for rate diagnostics.}
 #'   \item{`plot_value`}{Current interval column mapped to branch colors.}
 #'   \item{`target`}{Target-tree selection mode used.}
 #'   \item{`check`}{Tree compatibility check mode used.}
@@ -2105,7 +2746,8 @@ rateMap <- function(
     quantile_probs = control$quantile_probs,
     highest_density_interval_prob = control$highest_density_interval_prob,
     log = log,
-    target_tree = target_tree
+    target_tree = target_tree,
+    rate_flags = control$rate_flags
   )
 
   input <- .rateMap_prepare_inputs(
@@ -2166,7 +2808,8 @@ rateMap <- function(
     category_labels = opts$category_labels,
     category_bin_method = opts$category_bin_method,
     log = opts$log,
-    legend_title = opts$legend_title
+    legend_title = opts$legend_title,
+    rate_flags = opts$rate_flags
   )
 
   out
