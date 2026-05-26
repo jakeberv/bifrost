@@ -369,17 +369,9 @@ searchOptimalConfiguration <-
     .progress("%s", "Fitting baseline model...")
 
     #select which information criterion to use
-    if (IC != "GIC" && IC != "BIC") {
-      stop("IC must be GIC or BIC")
-    }
-    if(IC == "GIC"){
-      baseline_model <- fitMvglsAndExtractGIC.formula(formula, candidate_trees[[1]], trait_data, ...)
-      baseline_ic <- baseline_model$GIC$GIC
-    }
-    if(IC == "BIC"){
-      baseline_model <- fitMvglsAndExtractBIC.formula(formula, candidate_trees[[1]], trait_data, ...)
-      baseline_ic <- baseline_model$BIC$BIC
-    }
+    bifrost_search_validate_ic(IC)
+    baseline_model <- bifrost_search_fit_ic(IC, formula, candidate_trees[[1]], trait_data, ...)
+    baseline_ic <- bifrost_search_ic_value(baseline_model, IC)
     .progress("Baseline %s: %.2f", IC, baseline_ic)
 
     #evaluate all of the candidate trees under GIC or BIC
@@ -393,22 +385,16 @@ searchOptimalConfiguration <-
     candidate_results <- bifrost_run_future_lapply_safe(
       candidate_trees_shifts,
       function(tree) {
-        if (IC == "GIC") {
-          do.call(fitMvglsAndExtractGIC.formula, c(list(formula, tree, trait_data), args_list))
-        } else if (IC == "BIC") {
-          do.call(fitMvglsAndExtractBIC.formula, c(list(formula, tree, trait_data), args_list))
-        }
+        do.call(bifrost_search_fit_ic, c(list(IC, formula, tree, trait_data), args_list))
       },
       workers = num_cores,
       is_rstudio_flag = is_rstudio
     )
 
     #generate the delta IC lists
-    if (IC == "GIC"){
-      delta_ic_list <- sapply(candidate_results, function(res) baseline_ic - res$GIC$GIC)
-    } else if (IC == "BIC") {
-      delta_ic_list <- sapply(candidate_results, function(res) baseline_ic - res$BIC$BIC)
-    }
+    delta_ic_list <- sapply(candidate_results, function(res) {
+      baseline_ic - bifrost_search_ic_value(res, IC)
+    })
 
     .progress("%s", "Sorting and evaluating shifts...")
     sorted_candidates <- candidate_trees_shifts[order(delta_ic_list, decreasing = TRUE)]
@@ -475,29 +461,16 @@ searchOptimalConfiguration <-
       }
 
       tryCatch({
-        if (IC == "GIC") {
-          model_with_shift <- withCallingHandlers(
-            fitMvglsAndExtractGIC.formula(formula, shifted_tree, trait_data, ...),
-            warning = function(w) {
-              warning_message <- paste("Warning in evaluating shift at node", shift_node_number, ":", w$message)
-              warning(warning_message)
-              warnings_list[[length(warnings_list) + 1]] <<- warning_message
-              invokeRestart("muffleWarning")
-            }
-          )
-          new_ic <- model_with_shift$GIC$GIC
-        } else if (IC == "BIC") {
-          model_with_shift <- withCallingHandlers(
-            fitMvglsAndExtractBIC.formula(formula, shifted_tree, trait_data, ...),
-            warning = function(w) {
-              warning_message <- paste("Warning in evaluating shift at node", shift_node_number, ":", w$message)
-              warning(warning_message)
-              warnings_list[[length(warnings_list) + 1]] <<- warning_message
-              invokeRestart("muffleWarning")
-            }
-          )
-          new_ic <- model_with_shift$BIC$BIC
-        }
+        model_with_shift <- withCallingHandlers(
+          bifrost_search_fit_ic(IC, formula, shifted_tree, trait_data, ...),
+          warning = function(w) {
+            warning_message <- paste("Warning in evaluating shift at node", shift_node_number, ":", w$message)
+            warning(warning_message)
+            warnings_list[[length(warnings_list) + 1]] <<- warning_message
+            invokeRestart("muffleWarning")
+          }
+        )
+        new_ic <- bifrost_search_ic_value(model_with_shift, IC)
 
         # Calculate delta IC
         delta_ic <- current_best_ic - new_ic
@@ -628,11 +601,7 @@ searchOptimalConfiguration <-
       } else {
 
         # Retrieve the IC of the optimized model before uncertainty analysis
-        original_ic <- if (IC == "GIC") {
-          model_with_shift_no_uncertainty$GIC$GIC
-        } else {
-          model_with_shift_no_uncertainty$BIC$BIC
-        }
+        original_ic <- bifrost_search_ic_value(model_with_shift_no_uncertainty, IC)
 
         .progress("Considering %d shifts in the candidate set", length(shift_vec))
         .progress(
@@ -649,14 +618,8 @@ searchOptimalConfiguration <-
             .progress("Re-estimating model without shift at node %d", shift_node_number)
 
             tree_without_current_shift <- removeShiftFromTree(best_tree_no_uncertainty, shift_node_number)
-            model_fun <- if (IC == "GIC") fitMvglsAndExtractGIC.formula else fitMvglsAndExtractBIC.formula
-            model_without_current_shift <- model_fun(formula, tree_without_current_shift, trait_data, ...)
-
-            ic_without_current_shift <- if (IC == "GIC") {
-              model_without_current_shift$GIC$GIC
-            } else {
-              model_without_current_shift$BIC$BIC
-            }
+            model_without_current_shift <- bifrost_search_fit_ic(IC, formula, tree_without_current_shift, trait_data, ...)
+            ic_without_current_shift <- bifrost_search_ic_value(model_without_current_shift, IC)
 
             delta_ic <- original_ic - ic_without_current_shift
 
@@ -694,10 +657,8 @@ searchOptimalConfiguration <-
           ic_results <- bifrost_run_future_lapply_safe(
             shift_removed_trees,
             function(tree) {
-              model_fun <- if (IC == "GIC") fitMvglsAndExtractGIC.formula else fitMvglsAndExtractBIC.formula
-              model_without_shift <- do.call(model_fun, c(list(formula, tree, trait_data), args_list))
-
-              ic_without_shift <- if (IC == "GIC") model_without_shift$GIC$GIC else model_without_shift$BIC$BIC
+              model_without_shift <- do.call(bifrost_search_fit_ic, c(list(IC, formula, tree, trait_data), args_list))
+              ic_without_shift <- bifrost_search_ic_value(model_without_shift, IC)
               delta_ic <- original_ic - ic_without_shift
 
               icw <- aicw(c(original_ic, ic_without_shift))$aicweights
@@ -810,7 +771,7 @@ searchOptimalConfiguration <-
           if (is.null(x$model)) {
             c(NA_real_, x$accepted)
           } else {
-            if (IC == "GIC") c(x$model$GIC$GIC, x$accepted) else c(x$model$BIC$BIC, x$accepted)
+            c(bifrost_search_ic_value(x$model, IC), x$accepted)
           }
         }))
 

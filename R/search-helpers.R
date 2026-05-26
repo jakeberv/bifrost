@@ -50,3 +50,36 @@ bifrost_run_future_lapply_safe <- function(X, FUN, workers, is_rstudio_flag) {
     }
   )
 }
+
+bifrost_search_validate_ic <- function(IC) {
+  if (IC != "GIC" && IC != "BIC") {
+    stop("IC must be GIC or BIC")
+  }
+
+  invisible(IC)
+}
+
+bifrost_search_model_fun <- function(IC) {
+  bifrost_search_validate_ic(IC)
+
+  if (IC == "GIC") {
+    fitMvglsAndExtractGIC.formula
+  } else {
+    fitMvglsAndExtractBIC.formula
+  }
+}
+
+bifrost_search_fit_ic <- function(IC, formula, tree, trait_data, ...) {
+  model_fun <- bifrost_search_model_fun(IC)
+  model_fun(formula, tree, trait_data, ...)
+}
+
+bifrost_search_ic_value <- function(model_result, IC) {
+  bifrost_search_validate_ic(IC)
+
+  if (IC == "GIC") {
+    model_result$GIC$GIC
+  } else {
+    model_result$BIC$BIC
+  }
+}
