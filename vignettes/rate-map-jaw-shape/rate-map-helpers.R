@@ -273,7 +273,7 @@ rate_map_legend_markers <- function(x) {
   markers
 }
 
-rate_map_add_color_bar <- function(x, legend, y_frac = 0.19, fsize = 0.8,
+rate_map_add_color_bar <- function(x, legend, y_frac = 0.19, fsize = 0.9,
                                    lwd = 3) {
   usr <- graphics::par("usr")
   yr <- diff(usr[3:4])
@@ -400,7 +400,7 @@ rate_map_save_arc_figure <- function(file, x, ..., width = 8, height = 5.2,
     type = "arc",
     show_tip_labels = FALSE,
     legend = FALSE,
-    legend_fsize = 0.8,
+    legend_fsize = 0.9,
     arc_height = 0.5,
     mar = rep(1.2, 4),
     ylim = c(-25, 80),

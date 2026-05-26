@@ -500,10 +500,11 @@
 #' @return A `"rateMap"` object with updated tree maps, color palette,
 #'   `intervals$value`, `rate_categories`, and legend title. For branch-summary
 #'   category views, `rate_categories` includes bin-level summaries of the
-#'   plotted branch values and is recomputed whenever the view changes. Rate
-#'   diagnostic flags are recomputed for rate-valued views (`"value"`, `"mean"`,
-#'   or `"median"`) and preserved as metadata for non-rate views such as `"sd"`.
-#'   When preserved for a non-rate view, `rate_flag_source` identifies the
+#'   plotted branch values and is recomputed whenever the view changes. For
+#'   branch-summary maps with active rate diagnostics, diagnostic flags are
+#'   recomputed for rate-valued views (`"value"`, `"mean"`, or `"median"`) and
+#'   preserved as metadata for non-rate views such as `"sd"`. When preserved for
+#'   a non-rate view, `rate_flag_source` identifies the
 #'   rate-valued column that the flags classify; the flags do not classify the
 #'   displayed uncertainty value. The selected `value` column must contain at
 #'   least one finite value; uncertainty columns such as `"sd"` may be all `NA`
@@ -990,7 +991,8 @@ rateMapView <- function(x,
 #'
 #' @return Invisibly returns the plotted `"rateMap"` object.
 #'
-#' @seealso [rateMap()], [phytools::densityMap()], [phytools::plotSimmap()]
+#' @seealso [rateMap()], [phytools::densityMap()], [phytools::plotSimmap()],
+#'   [phytools::plotTree()]
 #'
 #' @references
 #' Revell, L. J. (2013). Two new graphical methods for mapping trait evolution

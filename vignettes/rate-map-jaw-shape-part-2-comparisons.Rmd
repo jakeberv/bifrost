@@ -182,7 +182,7 @@ plot(
   jaw_rate_map_ic,
   type = "arc",
   show_tip_labels = FALSE,
-  legend_fsize = 0.8,
+  legend_fsize = 0.9,
   arc_height = 0.5
 )
 ```
@@ -243,7 +243,7 @@ plot(
   show_tip_labels = FALSE,
   palette = "Inferno",
   color_mode = "continuous",
-  legend_fsize = 0.8,
+  legend_fsize = 0.9,
   arc_height = 0.5
 )
 ```
@@ -262,7 +262,7 @@ plot(
   show_tip_labels = FALSE,
   palette = "Plasma",
   color_mode = "continuous",
-  legend_fsize = 0.8,
+  legend_fsize = 0.9,
   arc_height = 0.5
 )
 ```
@@ -459,7 +459,10 @@ the complete display metadata.
 The default log-rate scale is often the easier scale for comparing
 multiplicative differences in fitted rates. Use `log = FALSE` when you need the
 original fitted-rate units. Print or plot the resulting object the same way as
-the log-rate maps above.
+the log-rate maps above. The generated summary table below keeps the rendered
+preview concrete: these original-scale fitted-rate summaries remain strictly
+positive, and values below one correspond to negative values on the default
+log-rate maps.
 
 ```{r raw_rate_ratemap}
 jaw_raw_rate_map <- rateMap(
@@ -473,6 +476,22 @@ plot(
   jaw_raw_rate_map,
   palette = "Viridis",
   legend_title = "Mean fitted rate"
+)
+```
+
+```{r original_scale_summary_static, echo = FALSE, results = "asis", eval = TRUE}
+rate_map_table(
+  "rate_map_original_scale_summary.csv",
+  keep = c("quantity", "value_display"),
+  labels = c(value_display = "value"),
+  caption = rate_map_caption(
+    "Table 4. Original-scale branch-rate summary.",
+    "Concise generated summary of the equal-weight `log = FALSE` branch map.",
+    "All rows summarize the plotted arithmetic mean fitted rates on the original",
+    "rate scale; the below-one count explains why the default log-rate summaries",
+    "can be negative without implying invalid fitted rates."
+  ),
+  full_width_caption = TRUE
 )
 ```
 
@@ -529,7 +548,7 @@ rate_map_table(
     highest_density_interval_width = "hdi_width"
   ),
   caption = rate_map_caption(
-    "Table 4. Highest log-rate branches.",
+    "Table 5. Highest log-rate branches.",
     "Rows shown are the highest branch-level summaries after sorting by the",
     "equal-weight mean fitted log-rate. `tips` gives the descendant-tip count,",
     "`example_taxa` lists representative descendants, and `hdi_width` is the",
@@ -595,7 +614,7 @@ rate_map_table(
     abs_difference = "abs_diff"
   ),
   caption = rate_map_caption(
-    "Table 5. Equal-weight and IC-weighted branch differences.",
+    "Table 6. Equal-weight and IC-weighted branch differences.",
     "Rows shown have the largest absolute differences between equal-weight and",
     "IC-weighted mean log-rate summaries. `tips` and `example_taxa` summarize",
     "the descendant clade; `equal` and `ic` are the two mean log-rate summaries;",
@@ -631,7 +650,7 @@ reviewed by the authors.
 - Revell, L. J. (2013). *Two new graphical methods for mapping trait evolution on phylogenies*. *Methods in Ecology and Evolution*, 4, 754-759.
 - Revell, L. J. (2014). *Graphical methods for visualizing comparative data on phylogenies*. Chapter 4 in *Modern Phylogenetic Comparative Methods and Their Application in Evolutionary Biology: Concepts and Practice*, 77-103.
 - Revell, L. J. (2024). *phytools 2.0: an updated R ecosystem for phylogenetic comparative methods (and other things).* *PeerJ*, 12, e16505. [https://doi.org/10.7717/peerj.16505](https://doi.org/10.7717/peerj.16505)
-- Troyer, E. M., et al. (2025). *Macroevolutionary patterns of jaw shape in early bony fishes*. [https://doi.org/10.1016/j.cub.2025.08.008](https://doi.org/10.1016/j.cub.2025.08.008)
+- Troyer, E. M., et al. (2025). *Macroevolutionary role reversals in the earliest radiation of bony fishes*. [https://doi.org/10.1016/j.cub.2025.08.008](https://doi.org/10.1016/j.cub.2025.08.008)
 
 ## Software Used in This Vignette
 

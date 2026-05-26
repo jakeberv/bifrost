@@ -215,5 +215,6 @@ comparative methods (and other things). \emph{PeerJ}, 12, e16505.
 \doi{10.7717/peerj.16505}
 }
 \seealso{
-\code{\link[=rateMap]{rateMap()}}, \code{\link[phytools:densityMap]{phytools::densityMap()}}, \code{\link[phytools:plotSimmap]{phytools::plotSimmap()}}
+\code{\link[=rateMap]{rateMap()}}, \code{\link[phytools:densityMap]{phytools::densityMap()}}, \code{\link[phytools:plotSimmap]{phytools::plotSimmap()}},
+\code{\link[phytools:plotTree]{phytools::plotTree()}}
 }

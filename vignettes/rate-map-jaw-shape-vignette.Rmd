@@ -326,7 +326,7 @@ plot(
   jaw_rate_map_equal_first,
   type = "arc",
   show_tip_labels = FALSE,
-  legend_fsize = 0.8,
+  legend_fsize = 0.9,
   arc_height = 0.5
 )
 ```
@@ -446,7 +446,7 @@ plot(
   jaw_rate_map_equal,
   type = "arc",
   show_tip_labels = FALSE,
-  legend_fsize = 0.8,
+  legend_fsize = 0.9,
   arc_height = 0.5
 )
 ```
@@ -529,7 +529,7 @@ reviewed by the authors.
 - Revell, L. J. (2013). *Two new graphical methods for mapping trait evolution on phylogenies*. *Methods in Ecology and Evolution*, 4, 754-759.
 - Revell, L. J. (2014). *Graphical methods for visualizing comparative data on phylogenies*. Chapter 4 in *Modern Phylogenetic Comparative Methods and Their Application in Evolutionary Biology: Concepts and Practice*, 77-103.
 - Revell, L. J. (2024). *phytools 2.0: an updated R ecosystem for phylogenetic comparative methods (and other things).* *PeerJ*, 12, e16505. [https://doi.org/10.7717/peerj.16505](https://doi.org/10.7717/peerj.16505)
-- Troyer, E. M., et al. (2025). *Macroevolutionary patterns of jaw shape in early bony fishes*. [https://doi.org/10.1016/j.cub.2025.08.008](https://doi.org/10.1016/j.cub.2025.08.008)
+- Troyer, E. M., et al. (2025). *Macroevolutionary role reversals in the earliest radiation of bony fishes*. [https://doi.org/10.1016/j.cub.2025.08.008](https://doi.org/10.1016/j.cub.2025.08.008)
 
 ## Software Used in This Vignette
 
