@@ -561,24 +561,14 @@ searchOptimalConfiguration <-
     # }
 
     # New Section for Calculating Information Criterion Weights Post Optimization
-    .empty_ic_weights_df <- data.frame(
-      node = integer(),
-      ic_with_shift = numeric(),
-      ic_without_shift = numeric(),
-      delta_ic = numeric(),
-      ic_weight_withshift = numeric(),
-      ic_weight_withoutshift = numeric(),
-      evidence_ratio = numeric()
-    )
-
-    ic_weights_df <- .empty_ic_weights_df  # default empty
+    ic_weights_df <- bifrost_search_empty_ic_weights_df()  # default empty
 
     if (xor(uncertaintyweights, uncertaintyweights_par)) {
 
-      # If no shifts, return empty df (consistent in both modes)
-      if (length(unlist(shift_vec)) == 0) {
-        .progress("%s", "No shifts were detected in the initial search; skipping IC weights calculation.")
-        ic_weights_df <- .empty_ic_weights_df
+        # If no shifts, return empty df (consistent in both modes)
+        if (length(unlist(shift_vec)) == 0) {
+          .progress("%s", "No shifts were detected in the initial search; skipping IC weights calculation.")
+          ic_weights_df <- bifrost_search_empty_ic_weights_df()
 
       } else {
 
@@ -594,7 +584,7 @@ searchOptimalConfiguration <-
         if (uncertaintyweights) {
           .progress("%s", "Calculating IC weights for initially identified shifts...")
 
-          ic_weights_df <- .empty_ic_weights_df
+          ic_weights_df <- bifrost_search_empty_ic_weights_df()
 
           for (shift_node_number in unlist(shift_vec)) {
             .progress("Re-estimating model without shift at node %d", shift_node_number)
@@ -603,26 +593,17 @@ searchOptimalConfiguration <-
             model_without_current_shift <- bifrost_search_fit_ic(IC, formula, tree_without_current_shift, trait_data, ...)
             ic_without_current_shift <- bifrost_search_ic_value(model_without_current_shift, IC)
 
-            delta_ic <- original_ic - ic_without_current_shift
+            ic_weight_row <- bifrost_search_ic_weights_row(
+              shift_node_number,
+              original_ic,
+              ic_without_current_shift
+            )
 
-            icw <- aicw(c(original_ic, ic_without_current_shift))$aicweights
-            w_with <- icw[1]
-            w_without <- icw[2]
-            er <- w_with / w_without
-
-            .progress("IC weight for the shift is %.2f", w_with)
+            .progress("IC weight for the shift is %.2f", ic_weight_row$ic_weight_withshift)
 
             ic_weights_df <- rbind(
               ic_weights_df,
-              data.frame(
-                node = shift_node_number,
-                ic_with_shift = original_ic,
-                ic_without_shift = ic_without_current_shift,
-                delta_ic = delta_ic,
-                ic_weight_withshift = w_with,
-                ic_weight_withoutshift = w_without,
-                evidence_ratio = er
-              )
+              ic_weight_row
             )
           }
         }
@@ -630,7 +611,7 @@ searchOptimalConfiguration <-
         if (uncertaintyweights_par) {
           .progress("%s", "Calculating IC weights for initially identified shifts in parallel...")
 
-          ic_weights_df <- .empty_ic_weights_df
+          ic_weights_df <- bifrost_search_empty_ic_weights_df()
 
           shift_removed_trees <- lapply(unlist(shift_vec), function(shift_node_number) {
             removeShiftFromTree(best_tree_no_uncertainty, shift_node_number)
@@ -662,22 +643,10 @@ searchOptimalConfiguration <-
 
             # scalar extraction (avoids named-vector quirks)
             ic_without <- as.numeric(ic_res[["ic_without_shift"]])
-            d_ic <- as.numeric(ic_res[["delta_ic"]])
-            w_with <- as.numeric(ic_res[["ic_weight_withshift"]])
-            w_without <- as.numeric(ic_res[["ic_weight_withoutshift"]])
-            er <- w_with / w_without
 
             ic_weights_df <- rbind(
               ic_weights_df,
-              data.frame(
-                node = shift_node_number,
-                ic_with_shift = original_ic,
-                ic_without_shift = ic_without,
-                delta_ic = d_ic,
-                ic_weight_withshift = w_with,
-                ic_weight_withoutshift = w_without,
-                evidence_ratio = er
-              )
+              bifrost_search_ic_weights_row(shift_node_number, original_ic, ic_without)
             )
           }
         }

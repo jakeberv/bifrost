@@ -136,3 +136,34 @@ bifrost_search_load_history <- function(sub_dir, IC) {
     ic_acceptance_matrix = ic_acceptance_matrix
   )
 }
+
+bifrost_search_empty_ic_weights_df <- function() {
+  data.frame(
+    node = integer(),
+    ic_with_shift = numeric(),
+    ic_without_shift = numeric(),
+    delta_ic = numeric(),
+    ic_weight_withshift = numeric(),
+    ic_weight_withoutshift = numeric(),
+    evidence_ratio = numeric()
+  )
+}
+
+bifrost_search_ic_weights_row <- function(shift_node_number, original_ic, ic_without_shift) {
+  delta_ic <- original_ic - ic_without_shift
+
+  icw <- aicw(c(original_ic, ic_without_shift))$aicweights
+  w_with <- icw[1]
+  w_without <- icw[2]
+  er <- w_with / w_without
+
+  data.frame(
+    node = shift_node_number,
+    ic_with_shift = original_ic,
+    ic_without_shift = ic_without_shift,
+    delta_ic = delta_ic,
+    ic_weight_withshift = w_with,
+    ic_weight_withoutshift = w_without,
+    evidence_ratio = er
+  )
+}
