@@ -1,4 +1,4 @@
-bifrost_run_future_lapply_safe <- function(X, FUN, workers, is_rstudio_flag) {
+.bifrost_run_future_lapply_safe <- function(X, FUN, workers, is_rstudio_flag) {
   thread_vars <- c(
     "OMP_NUM_THREADS",
     "OPENBLAS_NUM_THREADS",
@@ -51,7 +51,7 @@ bifrost_run_future_lapply_safe <- function(X, FUN, workers, is_rstudio_flag) {
   )
 }
 
-bifrost_search_validate_ic <- function(IC) {
+.bifrost_search_validate_ic <- function(IC) {
   if (IC != "GIC" && IC != "BIC") {
     stop("IC must be GIC or BIC")
   }
@@ -59,8 +59,8 @@ bifrost_search_validate_ic <- function(IC) {
   invisible(IC)
 }
 
-bifrost_search_model_fun <- function(IC) {
-  bifrost_search_validate_ic(IC)
+.bifrost_search_model_fun <- function(IC) {
+  .bifrost_search_validate_ic(IC)
 
   if (IC == "GIC") {
     fitMvglsAndExtractGIC.formula
@@ -69,13 +69,13 @@ bifrost_search_model_fun <- function(IC) {
   }
 }
 
-bifrost_search_fit_ic <- function(IC, formula, tree, trait_data, ...) {
-  model_fun <- bifrost_search_model_fun(IC)
+.bifrost_search_fit_ic <- function(IC, formula, tree, trait_data, ...) {
+  model_fun <- .bifrost_search_model_fun(IC)
   model_fun(formula, tree, trait_data, ...)
 }
 
-bifrost_search_ic_value <- function(model_result, IC) {
-  bifrost_search_validate_ic(IC)
+.bifrost_search_ic_value <- function(model_result, IC) {
+  .bifrost_search_validate_ic(IC)
 
   if (IC == "GIC") {
     model_result$GIC$GIC
@@ -84,7 +84,7 @@ bifrost_search_ic_value <- function(model_result, IC) {
   }
 }
 
-bifrost_search_score_candidates <- function(candidate_trees_shifts,
+.bifrost_search_score_candidates <- function(candidate_trees_shifts,
                                            baseline_ic,
                                            IC,
                                            formula,
@@ -92,17 +92,17 @@ bifrost_search_score_candidates <- function(candidate_trees_shifts,
                                            args_list,
                                            num_cores,
                                            is_rstudio) {
-  candidate_results <- bifrost_run_future_lapply_safe(
+  candidate_results <- .bifrost_run_future_lapply_safe(
     candidate_trees_shifts,
     function(tree) {
-      do.call(bifrost_search_fit_ic, c(list(IC, formula, tree, trait_data), args_list))
+      do.call(.bifrost_search_fit_ic, c(list(IC, formula, tree, trait_data), args_list))
     },
     workers = num_cores,
     is_rstudio_flag = is_rstudio
   )
 
   delta_ic_list <- sapply(candidate_results, function(res) {
-    baseline_ic - bifrost_search_ic_value(res, IC)
+    baseline_ic - .bifrost_search_ic_value(res, IC)
   })
 
   list(
@@ -112,7 +112,7 @@ bifrost_search_score_candidates <- function(candidate_trees_shifts,
   )
 }
 
-bifrost_search_history_dir <- function(store_model_fit_history) {
+.bifrost_search_history_dir <- function(store_model_fit_history) {
   if (!isTRUE(store_model_fit_history)) {
     return(NULL)
   }
@@ -132,7 +132,7 @@ bifrost_search_history_dir <- function(store_model_fit_history) {
   sub_dir
 }
 
-bifrost_search_save_history <- function(model_fit_history, sub_dir, iteration_num) {
+.bifrost_search_save_history <- function(model_fit_history, sub_dir, iteration_num) {
   saveRDS(
     model_fit_history,
     file = file.path(sub_dir, paste0("iteration_", iteration_num, ".rds"))
@@ -141,7 +141,7 @@ bifrost_search_save_history <- function(model_fit_history, sub_dir, iteration_nu
   invisible(NULL)
 }
 
-bifrost_search_load_history <- function(sub_dir, IC) {
+.bifrost_search_load_history <- function(sub_dir, IC) {
   rds_files <- list.files(
     sub_dir,
     pattern = "^iteration_\\d+\\.rds$",
@@ -155,7 +155,7 @@ bifrost_search_load_history <- function(sub_dir, IC) {
     if (is.null(x$model)) {
       c(NA_real_, x$accepted)
     } else {
-      c(bifrost_search_ic_value(x$model, IC), x$accepted)
+      c(.bifrost_search_ic_value(x$model, IC), x$accepted)
     }
   }))
 
@@ -165,7 +165,7 @@ bifrost_search_load_history <- function(sub_dir, IC) {
   )
 }
 
-bifrost_search_forward <- function(sorted_candidates,
+.bifrost_search_forward <- function(sorted_candidates,
                                    current_best_tree,
                                    current_best_ic,
                                    shift_id,
@@ -205,7 +205,7 @@ bifrost_search_forward <- function(sorted_candidates,
 
     tryCatch({
       model_with_shift <- withCallingHandlers(
-        bifrost_search_fit_ic(IC, formula, shifted_tree, trait_data, ...),
+        .bifrost_search_fit_ic(IC, formula, shifted_tree, trait_data, ...),
         warning = function(w) {
           warning_message <- paste("Warning in evaluating shift at node", shift_node_number, ":", w$message)
           warning(warning_message)
@@ -213,7 +213,7 @@ bifrost_search_forward <- function(sorted_candidates,
           invokeRestart("muffleWarning")
         }
       )
-      new_ic <- bifrost_search_ic_value(model_with_shift, IC)
+      new_ic <- .bifrost_search_ic_value(model_with_shift, IC)
 
       # Calculate delta IC
       delta_ic <- current_best_ic - new_ic
@@ -265,7 +265,7 @@ bifrost_search_forward <- function(sorted_candidates,
     })
     if (isTRUE(store_model_fit_history) && !is.null(sub_dir)) {
       iteration_num <- i + 1L
-      bifrost_search_save_history(model_fit_history, sub_dir, iteration_num)
+      .bifrost_search_save_history(model_fit_history, sub_dir, iteration_num)
     }
     if(plot == TRUE){
       colorvec <- setNames(object = c("black", rainbow(length(unique(getStates(shifted_tree, type = "both"))) - 1)),
@@ -287,7 +287,7 @@ bifrost_search_forward <- function(sorted_candidates,
   )
 }
 
-bifrost_search_empty_ic_weights_df <- function() {
+.bifrost_search_empty_ic_weights_df <- function() {
   data.frame(
     node = integer(),
     ic_with_shift = numeric(),
@@ -299,7 +299,7 @@ bifrost_search_empty_ic_weights_df <- function() {
   )
 }
 
-bifrost_search_ic_weights_row <- function(shift_node_number, original_ic, ic_without_shift) {
+.bifrost_search_ic_weights_row <- function(shift_node_number, original_ic, ic_without_shift) {
   delta_ic <- original_ic - ic_without_shift
 
   icw <- aicw(c(original_ic, ic_without_shift))$aicweights
@@ -318,7 +318,7 @@ bifrost_search_ic_weights_row <- function(shift_node_number, original_ic, ic_wit
   )
 }
 
-bifrost_search_calculate_ic_weights <- function(uncertaintyweights,
+.bifrost_search_calculate_ic_weights <- function(uncertaintyweights,
                                                 uncertaintyweights_par,
                                                 shift_vec,
                                                 best_tree_no_uncertainty,
@@ -330,19 +330,19 @@ bifrost_search_calculate_ic_weights <- function(uncertaintyweights,
                                                 num_cores,
                                                 is_rstudio,
                                                 progress) {
-  ic_weights_df <- bifrost_search_empty_ic_weights_df()
+  ic_weights_df <- .bifrost_search_empty_ic_weights_df()
 
   if (xor(uncertaintyweights, uncertaintyweights_par)) {
 
     # If no shifts, return empty df (consistent in both modes)
     if (length(unlist(shift_vec)) == 0) {
       progress("%s", "No shifts were detected in the initial search; skipping IC weights calculation.")
-      ic_weights_df <- bifrost_search_empty_ic_weights_df()
+      ic_weights_df <- .bifrost_search_empty_ic_weights_df()
 
     } else {
 
       # Retrieve the IC of the optimized model before uncertainty analysis
-      original_ic <- bifrost_search_ic_value(model_with_shift_no_uncertainty, IC)
+      original_ic <- .bifrost_search_ic_value(model_with_shift_no_uncertainty, IC)
 
       progress("Considering %d shifts in the candidate set", length(shift_vec))
       progress(
@@ -353,19 +353,19 @@ bifrost_search_calculate_ic_weights <- function(uncertaintyweights,
       if (uncertaintyweights) {
         progress("%s", "Calculating IC weights for initially identified shifts...")
 
-        ic_weights_df <- bifrost_search_empty_ic_weights_df()
+        ic_weights_df <- .bifrost_search_empty_ic_weights_df()
 
         for (shift_node_number in unlist(shift_vec)) {
           progress("Re-estimating model without shift at node %d", shift_node_number)
 
           tree_without_current_shift <- removeShiftFromTree(best_tree_no_uncertainty, shift_node_number)
           model_without_current_shift <- do.call(
-            bifrost_search_fit_ic,
+            .bifrost_search_fit_ic,
             c(list(IC, formula, tree_without_current_shift, trait_data), args_list)
           )
-          ic_without_current_shift <- bifrost_search_ic_value(model_without_current_shift, IC)
+          ic_without_current_shift <- .bifrost_search_ic_value(model_without_current_shift, IC)
 
-          ic_weight_row <- bifrost_search_ic_weights_row(
+          ic_weight_row <- .bifrost_search_ic_weights_row(
             shift_node_number,
             original_ic,
             ic_without_current_shift
@@ -383,20 +383,20 @@ bifrost_search_calculate_ic_weights <- function(uncertaintyweights,
       if (uncertaintyweights_par) {
         progress("%s", "Calculating IC weights for initially identified shifts in parallel...")
 
-        ic_weights_df <- bifrost_search_empty_ic_weights_df()
+        ic_weights_df <- .bifrost_search_empty_ic_weights_df()
 
         shift_removed_trees <- lapply(unlist(shift_vec), function(shift_node_number) {
           removeShiftFromTree(best_tree_no_uncertainty, shift_node_number)
         })
 
-        ic_results <- bifrost_run_future_lapply_safe(
+        ic_results <- .bifrost_run_future_lapply_safe(
           shift_removed_trees,
           function(tree) {
             model_without_shift <- do.call(
-              bifrost_search_fit_ic,
+              .bifrost_search_fit_ic,
               c(list(IC, formula, tree, trait_data), args_list)
             )
-            ic_without_shift <- bifrost_search_ic_value(model_without_shift, IC)
+            ic_without_shift <- .bifrost_search_ic_value(model_without_shift, IC)
             delta_ic <- original_ic - ic_without_shift
 
             icw <- aicw(c(original_ic, ic_without_shift))$aicweights
@@ -421,7 +421,7 @@ bifrost_search_calculate_ic_weights <- function(uncertaintyweights,
 
           ic_weights_df <- rbind(
             ic_weights_df,
-            bifrost_search_ic_weights_row(shift_node_number, original_ic, ic_without)
+            .bifrost_search_ic_weights_row(shift_node_number, original_ic, ic_without)
           )
         }
       }
@@ -437,7 +437,7 @@ bifrost_search_calculate_ic_weights <- function(uncertaintyweights,
   ic_weights_df
 }
 
-bifrost_search_no_uncertainty_components <- function(shifts_no_uncertainty,
+.bifrost_search_no_uncertainty_components <- function(shifts_no_uncertainty,
                                                      model_with_shift_no_uncertainty,
                                                      best_tree_no_uncertainty,
                                                      baseline_model,

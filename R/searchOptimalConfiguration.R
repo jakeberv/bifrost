@@ -369,9 +369,9 @@ searchOptimalConfiguration <-
     .progress("%s", "Fitting baseline model...")
 
     #select which information criterion to use
-    bifrost_search_validate_ic(IC)
-    baseline_model <- bifrost_search_fit_ic(IC, formula, candidate_trees[[1]], trait_data, ...)
-    baseline_ic <- bifrost_search_ic_value(baseline_model, IC)
+    .bifrost_search_validate_ic(IC)
+    baseline_model <- .bifrost_search_fit_ic(IC, formula, candidate_trees[[1]], trait_data, ...)
+    baseline_ic <- .bifrost_search_ic_value(baseline_model, IC)
     .progress("Baseline %s: %.2f", IC, baseline_ic)
 
     #evaluate all of the candidate trees under GIC or BIC
@@ -382,7 +382,7 @@ searchOptimalConfiguration <-
 
     .progress("%s", "Fitting sub-models in parallel...")
 
-    candidate_scores <- bifrost_search_score_candidates(
+    candidate_scores <- .bifrost_search_score_candidates(
       candidate_trees_shifts = candidate_trees_shifts,
       baseline_ic = baseline_ic,
       IC = IC,
@@ -415,9 +415,9 @@ searchOptimalConfiguration <-
     # }
 
     # Where to store on-disk history (CRAN-safe temp location)
-    sub_dir <- bifrost_search_history_dir(store_model_fit_history)
+    sub_dir <- .bifrost_search_history_dir(store_model_fit_history)
 
-    forward_search <- bifrost_search_forward(
+    forward_search <- .bifrost_search_forward(
       sorted_candidates = sorted_candidates,
       current_best_tree = current_best_tree,
       current_best_ic = current_best_ic,
@@ -486,7 +486,7 @@ searchOptimalConfiguration <-
     # }
 
     # New Section for Calculating Information Criterion Weights Post Optimization
-    ic_weights_df <- bifrost_search_calculate_ic_weights(
+    ic_weights_df <- .bifrost_search_calculate_ic_weights(
       uncertaintyweights = uncertaintyweights,
       uncertaintyweights_par = uncertaintyweights_par,
       shift_vec = shift_vec,
@@ -519,7 +519,7 @@ searchOptimalConfiguration <-
       #   opt_uncertainty_untransformed$edge.length <- best_tree_no_uncertainty$edge.length
       # }
 
-      no_uncertainty <- bifrost_search_no_uncertainty_components(
+      no_uncertainty <- .bifrost_search_no_uncertainty_components(
         shifts_no_uncertainty = shifts_no_uncertainty,
         model_with_shift_no_uncertainty = model_with_shift_no_uncertainty,
         best_tree_no_uncertainty = best_tree_no_uncertainty,
@@ -543,7 +543,7 @@ searchOptimalConfiguration <-
 
       # Create the IC and acceptance matrix from the model fit history
       if (isTRUE(store_model_fit_history) && !is.null(sub_dir)) {
-        result_list$model_fit_history <- bifrost_search_load_history(sub_dir, IC)
+        result_list$model_fit_history <- .bifrost_search_load_history(sub_dir, IC)
       }
 
       # Generate the VCVs per regime from the overall model fit
