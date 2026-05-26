@@ -414,107 +414,35 @@ searchOptimalConfiguration <-
     #   shift_id <- 0
     # }
 
-    shift_vec <- list() #initialize shift_vec
-    model_with_shift_no_uncertainty <- NULL #initialize output
-    best_tree_no_uncertainty <- NULL #initialize output
-    # Initialize the list to collect warning messages
-    warnings_list <- list()
-
     # Where to store on-disk history (CRAN-safe temp location)
     sub_dir <- bifrost_search_history_dir(store_model_fit_history)
 
-    # In-memory accumulator (lightweight; actual fits stored on disk)
-    model_fit_history <- list()
+    forward_search <- bifrost_search_forward(
+      sorted_candidates = sorted_candidates,
+      current_best_tree = current_best_tree,
+      current_best_ic = current_best_ic,
+      shift_id = shift_id,
+      IC = IC,
+      formula = formula,
+      trait_data = trait_data,
+      shift_acceptance_threshold = shift_acceptance_threshold,
+      store_model_fit_history = store_model_fit_history,
+      sub_dir = sub_dir,
+      plot = plot,
+      progress = .progress,
+      ...
+    )
 
-    #Run the primary shift configuration search
-
-    for (i in seq_along(sorted_candidates)) {
-      shift_node_name <- names(sorted_candidates)[i]
-      shift_node_number <- as.integer(sub("Node ", "", shift_node_name))
-      percent_complete <- round((i / length(sorted_candidates)) * 100, 2)
-      .progress("Evaluating shift at node %d (%.2f%% complete)", shift_node_number, percent_complete)
-
-      add_shift_result <- addShiftToModel(current_best_tree, shift_node_number, shift_id)
-      shifted_tree <- add_shift_result$tree
-      shift_id <- add_shift_result$shift_id
-
-      if(plot == TRUE){
-        nodelabels(text = shift_id, node = shift_node_number)
-      }
-
-      tryCatch({
-        model_with_shift <- withCallingHandlers(
-          bifrost_search_fit_ic(IC, formula, shifted_tree, trait_data, ...),
-          warning = function(w) {
-            warning_message <- paste("Warning in evaluating shift at node", shift_node_number, ":", w$message)
-            warning(warning_message)
-            warnings_list[[length(warnings_list) + 1]] <<- warning_message
-            invokeRestart("muffleWarning")
-          }
-        )
-        new_ic <- bifrost_search_ic_value(model_with_shift, IC)
-
-        # Calculate delta IC
-        delta_ic <- current_best_ic - new_ic
-
-        # Store model fit and acceptance status (including delta_ic)
-        if (store_model_fit_history) {
-          model_fit_history <- list(
-            model = model_with_shift,
-            accepted = delta_ic >= shift_acceptance_threshold,
-            delta_ic = delta_ic
-          )
-        }
-
-        # Decision logic (unchanged)
-        if (delta_ic >= shift_acceptance_threshold) {
-          current_best_tree <- shifted_tree
-          current_best_ic <- new_ic
-          .progress(
-            "Shift at node %d accepted. Updated %s: %.2f; Delta %s: %.2f",
-            shift_node_number, IC, current_best_ic, IC, delta_ic
-          )
-
-          shift_vec[[length(shift_vec) + 1]] <- shift_node_number
-
-          best_tree_no_uncertainty <- current_best_tree
-          model_with_shift_no_uncertainty <- model_with_shift
-        } else {
-          .progress(
-            "Shift at node %d rejected. Delta %s: %.2f < threshold: %.2f",
-            shift_node_number, IC, delta_ic, shift_acceptance_threshold
-          )
-        }
-      }, error = function(e) {
-        # Handle errors (unchanged)
-        warning_message <- paste("Error in evaluating shift at node", shift_node_number, ":", e$message)
-        warning(warning_message)
-        warnings_list[[length(warnings_list) + 1]] <<- warning_message
-
-        # Also store the error in the model fit history
-        if (store_model_fit_history) {
-          model_fit_history <- list(
-            model = NULL,
-            accepted = FALSE,
-            delta_ic = NA,
-            error = e$message
-          )
-        }
-
-      })
-      if (isTRUE(store_model_fit_history) && !is.null(sub_dir)) {
-        iteration_num <- i + 1L
-        bifrost_search_save_history(model_fit_history, sub_dir, iteration_num)
-      }
-      if(plot == TRUE){
-        colorvec <- setNames(object = c("black", rainbow(length(unique(getStates(shifted_tree, type = "both"))) - 1)),
-                             nm = sort(as.numeric(unique(getStates(shifted_tree, type = "both")))))
-        plotSimmap(current_best_tree, colors = colorvec, ftype = "off")
-      }
-    }
+    current_best_tree <- forward_search$current_best_tree
+    current_best_ic <- forward_search$current_best_ic
+    shift_vec <- forward_search$shift_vec
+    model_with_shift_no_uncertainty <- forward_search$model_with_shift_no_uncertainty
+    best_tree_no_uncertainty <- forward_search$best_tree_no_uncertainty
+    warnings_list <- forward_search$warnings_list
+    model_fit_history <- forward_search$model_fit_history
 
     #print(paste(shift_vec))
-    shifts_no_uncertainty <- unlist(shift_vec)
+    shifts_no_uncertainty <- forward_search$shifts_no_uncertainty
     .progress("Shifts detected at nodes: %s", paste(shift_vec, collapse = ", "))
 
     # If activated, this section removes shifts after re-evaluating
