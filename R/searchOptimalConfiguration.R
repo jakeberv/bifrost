@@ -30,25 +30,27 @@
 #' @param trait_data A \code{matrix} or \code{data.frame} of continuous trait values with row
 #'   names matching \code{baseline_tree$tip.label} (same order). For the default
 #'   \code{formula = "trait_data ~ 1"}, \code{trait_data} is typically supplied as a numeric
-#'   matrix so that the multivariate response is interpreted correctly by \code{mvgls()}.
-#'   When using more general formulas (e.g., pGLS-style models), a \code{data.frame} with
-#'   named columns can be used instead.
-#' @param formula Character formula passed to \code{mvgls}. Defaults to
+#'   matrix, but a numeric response-only \code{data.frame} is also accepted. When using
+#'   more general formulas (e.g., pGLS-style models), a \code{data.frame} with named
+#'   columns can be used instead.
+#' @param formula Character string or formula object passed to \code{mvgls}. Defaults to
 #'   \code{"trait_data ~ 1"}, which fits an intercept-only model treating the supplied
 #'   multivariate trait matrix as the response. This is the appropriate choice for most
 #'   morphometric data where there are no predictor variables. For more general models,
 #'   \code{formula} can reference subsets of \code{trait_data} explicitly, for example
-#'   \code{"trait_data[, 1:5] ~ 1"} to treat columns 1-5 as a multivariate response, or
-#'   \code{"trait_data[, 1:5] ~ trait_data[, 6]"} to fit a multivariate pGLS with column 6
-#'   as a predictor.
+#'   \code{"trait_data[, 1:5] ~ 1"} to treat columns 1-5 as a multivariate response,
+#'   \code{"trait_data[, 1:5] ~ trait_data[, 6]"} to fit a multivariate pGLS with an
+#'   indexed predictor, or \code{cbind(y1, y2) ~ size + grp} to fit a named-column
+#'   pGLS with numeric or factor predictors.
 #' @param min_descendant_tips Integer (\eqn{\ge}1). Minimum number of tips required for an internal node
 #'   to be considered as a candidate shift (forwarded to \code{generatePaintedTrees}). Larger values
 #'   reduce the number of candidate shifts by excluding very small clades. For empirical datasets,
 #'   values around \code{10} are a reasonable starting choice and can be tuned in sensitivity analyses.
-#' @param num_cores Integer. Number of workers for parallel candidate scoring. Uses
+#' @param num_cores Integer. Number of workers for candidate scoring. Uses plain
+#'   serial evaluation when \code{num_cores = 1}. For \code{num_cores > 1}, uses
 #'   \code{future::plan(multicore)} on Unix outside \code{RStudio}; otherwise uses
-#'   \code{future::plan(multisession)}. During the parallel candidate-scoring blocks, BLAS/OpenMP
-#'   threads are capped to 1 (per worker) to avoid CPU oversubscription.
+#'   \code{future::plan(multisession)}. During the parallel candidate-scoring blocks,
+#'   BLAS/OpenMP threads are capped to 1 (per worker) to avoid CPU oversubscription.
 #' @param ic_uncertainty_threshold Numeric (\eqn{\ge}0). Reserved for future development
 #'   in post-search pruning and uncertainty analysis; currently not used by
 #'   \code{searchOptimalConfiguration()}.
@@ -57,7 +59,7 @@
 #'   Larger values yield more conservative models. For analyses based on the Generalized
 #'   Information Criterion (\code{"GIC"}), a threshold on the order of \code{20} units is a
 #'   conservative choice that tends to admit only strongly supported shifts. Simulation
-#'   studies (Berv et al., in preparation) suggest that this choice yields good balanced
+#'   studies in Berv et al. (2026) suggest that this choice yields good balanced
 #'   accuracy between detecting true shifts and avoiding false positives, but users should
 #'   explore alternative thresholds in sensitivity analyses for their own datasets.
 #' @param uncertaintyweights Logical. If \code{TRUE}, compute per-shift IC weights serially by
@@ -102,8 +104,10 @@
 #'         \code{baseline_tree$tip.label} in both names and order; any tips without data should be
 #'         pruned beforehand.
 #'   \item \emph{Data type:} \code{trait_data} is typically a numeric matrix of continuous traits;
-#'         high-dimensional settings (p \eqn{\ge} n) are supported via penalized-likelihood
-#'         \code{mvgls()} fits.
+#'         numeric response-only \code{data.frame}s are also supported for intercept-only
+#'         searches, and named mixed-type \code{data.frame}s are supported for richer
+#'         formulas. High-dimensional settings (p \eqn{\ge} n) are supported via
+#'         penalized-likelihood \code{mvgls()} fits.
 #' }
 #'
 #' \strong{Search outline.}
@@ -120,8 +124,10 @@
 #'         shift removed and comparing the two ICs via \code{\link[mvMORPH]{aicw}}.
 #' }
 #'
-#' \strong{Parallelization.} Candidate sub-model fits are distributed with \pkg{future} + \pkg{future.apply}.
-#' On Unix, \code{multicore} is used; on Windows, \code{multisession}. A sequential plan is restored afterward.
+#' \strong{Parallelization.} When \code{num_cores = 1}, candidates are scored serially. For
+#' larger values, candidate sub-model fits are distributed with \pkg{future} +
+#' \pkg{future.apply}. On Unix outside \code{RStudio}, \code{multicore} is used; otherwise
+#' \code{multisession} is used. A sequential plan is restored afterward.
 #'
 #' \strong{Plotting.} If \code{plot = TRUE}, trees are rendered with
 #' \code{\link[phytools]{plotSimmap}()}; shift IDs are labeled with \code{\link[ape]{nodelabels}()}.
@@ -343,6 +349,11 @@ searchOptimalConfiguration <-
 
     # Capture user input
     user_input <- as.list(match.call())
+
+    if (!(inherits(formula, "formula") ||
+          (is.character(formula) && length(formula) == 1L && !is.na(formula)))) {
+      stop("formula must be a single character string or formula object.")
+    }
 
     # Coerce to phylo and initialize a single baseline regime at the root
     baseline_tree <- paintSubTree(((as.phylo(baseline_tree))),

@@ -207,6 +207,204 @@ fitMvglsAndExtractBIC <- function(painted_tree, trait_data) {
   return(list(model = model, BIC = bic_value))
 }
 
+normalizeMvglsFormulaCall <- function(formula, trait_data, args_list, allow_single_response = FALSE) {
+  if (missing(formula)) {
+    stop("A character formula or formula object must be provided.")
+  }
+
+  if (inherits(formula, "formula")) {
+    formula_obj <- formula
+  } else if (is.character(formula) && length(formula) == 1L && !is.na(formula)) {
+    formula_obj <- as.formula(formula)
+  } else {
+    stop("A character formula or formula object must be provided.")
+  }
+
+  formula_chr <- paste(deparse(formula_obj, width.cutoff = 500), collapse = " ")
+  data_obj <- if ("data" %in% names(args_list)) args_list$data else trait_data
+  if (is.matrix(data_obj)) {
+    data_obj <- as.data.frame(data_obj, stringsAsFactors = FALSE)
+  }
+  if (!is.null(rownames(trait_data)) && nrow(data_obj) == nrow(trait_data)) {
+    rownames(data_obj) <- rownames(trait_data)
+  }
+
+  if (grepl("\\btrait_data\\b", formula_chr)) {
+    formula_terms <- stats::terms(formula_obj)
+    intercept_only <- length(attr(formula_terms, "term.labels")) == 0L &&
+      identical(attr(formula_terms, "intercept"), 1L)
+    lhs_is_trait_data <- is.symbol(formula_obj[[2L]]) &&
+      identical(as.character(formula_obj[[2L]]), "trait_data")
+    response_only_df <- is.data.frame(data_obj) &&
+      ncol(data_obj) > 0L &&
+      all(vapply(data_obj, is.numeric, logical(1)))
+
+    if (intercept_only && lhs_is_trait_data && response_only_df) {
+      response_names <- colnames(data_obj)
+      if (is.null(response_names) || any(!nzchar(response_names))) {
+        response_names <- paste0("Y", seq_len(ncol(data_obj)))
+        colnames(data_obj) <- response_names
+      }
+      response_names <- make.unique(make.names(response_names))
+      colnames(data_obj) <- response_names
+      formula_obj <- if (length(response_names) == 1L) {
+        stats::as.formula(paste0(response_names, " ~ 1"))
+      } else {
+        stats::as.formula(
+          paste0("cbind(", paste(response_names, collapse = ", "), ") ~ 1")
+        )
+      }
+      args_list$data <- data_obj
+      formula_chr <- paste(deparse(formula_obj, width.cutoff = 500), collapse = " ")
+    } else if (intercept_only && lhs_is_trait_data) {
+      return(list(
+        formula   = formula_obj,
+        args_list = args_list
+      ))
+    } else {
+      data_names <- colnames(data_obj)
+      has_missing_names <- is.null(data_names) || any(!nzchar(data_names))
+
+      if (has_missing_names) {
+        if (is.null(data_names)) {
+          data_names <- rep("", ncol(data_obj))
+        }
+        missing_idx <- which(!nzchar(data_names))
+        data_names[missing_idx] <- paste0("V", seq_along(missing_idx))
+        data_names <- make.unique(make.names(data_names))
+        colnames(data_obj) <- data_names
+      }
+
+      lhs_expr <- formula_obj[[2L]]
+      rhs_expr <- formula_obj[[3L]]
+      has_legacy_refs <- isLegacyTraitDataReference(lhs_expr) ||
+        isLegacyTraitDataSubset(lhs_expr) ||
+        length(collectLegacyTraitDataColumns(rhs_expr, colnames(data_obj))) > 0L
+
+      if (!has_legacy_refs) {
+        return(list(
+          formula   = formula_obj,
+          args_list = args_list
+        ))
+      }
+
+      formula_spec <- normalizeSimulationFormulaSpec(
+        formula = formula_obj,
+        trait_data = data_obj
+      )
+
+      if (isTRUE(formula_spec$intercept_only)) {
+        data_obj <- data_obj[, formula_spec$response_column_names, drop = FALSE]
+        rownames(data_obj) <- rownames(trait_data)
+        args_list$data <- data_obj
+        formula_obj <- stats::as.formula("trait_data ~ 1")
+        formula_chr <- paste(deparse(formula_obj, width.cutoff = 500), collapse = " ")
+
+        response_only_df <- is.data.frame(data_obj) &&
+          ncol(data_obj) > 0L &&
+          all(vapply(data_obj, is.numeric, logical(1)))
+
+        if (response_only_df) {
+          response_names <- colnames(data_obj)
+          if (is.null(response_names) || any(!nzchar(response_names))) {
+            response_names <- paste0("Y", seq_len(ncol(data_obj)))
+            colnames(data_obj) <- response_names
+          }
+          response_names <- make.unique(make.names(response_names))
+          colnames(data_obj) <- response_names
+          formula_obj <- if (length(response_names) == 1L) {
+            stats::as.formula(paste0(response_names, " ~ 1"))
+          } else {
+            stats::as.formula(
+              paste0("cbind(", paste(response_names, collapse = ", "), ") ~ 1")
+            )
+          }
+          args_list$data <- data_obj
+          formula_chr <- paste(deparse(formula_obj, width.cutoff = 500), collapse = " ")
+        }
+      } else {
+        formula_obj <- formula_spec$formula_normalized_obj
+        formula_chr <- paste(deparse(formula_obj, width.cutoff = 500), collapse = " ")
+        args_list$data <- data_obj
+      }
+    }
+  }
+
+  mf <- stats::model.frame(formula_obj, data = data_obj, na.action = stats::na.pass)
+  response_block <- stats::model.response(mf)
+  response_dim <- if (is.null(dim(response_block))) 1L else ncol(response_block)
+
+  if (response_dim < 2L && !allow_single_response) {
+    stop("Named formulas require a multivariate response for mvgls.")
+  }
+
+  if (response_dim >= 2L) {
+    response_names <- colnames(response_block)
+    if (is.null(response_names) || any(!nzchar(response_names))) {
+      response_names <- paste0("Y", seq_len(response_dim))
+    }
+    response_names <- make.unique(make.names(response_names))
+    colnames(response_block) <- response_names
+  } else {
+    lhs_expr <- formula_obj[[2L]]
+    response_names <- if (is.symbol(lhs_expr)) {
+      as.character(lhs_expr)
+    } else {
+      NULL
+    }
+    if (is.null(response_names) || any(!nzchar(response_names))) {
+      response_names <- "Y1"
+    }
+    response_names <- make.unique(make.names(response_names))
+    response_block <- as.matrix(response_block)
+    colnames(response_block) <- response_names
+  }
+
+  rhs_terms <- stats::delete.response(attr(mf, "terms"))
+  xmat <- stats::model.matrix(rhs_terms, mf)
+  if ("(Intercept)" %in% colnames(xmat)) {
+    xmat <- xmat[, colnames(xmat) != "(Intercept)", drop = FALSE]
+  }
+
+  if (ncol(xmat) > 0) {
+    predictor_names <- make.unique(make.names(colnames(xmat)))
+    colnames(xmat) <- predictor_names
+    working_data <- data.frame(
+      response_block,
+      xmat,
+      check.names = FALSE,
+      stringsAsFactors = FALSE
+    )
+    formula_fit <- as.formula(
+      paste0(
+        "cbind(",
+        paste(response_names, collapse = ", "),
+        ") ~ ",
+        paste(predictor_names, collapse = " + ")
+      )
+    )
+  } else {
+    working_data <- data.frame(
+      response_block,
+      check.names = FALSE,
+      stringsAsFactors = FALSE
+    )
+    formula_fit <- as.formula(
+      paste0("cbind(", paste(response_names, collapse = ", "), ") ~ 1")
+    )
+  }
+
+  rownames(working_data) <- rownames(data_obj)
+
+  list(
+    formula   = formula_fit,
+    args_list = {
+      args_list$data <- working_data
+      args_list
+    }
+  )
+}
+
 #' Fit mvgls Model Using a Formula and Extract GIC Score
 #'
 #' Fits a multivariate generalized least squares (mvgls) model to a
@@ -218,8 +416,9 @@ fitMvglsAndExtractBIC <- function(painted_tree, trait_data) {
 #' }
 #' Returns the fitted model along with its Generalized Information Criterion (GIC) score.
 #'
-#' @param formula A character string specifying the model formula
-#'   (e.g., \code{"cbind(trait1, trait2) ~ predictor"}).
+#' @param formula A character string or formula object specifying the model
+#'   formula (e.g., \code{"cbind(trait1, trait2) ~ predictor"} or
+#'   \code{cbind(trait1, trait2) ~ predictor}).
 #' @param painted_tree An object of class \code{simmap} (see
 #'   \code{\link[phytools]{paintSubTree}}) used as the phylogenetic tree.
 #' @param trait_data A \code{data.frame} or \code{matrix} of trait values with
@@ -233,9 +432,10 @@ fitMvglsAndExtractBIC <- function(painted_tree, trait_data) {
 #' }
 #'
 #' @details
-#' The function converts the character \code{formula} to an actual formula
-#' object via \code{\link[stats]{as.formula}} before fitting. The number of regimes
-#' in \code{painted_tree} is detected with \code{\link[phytools]{getStates}}.
+#' The function accepts either a character string or a formula object. Named
+#' formulas automatically use \code{trait_data} as the model-frame data when no
+#' explicit \code{data} argument is supplied. The number of regimes in
+#' \code{painted_tree} is detected with \code{\link[phytools]{getStates}}.
 #'
 #' @seealso \code{\link[mvMORPH]{mvgls}}, \code{\link[mvMORPH]{GIC}},
 #'   \code{\link[phytools]{getStates}}, \code{\link[stats]{as.formula}}
@@ -260,23 +460,20 @@ fitMvglsAndExtractBIC <- function(painted_tree, trait_data) {
 #' @keywords internal
 #' @noRd
 fitMvglsAndExtractGIC.formula <- function(formula, painted_tree, trait_data, ...) {
-  # Ensure trait_data is a matrix
-  #if (!is.matrix(trait_data)) {
-  #  stop("trait_data must be a matrix.")
-  #}
-
   # Make sure the row names match the tip labels of the painted_tree
   if (!identical(rownames(trait_data), painted_tree$tip.label)) {
     stop("Row names of trait_data must exactly match the tip labels of the tree.")
   }
 
-  # Validate that formula is provided and is a character
-  if (missing(formula) || !is.character(formula)) {
-    stop("A character formula must be provided.")
-  }
-
-  # Convert the string formula to an actual formula object
-  formula_obj <- as.formula(formula)
+  args_list <- list(...)
+  normalized_call <- normalizeMvglsFormulaCall(
+    formula,
+    trait_data,
+    args_list,
+    allow_single_response = TRUE
+  )
+  formula_obj <- normalized_call$formula
+  args_list <- normalized_call$args_list
 
   # Fit the mvgls model using the user-defined formula
 
@@ -284,9 +481,15 @@ fitMvglsAndExtractGIC.formula <- function(formula, painted_tree, trait_data, ...
   # Then we switch back to BMM
 
   if(length(unique(getStates(tree = painted_tree))) == 1){
-    model <- mvgls(formula_obj, tree = painted_tree, model = "BM", ...)
+    model <- do.call(
+      mvgls,
+      c(list(formula_obj, tree = painted_tree, model = "BM"), args_list)
+    )
   } else {
-    model <- mvgls(formula_obj, tree = painted_tree, model = "BMM", ...)
+    model <- do.call(
+      mvgls,
+      c(list(formula_obj, tree = painted_tree, model = "BMM"), args_list)
+    )
   }
   gic_value <- GIC(model)
 
@@ -305,8 +508,9 @@ fitMvglsAndExtractGIC.formula <- function(formula, painted_tree, trait_data, ...
 #' }
 #' Returns the fitted model along with its Bayesian Information Criterion (BIC) score.
 #'
-#' @param formula A character string specifying the model formula
-#'   (e.g., \code{"cbind(trait1, trait2) ~ predictor"}).
+#' @param formula A character string or formula object specifying the model
+#'   formula (e.g., \code{"cbind(trait1, trait2) ~ predictor"} or
+#'   \code{cbind(trait1, trait2) ~ predictor}).
 #' @param painted_tree An object of class \code{simmap} (see
 #'   \code{\link[phytools]{paintSubTree}}) used as the phylogenetic tree.
 #' @param trait_data A \code{data.frame} or \code{matrix} of trait values with
@@ -320,9 +524,10 @@ fitMvglsAndExtractGIC.formula <- function(formula, painted_tree, trait_data, ...
 #' }
 #'
 #' @details
-#' The function converts the character \code{formula} to an actual formula
-#' object via \code{\link[stats]{as.formula}} before fitting. The number of regimes
-#' in \code{painted_tree} is detected with \code{\link[phytools]{getStates}}.
+#' The function accepts either a character string or a formula object. Named
+#' formulas automatically use \code{trait_data} as the model-frame data when no
+#' explicit \code{data} argument is supplied. The number of regimes in
+#' \code{painted_tree} is detected with \code{\link[phytools]{getStates}}.
 #'
 #' @seealso \code{\link[mvMORPH]{mvgls}}, \code{\link[stats]{BIC}},
 #'   \code{\link[phytools]{getStates}}, \code{\link[stats]{as.formula}}
@@ -347,23 +552,24 @@ fitMvglsAndExtractGIC.formula <- function(formula, painted_tree, trait_data, ...
 #' @keywords internal
 #' @noRd
 fitMvglsAndExtractBIC.formula <- function(formula, painted_tree, trait_data, ...) {
-  # # Ensure trait_data is a matrix
-  # if (!is.matrix(trait_data)) {
-  #   stop("trait_data must be a matrix.")
-  # }
-
   # Make sure the row names match the tip labels of the painted_tree
   if (!identical(rownames(trait_data), painted_tree$tip.label)) {
     stop("Row names of trait_data must exactly match the tip labels of the tree.")
   }
 
-  # Validate that formula is provided and is a character
-  if (missing(formula) || !is.character(formula)) {
-    stop("A character formula must be provided.")
+  args_list <- list(...)
+  if (!("method" %in% names(args_list))) {
+    args_list$method <- "LL"
   }
 
-  # Convert the string formula to an actual formula object
-  formula_obj <- as.formula(formula)
+  normalized_call <- normalizeMvglsFormulaCall(
+    formula,
+    trait_data,
+    args_list,
+    allow_single_response = TRUE
+  )
+  formula_obj <- normalized_call$formula
+  args_list <- normalized_call$args_list
 
   # Fit the mvgls model using the user-defined formula
 
@@ -371,9 +577,15 @@ fitMvglsAndExtractBIC.formula <- function(formula, painted_tree, trait_data, ...
   # Then we switch back to BMM
 
   if(length(unique(getStates(tree = painted_tree))) == 1){
-    model <- mvgls(formula_obj, tree = painted_tree, model = "BM", ...)
+    model <- do.call(
+      mvgls,
+      c(list(formula_obj, tree = painted_tree, model = "BM"), args_list)
+    )
   } else {
-    model <- mvgls(formula_obj, tree = painted_tree, model = "BMM", ...)
+    model <- do.call(
+      mvgls,
+      c(list(formula_obj, tree = painted_tree, model = "BMM"), args_list)
+    )
   }
   bic_value <- BIC(model)
 
