@@ -306,6 +306,13 @@
       "Choose a 'rateMap' interval column with at least one finite value."
     )
   }
+  if (any(!is.finite(flat_vals))) {
+    stop(
+      "Column '", value, "' contains non-finite values for one or more ",
+      "intervals; choose a complete interval column or replace non-finite ",
+      "values before mapping."
+    )
+  }
   rate_value <- value %in% c("value", "mean", "median")
 
   selected_palette <- if (is.null(palette)) x$palette else palette
@@ -506,9 +513,10 @@
 #'   preserved as metadata for non-rate views such as `"sd"`. When preserved for
 #'   a non-rate view, `rate_flag_source` identifies the
 #'   rate-valued column that the flags classify; the flags do not classify the
-#'   displayed uncertainty value. The selected `value` column must contain at
-#'   least one finite value; uncertainty columns such as `"sd"` may be all `NA`
-#'   for single-fit objects.
+#'   displayed uncertainty value. The selected `value` column must contain
+#'   finite values for every plotted interval; uncertainty columns such as
+#'   `"sd"` may be all `NA` for single-fit objects and are rejected with a
+#'   clear error.
 #'
 #' @examples
 #' \dontrun{
@@ -890,8 +898,9 @@ rateMapView <- function(x,
 #' special and regular bins. When plotting non-rate columns such as `"sd"`,
 #' diagnostic columns are preserved only as metadata with `rate_flag_source`
 #' provenance; special rate categories are not drawn for those non-rate values.
-#' The selected `value` column must contain at least one finite value;
-#' uncertainty columns such as `"sd"` may be all `NA` for single-fit objects.
+#' The selected `value` column must contain finite values for every plotted
+#' interval; uncertainty columns such as `"sd"` may be all `NA` for single-fit
+#' objects and are rejected with a clear error.
 #'
 #' @param x An object of class `"rateMap"` returned by [rateMap()] or
 #'   [rateMapView()].

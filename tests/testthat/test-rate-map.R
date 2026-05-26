@@ -292,8 +292,30 @@ test_that("rateMap supports all default extraction shapes", {
   )
   testthat::expect_error(
     rateMap(list(transformed_only), progress = FALSE),
-    "mapped simmap/phylo tree"
+    "tree_no_uncertainty_untransformed"
   )
+  transformed_override <- rateMap(
+    list(transformed_only),
+    summary = "branch",
+    log = FALSE,
+    progress = FALSE,
+    control = rateMapControl(
+      tree_fun = function(x) x$tree_no_uncertainty_transformed
+    )
+  )
+  testthat::expect_s3_class(transformed_override, "rateMap")
+  testthat::expect_equal(transformed_override$n_fits, 1L)
+  testthat::expect_true(all(abs(transformed_override$intervals$value - 0.4) < 1e-12))
+  omitted_tree <- rateMap(
+    list(transformed_only, bifrost_fit),
+    summary = "branch",
+    log = FALSE,
+    progress = FALSE,
+    control = rateMapControl(na_action = "omit")
+  )
+  testthat::expect_equal(omitted_tree$n_fits, 1L)
+  testthat::expect_equal(omitted_tree$omitted, 1L)
+  testthat::expect_true(all(abs(omitted_tree$intervals$value - 0.4) < 1e-12))
 })
 
 test_that("rateMap accepts a single fitted object and plot() draws rateMap objects", {
@@ -962,6 +984,17 @@ test_that("rateMapView can color by discrete rate categories", {
     .rateMap_resolve_categories(c(NA_real_, Inf), n_categories = 2),
     "finite rate categories"
   )
+  testthat::expect_error(
+    .rateMap_build_color_map(
+      values_by_edge = list(c(1, NA_real_), 2),
+      ncolors = 4,
+      palette = "YlOrRd",
+      reverse_palette = FALSE,
+      color_mode = "category",
+      n_categories = 2
+    ),
+    "must all be finite"
+  )
 
   testthat::expect_error(rateMapView(list()), "rateMap")
   testthat::expect_error(
@@ -1057,6 +1090,26 @@ test_that("rateMap computes optional uncertainty summaries", {
   testthat::expect_error(
     rateMapView(single_fit, value = "sd"),
     "contains no finite values"
+  )
+  mixed_cv <- rateMap(
+    list(
+      .rate_map_state_fit(c(1, 2)),
+      .rate_map_state_fit(c(1, 4))
+    ),
+    summary = "branch",
+    uncertainty = TRUE,
+    log = TRUE,
+    progress = FALSE
+  )
+  testthat::expect_true(any(is.na(mixed_cv$intervals$cv)))
+  testthat::expect_true(any(is.finite(mixed_cv$intervals$cv)))
+  testthat::expect_error(
+    rateMapView(mixed_cv, value = "cv", color_mode = "category"),
+    "contains non-finite values"
+  )
+  testthat::expect_error(
+    rateMapView(mixed_cv, value = "cv", color_mode = "continuous"),
+    "contains non-finite values"
   )
 
   flagged_uncertainty <- rateMap(

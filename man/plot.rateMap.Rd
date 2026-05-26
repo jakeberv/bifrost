@@ -162,8 +162,9 @@ spans the full plotted value range and marks the diagnostic cutoff separating
 special and regular bins. When plotting non-rate columns such as \code{"sd"},
 diagnostic columns are preserved only as metadata with \code{rate_flag_source}
 provenance; special rate categories are not drawn for those non-rate values.
-The selected \code{value} column must contain at least one finite value;
-uncertainty columns such as \code{"sd"} may be all \code{NA} for single-fit objects.
+The selected \code{value} column must contain finite values for every plotted
+interval; uncertainty columns such as \code{"sd"} may be all \code{NA} for single-fit
+objects and are rejected with a clear error.
 
 The \code{plot()} method handles \code{"phylogram"}, \code{"fan"}, and \code{"arc"} layouts.
 \code{legend} controls the length of the color bar; set \code{legend = FALSE} to

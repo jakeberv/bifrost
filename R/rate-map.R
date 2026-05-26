@@ -414,6 +414,12 @@
     stop("Could not compute finite rate limits from the supplied fits.")
   }
   # nocov end
+  if (any(!is.finite(flat_values))) {
+    stop(
+      "Values supplied for rate-map coloring must all be finite; ",
+      "cannot assign colors to NA, NaN, or infinite values."
+    )
+  }
 
   if (diff(lims) == 0) {
     lims <- lims + c(-0.5, 0.5) * max(abs(lims[1L]), 1) * 1e-6
@@ -1620,7 +1626,9 @@ rateMapRateFlags <- function(near_zero = NULL,
 #'   the retained input tree with the highest sum of log clade credibilities.
 #' @param tree_fun Optional function used to extract a mapped tree from each
 #'   element of `fits`. If `NULL`, common `bifrost` and mvgls shapes are
-#'   auto-detected.
+#'   auto-detected. For `"bifrost_search"` objects, the default uses
+#'   `tree_no_uncertainty_untransformed` to preserve the original branch-length
+#'   scale; supply `tree_fun` explicitly to map a different tree field.
 #' @param param_fun Optional function used to extract a named numeric vector of
 #'   state-specific fitted rates from each element of `fits`. If `NULL`, common
 #'   `bifrost` and mvgls shapes are auto-detected.
@@ -1950,7 +1958,8 @@ rateMapControl <- function(res = 100,
     stop("'fits' must be a non-empty list of fitted run objects.")
   }
 
-  tree_fun <- if (is.null(tree_fun)) .rateMap_extract_tree else tree_fun
+  default_tree_fun <- is.null(tree_fun)
+  tree_fun <- if (isTRUE(default_tree_fun)) .rateMap_extract_tree else tree_fun
   param_fun <- if (is.null(param_fun)) .rateMap_extract_param else param_fun
 
   trees <- lapply(fits, tree_fun)
@@ -1959,6 +1968,17 @@ rateMapControl <- function(res = 100,
   validation <- vapply(
     seq_along(fits),
     function(i) {
+      if (isTRUE(default_tree_fun) &&
+          .rateMap_is_bifrost_search(fits[[i]]) &&
+          is.null(fits[[i]]$tree_no_uncertainty_untransformed)) {
+        return(paste0(
+          "Fit ", i,
+          " is a bifrost_search object but is missing ",
+          "'tree_no_uncertainty_untransformed'. rateMap() uses the ",
+          "original-length tree by default; use rateMapControl(tree_fun = ...) ",
+          "to supply another mapped tree."
+        ))
+      }
       msg <- .rateMap_validate_fit(trees[[i]], params[[i]], i, log = log)
       if (is.null(msg)) "" else msg
     },
@@ -2293,6 +2313,8 @@ rateMapControl <- function(res = 100,
   attr(tree, "map.order") <- "right-to-left"
 
   edge_indices <- seq_len(nrow(tree$edge))
+  interval_counts <- vapply(interval_lengths, length, integer(1))
+  interval_offsets <- c(0L, cumsum(interval_counts))
   intervals <- do.call(
     rbind,
     lapply(edge_indices, function(i) {
@@ -2308,7 +2330,7 @@ rateMapControl <- function(res = 100,
         stringsAsFactors = FALSE
       )
       if (isTRUE(rate_flag_info$diagnostics$enabled)) {
-        idx <- seq_len(nrow(base_row)) + sum(vapply(interval_lengths[seq_len(i - 1L)], length, integer(1)))
+        idx <- seq_len(nrow(base_row)) + interval_offsets[i]
         base_row$rate_for_flagging <- rate_flag_info$rate_for_flagging[idx]
         base_row$rate_flag <- rate_flag_info$rate_flag[idx]
         base_row$rate_flag_source <- "value"
