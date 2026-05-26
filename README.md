@@ -57,6 +57,13 @@ Install [Rtools](https://cran.r-project.org/bin/windows/Rtools/) for your R vers
 **macOS users:**  
 You may need to install [XQuartz](https://www.xquartz.org/) to build or run packages that depend on certain graphical or system libraries.
 
+## Release status
+
+CRAN currently provides `bifrost` 0.1.4. The GitHub development version includes features that are documented here but not yet available from CRAN.
+
+- **New since CRAN 0.1.4.** The `rateMap()` workflow, along with `rateMapView()`, `rateMapControl()`, `rateMapRateFlags()`, and `plot()` / `print()` methods for `rateMap` objects, summarizes and visualizes branch-rate patterns from completed `bifrost` searches. The two rate-map jaw-shape articles below are part of this development-version documentation.
+- **Experimental or repository-only material.** Some workflows described in the repository are still being actively developed, especially pGLS-style uses of `bifrost` for predictor models with hidden branch-specific rate variation. Repository tooling and generated site assets, such as the CRAN downloads tracker, support development and documentation rather than the core CRAN API.
+
 ## Overview
 
 - **Primary goal.** Infer *where*, *when*, and *how* patterns of phenotypic evolution change across a tree using many traits simultaneously.
