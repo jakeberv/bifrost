@@ -84,6 +84,34 @@ bifrost_search_ic_value <- function(model_result, IC) {
   }
 }
 
+bifrost_search_score_candidates <- function(candidate_trees_shifts,
+                                           baseline_ic,
+                                           IC,
+                                           formula,
+                                           trait_data,
+                                           args_list,
+                                           num_cores,
+                                           is_rstudio) {
+  candidate_results <- bifrost_run_future_lapply_safe(
+    candidate_trees_shifts,
+    function(tree) {
+      do.call(bifrost_search_fit_ic, c(list(IC, formula, tree, trait_data), args_list))
+    },
+    workers = num_cores,
+    is_rstudio_flag = is_rstudio
+  )
+
+  delta_ic_list <- sapply(candidate_results, function(res) {
+    baseline_ic - bifrost_search_ic_value(res, IC)
+  })
+
+  list(
+    candidate_results = candidate_results,
+    delta_ic_list = delta_ic_list,
+    sorted_candidates = candidate_trees_shifts[order(delta_ic_list, decreasing = TRUE)]
+  )
+}
+
 bifrost_search_history_dir <- function(store_model_fit_history) {
   if (!isTRUE(store_model_fit_history)) {
     return(NULL)

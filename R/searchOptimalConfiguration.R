@@ -382,22 +382,19 @@ searchOptimalConfiguration <-
 
     .progress("%s", "Fitting sub-models in parallel...")
 
-    candidate_results <- bifrost_run_future_lapply_safe(
-      candidate_trees_shifts,
-      function(tree) {
-        do.call(bifrost_search_fit_ic, c(list(IC, formula, tree, trait_data), args_list))
-      },
-      workers = num_cores,
-      is_rstudio_flag = is_rstudio
+    candidate_scores <- bifrost_search_score_candidates(
+      candidate_trees_shifts = candidate_trees_shifts,
+      baseline_ic = baseline_ic,
+      IC = IC,
+      formula = formula,
+      trait_data = trait_data,
+      args_list = args_list,
+      num_cores = num_cores,
+      is_rstudio = is_rstudio
     )
 
-    #generate the delta IC lists
-    delta_ic_list <- sapply(candidate_results, function(res) {
-      baseline_ic - bifrost_search_ic_value(res, IC)
-    })
-
     .progress("%s", "Sorting and evaluating shifts...")
-    sorted_candidates <- candidate_trees_shifts[order(delta_ic_list, decreasing = TRUE)]
+    sorted_candidates <- candidate_scores$sorted_candidates
     current_best_tree <- baseline_tree
     current_best_ic <- baseline_ic
     shift_id <- 0
