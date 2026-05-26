@@ -74,43 +74,66 @@ supplied.}
 \code{color_mode = "category"}.}
 
 \item{ncolors}{Optional number of colors to use when recoloring this plot
-with \code{color_mode = "continuous"}.}
+with \code{color_mode = "continuous"}. If omitted, the stored \code{x$ncolors} value
+is used, falling back to \code{256} for older objects.}
 
 \item{legend_title}{Optional legend title override for this plot.}
 
 \item{legend}{Legend length. If \code{NULL} or \code{TRUE}, a layout-specific default is
-used. Set \code{legend = FALSE} to suppress the legend.}
+used. Set \code{legend = FALSE} to suppress the legend. Continuous legends are
+drawn with \code{\link[phytools:add.color.bar]{phytools::add.color.bar()}}; category legends are drawn by
+\code{rateMap} so bin labels can reflect rate categories and diagnostics.}
 
-\item{fsize}{Numeric font-size vector passed to the underlying tree plot.}
+\item{fsize}{Numeric font-size vector. The first element is passed as the tip
+label \code{fsize} to \code{\link[phytools:plotSimmap]{phytools::plotSimmap()}} and, when \code{outline = TRUE}, to
+\code{\link[phytools:plotTree]{phytools::plotTree()}}. The second element is used by the legend.}
 
-\item{tip_fsize}{Optional override for tip-label font size.}
+\item{tip_fsize}{Optional override for the first \code{fsize} element passed to
+the underlying tree plot.}
 
-\item{legend_fsize}{Optional override for legend font size.}
+\item{legend_fsize}{Optional override for the legend font size.}
 
-\item{ftype}{Font type passed to the underlying tree plot.}
+\item{ftype}{Font type. The first element is passed as \code{ftype} to
+\code{\link[phytools:plotSimmap]{phytools::plotSimmap()}} and, when \code{outline = TRUE}, to
+\code{\link[phytools:plotTree]{phytools::plotTree()}}. The second element is reserved for legends.}
 
-\item{show_tip_labels}{Logical; if \code{FALSE}, suppress tip labels.}
+\item{show_tip_labels}{Logical; if \code{FALSE}, \code{rateMap} sets the tree-plot
+\code{ftype} to \code{"off"} before calling the underlying \code{phytools} plotter.}
 
-\item{outline}{Logical; if \code{TRUE}, draw a branch outline beneath the rate map.}
+\item{outline}{Logical; if \code{TRUE}, draw a branch outline beneath the rate map.
+The outline pass is drawn with \code{\link[phytools:plotTree]{phytools::plotTree()}} before the colored
+\code{\link[phytools:plotSimmap]{phytools::plotSimmap()}} pass.}
 
-\item{lwd}{Branch and legend line widths.}
+\item{lwd}{Branch and legend line widths. The first element is passed to
+\code{\link[phytools:plotSimmap]{phytools::plotSimmap()}} and, with \code{+ 2}, to \code{\link[phytools:plotTree]{phytools::plotTree()}} for
+outlines. The second element is used for the legend.}
 
-\item{type}{Plot type: \code{"phylogram"}, \code{"fan"}, or \code{"arc"}.}
+\item{type}{Plot type: \code{"phylogram"}, \code{"fan"}, or \code{"arc"}. This is passed to
+\code{\link[phytools:plotSimmap]{phytools::plotSimmap()}} for fan and arc layouts and to
+\code{\link[phytools:plotTree]{phytools::plotTree()}} for outline passes.}
 
-\item{mar}{Plot margins.}
+\item{mar}{Plot margins passed to \code{\link[phytools:plotSimmap]{phytools::plotSimmap()}} and, when
+\code{outline = TRUE}, to \code{\link[phytools:plotTree]{phytools::plotTree()}}.}
 
-\item{direction}{Plotting direction for \code{type = "phylogram"}.}
+\item{direction}{Plotting direction for \code{type = "phylogram"}; passed to
+\code{\link[phytools:plotSimmap]{phytools::plotSimmap()}} and \code{\link[phytools:plotTree]{phytools::plotTree()}}.}
 
-\item{offset}{Tip-label offset.}
+\item{offset}{Tip-label offset passed to \code{\link[phytools:plotSimmap]{phytools::plotSimmap()}} and, when
+\code{outline = TRUE}, to \code{\link[phytools:plotTree]{phytools::plotTree()}}.}
 
-\item{xlim, ylim}{Optional plot limits.}
+\item{xlim, ylim}{Optional plot limits passed to \code{\link[phytools:plotSimmap]{phytools::plotSimmap()}} and,
+when \code{outline = TRUE}, to \code{\link[phytools:plotTree]{phytools::plotTree()}}.}
 
-\item{hold}{Logical passed through to the plotting device hold/flush guard.}
+\item{hold}{Logical controlling \code{rateMap}'s device hold/flush guard.
+\code{rateMap} passes \code{hold = FALSE} to the internal \code{phytools} calls so the
+two-pass outline/color drawing is controlled in one place.}
 
 \item{underscore}{Logical; if \code{FALSE}, underscores in tip labels may be shown
-as spaces by the underlying plotting functions.}
+as spaces by the underlying \code{\link[phytools:plotSimmap]{phytools::plotSimmap()}} and
+\code{\link[phytools:plotTree]{phytools::plotTree()}} calls.}
 
-\item{arc_height}{Arc height passed through for \code{type = "arc"}.}
+\item{arc_height}{Arc height passed through to \code{\link[phytools:plotSimmap]{phytools::plotSimmap()}} and,
+for outlines, \code{\link[phytools:plotTree]{phytools::plotTree()}} when \code{type = "arc"}.}
 
 \item{legend_digits}{Optional number of digits for legend endpoint labels. If
 omitted, small-magnitude values use enough digits to avoid zero-valued
@@ -131,6 +154,17 @@ The plot method uses \code{\link[phytools:plotSimmap]{phytools::plotSimmap()}} a
 color-bar legend or a segmented rate-category color bar.
 The plotting controls intentionally mirror the \code{phytools} density-map
 plotting style for phylogram, fan, and arc layouts.
+In branch-summary category mode, near-zero or high-outlier rate diagnostics
+are drawn as special categories when rate-valued columns are plotted; these
+special categories do not consume positions in the ordered palette used for
+regular rate bins. When special categories are present, the category legend
+spans the full plotted value range and marks the diagnostic cutoff separating
+special and regular bins. When plotting non-rate columns such as \code{"sd"},
+diagnostic columns are preserved only as metadata with \code{rate_flag_source}
+provenance; special rate categories are not drawn for those non-rate values.
+The selected \code{value} column must contain finite values for every plotted
+interval; uncertainty columns such as \code{"sd"} may be all \code{NA} for single-fit
+objects and are rejected with a clear error.
 
 The \code{plot()} method handles \code{"phylogram"}, \code{"fan"}, and \code{"arc"} layouts.
 \code{legend} controls the length of the color bar; set \code{legend = FALSE} to
@@ -138,6 +172,18 @@ suppress it. \code{legend_digits} controls numeric endpoint labels and defaults
 to enough precision to avoid rounding small values to zero. Single fitted
 objects should be converted explicitly with \code{\link[=rateMap]{rateMap()}} before plotting, for
 example \code{plot(rateMap(search_a), ...)}.
+
+\strong{Relationship to \code{phytools} plotting arguments.} \code{plot.rateMap()} keeps the
+tree-layout argument names close to \code{phytools}: \code{type}, \code{fsize}, \code{ftype},
+\code{lwd}, \code{mar}, \code{direction}, \code{offset}, \code{xlim}, \code{ylim}, \code{underscore}, and
+\code{arc_height} are forwarded to \code{\link[phytools:plotSimmap]{phytools::plotSimmap()}} or
+\code{\link[phytools:plotTree]{phytools::plotTree()}} as described above. \code{rateMap} fixes
+\code{phytools::plotSimmap()} options such as \code{colors}, \code{pts}, \code{node.numbers},
+\code{add}, and \code{hold} internally, because those are determined by the computed
+\code{"rateMap"} object and by the optional outline pass. \code{palette},
+\code{color_mode}, \code{n_categories}, \code{category_breaks}, \code{category_labels},
+\code{legend_title}, \code{legend_digits}, and the rate-flag display behavior are
+\code{rateMap} controls, not \code{phytools} arguments.
 }
 \examples{
 \dontrun{
@@ -161,6 +207,15 @@ plot(rm_obj, category_breaks = c(-4, -2, 0, 2))
 }
 
 }
+\references{
+Revell, L. J. (2013). Two new graphical methods for mapping trait evolution
+on phylogenies. \emph{Methods in Ecology and Evolution}, 4, 754-759.
+
+Revell, L. J. (2024). phytools 2.0: an updated R ecosystem for phylogenetic
+comparative methods (and other things). \emph{PeerJ}, 12, e16505.
+\doi{10.7717/peerj.16505}
+}
 \seealso{
-\code{\link[=rateMap]{rateMap()}}, \code{\link[phytools:densityMap]{phytools::densityMap()}}, \code{\link[phytools:plotSimmap]{phytools::plotSimmap()}}
+\code{\link[=rateMap]{rateMap()}}, \code{\link[phytools:densityMap]{phytools::densityMap()}}, \code{\link[phytools:plotSimmap]{phytools::plotSimmap()}},
+\code{\link[phytools:plotTree]{phytools::plotTree()}}
 }

@@ -1,4 +1,4 @@
-url: ~
+url: https://jakeberv.com/bifrost/
 # Vignettes are tracked in this source checkout so pkgdown can build articles,
 # but .Rbuildignore excludes vignettes/ from the package tarball.
 articles:
@@ -13,6 +13,7 @@ articles:
       - quick-start-vignette
       - jaw-shape-vignette
       - rate-map-jaw-shape-vignette
+      - rate-map-jaw-shape-part-2-comparisons
 template:
   bootstrap: 5
   includes:

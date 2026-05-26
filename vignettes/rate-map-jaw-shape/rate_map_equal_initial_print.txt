@@ -8,6 +8,6 @@ rateMap object
 - color mode: category
 - plotted value: value
 - value range: -24.2 to -11.41
-- rate flags: 54 near-zero, 0 high-outlier (method: tail_cluster)
-- fold range: 361384 full, 265 regular
+- rate flags: 0 near-zero, 0 high-outlier (method: none)
+- fold range: 361384 full, 361384 regular
 - sd range: 0.05957 to 5.979

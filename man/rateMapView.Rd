@@ -42,13 +42,26 @@ discrete ordered bins or \code{"continuous"} for a continuous ramp.}
 
 \item{category_labels}{Optional labels for displayed categories.}
 
-\item{ncolors}{Optional number of colors for continuous ramps.}
+\item{ncolors}{Optional number of colors for continuous ramps. If omitted,
+the stored \code{x$ncolors} value is used, falling back to \code{256} for older
+objects.}
 
 \item{legend_title}{Optional legend title stored on the returned object.}
 }
 \value{
 A \code{"rateMap"} object with updated tree maps, color palette,
-\code{intervals$value}, \code{rate_categories}, and legend title.
+\code{intervals$value}, \code{rate_categories}, and legend title. For branch-summary
+category views, \code{rate_categories} includes bin-level summaries of the
+plotted branch values and is recomputed whenever the view changes. For
+branch-summary maps with active rate diagnostics, diagnostic flags are
+recomputed for rate-valued views (\code{"value"}, \code{"mean"}, or \code{"median"}) and
+preserved as metadata for non-rate views such as \code{"sd"}. When preserved for
+a non-rate view, \code{rate_flag_source} identifies the
+rate-valued column that the flags classify; the flags do not classify the
+displayed uncertainty value. The selected \code{value} column must contain
+finite values for every plotted interval; uncertainty columns such as
+\code{"sd"} may be all \code{NA} for single-fit objects and are rejected with a
+clear error.
 }
 \description{
 Recompute the display mapping for a computed \code{"rateMap"} object without
