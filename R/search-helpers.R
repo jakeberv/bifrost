@@ -286,3 +286,29 @@ bifrost_search_calculate_ic_weights <- function(uncertaintyweights,
 
   ic_weights_df
 }
+
+bifrost_search_no_uncertainty_components <- function(shifts_no_uncertainty,
+                                                     model_with_shift_no_uncertainty,
+                                                     best_tree_no_uncertainty,
+                                                     baseline_model,
+                                                     baseline_candidate_tree) {
+  if (length(shifts_no_uncertainty) > 0L) {
+    # use the accepted-shift model/tree
+    transformed <- model_with_shift_no_uncertainty$model$corrSt$phy
+    untransformed <- model_with_shift_no_uncertainty$model$corrSt$phy
+    untransformed$edge.length <- best_tree_no_uncertainty$edge.length
+    model <- model_with_shift_no_uncertainty$model
+  } else {
+    # fallback to baseline model/tree when no shifts were accepted
+    transformed <- baseline_model$model$corrSt$phy
+    untransformed <- baseline_model$model$corrSt$phy
+    untransformed$edge.length <- baseline_candidate_tree$edge.length
+    model <- baseline_model$model
+  }
+
+  list(
+    tree_transformed = transformed,
+    tree_untransformed = untransformed,
+    model = model
+  )
+}

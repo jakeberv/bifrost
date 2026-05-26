@@ -594,28 +594,20 @@ searchOptimalConfiguration <-
       #   opt_uncertainty_untransformed$edge.length <- best_tree_no_uncertainty$edge.length
       # }
 
-      if (length(shifts_no_uncertainty) > 0L) {
-        # use the accepted-shift model/tree
-        opt_nouncertainty_transformed   <- model_with_shift_no_uncertainty$model$corrSt$phy
-        opt_nouncertainty_untransformed <- model_with_shift_no_uncertainty$model$corrSt$phy
-        opt_nouncertainty_untransformed$edge.length <- best_tree_no_uncertainty$edge.length
-      } else {
-        # fallback to baseline model/tree when no shifts were accepted
-        opt_nouncertainty_transformed   <- baseline_model$model$corrSt$phy
-        opt_nouncertainty_untransformed <- baseline_model$model$corrSt$phy
-        opt_nouncertainty_untransformed$edge.length <- candidate_trees[[1]]$edge.length
-      }
+      no_uncertainty <- bifrost_search_no_uncertainty_components(
+        shifts_no_uncertainty = shifts_no_uncertainty,
+        model_with_shift_no_uncertainty = model_with_shift_no_uncertainty,
+        best_tree_no_uncertainty = best_tree_no_uncertainty,
+        baseline_model = baseline_model,
+        baseline_candidate_tree = candidate_trees[[1]]
+      )
 
       # Create the main list that will always be returned
       result_list <- list(
         user_input = user_input,
-        tree_no_uncertainty_transformed = opt_nouncertainty_transformed,
-        tree_no_uncertainty_untransformed = opt_nouncertainty_untransformed,
-        model_no_uncertainty = if (length(shifts_no_uncertainty) > 0L) {
-          model_with_shift_no_uncertainty$model
-        } else {
-          baseline_model$model
-        },
+        tree_no_uncertainty_transformed = no_uncertainty$tree_transformed,
+        tree_no_uncertainty_untransformed = no_uncertainty$tree_untransformed,
+        model_no_uncertainty = no_uncertainty$model,
         shift_nodes_no_uncertainty = shifts_no_uncertainty,
         optimal_ic = current_best_ic,
         baseline_ic = baseline_ic,
