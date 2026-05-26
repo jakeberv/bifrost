@@ -561,103 +561,20 @@ searchOptimalConfiguration <-
     # }
 
     # New Section for Calculating Information Criterion Weights Post Optimization
-    ic_weights_df <- bifrost_search_empty_ic_weights_df()  # default empty
-
-    if (xor(uncertaintyweights, uncertaintyweights_par)) {
-
-        # If no shifts, return empty df (consistent in both modes)
-        if (length(unlist(shift_vec)) == 0) {
-          .progress("%s", "No shifts were detected in the initial search; skipping IC weights calculation.")
-          ic_weights_df <- bifrost_search_empty_ic_weights_df()
-
-      } else {
-
-        # Retrieve the IC of the optimized model before uncertainty analysis
-        original_ic <- bifrost_search_ic_value(model_with_shift_no_uncertainty, IC)
-
-        .progress("Considering %d shifts in the candidate set", length(shift_vec))
-        .progress(
-          "There are %d shifts in the mapped tree",
-          length(unique(getStates(best_tree_no_uncertainty, type = "both"))) - 1
-        )
-
-        if (uncertaintyweights) {
-          .progress("%s", "Calculating IC weights for initially identified shifts...")
-
-          ic_weights_df <- bifrost_search_empty_ic_weights_df()
-
-          for (shift_node_number in unlist(shift_vec)) {
-            .progress("Re-estimating model without shift at node %d", shift_node_number)
-
-            tree_without_current_shift <- removeShiftFromTree(best_tree_no_uncertainty, shift_node_number)
-            model_without_current_shift <- bifrost_search_fit_ic(IC, formula, tree_without_current_shift, trait_data, ...)
-            ic_without_current_shift <- bifrost_search_ic_value(model_without_current_shift, IC)
-
-            ic_weight_row <- bifrost_search_ic_weights_row(
-              shift_node_number,
-              original_ic,
-              ic_without_current_shift
-            )
-
-            .progress("IC weight for the shift is %.2f", ic_weight_row$ic_weight_withshift)
-
-            ic_weights_df <- rbind(
-              ic_weights_df,
-              ic_weight_row
-            )
-          }
-        }
-
-        if (uncertaintyweights_par) {
-          .progress("%s", "Calculating IC weights for initially identified shifts in parallel...")
-
-          ic_weights_df <- bifrost_search_empty_ic_weights_df()
-
-          shift_removed_trees <- lapply(unlist(shift_vec), function(shift_node_number) {
-            removeShiftFromTree(best_tree_no_uncertainty, shift_node_number)
-          })
-
-          ic_results <- bifrost_run_future_lapply_safe(
-            shift_removed_trees,
-            function(tree) {
-              model_without_shift <- do.call(bifrost_search_fit_ic, c(list(IC, formula, tree, trait_data), args_list))
-              ic_without_shift <- bifrost_search_ic_value(model_without_shift, IC)
-              delta_ic <- original_ic - ic_without_shift
-
-              icw <- aicw(c(original_ic, ic_without_shift))$aicweights
-
-              c(
-                ic_without_shift = ic_without_shift,
-                delta_ic = delta_ic,
-                ic_weight_withshift = icw[1],
-                ic_weight_withoutshift = icw[2]
-              )
-            },
-            workers = num_cores,
-            is_rstudio_flag = is_rstudio
-          )
-
-          for (i in seq_along(shift_removed_trees)) {
-            shift_node_number <- unlist(shift_vec)[i]
-            ic_res <- ic_results[[i]]
-
-            # scalar extraction (avoids named-vector quirks)
-            ic_without <- as.numeric(ic_res[["ic_without_shift"]])
-
-            ic_weights_df <- rbind(
-              ic_weights_df,
-              bifrost_search_ic_weights_row(shift_node_number, original_ic, ic_without)
-            )
-          }
-        }
-      }
-
-    } else {
-      if (isTRUE(uncertaintyweights) && isTRUE(uncertaintyweights_par)) {
-        stop("Exactly one of uncertaintyweights or uncertaintyweights_par must be TRUE.")
-      }
-      # If both are FALSE, do nothing (IC weights not requested).
-    }
+    ic_weights_df <- bifrost_search_calculate_ic_weights(
+      uncertaintyweights = uncertaintyweights,
+      uncertaintyweights_par = uncertaintyweights_par,
+      shift_vec = shift_vec,
+      best_tree_no_uncertainty = best_tree_no_uncertainty,
+      model_with_shift_no_uncertainty = model_with_shift_no_uncertainty,
+      IC = IC,
+      formula = formula,
+      trait_data = trait_data,
+      args_list = args_list,
+      num_cores = num_cores,
+      is_rstudio = is_rstudio,
+      progress = .progress
+    )
 
     # Print statements for the optimal configuration and delta GIC/BIC
     if (IC == "GIC") {
