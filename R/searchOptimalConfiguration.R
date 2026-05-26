@@ -424,22 +424,7 @@ searchOptimalConfiguration <-
     warnings_list <- list()
 
     # Where to store on-disk history (CRAN-safe temp location)
-    sub_dir <- NULL
-
-    if (isTRUE(store_model_fit_history)) {
-      base_dir <- file.path(tempdir(), "bifrost_fit_history")
-      if (!dir.exists(base_dir)) dir.create(base_dir, recursive = TRUE)
-
-      # Dated (and uniquified) subdirectory per run
-      date_str <- format(Sys.Date(), "%Y-%m-%d")
-      sub_dir <- file.path(base_dir, date_str)
-      counter <- 1L
-      while (dir.exists(sub_dir)) {
-        counter <- counter + 1L
-        sub_dir <- file.path(base_dir, paste0(date_str, "_", counter))
-      }
-      dir.create(sub_dir, recursive = TRUE)
-    }
+    sub_dir <- bifrost_search_history_dir(store_model_fit_history)
 
     # In-memory accumulator (lightweight; actual fits stored on disk)
     model_fit_history <- list()
@@ -522,10 +507,7 @@ searchOptimalConfiguration <-
       })
       if (isTRUE(store_model_fit_history) && !is.null(sub_dir)) {
         iteration_num <- i + 1L
-        saveRDS(
-          model_fit_history,
-          file = file.path(sub_dir, paste0("iteration_", iteration_num, ".rds"))
-        )
+        bifrost_search_save_history(model_fit_history, sub_dir, iteration_num)
       }
       if(plot == TRUE){
         colorvec <- setNames(object = c("black", rainbow(length(unique(getStates(shifted_tree, type = "both"))) - 1)),
@@ -758,27 +740,7 @@ searchOptimalConfiguration <-
 
       # Create the IC and acceptance matrix from the model fit history
       if (isTRUE(store_model_fit_history) && !is.null(sub_dir)) {
-        rds_files <- list.files(
-          sub_dir,
-          pattern = "^iteration_\\d+\\.rds$",
-          full.names = TRUE
-        )
-        rds_files <- rds_files[order(as.numeric(gsub("\\D", "", basename(rds_files))))]
-
-        model_fit_history <- lapply(rds_files, readRDS)
-
-        ic_acceptance_matrix <- do.call(rbind, lapply(model_fit_history, function(x) {
-          if (is.null(x$model)) {
-            c(NA_real_, x$accepted)
-          } else {
-            c(bifrost_search_ic_value(x$model, IC), x$accepted)
-          }
-        }))
-
-        result_list$model_fit_history <- list(
-          fits = model_fit_history,
-          ic_acceptance_matrix = ic_acceptance_matrix
-        )
+        result_list$model_fit_history <- bifrost_search_load_history(sub_dir, IC)
       }
 
       # Generate the VCVs per regime from the overall model fit

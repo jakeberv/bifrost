@@ -83,3 +83,56 @@ bifrost_search_ic_value <- function(model_result, IC) {
     model_result$BIC$BIC
   }
 }
+
+bifrost_search_history_dir <- function(store_model_fit_history) {
+  if (!isTRUE(store_model_fit_history)) {
+    return(NULL)
+  }
+
+  base_dir <- file.path(tempdir(), "bifrost_fit_history")
+  if (!dir.exists(base_dir)) dir.create(base_dir, recursive = TRUE)
+
+  date_str <- format(Sys.Date(), "%Y-%m-%d")
+  sub_dir <- file.path(base_dir, date_str)
+  counter <- 1L
+  while (dir.exists(sub_dir)) {
+    counter <- counter + 1L
+    sub_dir <- file.path(base_dir, paste0(date_str, "_", counter))
+  }
+  dir.create(sub_dir, recursive = TRUE)
+
+  sub_dir
+}
+
+bifrost_search_save_history <- function(model_fit_history, sub_dir, iteration_num) {
+  saveRDS(
+    model_fit_history,
+    file = file.path(sub_dir, paste0("iteration_", iteration_num, ".rds"))
+  )
+
+  invisible(NULL)
+}
+
+bifrost_search_load_history <- function(sub_dir, IC) {
+  rds_files <- list.files(
+    sub_dir,
+    pattern = "^iteration_\\d+\\.rds$",
+    full.names = TRUE
+  )
+  rds_files <- rds_files[order(as.numeric(gsub("\\D", "", basename(rds_files))))]
+
+  model_fit_history <- lapply(rds_files, readRDS)
+
+  ic_acceptance_matrix <- do.call(rbind, lapply(model_fit_history, function(x) {
+    if (is.null(x$model)) {
+      c(NA_real_, x$accepted)
+    } else {
+      c(bifrost_search_ic_value(x$model, IC), x$accepted)
+    }
+  }))
+
+  list(
+    fits = model_fit_history,
+    ic_acceptance_matrix = ic_acceptance_matrix
+  )
+}
