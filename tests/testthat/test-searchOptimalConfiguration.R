@@ -178,6 +178,41 @@ test_that("searchOptimalConfiguration runs end-to-end on simulated data (BIC)", 
   }
 })
 
+# Test: searchOptimalConfiguration accepts formula objects and mixed-type named formulas
+test_that("searchOptimalConfiguration accepts formula objects and mixed-type named formulas", {
+  skip_if_missing_deps()
+
+  set.seed(2026)
+  baseline <- ape::rtree(20)
+  dat <- data.frame(
+    y1 = rnorm(20),
+    y2 = rnorm(20),
+    size = exp(rnorm(20)),
+    grp = factor(rep(c("a", "b"), length.out = 20))
+  )
+  rownames(dat) <- baseline$tip.label
+
+  res <- suppressWarnings(searchOptimalConfiguration(
+    baseline_tree              = baseline,
+    trait_data                 = dat,
+    formula                    = cbind(y1, y2) ~ log(size) * grp,
+    min_descendant_tips        = 5,
+    num_cores                  = 1,
+    shift_acceptance_threshold = 1e9,
+    plot                       = FALSE,
+    IC                         = "GIC",
+    store_model_fit_history    = FALSE,
+    method                     = "LL"
+  ))
+
+  testthat::expect_type(res, "list")
+  testthat::expect_true(res$IC_used == "GIC")
+  expect_numeric_scalar(res$baseline_ic)
+  expect_numeric_scalar(res$optimal_ic)
+  testthat::expect_true(inherits(res$model_no_uncertainty, "mvgls"))
+  testthat::expect_equal(res$optimal_ic, res$baseline_ic, tolerance = 1e-8)
+})
+
 # Group: ic_weights correctness
 # Test: ic_weights are internally consistent when present (rtree(40) with threshold=-Inf; checks delta/evidence_ratio)
 test_that("ic_weights are internally consistent when present", {
@@ -654,8 +689,9 @@ test_that("searchOptimalConfiguration restores BLAS/OpenMP env vars after candid
   )
   old <- Sys.getenv(thread_vars, unset = NA_character_)
 
-  # Pre-set at least one var so restore hits the else branch
+  # Pre-set one var and explicitly unset another so restore hits both branches.
   Sys.setenv(OMP_NUM_THREADS = "3")
+  Sys.unsetenv("OPENBLAS_NUM_THREADS")
   on.exit({
     for (nm in names(old)) {
       val <- old[[nm]]
@@ -687,6 +723,10 @@ test_that("searchOptimalConfiguration restores BLAS/OpenMP env vars after candid
   )
 
   testthat::expect_identical(Sys.getenv("OMP_NUM_THREADS"), "3")
+  testthat::expect_identical(
+    Sys.getenv("OPENBLAS_NUM_THREADS", unset = NA_character_),
+    NA_character_
+  )
 })
 
 # Test: searchOptimalConfiguration returns consistent ic_weights for serial vs parallel modes (same seed; compares serial vs parallel weights)
@@ -1027,13 +1067,31 @@ test_that("searchOptimalConfiguration records error entries in history and yield
 # Test: searchOptimalConfiguration uses cat() progress path in interactive RStudio plotting (interactive+RSTUDIO=1; plot=TRUE with min_descendant_tips=Ntip)
 test_that("searchOptimalConfiguration uses cat() progress path in interactive RStudio plotting", {
   skip_if_missing_deps()
-  testthat::skip_if_not(interactive())
 
   old_rstudio <- Sys.getenv("RSTUDIO", unset = NA_character_)
   Sys.setenv(RSTUDIO = "1")
   on.exit({
     if (is.na(old_rstudio)) Sys.unsetenv("RSTUDIO") else Sys.setenv(RSTUDIO = old_rstudio)
   }, add = TRUE)
+
+  progress_output <- character(0)
+  flushed <- FALSE
+  search_with_mocked_progress <- searchOptimalConfiguration
+  environment(search_with_mocked_progress) <- list2env(list(
+    interactive = function() TRUE,
+    cat = function(..., file = "", sep = " ", fill = FALSE, labels = NULL, append = FALSE) {
+      progress_output <<- c(progress_output, paste(..., sep = sep, collapse = sep))
+      invisible(NULL)
+    },
+    sink.number = function(type = c("output", "message")) 0
+  ), parent = environment(searchOptimalConfiguration))
+  testthat::local_mocked_bindings(
+    flush.console = function() {
+      flushed <<- TRUE
+      invisible(NULL)
+    },
+    .package = "utils"
+  )
 
   # Null device so plot=TRUE doesn't pop windows
   grDevices::pdf(NULL)
@@ -1049,7 +1107,7 @@ test_that("searchOptimalConfiguration uses cat() progress path in interactive RS
   # That makes candidate_trees_shifts empty => the main loop never runs,
   # so the plot code never calls getStates(shifted_tree,...).
   out <- testthat::capture_output({
-    suppressWarnings(suppressMessages(searchOptimalConfiguration(
+    suppressWarnings(suppressMessages(search_with_mocked_progress(
       baseline_tree              = tr,
       trait_data                 = X,
       formula                    = "trait_data ~ 1",
@@ -1065,7 +1123,97 @@ test_that("searchOptimalConfiguration uses cat() progress path in interactive RS
   })
 
   txt <- paste(out, collapse = "\n")
-  testthat::expect_true(grepl("Generating candidate shift models", txt))
+  testthat::expect_false(grepl("Generating candidate shift models", txt))
+  testthat::expect_true(any(grepl("Generating candidate shift models", progress_output, fixed = TRUE)))
+  testthat::expect_true(flushed)
+})
+
+test_that("searchOptimalConfiguration validates formula input types", {
+  skip_if_missing_deps()
+
+  set.seed(124)
+  tr <- ape::rtree(10)
+  X <- matrix(rnorm(10 * 2), ncol = 2)
+  rownames(X) <- tr$tip.label
+
+  testthat::expect_error(
+    searchOptimalConfiguration(
+      baseline_tree = tr,
+      trait_data = X,
+      formula = 1,
+      min_descendant_tips = 3,
+      num_cores = 1,
+      plot = FALSE,
+      IC = "GIC"
+    ),
+    "single character string or formula object"
+  )
+})
+
+test_that("search helper uses future path only when requested", {
+  skip_if_missing_deps()
+
+  thread_vars <- c(
+    "OMP_NUM_THREADS",
+    "OPENBLAS_NUM_THREADS",
+    "MKL_NUM_THREADS",
+    "VECLIB_MAXIMUM_THREADS",
+    "NUMEXPR_NUM_THREADS"
+  )
+  old_threads <- Sys.getenv(thread_vars, unset = NA_character_)
+  restore_threads <- function() {
+    for (nm in thread_vars) {
+      val <- old_threads[[nm]]
+      if (is.na(val)) {
+        Sys.unsetenv(nm)
+      } else {
+        do.call(Sys.setenv, stats::setNames(list(val), nm))
+      }
+    }
+    future::plan(future::sequential)
+  }
+  on.exit(restore_threads(), add = TRUE)
+
+  Sys.setenv(OMP_NUM_THREADS = "7")
+
+  serial <- bifrost:::.bifrost_search_lapply(
+    1:3,
+    function(x) x + 1L,
+    num_cores = 1,
+    is_rstudio = FALSE
+  )
+  testthat::expect_identical(serial, list(2L, 3L, 4L))
+  testthat::expect_identical(Sys.getenv("OMP_NUM_THREADS"), "7")
+
+  multisession <- bifrost:::.bifrost_run_future_lapply_safe(
+    1:2,
+    function(x) x * 2L,
+    workers = 2,
+    is_rstudio_flag = TRUE
+  )
+  testthat::expect_identical(multisession, list(2L, 4L))
+  testthat::expect_identical(Sys.getenv("OMP_NUM_THREADS"), "7")
+
+  parallel_wrapper <- bifrost:::.bifrost_search_lapply(
+    1:2,
+    function(x) x * 4L,
+    num_cores = 2,
+    is_rstudio = TRUE
+  )
+  testthat::expect_identical(parallel_wrapper, list(4L, 8L))
+  testthat::expect_identical(Sys.getenv("OMP_NUM_THREADS"), "7")
+
+  if (.Platform$OS.type == "unix" &&
+      !identical(Sys.info()[["sysname"]], "SunOS")) {
+    multicore <- bifrost:::.bifrost_run_future_lapply_safe(
+      1:2,
+      function(x) x * 3L,
+      workers = 2,
+      is_rstudio_flag = FALSE
+    )
+    testthat::expect_identical(multicore, list(3L, 6L))
+    testthat::expect_identical(Sys.getenv("OMP_NUM_THREADS"), "7")
+  }
 })
 
 # Test: searchOptimalConfiguration serial ic_weights executes BIC branch (mocks fitMvglsAndExtractBIC.formula; uncertaintyweights=TRUE)

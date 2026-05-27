@@ -149,33 +149,81 @@ test_that("Row names mismatch triggers informative error", {
   )
 })
 
-# Test: Formula must be provided as a character string
-test_that("Formula must be provided as a character string", {
+# Test: Formula objects are accepted and named formulas get model-frame data injected
+test_that("Formula objects are accepted and named formulas get model-frame data injected", {
   skip_if_missing_deps()
 
   painted_tree <- make_single_regime_tree(10)
   set.seed(321)
-  dat <- make_data_for_tree(painted_tree, p = 2)
+  dat <- data.frame(
+    y1 = rnorm(10),
+    y2 = rnorm(10),
+    size = exp(rnorm(10)),
+    grp = factor(rep(c("a", "b"), each = 5))
+  )
+  rownames(dat) <- painted_tree$tip.label
 
-  form_obj <- cbind(y1, y2) ~ x
+  form_obj <- cbind(y1, y2) ~ size + grp
 
-  expect_error(
+  res <- suppressWarnings(
     fitMvglsAndExtractBIC.formula(
       formula      = form_obj,
       painted_tree = painted_tree,
-      trait_data   = dat,
-      data         = dat
-    ),
-    "A character formula must be provided."
+      trait_data   = dat
+    )
   )
+
+  expect_true(inherits(res$model, "mvgls"))
+  bic <- get_bic_scalar(res$BIC)
+  expect_true(is.finite(bic))
+  expect_length(bic, 1)
+})
+
+# Test: Named formulas support interactions and transformed RHS predictors
+test_that("Named formulas support interactions and transformed RHS predictors", {
+  skip_if_missing_deps()
+
+  painted_tree <- make_single_regime_tree(12)
+  set.seed(322)
+  dat <- data.frame(
+    y1 = rnorm(12),
+    y2 = rnorm(12),
+    size = exp(rnorm(12)),
+    grp = factor(rep(c("a", "b"), length.out = 12))
+  )
+  rownames(dat) <- painted_tree$tip.label
+
+  form_obj <- cbind(y1, y2) ~ log(size) * grp
+
+  res <- suppressWarnings(
+    fitMvglsAndExtractBIC.formula(
+      formula      = form_obj,
+      painted_tree = painted_tree,
+      trait_data   = dat
+    )
+  )
+
+  expect_true(inherits(res$model, "mvgls"))
+  bic <- get_bic_scalar(res$BIC)
+  expect_true(is.finite(bic))
+  expect_length(bic, 1)
+})
+
+# Test: Invalid formula types still error clearly
+test_that("Invalid formula types still error clearly", {
+  skip_if_missing_deps()
+
+  painted_tree <- make_single_regime_tree(10)
+  set.seed(323)
+  dat <- make_data_for_tree(painted_tree, p = 2)
 
   expect_error(
     fitMvglsAndExtractBIC.formula(
+      formula      = 1,
       painted_tree = painted_tree,
-      trait_data   = dat,
-      data         = dat
+      trait_data   = dat
     ),
-    "A character formula must be provided."
+    "character formula or formula object"
   )
 })
 

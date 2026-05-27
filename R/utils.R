@@ -218,8 +218,9 @@ fitMvglsAndExtractBIC <- function(painted_tree, trait_data) {
 #' }
 #' Returns the fitted model along with its Generalized Information Criterion (GIC) score.
 #'
-#' @param formula A character string specifying the model formula
-#'   (e.g., \code{"cbind(trait1, trait2) ~ predictor"}).
+#' @param formula A character string or formula object specifying the model
+#'   formula (e.g., \code{"cbind(trait1, trait2) ~ predictor"} or
+#'   \code{cbind(trait1, trait2) ~ predictor}).
 #' @param painted_tree An object of class \code{simmap} (see
 #'   \code{\link[phytools]{paintSubTree}}) used as the phylogenetic tree.
 #' @param trait_data A \code{data.frame} or \code{matrix} of trait values with
@@ -233,9 +234,10 @@ fitMvglsAndExtractBIC <- function(painted_tree, trait_data) {
 #' }
 #'
 #' @details
-#' The function converts the character \code{formula} to an actual formula
-#' object via \code{\link[stats]{as.formula}} before fitting. The number of regimes
-#' in \code{painted_tree} is detected with \code{\link[phytools]{getStates}}.
+#' The function accepts either a character string or a formula object. Named
+#' formulas automatically use \code{trait_data} as the model-frame data when no
+#' explicit \code{data} argument is supplied. The number of regimes in
+#' \code{painted_tree} is detected with \code{\link[phytools]{getStates}}.
 #'
 #' @seealso \code{\link[mvMORPH]{mvgls}}, \code{\link[mvMORPH]{GIC}},
 #'   \code{\link[phytools]{getStates}}, \code{\link[stats]{as.formula}}
@@ -260,23 +262,20 @@ fitMvglsAndExtractBIC <- function(painted_tree, trait_data) {
 #' @keywords internal
 #' @noRd
 fitMvglsAndExtractGIC.formula <- function(formula, painted_tree, trait_data, ...) {
-  # Ensure trait_data is a matrix
-  #if (!is.matrix(trait_data)) {
-  #  stop("trait_data must be a matrix.")
-  #}
-
   # Make sure the row names match the tip labels of the painted_tree
   if (!identical(rownames(trait_data), painted_tree$tip.label)) {
     stop("Row names of trait_data must exactly match the tip labels of the tree.")
   }
 
-  # Validate that formula is provided and is a character
-  if (missing(formula) || !is.character(formula)) {
-    stop("A character formula must be provided.")
-  }
-
-  # Convert the string formula to an actual formula object
-  formula_obj <- as.formula(formula)
+  args_list <- list(...)
+  normalized_call <- normalizeMvglsFormulaCall(
+    formula,
+    trait_data,
+    args_list,
+    allow_single_response = TRUE
+  )
+  formula_obj <- normalized_call$formula
+  args_list <- normalized_call$args_list
 
   # Fit the mvgls model using the user-defined formula
 
@@ -284,9 +283,15 @@ fitMvglsAndExtractGIC.formula <- function(formula, painted_tree, trait_data, ...
   # Then we switch back to BMM
 
   if(length(unique(getStates(tree = painted_tree))) == 1){
-    model <- mvgls(formula_obj, tree = painted_tree, model = "BM", ...)
+    model <- do.call(
+      mvgls,
+      c(list(formula_obj, tree = painted_tree, model = "BM"), args_list)
+    )
   } else {
-    model <- mvgls(formula_obj, tree = painted_tree, model = "BMM", ...)
+    model <- do.call(
+      mvgls,
+      c(list(formula_obj, tree = painted_tree, model = "BMM"), args_list)
+    )
   }
   gic_value <- GIC(model)
 
@@ -305,8 +310,9 @@ fitMvglsAndExtractGIC.formula <- function(formula, painted_tree, trait_data, ...
 #' }
 #' Returns the fitted model along with its Bayesian Information Criterion (BIC) score.
 #'
-#' @param formula A character string specifying the model formula
-#'   (e.g., \code{"cbind(trait1, trait2) ~ predictor"}).
+#' @param formula A character string or formula object specifying the model
+#'   formula (e.g., \code{"cbind(trait1, trait2) ~ predictor"} or
+#'   \code{cbind(trait1, trait2) ~ predictor}).
 #' @param painted_tree An object of class \code{simmap} (see
 #'   \code{\link[phytools]{paintSubTree}}) used as the phylogenetic tree.
 #' @param trait_data A \code{data.frame} or \code{matrix} of trait values with
@@ -320,9 +326,10 @@ fitMvglsAndExtractGIC.formula <- function(formula, painted_tree, trait_data, ...
 #' }
 #'
 #' @details
-#' The function converts the character \code{formula} to an actual formula
-#' object via \code{\link[stats]{as.formula}} before fitting. The number of regimes
-#' in \code{painted_tree} is detected with \code{\link[phytools]{getStates}}.
+#' The function accepts either a character string or a formula object. Named
+#' formulas automatically use \code{trait_data} as the model-frame data when no
+#' explicit \code{data} argument is supplied. The number of regimes in
+#' \code{painted_tree} is detected with \code{\link[phytools]{getStates}}.
 #'
 #' @seealso \code{\link[mvMORPH]{mvgls}}, \code{\link[stats]{BIC}},
 #'   \code{\link[phytools]{getStates}}, \code{\link[stats]{as.formula}}
@@ -347,23 +354,24 @@ fitMvglsAndExtractGIC.formula <- function(formula, painted_tree, trait_data, ...
 #' @keywords internal
 #' @noRd
 fitMvglsAndExtractBIC.formula <- function(formula, painted_tree, trait_data, ...) {
-  # # Ensure trait_data is a matrix
-  # if (!is.matrix(trait_data)) {
-  #   stop("trait_data must be a matrix.")
-  # }
-
   # Make sure the row names match the tip labels of the painted_tree
   if (!identical(rownames(trait_data), painted_tree$tip.label)) {
     stop("Row names of trait_data must exactly match the tip labels of the tree.")
   }
 
-  # Validate that formula is provided and is a character
-  if (missing(formula) || !is.character(formula)) {
-    stop("A character formula must be provided.")
+  args_list <- list(...)
+  if (!("method" %in% names(args_list))) {
+    args_list$method <- "LL"
   }
 
-  # Convert the string formula to an actual formula object
-  formula_obj <- as.formula(formula)
+  normalized_call <- normalizeMvglsFormulaCall(
+    formula,
+    trait_data,
+    args_list,
+    allow_single_response = TRUE
+  )
+  formula_obj <- normalized_call$formula
+  args_list <- normalized_call$args_list
 
   # Fit the mvgls model using the user-defined formula
 
@@ -371,9 +379,15 @@ fitMvglsAndExtractBIC.formula <- function(formula, painted_tree, trait_data, ...
   # Then we switch back to BMM
 
   if(length(unique(getStates(tree = painted_tree))) == 1){
-    model <- mvgls(formula_obj, tree = painted_tree, model = "BM", ...)
+    model <- do.call(
+      mvgls,
+      c(list(formula_obj, tree = painted_tree, model = "BM"), args_list)
+    )
   } else {
-    model <- mvgls(formula_obj, tree = painted_tree, model = "BMM", ...)
+    model <- do.call(
+      mvgls,
+      c(list(formula_obj, tree = painted_tree, model = "BMM"), args_list)
+    )
   }
   bic_value <- BIC(model)
 
