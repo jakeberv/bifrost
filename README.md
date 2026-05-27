@@ -22,7 +22,9 @@
   </strong>
 </span>
 
-`bifrost` performs branch-level inference of multi-regime, multivariate trait evolution on a phylogeny using [penalized-likelihood multivariate GLS fits](https://doi.org/10.1093/sysbio/syy045). The current version searches for evolutionary model shifts under a multi-rate Brownian Motion (BMM) model with proportional regime VCV scaling, operates directly in trait space (for example, without PCA), and is designed for high-dimensional datasets (`p > n`) and large trees (`> 1000` tips). The method works with fossil tip-dated trees and with a wide range of multivariate comparative data, including GPA-aligned morphometric coordinates, linear dimensions, and related trait matrices. A future major release will add support for the [multivariate scalar Ornstein-Uhlenbeck process](https://doi.org/10.1093/sysbio/syy005).
+`bifrost` performs branch-level inference of multi-regime, multivariate trait evolution on a phylogeny using [penalized-likelihood multivariate GLS fits](https://doi.org/10.1093/sysbio/syy045). The current version searches for evolutionary model shifts under a multi-rate Brownian Motion (BMM) model with proportional regime VCV scaling, operates directly in trait space (for example, without PCA), and is designed for high-dimensional datasets (`p > n`) and large trees (`> 1000` tips).
+
+The method works with fossil tip-dated trees and with a wide range of multivariate comparative data, including GPA-aligned morphometric coordinates, linear dimensions, and related trait matrices. A future major release will add support for the [multivariate scalar Ornstein-Uhlenbeck process](https://doi.org/10.1093/sysbio/syy005).
 
 ## CRAN downloads
 
@@ -79,9 +81,7 @@ Some repository workflows are still being actively developed, especially methodo
 - Under BMM, [proportional VCV scaling](https://doi.org/10.1111/j.1558-5646.1999.tb05414.x) across regimes for tractability at high `p`.
 - Provides a multivariate phylogenetic GLS (mvPGLS)-like framework in which hidden branch-specific rate regimes are inferred and incorporated when estimating predictor effects.
 - Candidate shift nodes are determined by a minimum clade size specified by the user.
-- Greedy [step-wise heuristic search](https://nph.onlinelibrary.wiley.com/doi/10.1111/nph.19099) using GIC/BIC delta-IC thresholds, with optional IC-weight support for inferred shifts.
 - Output includes estimated VCV per regime, shift weights, and SIMMAP-style mappings for downstream visualization and analysis.
-- Parallelization via `future` and `future.apply`.
 
 ## Documentation
 
