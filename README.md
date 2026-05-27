@@ -62,6 +62,7 @@ You may need to install [XQuartz](https://www.xquartz.org/) to build or run pack
 CRAN currently provides `bifrost` 0.1.4. The GitHub development version includes features that are documented here but not yet available from CRAN.
 
 - **New since CRAN 0.1.4.** The `rateMap()` workflow, along with `rateMapView()`, `rateMapControl()`, `rateMapRateFlags()`, and `plot()` / `print()` methods for `rateMap` objects, summarizes and visualizes branch-rate patterns from completed `bifrost` searches. The two rate-map jaw-shape articles below are part of this development-version documentation.
+- **New since CRAN 0.1.4.** Formula-based searches now accept formula objects as well as character strings, support numeric response-only data frames for intercept-only searches, and support named-column data-frame formulas such as `cbind(y1, y2) ~ size + grp` for pGLS-style workflows.
 - **Experimental or repository-only material.** Some workflows described in the repository are still being actively developed, especially pGLS-style uses of `bifrost` for predictor models with hidden branch-specific rate variation. Repository tooling and generated site assets, such as the CRAN downloads tracker, support development and documentation rather than the core CRAN API.
 
 ## Overview
