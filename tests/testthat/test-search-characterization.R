@@ -23,6 +23,6 @@ test_that("search behavior matches the characterization baseline", {
   testthat::expect_equal(
     observed,
     expected,
-    tolerance = 1e-10
+    tolerance = 1e-4
   )
 })

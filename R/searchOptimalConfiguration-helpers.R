@@ -51,6 +51,19 @@
   )
 }
 
+.bifrost_search_lapply <- function(X, FUN, num_cores, is_rstudio) {
+  if (num_cores <= 1L) {
+    return(lapply(X, FUN))
+  }
+
+  .bifrost_run_future_lapply_safe(
+    X,
+    FUN,
+    workers = num_cores,
+    is_rstudio_flag = is_rstudio
+  )
+}
+
 .bifrost_search_validate_ic <- function(IC) {
   if (IC != "GIC" && IC != "BIC") {
     stop("IC must be GIC or BIC")
@@ -92,13 +105,13 @@
                                            args_list,
                                            num_cores,
                                            is_rstudio) {
-  candidate_results <- .bifrost_run_future_lapply_safe(
+  candidate_results <- .bifrost_search_lapply(
     candidate_trees_shifts,
     function(tree) {
       do.call(.bifrost_search_fit_ic, c(list(IC, formula, tree, trait_data), args_list))
     },
-    workers = num_cores,
-    is_rstudio_flag = is_rstudio
+    num_cores = num_cores,
+    is_rstudio = is_rstudio
   )
 
   delta_ic_list <- sapply(candidate_results, function(res) {
@@ -381,7 +394,7 @@
       }
 
       if (uncertaintyweights_par) {
-        progress("%s", "Calculating IC weights for initially identified shifts in parallel...")
+        progress("%s", "Calculating IC weights for initially identified shifts...")
 
         ic_weights_df <- .bifrost_search_empty_ic_weights_df()
 
@@ -389,7 +402,7 @@
           removeShiftFromTree(best_tree_no_uncertainty, shift_node_number)
         })
 
-        ic_results <- .bifrost_run_future_lapply_safe(
+        ic_results <- .bifrost_search_lapply(
           shift_removed_trees,
           function(tree) {
             model_without_shift <- do.call(
@@ -408,8 +421,8 @@
               ic_weight_withoutshift = icw[2]
             )
           },
-          workers = num_cores,
-          is_rstudio_flag = is_rstudio
+          num_cores = num_cores,
+          is_rstudio = is_rstudio
         )
 
         for (i in seq_along(shift_removed_trees)) {

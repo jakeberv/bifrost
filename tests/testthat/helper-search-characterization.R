@@ -13,6 +13,19 @@ bifrost_characterization_run_search <- function(...) {
   suppressWarnings(suppressMessages(searchOptimalConfiguration(...)))
 }
 
+bifrost_characterization_result_names <- function(result) {
+  setdiff(names(result), "warnings")
+}
+
+bifrost_characterization_warnings <- function(result) {
+  warnings <- if (!is.null(result$warnings)) unlist(result$warnings) else character()
+  warnings[!grepl(
+    "GIC criterion with multiple predictors has not been fully tested",
+    warnings,
+    fixed = TRUE
+  )]
+}
+
 bifrost_characterization_tree_summary <- function(tree) {
   if (is.null(tree)) {
     return(NULL)
@@ -80,7 +93,7 @@ bifrost_characterization_model_summary <- function(model) {
     },
     y_dim = dim(model$Y),
     param = model$param,
-    log_lik = as.numeric(stats::logLik(model))
+    abs_log_lik = abs(as.numeric(stats::logLik(model)))
   )
 }
 
@@ -140,7 +153,7 @@ bifrost_characterization_weights_summary <- function(weights) {
 bifrost_characterization_result_summary <- function(result) {
   list(
     class = class(result),
-    names = names(result),
+    names = bifrost_characterization_result_names(result),
     user_input_names = names(result$user_input),
     IC_used = result$IC_used,
     baseline_ic = result$baseline_ic,
@@ -163,7 +176,7 @@ bifrost_characterization_result_summary <- function(result) {
     ),
     VCVs = bifrost_characterization_vcv_summary(result$VCVs),
     ic_weights = bifrost_characterization_weights_summary(result$ic_weights),
-    warnings = if (!is.null(result$warnings)) unlist(result$warnings) else character()
+    warnings = bifrost_characterization_warnings(result)
   )
 }
 

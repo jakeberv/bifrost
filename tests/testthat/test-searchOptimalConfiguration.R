@@ -1150,6 +1150,72 @@ test_that("searchOptimalConfiguration validates formula input types", {
   )
 })
 
+test_that("search helper uses future path only when requested", {
+  skip_if_missing_deps()
+
+  thread_vars <- c(
+    "OMP_NUM_THREADS",
+    "OPENBLAS_NUM_THREADS",
+    "MKL_NUM_THREADS",
+    "VECLIB_MAXIMUM_THREADS",
+    "NUMEXPR_NUM_THREADS"
+  )
+  old_threads <- Sys.getenv(thread_vars, unset = NA_character_)
+  restore_threads <- function() {
+    for (nm in thread_vars) {
+      val <- old_threads[[nm]]
+      if (is.na(val)) {
+        Sys.unsetenv(nm)
+      } else {
+        do.call(Sys.setenv, stats::setNames(list(val), nm))
+      }
+    }
+    future::plan(future::sequential)
+  }
+  on.exit(restore_threads(), add = TRUE)
+
+  Sys.setenv(OMP_NUM_THREADS = "7")
+
+  serial <- bifrost:::.bifrost_search_lapply(
+    1:3,
+    function(x) x + 1L,
+    num_cores = 1,
+    is_rstudio = FALSE
+  )
+  testthat::expect_identical(serial, list(2L, 3L, 4L))
+  testthat::expect_identical(Sys.getenv("OMP_NUM_THREADS"), "7")
+
+  multisession <- bifrost:::.bifrost_run_future_lapply_safe(
+    1:2,
+    function(x) x * 2L,
+    workers = 2,
+    is_rstudio_flag = TRUE
+  )
+  testthat::expect_identical(multisession, list(2L, 4L))
+  testthat::expect_identical(Sys.getenv("OMP_NUM_THREADS"), "7")
+
+  parallel_wrapper <- bifrost:::.bifrost_search_lapply(
+    1:2,
+    function(x) x * 4L,
+    num_cores = 2,
+    is_rstudio = TRUE
+  )
+  testthat::expect_identical(parallel_wrapper, list(4L, 8L))
+  testthat::expect_identical(Sys.getenv("OMP_NUM_THREADS"), "7")
+
+  if (.Platform$OS.type == "unix" &&
+      !identical(Sys.info()[["sysname"]], "SunOS")) {
+    multicore <- bifrost:::.bifrost_run_future_lapply_safe(
+      1:2,
+      function(x) x * 3L,
+      workers = 2,
+      is_rstudio_flag = FALSE
+    )
+    testthat::expect_identical(multicore, list(3L, 6L))
+    testthat::expect_identical(Sys.getenv("OMP_NUM_THREADS"), "7")
+  }
+})
+
 # Test: searchOptimalConfiguration serial ic_weights executes BIC branch (mocks fitMvglsAndExtractBIC.formula; uncertaintyweights=TRUE)
 test_that("searchOptimalConfiguration serial ic_weights executes BIC branch", {
   skip_if_missing_deps()
