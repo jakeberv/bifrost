@@ -11,6 +11,18 @@ test_that("simulation formula helpers validate and normalize direct inputs", {
     bifrost:::simulationFormulaToString(NA_character_),
     "single character string or a formula object"
   )
+  testthat::expect_error(
+    bifrost:::resolveSimulationColumns(0, dat_names, "response_columns"),
+    "invalid column positions"
+  )
+  testthat::expect_error(
+    bifrost:::resolveSimulationColumns("missing", dat_names, "response_columns"),
+    "names not found"
+  )
+  testthat::expect_error(
+    bifrost:::resolveSimulationColumns(list("y1"), dat_names, "response_columns"),
+    "must be NULL, numeric positions, or character column names"
+  )
   testthat::expect_identical(
     bifrost:::validateSimulationStudyFormula(stats::as.formula("trait_data ~ 1")),
     stats::as.formula("trait_data ~ 1")
@@ -66,6 +78,7 @@ test_that("simulation formula helpers validate and normalize direct inputs", {
     ),
     c(3L, 4L)
   )
+  testthat::expect_true(bifrost:::containsSimulationDot(quote(.)))
 
   testthat::expect_identical(
     as.character(bifrost:::rewriteLegacyTraitDataExpr(quote(trait_data), dat_names, side = "lhs"))[1],
@@ -99,6 +112,10 @@ test_that("simulation formula helpers validate and normalize direct inputs", {
   testthat::expect_identical(schema$flag$type, "logical")
   testthat::expect_identical(bifrost:::predictorSchemaForData(dat, character(0)), list())
   testthat::expect_error(
+    bifrost:::predictorSchemaForData(data.frame(chr = c("a", "b")), "chr"),
+    "Character predictors are not supported"
+  )
+  testthat::expect_error(
     bifrost:::predictorSchemaForData(
       data.frame(y1 = I(list(1:2, 1:2)), row.names = c("a", "b")),
       "y1"
@@ -123,6 +140,16 @@ test_that("normalizeSimulationFormulaSpec covers legacy, named, and validation b
   testthat::expect_true(spec_single$intercept_only)
   testthat::expect_identical(spec_single$response_column_names, "y1")
 
+  spec_trait_data_intercept <- bifrost:::normalizeSimulationFormulaSpec(
+    formula = trait_data ~ 1,
+    trait_data = dat
+  )
+  testthat::expect_true(spec_trait_data_intercept$intercept_only)
+  testthat::expect_identical(
+    spec_trait_data_intercept$response_column_names,
+    names(dat)
+  )
+
   spec_trait_data <- bifrost:::normalizeSimulationFormulaSpec(
     formula = trait_data ~ mass,
     trait_data = dat,
@@ -141,9 +168,24 @@ test_that("normalizeSimulationFormulaSpec covers legacy, named, and validation b
     bifrost:::normalizeSimulationFormulaSpec(
       formula = y1 ~ 1,
       trait_data = dat,
+      response_columns = integer(0)
+    ),
+    "at least one response column"
+  )
+  testthat::expect_error(
+    bifrost:::normalizeSimulationFormulaSpec(
+      formula = y1 ~ 1,
+      trait_data = dat,
       predictor_columns = integer(0)
     ),
     "at least one predictor column when supplied"
+  )
+  testthat::expect_error(
+    bifrost:::normalizeSimulationFormulaSpec(
+      formula = y1 ~ .,
+      trait_data = dat
+    ),
+    "shorthand is not supported"
   )
   testthat::expect_error(
     bifrost:::normalizeSimulationFormulaSpec(
@@ -165,6 +207,14 @@ test_that("normalizeSimulationFormulaSpec covers legacy, named, and validation b
       trait_data = dat
     ),
     "Unsupported response form in intercept-only simulation formula"
+  )
+  testthat::expect_error(
+    bifrost:::normalizeSimulationFormulaSpec(
+      formula = y1 ~ 1,
+      trait_data = dat,
+      predictor_columns = "mass"
+    ),
+    "should not be supplied for intercept-only formulas"
   )
   testthat::expect_error(
     bifrost:::normalizeSimulationFormulaSpec(
@@ -211,6 +261,22 @@ test_that("normalizeSimulationFormulaSpec covers legacy, named, and validation b
       predictor_columns = "mass"
     ),
     "must identify at least one response column"
+  )
+  testthat::expect_error(
+    bifrost:::normalizeSimulationFormulaSpec(
+      formula = trait_data[, 1:2] ~ trait_data[, 1],
+      trait_data = dat
+    ),
+    "must identify at least one predictor column"
+  )
+  testthat::expect_error(
+    bifrost:::normalizeSimulationFormulaSpec(
+      formula = trait_data ~ mass,
+      trait_data = dat,
+      response_columns = "mass",
+      predictor_columns = "mass"
+    ),
+    "must not overlap"
   )
   testthat::expect_error(
     bifrost:::normalizeSimulationFormulaSpec(
