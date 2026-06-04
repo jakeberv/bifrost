@@ -85,8 +85,15 @@ jobs:
             git push origin "$UPDATE_BRANCH:$UPDATE_BRANCH"
           fi
 
-          if gh pr view "$UPDATE_BRANCH" --json url --jq .url >/tmp/cran-downloads-pr-url 2>/dev/null; then
-            echo "Updated existing PR: $(cat /tmp/cran-downloads-pr-url)"
+          open_pr_url="$(gh pr list \
+            --base "$BASE_BRANCH" \
+            --head "$UPDATE_BRANCH" \
+            --state open \
+            --json url \
+            --jq '.[0].url')"
+
+          if [ -n "$open_pr_url" ]; then
+            echo "Updated existing PR: $open_pr_url"
           else
             gh pr create \
               --base "$BASE_BRANCH" \
