@@ -154,8 +154,8 @@ Because the search is greedy, it can converge to a local optimum. In practice, i
 
 - `searchOptimalConfiguration()`  
   The main end-to-end function for candidate generation, parallel scoring, greedy shift acceptance, optional IC-weight calculations, and result assembly.
-- `plot_ic_acceptance_matrix()`  
-  Visualize shift acceptance and information-criterion behavior across search iterations.
+- `icTrajectory()`
+  Extract and plot information-criterion behavior across stored search iterations.
 
 Internally, the search also relies on unexported helpers such as `generatePaintedTrees()`, `fitMvglsAndExtractGIC()`, `fitMvglsAndExtractBIC()`, `calculateAllDeltaGIC()`, `paintSubTree_mod()`, `addShiftToModel()`, `removeShiftFromTree()`, `paintSubTree_removeShift()`, `whichShifts()`, and `extractRegimeVCVs()`. Most users will not need to call these directly.
 
@@ -176,7 +176,7 @@ Interpretation guidance:
 - `shift_nodes_no_uncertainty` identifies where supported changes in rate and covariance structure occur,
 - `VCVs` summarize the estimated evolutionary covariance structure within each inferred regime,
 - `ic_weights` help rank how strongly each accepted shift is supported in the final configuration,
-- `model_fit_history` is especially useful for diagnosing search behavior with `plot_ic_acceptance_matrix()`.
+- `model_fit_history` is especially useful for diagnosing search behavior with `icTrajectory()`.
 
 ## Practical guidance
 

@@ -185,7 +185,7 @@
 #'
 #' @seealso
 #' \code{\link[mvMORPH]{mvgls}}, \code{\link[mvMORPH]{GIC}}, \code{\link[stats]{BIC}},
-#' \code{\link{plot_ic_acceptance_matrix}} for visualizing IC trajectories and shift
+#' \code{\link{icTrajectory}} for extracting and plotting IC trajectories and shift
 #' acceptance decisions, and \code{\link{generateViridisColorScale}} for mapping
 #' regime-specific rates or parameters to a viridis color scale when plotting trees;
 #' packages: \pkg{mvMORPH}, \pkg{future}, \pkg{future.apply}, \pkg{phytools}, \pkg{ape}.

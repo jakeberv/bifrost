@@ -296,23 +296,16 @@ knitr::include_graphics("jaw-shape/cor_heatmap.png")
 ```{r plot_decay, eval=FALSE}
 # Since we saved the model search history 
 
-# We can inspect the behavior of the search with this helper function 
-plot_ic_acceptance_matrix(matrix_data = 
-                            jaws_search$model_fit_history$ic_acceptance_matrix, 
-                          rate_limits = c(-600,300), baseline_ic = NULL)
-
-#to set the baseline to the 'true' global baseline, use the following:
-plot_ic_acceptance_matrix(matrix_data =
-                           jaws_search$model_fit_history$ic_acceptance_matrix,
-                         rate_limits = c(-800,600), baseline_ic = jaws_search$baseline_ic)
+# We can inspect the behavior of the search with an IC trajectory.
+plot(icTrajectory(jaws_search), delta_limits = c(-600,300))
 
 ```
 <br>
-```{r IC_decay_fig, echo=FALSE, fig.align="center", out.width="80%", fig.alt="Scatter plot showing information-criterion scores across sequentially evaluated sub-models. Accepted shifts are shown as blue points connected by a line, rejected shifts as red crosses, and the baseline IC as a black point. A grey line on a secondary axis shows the change in IC at each step, with labels marking the baseline and lowest accepted IC."}
+```{r IC_decay_fig, echo=FALSE, fig.align="center", out.width="80%", fig.alt="Information-criterion trajectory across sequentially evaluated sub-models. Accepted shifts are shown as blue points, rejected shifts as red crosses, the running best IC as a blue step line, and the baseline IC as a black point. Proposal-level delta IC is also shown."}
 knitr::include_graphics("jaw-shape/IC_decay.png")
 ```
 
-> Information-criterion (IC) trajectory across sequentially evaluated sub-models during the greedy shift search. Blue points and connecting lines indicate accepted shifts, red crosses indicate rejected shifts, and the black point marks the baseline IC. The grey line shows the per-step change in IC (right axis), with negative values indicating improvement. Labels highlight the baseline and minimum accepted IC values.
+> Information-criterion (IC) trajectory across sequentially evaluated sub-models during the greedy shift search. Blue points indicate accepted shifts, red crosses indicate rejected shifts, the blue step line tracks the running best IC, and the black point marks the baseline IC. The plot also shows proposal-level delta IC. Labels highlight the baseline and minimum accepted IC values.
 
 ## Generating a preliminary branch-rate plot
 
