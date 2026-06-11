@@ -50,11 +50,11 @@ knitr::include_graphics("jaw-shape/Gogosardina_coatesi_jaw_customcrop.png")
 
 ```{r jaw_caption, echo=FALSE, results='asis'}
 if (identical(Sys.getenv("IN_PKGDOWN"), "true")) {
-  cat("> **Figure 1. Animated jaw model of *Gogosardina coatesi* (specimen NMV P228269).**  \n",
-      "> The 3D model is publicly available on [MorphoSource](https://www.morphosource.org/concern/media/000670517?locale=en). The landmark scheme used in subsequent analyses includes six fixed points (red) and five curves (blue).\n")
+  cat("> **Figure 1. Animated jaw model of *Gogosardina coatesi* (specimen NMV P228269).** ",
+      "The 3D model is publicly available on [MorphoSource](https://www.morphosource.org/concern/media/000670517?locale=en). The landmark scheme used in subsequent analyses includes six fixed points (red) and five curves (blue).\n")
 } else {
-  cat("> **Figure 1. Static frame of the jaw model.** An animated version appears on the package website.  \n",
-      "> 3D model of *Gogosardina coatesi* (specimen NMV P228269) is publicly available on ",
+  cat("> **Figure 1. Static frame of the jaw model.** An animated version appears on the package website. ",
+      "3D model of *Gogosardina coatesi* (specimen NMV P228269) is publicly available on ",
       "[MorphoSource](https://www.morphosource.org/concern/media/000670517?locale=en). The landmark scheme includes six fixed points (red) and five curves (blue).\n")
 }
 ```
