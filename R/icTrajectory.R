@@ -593,7 +593,8 @@ plot_ic_acceptance_matrix <- function(matrix_data,
 #' @param legend Legend controls. Use `TRUE` or `FALSE` to show or hide the
 #'   legend, or provide a named list with any of `show`, `position`, `inset`,
 #'   `bty`, and `labels`. `position`, `inset`, `bty`, and `labels` are passed
-#'   to [graphics::legend()] after validation.
+#'   to [graphics::legend()] after validation. The default delta legend label is
+#'   rendered as \eqn{\Delta IC}.
 #' @param ... Unused; included for S3 compatibility.
 #'
 #' @return Invisibly returns `x`.
@@ -892,11 +893,7 @@ plot.icTrajectory <- function(x,
   style$legend_inset <- .icTrajectory_legend_inset(legend$inset)
   style$legend_bty <- .icTrajectory_legend_bty(legend$bty)
   style$legend_labels <- .icTrajectory_legend_labels_arg(legend$labels)
-  style$delta_legend_label <- if (identical(delta_orientation, "down")) {
-    "Delta IC (positive down)"
-  } else {
-    "Delta IC"
-  }
+  style$delta_legend_label <- quote(Delta ~ IC)
   style
 }
 
@@ -926,16 +923,16 @@ plot.icTrajectory <- function(x,
 }
 
 .icTrajectory_apply_text_sizes <- function(style, text_sizes) {
-  if (!is.null(text_sizes$axis)) {
-    axis_cex <- .icTrajectory_nonnegative_scalar(text_sizes$axis, "text_sizes$axis")
+  if (!is.null(text_sizes[["axis"]])) {
+    axis_cex <- .icTrajectory_nonnegative_scalar(text_sizes[["axis"]], "text_sizes$axis")
     style$axis_cex <- axis_cex
-    if (is.null(text_sizes$x_axis)) {
+    if (is.null(text_sizes[["x_axis"]])) {
       style$x_axis_cex <- axis_cex
     }
-    if (is.null(text_sizes$y_axis)) {
+    if (is.null(text_sizes[["y_axis"]])) {
       style$y_axis_cex <- axis_cex
     }
-    if (is.null(text_sizes$delta_axis)) {
+    if (is.null(text_sizes[["delta_axis"]])) {
       style$delta_axis_cex <- style$y_axis_cex
     }
   }
@@ -957,7 +954,7 @@ plot.icTrajectory <- function(x,
       )
     }
   }
-  if (!is.null(text_sizes$y_axis) && is.null(text_sizes$delta_axis)) {
+  if (!is.null(text_sizes[["y_axis"]]) && is.null(text_sizes[["delta_axis"]])) {
     style$delta_axis_cex <- style$y_axis_cex
   }
   style
@@ -1079,8 +1076,8 @@ plot.icTrajectory <- function(x,
   x
 }
 
-.icTrajectory_legend_labels <- function(labels, keys, delta_label = "Delta IC") {
-  defaults <- c(
+.icTrajectory_legend_labels <- function(labels, keys, delta_label = quote(Delta ~ IC)) {
+  defaults <- list(
     running_best = "Running best",
     accepted = "Accepted proposal",
     rejected = "Rejected proposal",
@@ -1089,7 +1086,7 @@ plot.icTrajectory <- function(x,
   )
   out <- defaults[keys]
   if (is.null(labels)) {
-    return(unname(out))
+    return(.icTrajectory_legend_label_vector(out))
   }
 
   label_names <- names(labels)
@@ -1101,14 +1098,32 @@ plot.icTrajectory <- function(x,
       stop("Named `legend_labels` entries must match known legend keys.")
     }
     displayed <- intersect(label_names[valid], keys)
-    out[displayed] <- labels[match(displayed, label_names)]
-    return(unname(out))
+    for (name in displayed) {
+      out[[name]] <- labels[[match(name, label_names)]]
+    }
+    return(.icTrajectory_legend_label_vector(out))
   }
 
   if (length(labels) != length(keys)) {
     stop("Unnamed `legend_labels` must match the number of displayed legend entries.")
   }
   labels
+}
+
+.icTrajectory_legend_label_vector <- function(labels) {
+  labels <- unname(labels)
+  if (all(vapply(labels, is.character, logical(1L)))) {
+    return(unlist(labels, use.names = FALSE))
+  }
+  as.expression(lapply(labels, function(label) {
+    if (is.expression(label)) {
+      label[[1L]]
+    } else if (is.language(label)) {
+      label
+    } else {
+      as.character(label)
+    }
+  }))
 }
 
 .icTrajectory_axis_limits <- function(values, limits = NULL) {

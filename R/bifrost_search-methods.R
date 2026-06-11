@@ -352,7 +352,7 @@
 }
 
 # -------------------------------------------------------------------------
-#' Print method for bifrost search results
+#' Print method for *`bifrost`* search results
 #'
 #' Prints a compact summary of a completed *`bifrost`* search, including the baseline and
 #' optimal information criterion (IC) values, the inferred shift node set, key search

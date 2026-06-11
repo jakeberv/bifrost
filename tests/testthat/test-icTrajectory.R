@@ -1,7 +1,5 @@
 # tests/testthat/test-icTrajectory.R
 
-testthat::skip_on_cran()
-
 make_search_for_trajectory <- function() {
   obj <- list(
     baseline_ic = -1000,
@@ -58,7 +56,7 @@ if (!exists(".bifrost_search_ic_value", mode = "function")) {
   }
 }
 
-test_that("icTrajectory extracts baseline and proposal rows from bifrost_search", {
+testthat::test_that("icTrajectory extracts baseline and proposal rows from bifrost_search", {
   traj <- icTrajectory(make_search_for_trajectory())
 
   testthat::expect_s3_class(traj, "icTrajectory")
@@ -81,7 +79,7 @@ test_that("icTrajectory extracts baseline and proposal rows from bifrost_search"
   testthat::expect_equal(attr(traj, "IC_used"), "GIC")
 })
 
-test_that("icTrajectory computes missing delta_ic from the running best", {
+testthat::test_that("icTrajectory computes missing delta_ic from the running best", {
   obj <- make_search_for_trajectory()
   obj$model_fit_history$fits[[1]]$delta_ic <- NULL
   obj$model_fit_history$fits[[2]]$delta_ic <- NULL
@@ -92,7 +90,7 @@ test_that("icTrajectory computes missing delta_ic from the running best", {
   testthat::expect_equal(traj$best_ic, c(-1000, -1010, -1010, -1010))
 })
 
-test_that("icTrajectory accepts legacy search-like lists with only an IC matrix", {
+testthat::test_that("icTrajectory accepts legacy search-like lists with only an IC matrix", {
   obj <- list(
     baseline_ic = -1000,
     IC_used = "GIC",
@@ -118,7 +116,7 @@ test_that("icTrajectory accepts legacy search-like lists with only an IC matrix"
   testthat::expect_equal(attr(traj, "IC_used"), "GIC")
 })
 
-test_that("icTrajectory supports skeleton-style hybrid history", {
+testthat::test_that("icTrajectory supports skeleton-style hybrid history", {
   obj <- list(
     baseline_ic = -1000,
     IC_used = "GIC",
@@ -142,7 +140,7 @@ test_that("icTrajectory supports skeleton-style hybrid history", {
   testthat::expect_equal(traj$regime_id, c("0", "1", "2"))
 })
 
-test_that("icTrajectory accepts a baseline_ic override for legacy search-like lists", {
+testthat::test_that("icTrajectory accepts a baseline_ic override for legacy search-like lists", {
   obj <- list(
     IC_used = "GIC",
     model_fit_history = list(
@@ -161,7 +159,7 @@ test_that("icTrajectory accepts a baseline_ic override for legacy search-like li
   testthat::expect_equal(traj$status, c("baseline", "accepted", "rejected"))
 })
 
-test_that("icTrajectory baseline_ic argument overrides stored baseline", {
+testthat::test_that("icTrajectory baseline_ic argument overrides stored baseline", {
   obj <- make_search_for_trajectory()
 
   traj <- icTrajectory(obj, baseline_ic = -995)
@@ -171,7 +169,7 @@ test_that("icTrajectory baseline_ic argument overrides stored baseline", {
   testthat::expect_equal(traj$delta_ic[2], 15)
 })
 
-test_that("icTrajectory requires stored model-fit history", {
+testthat::test_that("icTrajectory requires stored model-fit history", {
   obj <- list(baseline_ic = -1000, IC_used = "GIC")
   class(obj) <- c("bifrost_search", "list")
 
@@ -181,7 +179,7 @@ test_that("icTrajectory requires stored model-fit history", {
   )
 })
 
-test_that("icTrajectory handles extractor edge cases", {
+testthat::test_that("icTrajectory handles extractor edge cases", {
   traj <- icTrajectory(make_search_for_trajectory())
   testthat::expect_identical(icTrajectory.default(traj), traj)
   testthat::expect_error(
@@ -249,7 +247,7 @@ test_that("icTrajectory handles extractor edge cases", {
   )
 })
 
-test_that("plot.icTrajectory runs core display modes", {
+testthat::test_that("plot.icTrajectory runs core display modes", {
   traj <- icTrajectory(make_search_for_trajectory())
 
   open_null_device_trajectory()
@@ -316,7 +314,7 @@ test_that("plot.icTrajectory runs core display modes", {
   )
 })
 
-test_that("plot.icTrajectory parses grouped display controls", {
+testthat::test_that("plot.icTrajectory parses grouped display controls", {
   testthat::expect_equal(
     c(
       true_delta = .icTrajectory_show_delta_mode(TRUE),
@@ -331,29 +329,34 @@ test_that("plot.icTrajectory parses grouped display controls", {
   )
 
   keys <- c("running_best", "accepted", "rejected", "baseline", "delta")
+  unnamed_labels <- .icTrajectory_legend_labels(
+    c("Best", "Accepted", "Rejected", "Baseline", "Delta"),
+    keys
+  )
+  named_labels <- .icTrajectory_legend_labels(
+    c(accepted = "Accepted shift"),
+    keys
+  )
   testthat::expect_equal(
+    unnamed_labels,
+    c("Best", "Accepted", "Rejected", "Baseline", "Delta")
+  )
+  testthat::expect_true(is.expression(named_labels))
+  testthat::expect_equal(
+    as.list(named_labels)[1:4],
     list(
-      unnamed = .icTrajectory_legend_labels(
-        c("Best", "Accepted", "Rejected", "Baseline", "Delta"),
-        keys
-      ),
-      named = .icTrajectory_legend_labels(
-        c(accepted = "Accepted shift"),
-        keys,
-        delta_label = "Delta IC (positive down)"
-      )
-    ),
-    list(
-      unnamed = c("Best", "Accepted", "Rejected", "Baseline", "Delta"),
-      named = c(
-        "Running best",
-        "Accepted shift",
-        "Rejected proposal",
-        "Baseline IC",
-        "Delta IC (positive down)"
-      )
+      "Running best",
+      "Accepted shift",
+      "Rejected proposal",
+      "Baseline IC"
     )
   )
+  testthat::expect_identical(as.list(named_labels)[[5L]], quote(Delta ~ IC))
+  expression_labels <- .icTrajectory_legend_label_vector(
+    list("Plain label", expression(Delta ~ IC))
+  )
+  testthat::expect_true(is.expression(expression_labels))
+  testthat::expect_identical(as.list(expression_labels)[[2L]], quote(Delta ~ IC))
 
   style <- .icTrajectory_plot_style(
     symbols = c(
@@ -391,6 +394,9 @@ test_that("plot.icTrajectory parses grouped display controls", {
     delta_orientation = "down"
   )
   axis_style <- .icTrajectory_plot_style(text_sizes = c(axis = 0.6))
+  axis_label_style <- .icTrajectory_plot_style(
+    text_sizes = c(axis_label = 1.4, y_axis = 0.9)
+  )
 
   testthat::expect_equal(
     c(
@@ -404,7 +410,9 @@ test_that("plot.icTrajectory parses grouped display controls", {
         legend_inset = style$legend_inset,
         null_legend_show = .icTrajectory_legend_group(NULL)$show,
         cascaded_y_axis = axis_style$y_axis_cex,
-        cascaded_delta_axis = axis_style$delta_axis_cex
+        cascaded_delta_axis = axis_style$delta_axis_cex,
+        axis_label_x_axis = axis_label_style$x_axis_cex,
+        axis_label_delta_axis = axis_label_style$delta_axis_cex
       )
     ),
     list(
@@ -417,17 +425,19 @@ test_that("plot.icTrajectory parses grouped display controls", {
       delta_axis_cex = 0.7,
       baseline_label_offset = 0.75,
       legend = FALSE,
-      delta_legend_label = "Delta IC (positive down)",
+      delta_legend_label = quote(Delta ~ IC),
       legend_position = c(0.2, 0.8),
       legend_inset = c(0.01, 0.02),
       null_legend_show = TRUE,
       cascaded_y_axis = 0.6,
-      cascaded_delta_axis = 0.6
+      cascaded_delta_axis = 0.6,
+      axis_label_x_axis = 0.8,
+      axis_label_delta_axis = 0.9
     )
   )
 })
 
-test_that("icTrajectory helpers handle validation and fallback branches", {
+testthat::test_that("icTrajectory helpers handle validation and fallback branches", {
   testthat::expect_equal(
     list(
       missing_scalar = .icTrajectory_scalar_numeric(NULL, "x"),
@@ -492,7 +502,7 @@ test_that("icTrajectory helpers handle validation and fallback branches", {
   )
 })
 
-test_that("icTrajectory plotting helpers handle sparse delta data", {
+testthat::test_that("icTrajectory plotting helpers handle sparse delta data", {
   traj <- icTrajectory(make_search_for_trajectory())
   traj$delta_ic[] <- NA_real_
   style <- .icTrajectory_plot_style(legend = FALSE)
@@ -524,7 +534,7 @@ test_that("icTrajectory plotting helpers handle sparse delta data", {
   )
 })
 
-test_that("plot.icTrajectory preserves existing layout outside panel mode", {
+testthat::test_that("plot.icTrajectory preserves existing layout outside panel mode", {
   traj <- icTrajectory(make_search_for_trajectory())
 
   open_null_device_trajectory()
@@ -536,7 +546,7 @@ test_that("plot.icTrajectory preserves existing layout outside panel mode", {
   testthat::expect_equal(par("mfg")[3:4], c(1L, 2L))
 })
 
-test_that("plot.icTrajectory validates plotting arguments", {
+testthat::test_that("plot.icTrajectory validates plotting arguments", {
   traj <- icTrajectory(make_search_for_trajectory())
 
   open_null_device_trajectory()
@@ -632,7 +642,7 @@ test_that("plot.icTrajectory validates plotting arguments", {
   )
 })
 
-test_that("plot_ic_acceptance_matrix remains as a compatibility wrapper", {
+testthat::test_that("plot_ic_acceptance_matrix remains as a compatibility wrapper", {
   mat <- cbind(
     ic = c(-1000, -1010, -1008, NA_real_),
     accepted = c(1L, 1L, 0L, 0L)
@@ -662,7 +672,7 @@ test_that("plot_ic_acceptance_matrix remains as a compatibility wrapper", {
   )
 })
 
-test_that("plot_ic_acceptance_matrix validates legacy arguments", {
+testthat::test_that("plot_ic_acceptance_matrix validates legacy arguments", {
   mat <- cbind(
     ic = c(-1000, -1010, -1008),
     accepted = c(1L, 1L, 0L)

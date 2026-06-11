@@ -69,7 +69,8 @@ the baseline IC annotation passed to \code{\link[graphics:text]{graphics::text()
 \item{legend}{Legend controls. Use \code{TRUE} or \code{FALSE} to show or hide the
 legend, or provide a named list with any of \code{show}, \code{position}, \code{inset},
 \code{bty}, and \code{labels}. \code{position}, \code{inset}, \code{bty}, and \code{labels} are passed
-to \code{\link[graphics:legend]{graphics::legend()}} after validation.}
+to \code{\link[graphics:legend]{graphics::legend()}} after validation. The default delta legend label is
+rendered as \eqn{\Delta IC}.}
 
 \item{...}{Unused; included for S3 compatibility.}
 }

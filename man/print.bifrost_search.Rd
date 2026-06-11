@@ -2,7 +2,7 @@
 % Please edit documentation in R/bifrost_search-methods.R
 \name{print.bifrost_search}
 \alias{print.bifrost_search}
-\title{Print method for bifrost search results}
+\title{Print method for \emph{\code{bifrost}} search results}
 \usage{
 \method{print}{bifrost_search}(x, ...)
 }

@@ -1,8 +1,8 @@
 ---
-title: "Quick Start with bifrost"
+title: "Quick Start with *`bifrost`*"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Quick Start with bifrost}
+  %\VignetteIndexEntry{Quick Start with *`bifrost`*}
   %\VignetteEncoding{UTF-8}
   %\VignetteEngine{knitr::rmarkdown}
 ---
@@ -17,11 +17,11 @@ knitr::opts_chunk$set(
 
 ## Overview
 
-`bifrost` performs branch-level inference of multi-regime, multivariate trait evolution on a phylogeny using [penalized-likelihood multivariate GLS fits](https://doi.org/10.1093/sysbio/syy045). The current implementation searches for evolutionary model shifts under a multi-rate Brownian Motion (BMM) model with proportional regime variance-covariance (VCV) scaling. It operates directly in trait space, works with fossil tip-dated trees, and is designed for high-dimensional datasets (`p > n`) and large trees (`> 1000` tips).
+*`bifrost`* performs branch-level inference of multi-regime, multivariate trait evolution on a phylogeny using [penalized-likelihood multivariate GLS fits](https://doi.org/10.1093/sysbio/syy045). The current implementation searches for evolutionary model shifts under a multi-rate Brownian Motion (BMM) model with proportional regime variance-covariance (VCV) scaling. It operates directly in trait space, works with fossil tip-dated trees, and is designed for high-dimensional datasets (`p > n`) and large trees (`> 1000` tips).
 
 If you have not installed the package yet, see the installation instructions on the [package README](https://github.com/jakeberv/bifrost).
 
-In practical terms, `bifrost` asks:
+In practical terms, *`bifrost`* asks:
 
 - **Where** on the tree are shifts supported?
 - **When** do those shifts occur?
@@ -29,7 +29,7 @@ In practical terms, `bifrost` asks:
 
 ## Minimal worked example
 
-The smallest end-to-end workflow is a simulated single-regime example. Running it is mainly a quick way to confirm that `bifrost` and its dependencies are installed correctly and that the core search routine runs on your machine. In this case, we typically expect `bifrost` to recover no shifts.
+The smallest end-to-end workflow is a simulated single-regime example. Running it is mainly a quick way to confirm that *`bifrost`* and its dependencies are installed correctly and that the core search routine runs on your machine. In this case, we typically expect *`bifrost`* to recover no shifts.
 
 ```{r}
 library(bifrost)
@@ -98,8 +98,8 @@ Important checks before fitting:
 
 - **Tree and data alignment.** `rownames(trait_data)` must match `tree$tip.label` exactly, including both names and order.
 - **Branch lengths.** Branch lengths are interpreted in units of time; ultrametricity is not required.
-- **Starting tree format.** The input can be a rooted `phylo` tree; it does not need to already be a `simmap` object. Internally, `bifrost` paints a single baseline regime `"0"` and stores inferred regimes using SIMMAP conventions.
-- **Multi-dimensional traits.** `bifrost` works directly in trait space. For high-dimensional settings, tune `mvMORPH::mvgls` arguments such as `method`, `penalty`, `target`, and `error` to match your data structure.
+- **Starting tree format.** The input can be a rooted `phylo` tree; it does not need to already be a `simmap` object. Internally, *`bifrost`* paints a single baseline regime `"0"` and stores inferred regimes using SIMMAP conventions.
+- **Multi-dimensional traits.** *`bifrost`* works directly in trait space. For high-dimensional settings, tune `mvMORPH::mvgls` arguments such as `method`, `penalty`, `target`, and `error` to match your data structure.
 - **Formulas.** The default `formula = "trait_data ~ 1"` fits an intercept-only multivariate model, but more general formulas are also supported when needed.
 
 The arguments you will tune most often are:
@@ -138,12 +138,12 @@ The accepted shift set defines the optimal no-uncertainty configuration under th
 
 ### High-level workflow
 
-The figure below summarizes the main stages of the greedy search and post-processing workflow implemented in `bifrost`.
+The figure below summarizes the main stages of the greedy search and post-processing workflow implemented in *`bifrost`*.
 
 ```{r workflow_diagram, echo=FALSE, eval=TRUE, results='asis'}
 svg_uri <- knitr::image_uri("quick-start/bifrost-workflow.svg")
 cat(sprintf(
-  '<p align="center"><img src="%s" alt="Workflow diagram showing setup, baseline scoring, greedy search, post-processing, and output steps in bifrost." style="max-width:100%%; height:auto;" /></p>',
+  '<p align="center"><img src="%s" alt="Workflow diagram showing setup, baseline scoring, greedy search, post-processing, and output steps." style="max-width:100%%; height:auto;" /></p>',
   svg_uri
 ))
 ```
@@ -190,4 +190,4 @@ When moving from this smoke test to a real dataset:
 - archive the tree, trait matrix, formula, thresholds, and random seed used for final fits,
 - repeat searches under nearby settings before treating individual inferred shifts as robust.
 
-Once this smoke test runs cleanly, the next step is usually to move to a real dataset and inspect the returned shifts, IC support values, and regime-specific VCVs in more detail. For a full empirical workflow, continue to the [jaw-shape vignette](jaw-shape-vignette.html); for broader conceptual background on the package website, see [Brownian Motion and Multivariate Shifts](https://jakeberv.com/bifrost/articles/theoretical-background-vignette.html) and [Whole-Tree Models, PCA, and bifrost](https://jakeberv.com/bifrost/articles/pca-model-selection-and-bifrost-vignette.html).
+Once this smoke test runs cleanly, the next step is usually to move to a real dataset and inspect the returned shifts, IC support values, and regime-specific VCVs in more detail. For a full empirical workflow, continue to the [jaw-shape vignette](jaw-shape-vignette.html); for broader conceptual background on the package website, see [Brownian Motion and Multivariate Shifts](https://jakeberv.com/bifrost/articles/theoretical-background-vignette.html) and [Whole-Tree Models, PCA, and *`bifrost`*](https://jakeberv.com/bifrost/articles/pca-model-selection-and-bifrost-vignette.html).
