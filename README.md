@@ -63,6 +63,8 @@ You may need to install [XQuartz](https://www.xquartz.org/) to build or run pack
 
 CRAN currently provides `bifrost` 0.1.4. The GitHub development version includes repository-only additions documented here but not yet available from CRAN:
 
+- Search histories can now be inspected with the `icTrajectory()` extractor and plotted directly with `plot()`, for example `traj <- icTrajectory(search); plot(traj)`. The older `plot_ic_acceptance_matrix()` helper remains available as a compatibility wrapper.
+- Stored model-fit histories now include richer per-candidate records, including errored candidate fits, so search diagnostics can preserve accepted, rejected, and errored proposals.
 - The `rateMap()` workflow, along with `rateMapView()`, `rateMapControl()`, `rateMapRateFlags()`, and `plot()` / `print()` methods for `rateMap` objects, summarizes and visualizes branch-rate patterns from completed `bifrost` searches. The two rate-map jaw-shape articles below are part of this development-version documentation.
 - Formula-based searches now accept formula objects as well as character strings, support numeric response-only data frames for intercept-only searches, and support named-column data-frame formulas such as `cbind(y1, y2) ~ size + grp` for pGLS-style workflows.
 
