@@ -259,10 +259,9 @@ testthat::test_that("plot.icTrajectory runs core display modes", {
   testthat::expect_invisible(
     plot(
       traj,
-      main = "Grouped down-oriented overlay",
+      main = "Grouped reversed-limit overlay",
       ic_limits = c(-1020, -990),
-      delta_limits = c(-5, 15),
-      delta_orientation = "down",
+      delta_limits = c(15, -5),
       symbols = c(
         accepted = 19,
         rejected = 4,
@@ -318,13 +317,11 @@ testthat::test_that("plot.icTrajectory parses grouped display controls", {
   testthat::expect_equal(
     c(
       true_delta = .icTrajectory_show_delta_mode(TRUE),
-      false_delta = .icTrajectory_show_delta_mode(FALSE),
-      orientation = .icTrajectory_delta_orientation("DOWN")
+      false_delta = .icTrajectory_show_delta_mode(FALSE)
     ),
     c(
       true_delta = "overlay",
-      false_delta = "none",
-      orientation = "down"
+      false_delta = "none"
     )
   )
 
@@ -444,6 +441,7 @@ testthat::test_that("icTrajectory helpers handle validation and fallback branche
       logical_values = .icTrajectory_logical_vector(c(TRUE, FALSE, NA), "x"),
       no_delta_limits = .icTrajectory_delta_limits(c(NA_real_, NA_real_), NULL),
       zero_delta_limits = .icTrajectory_delta_limits(c(0, 0), NULL),
+      reversed_delta_limits = .icTrajectory_delta_limits(c(-2, 4), c(4, -2)),
       fallback_y_label = .icTrajectory_y_label(NULL, NA_character_),
       zero_axis_limits = .icTrajectory_axis_limits(c(0, 0))
     ),
@@ -453,6 +451,7 @@ testthat::test_that("icTrajectory helpers handle validation and fallback branche
       logical_values = c(TRUE, FALSE, NA),
       no_delta_limits = c(-1, 1),
       zero_delta_limits = c(-1, 1),
+      reversed_delta_limits = c(4, -2),
       fallback_y_label = "IC score",
       zero_axis_limits = c(-1, 1)
     )
@@ -556,20 +555,8 @@ testthat::test_that("plot.icTrajectory validates plotting arguments", {
     "`show_delta` must be one of"
   )
   testthat::expect_error(
-    plot(traj, delta_orientation = NA),
-    "`delta_orientation` must be one of"
-  )
-  testthat::expect_error(
-    plot(traj, delta_orientation = "flipped"),
-    "`delta_orientation` must be one of"
-  )
-  testthat::expect_error(
-    plot(traj, delta_orientation = "standard"),
-    "`delta_orientation` must be one of"
-  )
-  testthat::expect_error(
-    plot(traj, delta_orientation = "aligned"),
-    "`delta_orientation` must be one of"
+    plot(traj, delta_orientation = "down"),
+    "Unused plotting arguments"
   )
   testthat::expect_error(
     plot(traj, delta_limits = c(NA_real_, 1)),

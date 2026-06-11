@@ -61,6 +61,7 @@ if (identical(Sys.getenv("IN_PKGDOWN"), "true")) {
 
 We will walk through an example using a fossil dataset from [Troyer et al. (2025)](https://doi.org/10.1016/j.cub.2025.08.008), which examines macroevolutionary patterns of jaw shape in the earliest radiation of bony fishes. *`bifrost`* assumes that the branch lengths of the input phylogeny are in units of time, and does not require ultrametric phylogenies.
 <br>
+<br>
 ```{r troyer_fig1, echo=FALSE, fig.align="center", out.width="60%", fig.alt="Figure from Troyer et al. (2025) showing contrasting jaw-shape space exploration among early bony fishes."}
 knitr::include_graphics("jaw-shape/gr1_lrg_png24.png")
 ```
@@ -299,8 +300,7 @@ knitr::include_graphics("jaw-shape/cor_heatmap.png")
 # We can inspect the behavior of the search with an IC trajectory.
 plot(
   icTrajectory(jaws_search),
-  delta_limits = c(-1000, 1000),
-  delta_orientation = "down",
+  delta_limits = c(1000, -1000),
   scales = c(point = 1.30, line = 1.25, text = 1.15),
   point_sizes = c(accepted = 1.82, rejected = 1.30),
   line_widths = c(running_best = 2.52, rejected = 3.17),

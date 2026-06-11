@@ -10,7 +10,6 @@
   show_delta = "overlay",
   ic_limits = NULL,
   delta_limits = NULL,
-  delta_orientation = "up",
   xlab = "Search step",
   ylab = NULL,
   symbols = NULL,
@@ -37,11 +36,9 @@ compatibility: \code{TRUE} maps to \code{"overlay"} and \code{FALSE} maps to \co
 the primary IC axis.}
 
 \item{delta_limits}{Optional numeric vector of length 2 giving y-limits for
-the \code{delta_ic} panel or secondary axis.}
-
-\item{delta_orientation}{Direction for positive \code{delta_ic} values in overlay
-mode. Use \code{"up"} to draw positive improvements upward, or \code{"down"} to draw
-them downward so they align visually with decreasing IC scores.}
+the \code{delta_ic} panel or secondary axis. The order is preserved, so
+\code{c(high, low)} reverses the axis and draws positive \code{delta_ic} values
+downward.}
 
 \item{xlab, ylab}{Axis labels.}
 
@@ -104,7 +101,7 @@ traj <- icTrajectory(search)
 plot(traj)
 plot(
   traj,
-  delta_orientation = "down",
+  delta_limits = c(15, -5),
   scales = c(point = 1.2, line = 1.1),
   point_sizes = c(rejected = 0.7),
   legend = list(position = "bottomleft")

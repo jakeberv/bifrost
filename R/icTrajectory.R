@@ -416,7 +416,7 @@ icTrajectory.default <- function(x, baseline_ic = NULL, ...) {
         any(!is.finite(delta_limits))) {
       stop("`delta_limits` must be a numeric vector of length 2 with finite values.")
     }
-    return(sort(as.numeric(delta_limits)))
+    return(as.numeric(delta_limits))
   }
 
   finite_delta <- delta_ic[is.finite(delta_ic)]
@@ -450,7 +450,7 @@ icTrajectory.default <- function(x, baseline_ic = NULL, ...) {
 #' The historical `plot_rate_of_improvement` argument maps to the new
 #' `show_delta` plotting mode: `TRUE` draws the `delta_ic` overlay and `FALSE`
 #' suppresses it. `rate_limits` is retained as the legacy name for the overlay
-#' y-limits and is passed through as `delta_limits`.
+#' y-limits. Its order is ignored for compatibility with the historical wrapper.
 #'
 #' @param matrix_data A two-column matrix or data frame. Column 1 must contain
 #'   numeric IC scores in evaluation order; column 2 must contain logical values
@@ -570,10 +570,9 @@ plot_ic_acceptance_matrix <- function(matrix_data,
 #' @param ic_limits Optional numeric vector of length 2 giving y-limits for
 #'   the primary IC axis.
 #' @param delta_limits Optional numeric vector of length 2 giving y-limits for
-#'   the `delta_ic` panel or secondary axis.
-#' @param delta_orientation Direction for positive `delta_ic` values in overlay
-#'   mode. Use `"up"` to draw positive improvements upward, or `"down"` to draw
-#'   them downward so they align visually with decreasing IC scores.
+#'   the `delta_ic` panel or secondary axis. The order is preserved, so
+#'   `c(high, low)` reverses the axis and draws positive `delta_ic` values
+#'   downward.
 #' @param xlab,ylab Axis labels.
 #' @param symbols Optional named vector or list of point symbols. Valid names
 #'   are `accepted`, `rejected`, `error`, `baseline`, and `delta`.
@@ -622,7 +621,7 @@ plot_ic_acceptance_matrix <- function(matrix_data,
 #' plot(traj)
 #' plot(
 #'   traj,
-#'   delta_orientation = "down",
+#'   delta_limits = c(15, -5),
 #'   scales = c(point = 1.2, line = 1.1),
 #'   point_sizes = c(rejected = 0.7),
 #'   legend = list(position = "bottomleft")
@@ -636,7 +635,6 @@ plot.icTrajectory <- function(x,
                               show_delta = "overlay",
                               ic_limits = NULL,
                               delta_limits = NULL,
-                              delta_orientation = "up",
                               xlab = "Search step",
                               ylab = NULL,
                               symbols = NULL,
@@ -652,7 +650,6 @@ plot.icTrajectory <- function(x,
     stop("`x` must be an `icTrajectory` object. Call `icTrajectory(x)` before plotting.")
   }
   show_delta <- .icTrajectory_show_delta_mode(show_delta)
-  delta_orientation <- .icTrajectory_delta_orientation(delta_orientation)
   style <- .icTrajectory_plot_style(
     symbols = symbols,
     scales = scales,
@@ -728,7 +725,6 @@ plot.icTrajectory <- function(x,
       x_limits = x_limits,
       x_ticks = x_ticks,
       delta_limits = delta_limits,
-      delta_orientation = delta_orientation,
       style = style
     )
     par(new = TRUE)
@@ -760,19 +756,6 @@ plot.icTrajectory <- function(x,
   }
   show_delta <- tolower(show_delta)
   match.arg(show_delta, c("overlay", "panel", "none"))
-}
-
-.icTrajectory_delta_orientation <- function(delta_orientation) {
-  if (!is.character(delta_orientation) ||
-      length(delta_orientation) != 1L ||
-      is.na(delta_orientation)) {
-    stop("`delta_orientation` must be one of \"up\" or \"down\".")
-  }
-  delta_orientation <- tolower(delta_orientation)
-  if (!(delta_orientation %in% c("up", "down"))) {
-    stop("`delta_orientation` must be one of \"up\" or \"down\".")
-  }
-  delta_orientation
 }
 
 .icTrajectory_y_label <- function(ylab, IC) {
@@ -1369,28 +1352,16 @@ plot.icTrajectory <- function(x,
                                              x_limits,
                                              x_ticks,
                                              delta_limits,
-                                             delta_orientation,
                                              style) {
   x_values <- x$step
   delta_limits <- .icTrajectory_delta_limits(x$delta_ic, delta_limits)
   delta_ticks <- pretty(delta_limits)
-  delta_down <- identical(delta_orientation, "down")
-  plot_limits <- if (isTRUE(delta_down)) {
-    range(-delta_limits)
-  } else {
-    delta_limits
-  }
-  axis_at <- if (isTRUE(delta_down)) {
-    -delta_ticks
-  } else {
-    delta_ticks
-  }
 
   plot(
     x_values, rep(NA_real_, length(x_values)),
     type = "n",
     xlab = "", ylab = "",
-    xlim = x_limits, ylim = plot_limits,
+    xlim = x_limits, ylim = delta_limits,
     xaxt = "n", yaxt = "n", bty = "n"
   )
   lines(
@@ -1400,22 +1371,18 @@ plot.icTrajectory <- function(x,
   )
 
   delta_ok <- is.finite(x$delta_ic)
-  delta_values <- x$delta_ic
-  if (isTRUE(delta_down)) {
-    delta_values <- -delta_values
-  }
   lines(
-    x_values[delta_ok], delta_values[delta_ok],
+    x_values[delta_ok], x$delta_ic[delta_ok],
     col = rgb(0, 0, 0, alpha = 0.45), lwd = style$delta_lwd
   )
   points(
-    x_values[delta_ok], delta_values[delta_ok],
+    x_values[delta_ok], x$delta_ic[delta_ok],
     col = rgb(0, 0, 0, alpha = 0.5),
     pch = style$delta_pch,
     cex = style$delta_cex
   )
   axis(
-    4, at = axis_at, labels = delta_ticks,
+    4, at = delta_ticks, labels = delta_ticks,
     las = 1, cex.axis = style$delta_axis_cex, tck = -0.02,
     col = rgb(0, 0, 0, alpha = 0.5),
     col.axis = rgb(0, 0, 0, alpha = 0.5)

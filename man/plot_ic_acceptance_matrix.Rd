@@ -50,7 +50,7 @@ replaces the first IC value for that baseline row.
 The historical \code{plot_rate_of_improvement} argument maps to the new
 \code{show_delta} plotting mode: \code{TRUE} draws the \code{delta_ic} overlay and \code{FALSE}
 suppresses it. \code{rate_limits} is retained as the legacy name for the overlay
-y-limits and is passed through as \code{delta_limits}.
+y-limits. Its order is ignored for compatibility with the historical wrapper.
 }
 \seealso{
 \code{\link[=icTrajectory]{icTrajectory()}}, \code{\link[=plot.icTrajectory]{plot.icTrajectory()}}
