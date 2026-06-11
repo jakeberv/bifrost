@@ -134,15 +134,16 @@ The core of the *`bifrost`* workflow is the `searchOptimalConfiguration()` funct
 
 ### Optional Runtime Setup
 
-The next chunk is optional. It tweaks runtime behavior only: memory limits, live plotting, and the session-level BLAS/OpenMP thread cap used by sequential linear algebra. None of these choices changes the model or search logic.
+The next chunk is optional. It tweaks runtime behavior only: memory limits, an external plotting device for interactive live plots, and the session-level BLAS/OpenMP thread cap used by sequential linear algebra. None of these choices changes the model or search logic.
 
 ```{r runtime_setup, eval=FALSE, message = TRUE}
 # ---- Optional: increase future globals limit (needed for large objects) ----
 options(future.globals.maxSize = 10 * 1024^3)
 
 # ---- Optional: open a dedicated plotting device for live search plots ----
-use_live_plot <- FALSE
-if (interactive() && use_live_plot) {
+# In RStudio, run this block before changing the search call to plot = TRUE if
+# you want the live search tree to draw in an external graphics window.
+if (interactive() && identical(Sys.getenv("RSTUDIO"), "1")) {
   if (.Platform$OS.type == "windows") {
     windows()
   } else if (Sys.info()[["sysname"]] == "Darwin") {
@@ -175,10 +176,6 @@ Sys.setenv(
 Here is the function call we will use for this analysis. We'll break down each parameter choice below.
 
 ```{r run_bifrost_setup, eval=FALSE, message = TRUE}
-if (!exists("use_live_plot", inherits = TRUE)) {
-  use_live_plot <- FALSE
-}
-
 # ---- Run the search ----
 set.seed(1)
 jaws_search <- searchOptimalConfiguration(
@@ -189,7 +186,7 @@ jaws_search <- searchOptimalConfiguration(
   shift_acceptance_threshold = 20,
   uncertaintyweights_par     = TRUE,
   IC                         = "GIC",
-  plot                       = use_live_plot,
+  plot                       = FALSE,
   formula                    = "trait_data ~ 1",
   method                     = "H&L", # penalized likelihood for high-dimensional data
   error                      = TRUE,
@@ -223,7 +220,7 @@ The table below gives a quick reference for the main choices made in this functi
 | `shift_acceptance_threshold` | `20` | The IC improvement required to accept a new shift |
 | `uncertaintyweights_par` | `TRUE` | Whether to estimate post-hoc support for accepted shifts in parallel |
 | `IC` | `"GIC"` | The information criterion used to compare candidate models |
-| `plot` | `use_live_plot` (`FALSE` here) | Whether to plot accepted shifts during the search |
+| `plot` | `FALSE` | Whether to enable the optional live SIMMAP display during the search |
 | `formula` | `"trait_data ~ 1"` | The multivariate GLS model structure |
 | `method` | `"H&L"` | The `mvMORPH::mvgls` fitting method |
 | `error` | `TRUE` | Whether to estimate and include measurement error |
@@ -246,7 +243,7 @@ Some choices deserve additional context:
   
   * `IC = "GIC"`: The **Generalized Information Criterion** is generally preferred for high-dimensional data (like our landmark data) compared to alternatives like AIC or BIC.
     
-  * `plot = use_live_plot`: Real-time plotting can be useful for small tests because it shows the tree and labels shifts as they are accepted, but it slows down larger searches. Here `use_live_plot` defaults to `FALSE`.
+  * `plot = FALSE`: Live SIMMAP updates are disabled for this vignette run because they slow larger searches. Set this to `TRUE` for small interactive tests; in RStudio, the optional graphics-device block above opens an external plotting window for those updates.
   
   * `formula = "trait_data ~ 1"`: The intercept-only model (`~ 1`) corresponds to a multi-rate Brownian Motion process where each regime has its own rate matrix. The GPA-aligned morphometric coordinates are already size and rotation adjusted, so no additional size term is needed here. For linear dimensions or other predictors, you can use formulas that reference subsets of `trait_data`, for example `"trait_data[, 1:5] ~ 1"` to treat columns 1–5 as the multivariate response, or `"trait_data[, 2:ncol(trait_data)] ~ trait_data[, 1]"` if the first column is log-mass and the remaining columns are logged linear dimensions.
   
@@ -405,3 +402,18 @@ knitr::include_graphics("jaw-shape/branch_rates.png")
 ## Conclusion
 
 This vignette demonstrates how to use the *`bifrost`* package to analyze a complex, high-dimensional dataset to find significant shifts in evolutionary dynamics. Applying `searchOptimalConfiguration()` to a Paleozoic fish jaw dataset, we infer cladogenic events that correspond with significant shifts in multivariate phenotypic evolution, similar to the hypotheses presented in Troyer et al. (2025). This workflow allows us not only to identify *where* shifts occurred but also to quantify the *magnitude* of the change in evolutionary rates through the VCV matrices. For a deeper look at branch-rate summaries and threshold sensitivity in this same dataset, continue to the [rate-map jaw-shape vignette](rate-map-jaw-shape-vignette.html).
+
+## References
+
+- Clavel, J., Aristide, L., and Morlon, H. (2019). *A Penalized Likelihood Framework for High-Dimensional Phylogenetic Comparative Methods and an Application to New-World Monkeys Brain Evolution*. [https://doi.org/10.1093/sysbio/syy045](https://doi.org/10.1093/sysbio/syy045)
+- Hoffbeck, J. P., and Landgrebe, D. A. (1996). *Covariance Matrix Estimation and Classification with Limited Training Data*. *IEEE Transactions on Pattern Analysis and Machine Intelligence*, 18(7), 763-767. [https://doi.org/10.1109/34.506799](https://doi.org/10.1109/34.506799)
+- Troyer, E. M., Rivero-Vega, R. A., Cui, X., Zhu, M., Qiao, T., Saad, H. H., Figueroa, R. T., Andrews, J. V., Clement, A. M., Lebedev, O. A., Higgins, R. R., Igielman, B., Pierce, S. E., Giles, S., and Friedman, M. (2025). *Macroevolutionary role reversals in the earliest radiation of bony fishes*. *Current Biology*. [https://doi.org/10.1016/j.cub.2025.08.008](https://doi.org/10.1016/j.cub.2025.08.008)
+- Troyer, E., Rivero-Vega, R., Cui, X., Zhu, M., Qiao, T., Saad, H., Figueroa, R., Andrews, J., Clement, A., Lebedev, O., Higgins, R., Igielman, B., Pierce, S., Giles, S., and Friedman, M. (2025). *Macroevolutionary role reversals in the earliest radiation of bony fishes* [Dataset]. Dryad. [https://doi.org/10.5061/dryad.z08kprrqf](https://doi.org/10.5061/dryad.z08kprrqf)
+- Uyeda, J. C., Caetano, D. S., and Pennell, M. W. (2015). *Comparative Analysis of Principal Components Can Be Misleading*. [https://doi.org/10.1093/sysbio/syv019](https://doi.org/10.1093/sysbio/syv019)
+
+## Software Used in This Vignette
+
+- `bifrost` for the shift search, IC-trajectory extraction, and branch-rate color helpers.
+- `mvMORPH` for penalized multivariate GLS model fitting through `mvgls()`.
+- `geomorph` for converting landmark arrays to species-by-trait matrices.
+- `ape` and `phytools` for phylogenetic data structures, tree manipulation, SIMMAP trees, and plotting.
