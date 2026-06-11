@@ -1060,6 +1060,19 @@ test_that("searchOptimalConfiguration records error entries in history and yield
   mat <- res$model_fit_history$ic_acceptance_matrix
   testthat::expect_true(any(is.na(mat[, 1]), na.rm = TRUE))
 
+  fits <- res$model_fit_history$fits
+  error_entries <- vapply(
+    fits,
+    function(entry) identical(entry$status, "error"),
+    logical(1)
+  )
+  testthat::expect_true(any(error_entries))
+  testthat::expect_true(any(vapply(
+    fits[error_entries],
+    function(entry) isFALSE(entry$accepted) && is.na(entry$ic),
+    logical(1)
+  )))
+
   testthat::expect_true(!is.null(res$warnings))
   testthat::expect_true(any(grepl("Error in evaluating shift at node", unlist(res$warnings))))
 })

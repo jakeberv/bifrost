@@ -390,8 +390,7 @@ testthat::test_that("plot.icTrajectory parses grouped display controls", {
       inset = c(0.01, 0.02),
       bty = "o",
       labels = c(delta = "Delta")
-    ),
-    delta_orientation = "down"
+    )
   )
   axis_style <- .icTrajectory_plot_style(text_sizes = c(axis = 0.6))
   axis_label_style <- .icTrajectory_plot_style(

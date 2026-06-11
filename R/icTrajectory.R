@@ -660,8 +660,7 @@ plot.icTrajectory <- function(x,
     line_widths = line_widths,
     text_sizes = text_sizes,
     annotation = annotation,
-    legend = legend,
-    delta_orientation = delta_orientation
+    legend = legend
   )
 
   x_values <- x$step
@@ -800,8 +799,7 @@ plot.icTrajectory <- function(x,
                                      line_widths = NULL,
                                      text_sizes = NULL,
                                      annotation = NULL,
-                                     legend = TRUE,
-                                     delta_orientation = "up") {
+                                     legend = TRUE) {
   scales <- .icTrajectory_named_group(scales, c("point", "line", "text"), "scales")
   point_scale <- .icTrajectory_group_numeric(scales, "point", "scales", default = 1)
   line_scale <- .icTrajectory_group_numeric(scales, "line", "scales", default = 1)

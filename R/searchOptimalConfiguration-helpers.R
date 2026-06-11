@@ -279,7 +279,7 @@
 
       # Also store the error in the model fit history
       if (store_model_fit_history) {
-        model_fit_history <- list(
+        model_fit_history <<- list(
           step = i,
           candidate_node = shift_node_number,
           regime_id = as.character(shift_id),
