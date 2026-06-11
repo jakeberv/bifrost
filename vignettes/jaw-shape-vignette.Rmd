@@ -318,7 +318,7 @@ plot(
 
 ```
 <br>
-```{r IC_decay_fig, echo=FALSE, fig.align="center", out.width="100%", fig.alt="Information-criterion trajectory across sequentially evaluated sub-models. Accepted shifts are shown as blue points, rejected shifts as red crosses, the running best IC as a blue step line, and the baseline IC as a black point. Proposal-level delta IC is also shown."}
+```{r IC_decay_fig, echo=FALSE, fig.align="center", out.width="80%", fig.alt="Information-criterion trajectory across sequentially evaluated sub-models. Accepted shifts are shown as blue points, rejected shifts as red crosses, the running best IC as a blue step line, and the baseline IC as a black point. Proposal-level delta IC is also shown."}
 knitr::include_graphics("jaw-shape/IC_decay.png")
 ```
 
