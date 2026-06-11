@@ -32,7 +32,7 @@ img, .figure img, .figure > p > img {
 
 ## Introduction 🐠
 
-This vignette demonstrates the core functionality of the *`bifrost`* R package. *`bifrost`* is designed to identify and analyze cladogenic shifts in multivariate trait evolution. It is capable of analyzing morphological datasets comprising thousands of species, [without dimensionality reduction techniques like PCA](https://doi.org/10.1093/sysbio/syv019).
+This vignette demonstrates the core functionality of the *`bifrost`* R package. *`bifrost`* is designed to identify and analyze cladogenic shifts in multivariate trait evolution. It is capable of analyzing morphological datasets comprising thousands of species, without dimensionality reduction techniques like PCA (see [Uyeda, Caetano, and Pennell 2015](https://doi.org/10.1093/sysbio/syv019)).
 
 ```{r jaw_gif_pkgdown, echo=FALSE, results='asis', eval=identical(Sys.getenv("IN_PKGDOWN"), "true")}
 cat('
@@ -95,7 +95,7 @@ The dataset consists of two main components:
 1.  A phylogenetic tree (`mrbayes_prune_tree.RDS`) for 86 species of Silurian-Devonian bony fishes.
 2.  A 3D landmark dataset (`jaws_coords.RDS`) representing the 3D jaw shapes for each of these species.
 
-These files are included with the package and are available at the publication's [data repository](https://datadryad.org/dataset/doi:10.5061/dryad.z08kprrqf). We can load them using `system.file()` to find the correct path within the package's installed directory.
+These files are included with the package and are available from the publication's [Dryad data repository](https://datadryad.org/dataset/doi:10.5061/dryad.z08kprrqf). We can load them using `system.file()` to find the correct path within the package's installed directory.
 
 ```{r load_data, eval=FALSE}
 # Define paths to the data files included in the package
@@ -134,15 +134,16 @@ The core of the *`bifrost`* workflow is the `searchOptimalConfiguration()` funct
 
 ### Optional Runtime Setup
 
-The next chunk is optional. It tweaks runtime behavior only: memory limits, live plotting, and the session-level BLAS/OpenMP thread cap used by sequential linear algebra. None of these choices changes the model or search logic.
+The next chunk is optional. It tweaks runtime behavior only: memory limits, an external plotting device for interactive live plots, and the session-level BLAS/OpenMP thread cap used by sequential linear algebra. None of these choices changes the model or search logic.
 
 ```{r runtime_setup, eval=FALSE, message = TRUE}
 # ---- Optional: increase future globals limit (needed for large objects) ----
 options(future.globals.maxSize = 10 * 1024^3)
 
 # ---- Optional: open a dedicated plotting device for live search plots ----
-use_live_plot <- FALSE
-if (interactive() && use_live_plot) {
+# In RStudio, run this block before changing the search call to plot = TRUE if
+# you want the live search tree to draw in an external graphics window.
+if (interactive() && identical(Sys.getenv("RSTUDIO"), "1")) {
   if (.Platform$OS.type == "windows") {
     windows()
   } else if (Sys.info()[["sysname"]] == "Darwin") {
@@ -175,10 +176,6 @@ Sys.setenv(
 Here is the function call we will use for this analysis. We'll break down each parameter choice below.
 
 ```{r run_bifrost_setup, eval=FALSE, message = TRUE}
-if (!exists("use_live_plot", inherits = TRUE)) {
-  use_live_plot <- FALSE
-}
-
 # ---- Run the search ----
 set.seed(1)
 jaws_search <- searchOptimalConfiguration(
@@ -189,7 +186,7 @@ jaws_search <- searchOptimalConfiguration(
   shift_acceptance_threshold = 20,
   uncertaintyweights_par     = TRUE,
   IC                         = "GIC",
-  plot                       = use_live_plot,
+  plot                       = FALSE,
   formula                    = "trait_data ~ 1",
   method                     = "H&L", # penalized likelihood for high-dimensional data
   error                      = TRUE,
@@ -223,7 +220,7 @@ The table below gives a quick reference for the main choices made in this functi
 | `shift_acceptance_threshold` | `20` | The IC improvement required to accept a new shift |
 | `uncertaintyweights_par` | `TRUE` | Whether to estimate post-hoc support for accepted shifts in parallel |
 | `IC` | `"GIC"` | The information criterion used to compare candidate models |
-| `plot` | `use_live_plot` (`FALSE` here) | Whether to plot accepted shifts during the search |
+| `plot` | `FALSE` | Whether to enable the optional live SIMMAP display during the search |
 | `formula` | `"trait_data ~ 1"` | The multivariate GLS model structure |
 | `method` | `"H&L"` | The `mvMORPH::mvgls` fitting method |
 | `error` | `TRUE` | Whether to estimate and include measurement error |
@@ -246,11 +243,11 @@ Some choices deserve additional context:
   
   * `IC = "GIC"`: The **Generalized Information Criterion** is generally preferred for high-dimensional data (like our landmark data) compared to alternatives like AIC or BIC.
     
-  * `plot = use_live_plot`: Real-time plotting can be useful for small tests because it shows the tree and labels shifts as they are accepted, but it slows down larger searches. Here `use_live_plot` defaults to `FALSE`.
+  * `plot = FALSE`: Live SIMMAP updates are disabled for this vignette run because they slow larger searches. Set this to `TRUE` for small interactive tests; in RStudio, the optional graphics-device block above opens an external plotting window for those updates.
   
   * `formula = "trait_data ~ 1"`: The intercept-only model (`~ 1`) corresponds to a multi-rate Brownian Motion process where each regime has its own rate matrix. The GPA-aligned morphometric coordinates are already size and rotation adjusted, so no additional size term is needed here. For linear dimensions or other predictors, you can use formulas that reference subsets of `trait_data`, for example `"trait_data[, 1:5] ~ 1"` to treat columns 1–5 as the multivariate response, or `"trait_data[, 2:ncol(trait_data)] ~ trait_data[, 1]"` if the first column is log-mass and the remaining columns are logged linear dimensions.
   
-  * `method = "H&L"`: H\&L is a fast, approximated leave-one-out cross-validation (LOOCV) approach based on Hoffbeck and Landgrebe (1996). It is effective for intercept-only models with a "RidgeArch" default penalty, making it a reasonable choice for this high-dimensional dataset. Other options passed to `mvgls` will depend on the nature of the input dataset.
+  * `method = "H&L"`: H\&L is a fast, approximated leave-one-out cross-validation (LOOCV) approach based on [Hoffbeck and Landgrebe (1996)](https://doi.org/10.1109/34.506799). It is effective for intercept-only models with a "RidgeArch" default penalty, making it a reasonable choice for this high-dimensional dataset. The high-dimensional penalized likelihood framework used by `mvMORPH::mvgls` is described by [Clavel, Aristide, and Morlon (2019)](https://doi.org/10.1093/sysbio/syy045). Other options passed to `mvgls` will depend on the nature of the input dataset.
   
   * `error = TRUE`: `mvgls` estimates a measurement-error (intra-specific variance) term and incorporates it into the model. Even without explicit measurement-error values, the function treats this variance as an additional parameter, which is recommended for empirical datasets with within-species variation.
 
@@ -405,3 +402,19 @@ knitr::include_graphics("jaw-shape/branch_rates.png")
 ## Conclusion
 
 This vignette demonstrates how to use the *`bifrost`* package to analyze a complex, high-dimensional dataset to find significant shifts in evolutionary dynamics. Applying `searchOptimalConfiguration()` to a Paleozoic fish jaw dataset, we infer cladogenic events that correspond with significant shifts in multivariate phenotypic evolution, similar to the hypotheses presented in Troyer et al. (2025). This workflow allows us not only to identify *where* shifts occurred but also to quantify the *magnitude* of the change in evolutionary rates through the VCV matrices. For a deeper look at branch-rate summaries and threshold sensitivity in this same dataset, continue to the [rate-map jaw-shape vignette](rate-map-jaw-shape-vignette.html).
+
+## References
+
+- Clavel, J., Aristide, L., and Morlon, H. (2019). *A Penalized Likelihood Framework for High-Dimensional Phylogenetic Comparative Methods and an Application to New-World Monkeys Brain Evolution*. *Systematic Biology*, 68(1), 93-116. [https://doi.org/10.1093/sysbio/syy045](https://doi.org/10.1093/sysbio/syy045)
+- Hoffbeck, J. P., and Landgrebe, D. A. (1996). *Covariance Matrix Estimation and Classification with Limited Training Data*. *IEEE Transactions on Pattern Analysis and Machine Intelligence*, 18(7), 763-767. [https://doi.org/10.1109/34.506799](https://doi.org/10.1109/34.506799)
+- Troyer, E. M., Rivero-Vega, R. A., Cui, X., Zhu, M., Qiao, T., Saad, H. H., Figueroa, R. T., Andrews, J. V., Clement, A. M., Lebedev, O. A., Higgins, R. R., Igielman, B., Pierce, S. E., Giles, S., and Friedman, M. (2025). *Macroevolutionary role reversals in the earliest radiation of bony fishes*. *Current Biology*, 35(19), 4631-4641.e3. [https://doi.org/10.1016/j.cub.2025.08.008](https://doi.org/10.1016/j.cub.2025.08.008)
+- Uyeda, J. C., Caetano, D. S., and Pennell, M. W. (2015). *Comparative Analysis of Principal Components Can Be Misleading*. *Systematic Biology*, 64(4), 677-689. [https://doi.org/10.1093/sysbio/syv019](https://doi.org/10.1093/sysbio/syv019)
+
+## Software Used in This Vignette
+
+- `bifrost` for the shift search, IC-trajectory extraction, and branch-rate color helpers.
+- Clavel, J., Escarguel, G., and Merceron, G. (2015). *mvMORPH: an R package for fitting multivariate evolutionary models to morphometric data*. *Methods in Ecology and Evolution*, 6(11), 1311-1319. [https://doi.org/10.1111/2041-210X.12420](https://doi.org/10.1111/2041-210X.12420)
+- Baken, E. K., Collyer, M. L., Kaliontzopoulou, A., and Adams, D. C. (2021). *geomorph v4.0 and gmShiny: enhanced analytics and a new graphical interface for a comprehensive morphometric experience*. *Methods in Ecology and Evolution*, 12(12), 2355-2363. [https://doi.org/10.1111/2041-210X.13723](https://doi.org/10.1111/2041-210X.13723)
+- Adams, D. C., Collyer, M. L., Kaliontzopoulou, A., and Baken, E. K. (2025). *Geomorph: Software for geometric morphometric analyses*. R package version 4.0.10. [https://CRAN.R-project.org/package=geomorph](https://CRAN.R-project.org/package=geomorph)
+- Paradis, E., and Schliep, K. (2019). *ape 5.0: an environment for modern phylogenetics and evolutionary analyses in R*. *Bioinformatics*, 35(3), 526-528. [https://doi.org/10.1093/bioinformatics/bty633](https://doi.org/10.1093/bioinformatics/bty633)
+- Revell, L. J. (2024). *phytools 2.0: an updated R ecosystem for phylogenetic comparative methods (and other things)*. *PeerJ*, 12, e16505. [https://doi.org/10.7717/peerj.16505](https://doi.org/10.7717/peerj.16505)
