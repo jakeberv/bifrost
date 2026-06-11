@@ -2,7 +2,7 @@
 % Please edit documentation in R/bifrost_search-methods.R
 \name{print.bifrost_search}
 \alias{print.bifrost_search}
-\title{Print method for bifrost search results}
+\title{Print method for \emph{\code{bifrost}} search results}
 \usage{
 \method{print}{bifrost_search}(x, ...)
 }
@@ -15,7 +15,7 @@
 Invisibly returns \code{x}. Called for its printing side effects.
 }
 \description{
-Prints a compact summary of a completed Bifrost search, including the baseline and
+Prints a compact summary of a completed \emph{\code{bifrost}} search, including the baseline and
 optimal information criterion (IC) values, the inferred shift node set, key search
 settings, and (when present) optional diagnostics such as IC-history and IC-weight
 support.

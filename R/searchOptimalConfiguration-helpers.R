@@ -165,7 +165,14 @@
   model_fit_history <- lapply(rds_files, readRDS)
 
   ic_acceptance_matrix <- do.call(rbind, lapply(model_fit_history, function(x) {
-    if (is.null(x$model)) {
+    stored_ic <- if (is.null(x$ic)) {
+      NA_real_
+    } else {
+      suppressWarnings(as.numeric(x$ic[1L]))
+    }
+    if (is.finite(stored_ic)) {
+      c(stored_ic, x$accepted)
+    } else if (is.null(x$model)) {
       c(NA_real_, x$accepted)
     } else {
       c(.bifrost_search_ic_value(x$model, IC), x$accepted)
@@ -234,9 +241,14 @@
       # Store model fit and acceptance status (including delta_ic)
       if (store_model_fit_history) {
         model_fit_history <- list(
+          step = i,
+          candidate_node = shift_node_number,
+          regime_id = as.character(shift_id),
           model = model_with_shift,
+          ic = new_ic,
           accepted = delta_ic >= shift_acceptance_threshold,
-          delta_ic = delta_ic
+          delta_ic = delta_ic,
+          status = if (delta_ic >= shift_acceptance_threshold) "accepted" else "rejected"
         )
       }
 
@@ -267,10 +279,15 @@
 
       # Also store the error in the model fit history
       if (store_model_fit_history) {
-        model_fit_history <- list(
+        model_fit_history <<- list(
+          step = i,
+          candidate_node = shift_node_number,
+          regime_id = as.character(shift_id),
           model = NULL,
+          ic = NA_real_,
           accepted = FALSE,
           delta_ic = NA,
+          status = "error",
           error = e$message
         )
       }
