@@ -28,12 +28,13 @@ completed \code{bifrost_search} object or a compatible search-result list.
 \code{icTrajectory()} is a lightweight extractor. It does not refit models or
 recompute the search. The baseline IC is taken from \code{x$baseline_ic} unless
 \code{baseline_ic} is supplied, and is always included as \code{step = 0}; later rows
-summarize the stored proposal history in \code{x$model_fit_history$fits}. Legacy
-objects that only contain \code{x$model_fit_history$ic_acceptance_matrix}, or
-legacy \code{fits} entries without explicit proposal metadata, are also
-supported. In those legacy cases, \code{candidate_node} cannot be recovered, and
-\code{regime_id} is inferred from proposal order because Bifrost assigns
-candidate shift regimes sequentially during the search.
+summarize the stored proposal history in \code{x$model_fit_history$fits}. When a
+legacy object stores a historical \code{x$model_fit_history$ic_acceptance_matrix},
+those matrix values are used to fill missing proposal IC or acceptance values.
+Objects that only contain the legacy matrix are also supported. In legacy
+cases without explicit proposal metadata, \code{candidate_node} cannot be
+recovered, and \code{regime_id} is inferred from proposal order because \emph{\code{bifrost}}
+assigns candidate shift regimes sequentially during the search.
 
 The returned object is a data frame with class
 \code{c("icTrajectory", "data.frame")} and the following columns:
@@ -57,8 +58,14 @@ search <- list(
   IC_used = "GIC",
   model_fit_history = list(
     fits = list(
-      list(step = 1, candidate_node = 42, regime_id = "1", ic = -1010, accepted = TRUE, delta_ic = 10),
-      list(step = 2, candidate_node = 57, regime_id = "2", ic = -1008, accepted = FALSE, delta_ic = -2)
+      list(
+        step = 1, candidate_node = 42, regime_id = "1",
+        ic = -1010, accepted = TRUE, delta_ic = 10
+      ),
+      list(
+        step = 2, candidate_node = 57, regime_id = "2",
+        ic = -1008, accepted = FALSE, delta_ic = -2
+      )
     )
   )
 )

@@ -8,12 +8,13 @@
 #' `icTrajectory()` is a lightweight extractor. It does not refit models or
 #' recompute the search. The baseline IC is taken from `x$baseline_ic` unless
 #' `baseline_ic` is supplied, and is always included as `step = 0`; later rows
-#' summarize the stored proposal history in `x$model_fit_history$fits`. Legacy
-#' objects that only contain `x$model_fit_history$ic_acceptance_matrix`, or
-#' legacy `fits` entries without explicit proposal metadata, are also
-#' supported. In those legacy cases, `candidate_node` cannot be recovered, and
-#' `regime_id` is inferred from proposal order because Bifrost assigns
-#' candidate shift regimes sequentially during the search.
+#' summarize the stored proposal history in `x$model_fit_history$fits`. When a
+#' legacy object stores a historical `x$model_fit_history$ic_acceptance_matrix`,
+#' those matrix values are used to fill missing proposal IC or acceptance values.
+#' Objects that only contain the legacy matrix are also supported. In legacy
+#' cases without explicit proposal metadata, `candidate_node` cannot be
+#' recovered, and `regime_id` is inferred from proposal order because *`bifrost`*
+#' assigns candidate shift regimes sequentially during the search.
 #'
 #' The returned object is a data frame with class
 #' `c("icTrajectory", "data.frame")` and the following columns:
@@ -47,8 +48,14 @@
 #'   IC_used = "GIC",
 #'   model_fit_history = list(
 #'     fits = list(
-#'       list(step = 1, candidate_node = 42, regime_id = "1", ic = -1010, accepted = TRUE, delta_ic = 10),
-#'       list(step = 2, candidate_node = 57, regime_id = "2", ic = -1008, accepted = FALSE, delta_ic = -2)
+#'       list(
+#'         step = 1, candidate_node = 42, regime_id = "1",
+#'         ic = -1010, accepted = TRUE, delta_ic = 10
+#'       ),
+#'       list(
+#'         step = 2, candidate_node = 57, regime_id = "2",
+#'         ic = -1008, accepted = FALSE, delta_ic = -2
+#'       )
 #'     )
 #'   )
 #' )
@@ -76,9 +83,6 @@ icTrajectory.list <- function(x, baseline_ic = NULL, ...) {
 icTrajectory.default <- function(x, baseline_ic = NULL, ...) {
   if (inherits(x, "icTrajectory")) {
     return(x)
-  }
-  if (is.list(x)) {
-    return(.icTrajectory_from_search_like(x, baseline_ic = baseline_ic))
   }
   stop("`x` must be a `bifrost_search` object or compatible search-result list.")
 }
@@ -108,12 +112,16 @@ icTrajectory.default <- function(x, baseline_ic = NULL, ...) {
     )
   }
 
+  matrix_history <- .icTrajectory_history_matrix(history$ic_acceptance_matrix)
+
   if (!is.list(history$fits)) {
-    if (!is.null(history$ic_acceptance_matrix)) {
-      return(.icTrajectory_from_legacy_matrix(
-        history$ic_acceptance_matrix,
+    if (!is.null(matrix_history)) {
+      return(.icTrajectory_from_entries(
+        entries = .icTrajectory_matrix_entries(matrix_history),
         baseline_ic = baseline_ic,
-        IC = IC
+        IC = IC,
+        baseline_overridden = baseline_overridden,
+        matrix_history = matrix_history
       ))
     }
     stop(
@@ -122,7 +130,20 @@ icTrajectory.default <- function(x, baseline_ic = NULL, ...) {
     )
   }
 
-  entries <- history$fits
+  .icTrajectory_from_entries(
+    entries = history$fits,
+    baseline_ic = baseline_ic,
+    IC = IC,
+    baseline_overridden = baseline_overridden,
+    matrix_history = matrix_history
+  )
+}
+
+.icTrajectory_from_entries <- function(entries,
+                                       baseline_ic,
+                                       IC,
+                                       baseline_overridden = FALSE,
+                                       matrix_history = NULL) {
   n_entries <- length(entries)
 
   out <- data.frame(
@@ -157,10 +178,14 @@ icTrajectory.default <- function(x, baseline_ic = NULL, ...) {
       if (!is.list(entry)) {
         entry <- list()
       }
+      matrix_entry <- .icTrajectory_matrix_entry(matrix_history, i)
 
       step <- .icTrajectory_entry_step(entry, i)
-      ic <- .icTrajectory_entry_ic(entry, IC)
+      ic <- .icTrajectory_entry_ic(entry, IC, fallback_ic = matrix_entry$ic)
       accepted <- .icTrajectory_entry_accepted(entry)
+      if (is.na(accepted)) {
+        accepted <- matrix_entry$accepted
+      }
       error <- .icTrajectory_entry_error(entry)
       status <- .icTrajectory_entry_status(entry, accepted, ic, error)
       delta_ic <- .icTrajectory_entry_delta(
@@ -222,9 +247,6 @@ icTrajectory.default <- function(x, baseline_ic = NULL, ...) {
   if (is.logical(x)) {
     return(as.logical(x))
   }
-  if (is.factor(x)) {
-    x <- as.character(x)
-  }
   if (is.numeric(x) || is.integer(x)) {
     out <- rep(NA, length(x))
     out[x == 1] <- TRUE
@@ -236,18 +258,13 @@ icTrajectory.default <- function(x, baseline_ic = NULL, ...) {
     return(out)
   }
 
-  x_chr <- tolower(trimws(as.character(x)))
-  out <- rep(NA, length(x_chr))
-  out[x_chr %in% c("1", "t", "true", "yes", "accepted")] <- TRUE
-  out[x_chr %in% c("0", "f", "false", "no", "rejected")] <- FALSE
-  invalid <- !is.na(x_chr) & nzchar(x_chr) & is.na(out)
-  if (any(invalid)) {
-    stop("`", name, "` must contain logical values or 0/1 indicators.")
-  }
-  out
+  stop("`", name, "` must contain logical values or 0/1 indicators.")
 }
 
-.icTrajectory_from_legacy_matrix <- function(matrix_data, baseline_ic, IC) {
+.icTrajectory_history_matrix <- function(matrix_data) {
+  if (is.null(matrix_data)) {
+    return(NULL)
+  }
   data <- as.data.frame(matrix_data, stringsAsFactors = FALSE)
   if (nrow(data) == 0L || ncol(data) < 2L) {
     stop("`x$model_fit_history$ic_acceptance_matrix` must have at least two columns.")
@@ -262,48 +279,20 @@ icTrajectory.default <- function(x, baseline_ic = NULL, ...) {
     "x$model_fit_history$ic_acceptance_matrix[, 2]"
   )
 
-  n_entries <- length(ic)
-  out <- data.frame(
-    step = 0:n_entries,
-    ic = c(baseline_ic, ic),
-    accepted = c(NA, accepted),
-    best_ic = rep(NA_real_, n_entries + 1L),
-    delta_ic = rep(NA_real_, n_entries + 1L),
-    status = rep(NA_character_, n_entries + 1L),
-    candidate_node = rep(NA_integer_, n_entries + 1L),
-    regime_id = c("0", as.character(seq_len(n_entries))),
-    error = rep(NA_character_, n_entries + 1L),
-    stringsAsFactors = FALSE
-  )
+  list(ic = ic, accepted = accepted)
+}
 
-  out$status[1L] <- "baseline"
-  out$best_ic[1L] <- baseline_ic
-  current_best <- baseline_ic
+.icTrajectory_matrix_entries <- function(matrix_history) {
+  lapply(seq_along(matrix_history$ic), function(i) list())
+}
 
-  if (n_entries > 0L) {
-    for (i in seq_len(n_entries)) {
-      row <- i + 1L
-      if (!is.finite(out$ic[row])) {
-        out$status[row] <- "error"
-        out$accepted[row] <- FALSE
-      } else if (isTRUE(out$accepted[row])) {
-        out$status[row] <- "accepted"
-      } else {
-        out$status[row] <- "rejected"
-      }
-
-      if (is.finite(current_best) && is.finite(out$ic[row])) {
-        out$delta_ic[row] <- current_best - out$ic[row]
-      }
-      if (identical(out$status[row], "accepted") && is.finite(out$ic[row])) {
-        current_best <- out$ic[row]
-      }
-      out$best_ic[row] <- current_best
-    }
+.icTrajectory_matrix_entry <- function(matrix_history, i) {
+  out <- list(ic = NA_real_, accepted = NA)
+  if (is.null(matrix_history) || i > length(matrix_history$ic)) {
+    return(out)
   }
-
-  class(out) <- c("icTrajectory", "data.frame")
-  attr(out, "IC_used") <- IC
+  out$ic <- matrix_history$ic[i]
+  out$accepted <- matrix_history$accepted[i]
   out
 }
 
@@ -317,12 +306,16 @@ icTrajectory.default <- function(x, baseline_ic = NULL, ...) {
   }
 }
 
-.icTrajectory_entry_ic <- function(entry, IC) {
+.icTrajectory_entry_ic <- function(entry, IC, fallback_ic = NA_real_) {
   if (!is.null(entry$ic)) {
     ic <- suppressWarnings(as.numeric(entry$ic[1L]))
     if (is.finite(ic)) {
       return(ic)
     }
+  }
+
+  if (is.finite(fallback_ic)) {
+    return(fallback_ic)
   }
 
   if (!is.null(entry$model) && !is.na(IC)) {
@@ -389,14 +382,7 @@ icTrajectory.default <- function(x, baseline_ic = NULL, ...) {
 }
 
 .icTrajectory_entry_candidate_node <- function(entry) {
-  candidate_node <- NULL
-  if (!is.null(entry$candidate_node)) {
-    candidate_node <- entry$candidate_node[1L]
-  } else if (!is.null(entry$proposal)) {
-    candidate_node <- entry$proposal[1L]
-  } else if (!is.null(entry$node)) {
-    candidate_node <- entry$node[1L]
-  }
+  candidate_node <- entry$candidate_node[1L]
 
   if (is.null(candidate_node) || length(candidate_node) == 0L || is.na(candidate_node)) {
     return(NA_integer_)
@@ -410,12 +396,7 @@ icTrajectory.default <- function(x, baseline_ic = NULL, ...) {
 }
 
 .icTrajectory_entry_regime_id <- function(entry, fallback = NA_character_) {
-  regime_id <- NULL
-  if (!is.null(entry$regime_id)) {
-    regime_id <- entry$regime_id[1L]
-  } else if (!is.null(entry$shift_id)) {
-    regime_id <- entry$shift_id[1L]
-  }
+  regime_id <- entry$regime_id[1L]
 
   if (is.null(regime_id) || length(regime_id) == 0L || is.na(regime_id)) {
     return(as.character(fallback[1L]))
@@ -577,7 +558,7 @@ plot_ic_acceptance_matrix <- function(matrix_data,
 #' Plot an Information-Criterion Trajectory
 #'
 #' @description
-#' Plot IC scores and the running best IC across a stored Bifrost search
+#' Plot IC scores and the running best IC across a stored *`bifrost`* search
 #' trajectory.
 #'
 #' @param x An `icTrajectory` object.
@@ -586,37 +567,65 @@ plot_ic_acceptance_matrix <- function(matrix_data,
 #'   `"overlay"` draws proposal `delta_ic` values on a secondary y-axis.
 #'   `"panel"` draws them in a lower panel. Logical values are accepted for
 #'   compatibility: `TRUE` maps to `"overlay"` and `FALSE` maps to `"none"`.
+#' @param ic_limits Optional numeric vector of length 2 giving y-limits for
+#'   the primary IC axis.
 #' @param delta_limits Optional numeric vector of length 2 giving y-limits for
 #'   the `delta_ic` panel or secondary axis.
+#' @param delta_orientation Direction for positive `delta_ic` values in overlay
+#'   mode. Use `"up"` to draw positive improvements upward, or `"down"` to draw
+#'   them downward so they align visually with decreasing IC scores.
 #' @param xlab,ylab Axis labels.
-#' @param accepted_pch,rejected_pch,error_pch,baseline_pch,delta_pch Point
-#'   symbols for accepted proposals, rejected proposals, errored proposals, the
-#'   baseline IC, and `delta_ic` points.
-#' @param point_scale,line_scale,text_scale Multipliers for point sizes, line
-#'   widths, and text sizes.
-#' @param accepted_cex,rejected_cex,error_cex,baseline_cex,delta_cex Point-size
-#'   controls for accepted proposals, rejected proposals, errored proposals, the
-#'   baseline IC, and `delta_ic` points.
-#' @param accepted_lwd,rejected_lwd,error_lwd,running_best_lwd,delta_lwd,zero_lwd
-#'   Line-width controls for proposal points, the running-best line, the
-#'   `delta_ic` trace or stems, and the zero-reference line.
-#' @param main_cex,axis_cex,axis_label_cex,annotation_cex,legend_cex Text-size
-#'   controls for the title, tick labels, axis labels, point annotations, and
-#'   legend.
-#' @param legend Logical; if `TRUE`, draw a legend.
-#' @param legend_position Legend position passed to [graphics::legend()]. Use a
-#'   base R legend keyword such as `"topright"` or a numeric vector of length 2.
-#' @param legend_inset Numeric inset passed to [graphics::legend()].
-#' @param legend_bty Legend box type passed to [graphics::legend()], typically
-#'   `"n"` or `"o"`.
-#' @param legend_labels Optional custom legend labels. Provide either a full
-#'   unnamed character vector in display order (`running_best`, `accepted`,
-#'   `rejected`, `baseline`, and `delta` when shown), or a fully named character
-#'   vector replacing any of `running_best`, `accepted`, `rejected`, `baseline`,
-#'   and `delta`.
+#' @param symbols Optional named vector or list of point symbols. Valid names
+#'   are `accepted`, `rejected`, `error`, `baseline`, and `delta`.
+#' @param scales Optional named numeric vector or list of global scale
+#'   multipliers. Valid names are `point`, `line`, and `text`.
+#' @param point_sizes Optional named numeric vector or list of point sizes.
+#'   Valid names are `accepted`, `rejected`, `error`, `baseline`, and `delta`.
+#' @param line_widths Optional named numeric vector or list of line widths.
+#'   Valid names are `accepted`, `rejected`, `error`, `running_best`, `delta`,
+#'   and `zero`.
+#' @param text_sizes Optional named numeric vector or list of text sizes. Valid
+#'   names are `main`, `axis`, `x_axis`, `y_axis`, `delta_axis`, `axis_label`,
+#'   `annotation`, and `legend`.
+#' @param annotation Optional named numeric vector or list of annotation
+#'   settings. Currently supports `baseline_label_offset`, the text offset for
+#'   the baseline IC annotation passed to [graphics::text()] when `pos = 4`.
+#' @param legend Legend controls. Use `TRUE` or `FALSE` to show or hide the
+#'   legend, or provide a named list with any of `show`, `position`, `inset`,
+#'   `bty`, and `labels`. `position`, `inset`, `bty`, and `labels` are passed
+#'   to [graphics::legend()] after validation.
 #' @param ... Unused; included for S3 compatibility.
 #'
 #' @return Invisibly returns `x`.
+#'
+#' @examples
+#' search <- list(
+#'   baseline_ic = -1000,
+#'   IC_used = "GIC",
+#'   model_fit_history = list(
+#'     fits = list(
+#'       list(
+#'         step = 1, candidate_node = 42, regime_id = "1",
+#'         ic = -1010, accepted = TRUE, delta_ic = 10
+#'       ),
+#'       list(
+#'         step = 2, candidate_node = 57, regime_id = "2",
+#'         ic = -1008, accepted = FALSE, delta_ic = -2
+#'       )
+#'     )
+#'   )
+#' )
+#' class(search) <- c("bifrost_search", "list")
+#' traj <- icTrajectory(search)
+#'
+#' plot(traj)
+#' plot(
+#'   traj,
+#'   delta_orientation = "down",
+#'   scales = c(point = 1.2, line = 1.1),
+#'   point_sizes = c(rejected = 0.7),
+#'   legend = list(position = "bottomleft")
+#' )
 #'
 #' @importFrom graphics axis layout legend lines mtext par plot points segments text title
 #' @importFrom grDevices rgb
@@ -624,83 +633,35 @@ plot_ic_acceptance_matrix <- function(matrix_data,
 plot.icTrajectory <- function(x,
                               main = "IC Trajectory",
                               show_delta = "overlay",
+                              ic_limits = NULL,
                               delta_limits = NULL,
+                              delta_orientation = "up",
                               xlab = "Search step",
                               ylab = NULL,
-                              accepted_pch = 21,
-                              rejected_pch = 3,
-                              error_pch = 4,
-                              baseline_pch = 19,
-                              delta_pch = 16,
-                              point_scale = 1,
-                              line_scale = 1,
-                              text_scale = 1,
-                              accepted_cex = 0.68 * point_scale,
-                              rejected_cex = 0.36 * point_scale,
-                              error_cex = 0.55 * point_scale,
-                              baseline_cex = 1.0 * point_scale,
-                              delta_cex = 0.30 * point_scale,
-                              accepted_lwd = 0.30 * line_scale,
-                              rejected_lwd = 0.45 * line_scale,
-                              error_lwd = 0.60 * line_scale,
-                              running_best_lwd = 1.0 * line_scale,
-                              delta_lwd = 0.80 * line_scale,
-                              zero_lwd = 0.70 * line_scale,
-                              main_cex = 1.0 * text_scale,
-                              axis_cex = 0.80 * text_scale,
-                              axis_label_cex = 0.60 * text_scale,
-                              annotation_cex = 0.60 * text_scale,
-                              legend_cex = 0.68 * text_scale,
+                              symbols = NULL,
+                              scales = NULL,
+                              point_sizes = NULL,
+                              line_widths = NULL,
+                              text_sizes = NULL,
+                              annotation = NULL,
                               legend = TRUE,
-                              legend_position = "topright",
-                              legend_inset = 0,
-                              legend_bty = "n",
-                              legend_labels = NULL,
                               ...) {
+  .icTrajectory_check_dots_empty(...)
   if (!inherits(x, "icTrajectory")) {
-    x <- icTrajectory(x)
+    stop("`x` must be an `icTrajectory` object. Call `icTrajectory(x)` before plotting.")
   }
   show_delta <- .icTrajectory_show_delta_mode(show_delta)
+  delta_orientation <- .icTrajectory_delta_orientation(delta_orientation)
   style <- .icTrajectory_plot_style(
-    accepted_pch = accepted_pch,
-    rejected_pch = rejected_pch,
-    error_pch = error_pch,
-    baseline_pch = baseline_pch,
-    delta_pch = delta_pch,
-    point_scale = point_scale,
-    line_scale = line_scale,
-    text_scale = text_scale,
-    accepted_cex = accepted_cex,
-    rejected_cex = rejected_cex,
-    error_cex = error_cex,
-    baseline_cex = baseline_cex,
-    delta_cex = delta_cex,
-    accepted_lwd = accepted_lwd,
-    rejected_lwd = rejected_lwd,
-    error_lwd = error_lwd,
-    running_best_lwd = running_best_lwd,
-    delta_lwd = delta_lwd,
-    zero_lwd = zero_lwd,
-    main_cex = main_cex,
-    axis_cex = axis_cex,
-    axis_label_cex = axis_label_cex,
-    annotation_cex = annotation_cex,
-    legend_cex = legend_cex,
+    symbols = symbols,
+    scales = scales,
+    point_sizes = point_sizes,
+    line_widths = line_widths,
+    text_sizes = text_sizes,
+    annotation = annotation,
     legend = legend,
-    legend_position = legend_position,
-    legend_inset = legend_inset,
-    legend_bty = legend_bty,
-    legend_labels = legend_labels
+    delta_orientation = delta_orientation
   )
-
-  oldpar <- par(no.readonly = TRUE)
-  used_layout <- FALSE
-  on.exit({
-    if (isTRUE(used_layout)) {
-      layout(1)
-    }
-    par(oldpar)
-  }, add = TRUE)
 
   x_values <- x$step
   y_values <- x$ic
@@ -712,12 +673,21 @@ plot.icTrajectory <- function(x,
 
   x_ticks <- pretty(x_values)
   x_limits <- range(x_ticks)
-  y_limits <- .icTrajectory_axis_limits(finite_y)
+  y_limits <- .icTrajectory_axis_limits(finite_y, ic_limits)
   y_ticks <- pretty(y_limits)
   IC <- attr(x, "IC_used")
   ylab <- .icTrajectory_y_label(ylab, IC)
 
   draw_delta <- !identical(show_delta, "none") && any(is.finite(x$delta_ic))
+
+  oldpar <- par(no.readonly = TRUE)
+  used_layout <- FALSE
+  on.exit({
+    if (isTRUE(used_layout)) {
+      layout(1)
+    }
+    par(oldpar)
+  }, add = TRUE)
 
   if (identical(show_delta, "panel") && draw_delta) {
     used_layout <- TRUE
@@ -758,6 +728,7 @@ plot.icTrajectory <- function(x,
       x_limits = x_limits,
       x_ticks = x_ticks,
       delta_limits = delta_limits,
+      delta_orientation = delta_orientation,
       style = style
     )
     par(new = TRUE)
@@ -791,6 +762,19 @@ plot.icTrajectory <- function(x,
   match.arg(show_delta, c("overlay", "panel", "none"))
 }
 
+.icTrajectory_delta_orientation <- function(delta_orientation) {
+  if (!is.character(delta_orientation) ||
+      length(delta_orientation) != 1L ||
+      is.na(delta_orientation)) {
+    stop("`delta_orientation` must be one of \"up\" or \"down\".")
+  }
+  delta_orientation <- tolower(delta_orientation)
+  if (!(delta_orientation %in% c("up", "down"))) {
+    stop("`delta_orientation` must be one of \"up\" or \"down\".")
+  }
+  delta_orientation
+}
+
 .icTrajectory_y_label <- function(ylab, IC) {
   if (!is.null(ylab)) {
     return(ylab)
@@ -801,32 +785,216 @@ plot.icTrajectory <- function(x,
   "IC score"
 }
 
-.icTrajectory_plot_style <- function(...) {
-  style <- list(...)
-  pch_names <- c(
-    "accepted_pch", "rejected_pch", "error_pch",
-    "baseline_pch", "delta_pch"
-  )
-  size_names <- c(
-    "point_scale", "line_scale", "text_scale",
-    "accepted_cex", "rejected_cex", "error_cex", "baseline_cex", "delta_cex",
-    "accepted_lwd", "rejected_lwd", "error_lwd", "running_best_lwd",
-    "delta_lwd", "zero_lwd",
-    "main_cex", "axis_cex", "axis_label_cex", "annotation_cex", "legend_cex"
+.icTrajectory_check_dots_empty <- function(...) {
+  dots <- list(...)
+  if (length(dots) > 0L) {
+    stop("Unused plotting arguments: ", paste(names(dots), collapse = ", "), ".")
+  }
+  invisible(NULL)
+}
+
+.icTrajectory_plot_style <- function(symbols = NULL,
+                                     scales = NULL,
+                                     point_sizes = NULL,
+                                     line_widths = NULL,
+                                     text_sizes = NULL,
+                                     annotation = NULL,
+                                     legend = TRUE,
+                                     delta_orientation = "up") {
+  scales <- .icTrajectory_named_group(scales, c("point", "line", "text"), "scales")
+  point_scale <- .icTrajectory_group_numeric(scales, "point", "scales", default = 1)
+  line_scale <- .icTrajectory_group_numeric(scales, "line", "scales", default = 1)
+  text_scale <- .icTrajectory_group_numeric(scales, "text", "scales", default = 1)
+
+  style <- list(
+    accepted_pch = 21,
+    rejected_pch = 3,
+    error_pch = 4,
+    baseline_pch = 19,
+    delta_pch = 16,
+    accepted_cex = 0.68 * point_scale,
+    rejected_cex = 0.36 * point_scale,
+    error_cex = 0.55 * point_scale,
+    baseline_cex = 1.0 * point_scale,
+    delta_cex = 0.30 * point_scale,
+    accepted_lwd = 0.30 * line_scale,
+    rejected_lwd = 0.45 * line_scale,
+    error_lwd = 0.60 * line_scale,
+    running_best_lwd = 1.0 * line_scale,
+    delta_lwd = 0.80 * line_scale,
+    zero_lwd = 0.70 * line_scale,
+    main_cex = 1.0 * text_scale,
+    axis_cex = 0.80 * text_scale,
+    x_axis_cex = 0.80 * text_scale,
+    y_axis_cex = 0.80 * text_scale,
+    delta_axis_cex = 0.80 * text_scale,
+    axis_label_cex = 0.60 * text_scale,
+    annotation_cex = 0.60 * text_scale,
+    legend_cex = 0.68 * text_scale,
+    baseline_label_offset = 0.5
   )
 
-  for (name in pch_names) {
-    style[[name]] <- .icTrajectory_scalar_pch(style[[name]], name)
+  symbols <- .icTrajectory_named_group(
+    symbols,
+    c("accepted", "rejected", "error", "baseline", "delta"),
+    "symbols"
+  )
+  for (name in names(symbols)) {
+    style[[paste0(name, "_pch")]] <- .icTrajectory_scalar_pch(symbols[[name]], paste0("symbols$", name))
   }
-  for (name in size_names) {
-    style[[name]] <- .icTrajectory_nonnegative_scalar(style[[name]], name)
+
+  point_sizes <- .icTrajectory_named_group(
+    point_sizes,
+    c("accepted", "rejected", "error", "baseline", "delta"),
+    "point_sizes"
+  )
+  for (name in names(point_sizes)) {
+    style[[paste0(name, "_cex")]] <- .icTrajectory_nonnegative_scalar(
+      point_sizes[[name]],
+      paste0("point_sizes$", name)
+    )
   }
-  style$legend <- .icTrajectory_logical_scalar(style$legend, "legend")
-  style$legend_position <- .icTrajectory_legend_position(style$legend_position)
-  style$legend_inset <- .icTrajectory_legend_inset(style$legend_inset)
-  style$legend_bty <- .icTrajectory_legend_bty(style$legend_bty)
-  style$legend_labels <- .icTrajectory_legend_labels_arg(style$legend_labels)
+
+  line_widths <- .icTrajectory_named_group(
+    line_widths,
+    c("accepted", "rejected", "error", "running_best", "delta", "zero"),
+    "line_widths"
+  )
+  for (name in names(line_widths)) {
+    style[[paste0(name, "_lwd")]] <- .icTrajectory_nonnegative_scalar(
+      line_widths[[name]],
+      paste0("line_widths$", name)
+    )
+  }
+
+  text_sizes <- .icTrajectory_named_group(
+    text_sizes,
+    c("main", "axis", "x_axis", "y_axis", "delta_axis", "axis_label", "annotation", "legend"),
+    "text_sizes"
+  )
+  style <- .icTrajectory_apply_text_sizes(style, text_sizes)
+
+  annotation <- .icTrajectory_named_group(
+    annotation,
+    "baseline_label_offset",
+    "annotation"
+  )
+  if (!is.null(annotation$baseline_label_offset)) {
+    style$baseline_label_offset <- .icTrajectory_nonnegative_scalar(
+      annotation$baseline_label_offset,
+      "annotation$baseline_label_offset"
+    )
+  }
+
+  legend <- .icTrajectory_legend_group(legend)
+  style$legend <- legend$show
+  style$legend_position <- .icTrajectory_legend_position(legend$position)
+  style$legend_inset <- .icTrajectory_legend_inset(legend$inset)
+  style$legend_bty <- .icTrajectory_legend_bty(legend$bty)
+  style$legend_labels <- .icTrajectory_legend_labels_arg(legend$labels)
+  style$delta_legend_label <- if (identical(delta_orientation, "down")) {
+    "Delta IC (positive down)"
+  } else {
+    "Delta IC"
+  }
   style
+}
+
+.icTrajectory_named_group <- function(x, keys, name) {
+  if (is.null(x)) {
+    return(list())
+  }
+  if (!is.atomic(x) && !is.list(x)) {
+    stop("`", name, "` must be a named vector or list.")
+  }
+  item_names <- names(x)
+  if (is.null(item_names) || any(!nzchar(item_names))) {
+    stop("`", name, "` entries must be named.")
+  }
+  invalid <- setdiff(item_names, keys)
+  if (length(invalid) > 0L) {
+    stop("Named `", name, "` entries must match known keys.")
+  }
+  as.list(x)
+}
+
+.icTrajectory_group_numeric <- function(group, key, name, default) {
+  if (is.null(group[[key]])) {
+    return(default)
+  }
+  .icTrajectory_nonnegative_scalar(group[[key]], paste0(name, "$", key))
+}
+
+.icTrajectory_apply_text_sizes <- function(style, text_sizes) {
+  if (!is.null(text_sizes$axis)) {
+    axis_cex <- .icTrajectory_nonnegative_scalar(text_sizes$axis, "text_sizes$axis")
+    style$axis_cex <- axis_cex
+    if (is.null(text_sizes$x_axis)) {
+      style$x_axis_cex <- axis_cex
+    }
+    if (is.null(text_sizes$y_axis)) {
+      style$y_axis_cex <- axis_cex
+    }
+    if (is.null(text_sizes$delta_axis)) {
+      style$delta_axis_cex <- style$y_axis_cex
+    }
+  }
+
+  key_map <- c(
+    main = "main_cex",
+    x_axis = "x_axis_cex",
+    y_axis = "y_axis_cex",
+    delta_axis = "delta_axis_cex",
+    axis_label = "axis_label_cex",
+    annotation = "annotation_cex",
+    legend = "legend_cex"
+  )
+  for (key in names(key_map)) {
+    if (!is.null(text_sizes[[key]])) {
+      style[[key_map[[key]]]] <- .icTrajectory_nonnegative_scalar(
+        text_sizes[[key]],
+        paste0("text_sizes$", key)
+      )
+    }
+  }
+  if (!is.null(text_sizes$y_axis) && is.null(text_sizes$delta_axis)) {
+    style$delta_axis_cex <- style$y_axis_cex
+  }
+  style
+}
+
+.icTrajectory_legend_group <- function(legend) {
+  out <- list(
+    show = TRUE,
+    position = "topright",
+    inset = 0,
+    bty = "n",
+    labels = NULL
+  )
+  if (is.null(legend)) {
+    return(out)
+  }
+  if (is.logical(legend)) {
+    out$show <- .icTrajectory_logical_scalar(legend, "legend")
+    return(out)
+  }
+  if (!is.list(legend)) {
+    stop("`legend` must be TRUE, FALSE, or a named list.")
+  }
+  valid_names <- c("show", "position", "inset", "bty", "labels")
+  item_names <- names(legend)
+  if (is.null(item_names) || any(!nzchar(item_names))) {
+    stop("`legend` entries must be named.")
+  }
+  invalid <- setdiff(item_names, valid_names)
+  if (length(invalid) > 0L) {
+    stop("Named `legend` entries must match known keys.")
+  }
+  for (name in item_names) {
+    out[[name]] <- legend[[name]]
+  }
+  out$show <- .icTrajectory_logical_scalar(out$show, "legend$show")
+  out
 }
 
 .icTrajectory_scalar_pch <- function(x, name) {
@@ -911,13 +1079,13 @@ plot.icTrajectory <- function(x,
   x
 }
 
-.icTrajectory_legend_labels <- function(labels, keys) {
+.icTrajectory_legend_labels <- function(labels, keys, delta_label = "Delta IC") {
   defaults <- c(
     running_best = "Running best",
     accepted = "Accepted proposal",
     rejected = "Rejected proposal",
     baseline = "Baseline IC",
-    delta = "Delta IC"
+    delta = delta_label
   )
   out <- defaults[keys]
   if (is.null(labels)) {
@@ -943,7 +1111,16 @@ plot.icTrajectory <- function(x,
   labels
 }
 
-.icTrajectory_axis_limits <- function(values) {
+.icTrajectory_axis_limits <- function(values, limits = NULL) {
+  if (!is.null(limits)) {
+    if (!is.numeric(limits) ||
+        length(limits) != 2L ||
+        any(!is.finite(limits))) {
+      stop("`ic_limits` must be a numeric vector of length 2 with finite values.")
+    }
+    return(sort(as.numeric(limits)))
+  }
+
   limits <- range(values[is.finite(values)])
   pad <- diff(limits) * 0.06
   if (!is.finite(pad) || pad == 0) {
@@ -997,10 +1174,10 @@ plot.icTrajectory <- function(x,
     1,
     at = x_ticks,
     labels = if (isTRUE(draw_x_labels)) x_ticks else FALSE,
-    cex.axis = style$axis_cex,
+    cex.axis = style$x_axis_cex,
     tck = -0.02
   )
-  axis(2, at = y_ticks, labels = y_ticks, las = 1, cex.axis = style$axis_cex, tck = -0.02)
+  axis(2, at = y_ticks, labels = y_ticks, las = 1, cex.axis = style$y_axis_cex, tck = -0.02)
   mtext(ylab, side = 2, line = 3.5, cex = style$axis_label_cex)
 
   best_ok <- is.finite(x$best_ic)
@@ -1064,7 +1241,8 @@ plot.icTrajectory <- function(x,
     text(
       x_values[baseline_i], y_values[baseline_i],
       labels = paste0(round(y_values[baseline_i], 2)),
-      pos = 4, col = "black", cex = style$annotation_cex
+      pos = 4, offset = style$baseline_label_offset,
+      col = "black", cex = style$annotation_cex
     )
   }
 
@@ -1104,7 +1282,11 @@ plot.icTrajectory <- function(x,
     legend_pt_lwd <- c(legend_pt_lwd, NA)
   }
 
-  legend_labels <- .icTrajectory_legend_labels(style$legend_labels, legend_keys)
+  legend_labels <- .icTrajectory_legend_labels(
+    style$legend_labels,
+    legend_keys,
+    delta_label = style$delta_legend_label
+  )
 
   legend(
     style$legend_position,
@@ -1137,8 +1319,8 @@ plot.icTrajectory <- function(x,
     cex.lab = style$axis_label_cex,
     bty = "n"
   )
-  axis(1, at = x_ticks, labels = x_ticks, cex.axis = style$axis_cex, tck = -0.03)
-  axis(2, at = delta_ticks, labels = delta_ticks, las = 1, cex.axis = style$axis_cex, tck = -0.02)
+  axis(1, at = x_ticks, labels = x_ticks, cex.axis = style$x_axis_cex, tck = -0.03)
+  axis(2, at = delta_ticks, labels = delta_ticks, las = 1, cex.axis = style$delta_axis_cex, tck = -0.02)
   mtext("Delta IC", side = 2, line = 3.5, cex = style$axis_label_cex)
   lines(
     x = c(min(x_limits), max(x_limits)),
@@ -1170,16 +1352,32 @@ plot.icTrajectory <- function(x,
   invisible(NULL)
 }
 
-.icTrajectory_plot_delta_overlay <- function(x, x_limits, x_ticks, delta_limits, style) {
+.icTrajectory_plot_delta_overlay <- function(x,
+                                             x_limits,
+                                             x_ticks,
+                                             delta_limits,
+                                             delta_orientation,
+                                             style) {
   x_values <- x$step
   delta_limits <- .icTrajectory_delta_limits(x$delta_ic, delta_limits)
   delta_ticks <- pretty(delta_limits)
+  delta_down <- identical(delta_orientation, "down")
+  plot_limits <- if (isTRUE(delta_down)) {
+    range(-delta_limits)
+  } else {
+    delta_limits
+  }
+  axis_at <- if (isTRUE(delta_down)) {
+    -delta_ticks
+  } else {
+    delta_ticks
+  }
 
   plot(
     x_values, rep(NA_real_, length(x_values)),
     type = "n",
     xlab = "", ylab = "",
-    xlim = x_limits, ylim = delta_limits,
+    xlim = x_limits, ylim = plot_limits,
     xaxt = "n", yaxt = "n", bty = "n"
   )
   lines(
@@ -1189,19 +1387,23 @@ plot.icTrajectory <- function(x,
   )
 
   delta_ok <- is.finite(x$delta_ic)
+  delta_values <- x$delta_ic
+  if (isTRUE(delta_down)) {
+    delta_values <- -delta_values
+  }
   lines(
-    x_values[delta_ok], x$delta_ic[delta_ok],
+    x_values[delta_ok], delta_values[delta_ok],
     col = rgb(0, 0, 0, alpha = 0.45), lwd = style$delta_lwd
   )
   points(
-    x_values[delta_ok], x$delta_ic[delta_ok],
+    x_values[delta_ok], delta_values[delta_ok],
     col = rgb(0, 0, 0, alpha = 0.5),
     pch = style$delta_pch,
     cex = style$delta_cex
   )
   axis(
-    4, at = delta_ticks, labels = delta_ticks,
-    las = 1, cex.axis = style$axis_cex, tck = -0.02,
+    4, at = axis_at, labels = delta_ticks,
+    las = 1, cex.axis = style$delta_axis_cex, tck = -0.02,
     col = rgb(0, 0, 0, alpha = 0.5),
     col.axis = rgb(0, 0, 0, alpha = 0.5)
   )

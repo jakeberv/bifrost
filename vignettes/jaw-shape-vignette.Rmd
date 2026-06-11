@@ -297,11 +297,25 @@ knitr::include_graphics("jaw-shape/cor_heatmap.png")
 # Since we saved the model search history 
 
 # We can inspect the behavior of the search with an IC trajectory.
-plot(icTrajectory(jaws_search), delta_limits = c(-600,300))
+plot(
+  icTrajectory(jaws_search),
+  delta_limits = c(-1000, 1000),
+  delta_orientation = "down",
+  scales = c(point = 1.30, line = 1.25, text = 1.15),
+  point_sizes = c(accepted = 1.05, rejected = 0.75),
+  line_widths = c(running_best = 2.10, rejected = 2.40),
+  text_sizes = c(
+    axis_label = 1.05,
+    y_axis = 0.78,
+    delta_axis = 0.78,
+    legend = 0.70
+  ),
+  annotation = c(baseline_label_offset = 1.35)
+)
 
 ```
 <br>
-```{r IC_decay_fig, echo=FALSE, fig.align="center", out.width="80%", fig.alt="Information-criterion trajectory across sequentially evaluated sub-models. Accepted shifts are shown as blue points, rejected shifts as red crosses, the running best IC as a blue step line, and the baseline IC as a black point. Proposal-level delta IC is also shown."}
+```{r IC_decay_fig, echo=FALSE, fig.align="center", out.width="100%", fig.alt="Information-criterion trajectory across sequentially evaluated sub-models. Accepted shifts are shown as blue points, rejected shifts as red crosses, the running best IC as a blue step line, and the baseline IC as a black point. Proposal-level delta IC is also shown."}
 knitr::include_graphics("jaw-shape/IC_decay.png")
 ```
 

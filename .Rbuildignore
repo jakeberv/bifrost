@@ -22,6 +22,7 @@
 ^check\.log$
 ^CRAN-SUBMISSION$
 ^dev-notes\.md$
+^dev-notes\.local\.md$
 ^CI-notes\.txt$
 ^lint\.txt$
 ^.lintr$

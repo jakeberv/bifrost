@@ -8,38 +8,18 @@
   x,
   main = "IC Trajectory",
   show_delta = "overlay",
+  ic_limits = NULL,
   delta_limits = NULL,
+  delta_orientation = "up",
   xlab = "Search step",
   ylab = NULL,
-  accepted_pch = 21,
-  rejected_pch = 3,
-  error_pch = 4,
-  baseline_pch = 19,
-  delta_pch = 16,
-  point_scale = 1,
-  line_scale = 1,
-  text_scale = 1,
-  accepted_cex = 0.68 * point_scale,
-  rejected_cex = 0.36 * point_scale,
-  error_cex = 0.55 * point_scale,
-  baseline_cex = 1 * point_scale,
-  delta_cex = 0.3 * point_scale,
-  accepted_lwd = 0.3 * line_scale,
-  rejected_lwd = 0.45 * line_scale,
-  error_lwd = 0.6 * line_scale,
-  running_best_lwd = 1 * line_scale,
-  delta_lwd = 0.8 * line_scale,
-  zero_lwd = 0.7 * line_scale,
-  main_cex = 1 * text_scale,
-  axis_cex = 0.8 * text_scale,
-  axis_label_cex = 0.6 * text_scale,
-  annotation_cex = 0.6 * text_scale,
-  legend_cex = 0.68 * text_scale,
+  symbols = NULL,
+  scales = NULL,
+  point_sizes = NULL,
+  line_widths = NULL,
+  text_sizes = NULL,
+  annotation = NULL,
   legend = TRUE,
-  legend_position = "topright",
-  legend_inset = 0,
-  legend_bty = "n",
-  legend_labels = NULL,
   ...
 )
 }
@@ -53,44 +33,43 @@
 \code{"panel"} draws them in a lower panel. Logical values are accepted for
 compatibility: \code{TRUE} maps to \code{"overlay"} and \code{FALSE} maps to \code{"none"}.}
 
+\item{ic_limits}{Optional numeric vector of length 2 giving y-limits for
+the primary IC axis.}
+
 \item{delta_limits}{Optional numeric vector of length 2 giving y-limits for
 the \code{delta_ic} panel or secondary axis.}
 
+\item{delta_orientation}{Direction for positive \code{delta_ic} values in overlay
+mode. Use \code{"up"} to draw positive improvements upward, or \code{"down"} to draw
+them downward so they align visually with decreasing IC scores.}
+
 \item{xlab, ylab}{Axis labels.}
 
-\item{accepted_pch, rejected_pch, error_pch, baseline_pch, delta_pch}{Point
-symbols for accepted proposals, rejected proposals, errored proposals, the
-baseline IC, and \code{delta_ic} points.}
+\item{symbols}{Optional named vector or list of point symbols. Valid names
+are \code{accepted}, \code{rejected}, \code{error}, \code{baseline}, and \code{delta}.}
 
-\item{point_scale, line_scale, text_scale}{Multipliers for point sizes, line
-widths, and text sizes.}
+\item{scales}{Optional named numeric vector or list of global scale
+multipliers. Valid names are \code{point}, \code{line}, and \code{text}.}
 
-\item{accepted_cex, rejected_cex, error_cex, baseline_cex, delta_cex}{Point-size
-controls for accepted proposals, rejected proposals, errored proposals, the
-baseline IC, and \code{delta_ic} points.}
+\item{point_sizes}{Optional named numeric vector or list of point sizes.
+Valid names are \code{accepted}, \code{rejected}, \code{error}, \code{baseline}, and \code{delta}.}
 
-\item{accepted_lwd, rejected_lwd, error_lwd, running_best_lwd, delta_lwd, zero_lwd}{Line-width controls for proposal points, the running-best line, the
-\code{delta_ic} trace or stems, and the zero-reference line.}
+\item{line_widths}{Optional named numeric vector or list of line widths.
+Valid names are \code{accepted}, \code{rejected}, \code{error}, \code{running_best}, \code{delta},
+and \code{zero}.}
 
-\item{main_cex, axis_cex, axis_label_cex, annotation_cex, legend_cex}{Text-size
-controls for the title, tick labels, axis labels, point annotations, and
-legend.}
+\item{text_sizes}{Optional named numeric vector or list of text sizes. Valid
+names are \code{main}, \code{axis}, \code{x_axis}, \code{y_axis}, \code{delta_axis}, \code{axis_label},
+\code{annotation}, and \code{legend}.}
 
-\item{legend}{Logical; if \code{TRUE}, draw a legend.}
+\item{annotation}{Optional named numeric vector or list of annotation
+settings. Currently supports \code{baseline_label_offset}, the text offset for
+the baseline IC annotation passed to \code{\link[graphics:text]{graphics::text()}} when \code{pos = 4}.}
 
-\item{legend_position}{Legend position passed to \code{\link[graphics:legend]{graphics::legend()}}. Use a
-base R legend keyword such as \code{"topright"} or a numeric vector of length 2.}
-
-\item{legend_inset}{Numeric inset passed to \code{\link[graphics:legend]{graphics::legend()}}.}
-
-\item{legend_bty}{Legend box type passed to \code{\link[graphics:legend]{graphics::legend()}}, typically
-\code{"n"} or \code{"o"}.}
-
-\item{legend_labels}{Optional custom legend labels. Provide either a full
-unnamed character vector in display order (\code{running_best}, \code{accepted},
-\code{rejected}, \code{baseline}, and \code{delta} when shown), or a fully named character
-vector replacing any of \code{running_best}, \code{accepted}, \code{rejected}, \code{baseline},
-and \code{delta}.}
+\item{legend}{Legend controls. Use \code{TRUE} or \code{FALSE} to show or hide the
+legend, or provide a named list with any of \code{show}, \code{position}, \code{inset},
+\code{bty}, and \code{labels}. \code{position}, \code{inset}, \code{bty}, and \code{labels} are passed
+to \code{\link[graphics:legend]{graphics::legend()}} after validation.}
 
 \item{...}{Unused; included for S3 compatibility.}
 }
@@ -98,6 +77,36 @@ and \code{delta}.}
 Invisibly returns \code{x}.
 }
 \description{
-Plot IC scores and the running best IC across a stored Bifrost search
+Plot IC scores and the running best IC across a stored \emph{\code{bifrost}} search
 trajectory.
+}
+\examples{
+search <- list(
+  baseline_ic = -1000,
+  IC_used = "GIC",
+  model_fit_history = list(
+    fits = list(
+      list(
+        step = 1, candidate_node = 42, regime_id = "1",
+        ic = -1010, accepted = TRUE, delta_ic = 10
+      ),
+      list(
+        step = 2, candidate_node = 57, regime_id = "2",
+        ic = -1008, accepted = FALSE, delta_ic = -2
+      )
+    )
+  )
+)
+class(search) <- c("bifrost_search", "list")
+traj <- icTrajectory(search)
+
+plot(traj)
+plot(
+  traj,
+  delta_orientation = "down",
+  scales = c(point = 1.2, line = 1.1),
+  point_sizes = c(rejected = 0.7),
+  legend = list(position = "bottomleft")
+)
+
 }
