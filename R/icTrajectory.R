@@ -1365,7 +1365,7 @@ plot.icTrajectory <- function(x,
     xaxt = "n", yaxt = "n", bty = "n"
   )
   lines(
-    x = c(min(x_values), max(x_ticks)),
+    x = c(min(x_limits), max(x_limits)),
     y = c(0, 0),
     col = rgb(0, 0, 0, alpha = 0.5), lwd = style$zero_lwd
   )
