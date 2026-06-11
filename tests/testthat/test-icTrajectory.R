@@ -46,14 +46,47 @@ close_device_trajectory <- function() {
   try(grDevices::dev.off(), silent = TRUE)
 }
 
-if (!exists(".bifrost_search_ic_value", mode = "function")) {
-  .bifrost_search_ic_value <- function(model_result, IC) {
-    if (identical(IC, "GIC")) {
-      model_result$GIC$GIC
-    } else {
-      model_result$BIC$BIC
+trajectory_test_internals <- c(
+  "icTrajectory.default",
+  "plot.icTrajectory",
+  ".bifrost_search_ic_value",
+  ".icTrajectory_axis_limits",
+  ".icTrajectory_delta_limits",
+  ".icTrajectory_entry_accepted",
+  ".icTrajectory_entry_candidate_node",
+  ".icTrajectory_entry_ic",
+  ".icTrajectory_entry_regime_id",
+  ".icTrajectory_entry_step",
+  ".icTrajectory_legend_group",
+  ".icTrajectory_legend_inset",
+  ".icTrajectory_legend_label_vector",
+  ".icTrajectory_legend_labels",
+  ".icTrajectory_legend_labels_arg",
+  ".icTrajectory_logical_vector",
+  ".icTrajectory_named_group",
+  ".icTrajectory_numeric_vector",
+  ".icTrajectory_plot_delta_panel",
+  ".icTrajectory_plot_style",
+  ".icTrajectory_scalar_numeric",
+  ".icTrajectory_show_delta_mode",
+  ".icTrajectory_y_label"
+)
+trajectory_test_ns <- asNamespace("bifrost")
+for (name in trajectory_test_internals) {
+  value <- if (exists(name, mode = "function", inherits = TRUE)) {
+    get(name, mode = "function", inherits = TRUE)
+  } else if (identical(name, ".bifrost_search_ic_value")) {
+    function(model_result, IC) {
+      if (identical(IC, "GIC")) {
+        model_result$GIC$GIC
+      } else {
+        model_result$BIC$BIC
+      }
     }
+  } else {
+    get(name, envir = trajectory_test_ns, mode = "function", inherits = FALSE)
   }
+  assign(name, value, envir = environment())
 }
 
 testthat::test_that("icTrajectory extracts baseline and proposal rows from bifrost_search", {

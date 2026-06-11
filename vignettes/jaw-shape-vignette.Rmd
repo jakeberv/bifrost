@@ -1,11 +1,11 @@
 ---
-title: "Detecting Evolutionary Shifts in Paleozoic Fish Jaw Shape with *`bifrost`*"
+title: "Detecting Evolutionary Shifts in Paleozoic Fish Jaw Shape with bifrost"
 output:
   rmarkdown::html_vignette: default
   rmarkdown::pdf_document:
     latex_engine: xelatex
 vignette: >
-  %\VignetteIndexEntry{Detecting Evolutionary Shifts in Paleozoic Fish Jaw Shape with *`bifrost`*}
+  %\VignetteIndexEntry{Detecting Evolutionary Shifts in Paleozoic Fish Jaw Shape with bifrost}
   %\VignetteEncoding{UTF-8}
   %\VignetteEngine{knitr::rmarkdown}
 ---

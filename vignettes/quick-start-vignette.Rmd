@@ -1,8 +1,8 @@
 ---
-title: "Quick Start with *`bifrost`*"
+title: "Quick Start with bifrost"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Quick Start with *`bifrost`*}
+  %\VignetteIndexEntry{Quick Start with bifrost}
   %\VignetteEncoding{UTF-8}
   %\VignetteEngine{knitr::rmarkdown}
 ---
