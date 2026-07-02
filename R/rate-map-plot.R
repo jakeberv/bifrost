@@ -102,6 +102,7 @@
       length(n_colors) != 1L ||
       !is.finite(n_colors) ||
       n_colors < 1L ||
+      n_colors != as.integer(n_colors) ||
       length(breaks) != as.integer(n_colors) + 1L ||
       any(!is.finite(breaks)) ||
       is.unsorted(breaks, strictly = TRUE) ||

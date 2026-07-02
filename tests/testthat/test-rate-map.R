@@ -1476,6 +1476,7 @@ test_that("rateMap palette resolution handles names, vectors, and reversal", {
   testthat::expect_null(.rateMap_category_legend_breaks(c(0, 1), c(1L, 2L)))
   testthat::expect_null(.rateMap_category_legend_breaks(c(0, 1), NA_real_))
   testthat::expect_null(.rateMap_category_legend_breaks(c(0, 1), 0L))
+  testthat::expect_null(.rateMap_category_legend_breaks(c(0, 1, 2), 2.2))
   testthat::expect_null(.rateMap_category_legend_breaks(c(1, 4), 2L))
   testthat::expect_null(.rateMap_category_legend_breaks(c(0, NA_real_, 1), 2L))
   testthat::expect_null(.rateMap_category_legend_breaks(c(0, 2, 2), 2L))
