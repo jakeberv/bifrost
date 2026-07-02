@@ -1461,6 +1461,25 @@ test_that("rateMap palette resolution handles names, vectors, and reversal", {
     )),
     c(0.99, 1.01)
   )
+  fisher_breaks <- c(-14.22, -13.69, -13.21, -12.91, -12.57, -11.40, -10.57)
+  testthat::expect_equal(
+    .rateMap_category_legend_breaks(fisher_breaks, 6L),
+    fisher_breaks
+  )
+  xs <- .rateMap_category_legend_x(fisher_breaks, 0, 1)
+  testthat::expect_equal(diff(xs), diff(fisher_breaks) / diff(range(fisher_breaks)))
+  leftward_xs <- .rateMap_category_legend_x(fisher_breaks, 0, 1, "leftwards")
+  testthat::expect_equal(abs(diff(leftward_xs)), diff(xs))
+  testthat::expect_equal(leftward_xs[c(1L, length(leftward_xs))], c(1, 0))
+  testthat::expect_null(.rateMap_category_legend_breaks("not numeric", 1L))
+  testthat::expect_null(.rateMap_category_legend_breaks(c(0, 1), "two"))
+  testthat::expect_null(.rateMap_category_legend_breaks(c(0, 1), c(1L, 2L)))
+  testthat::expect_null(.rateMap_category_legend_breaks(c(0, 1), NA_real_))
+  testthat::expect_null(.rateMap_category_legend_breaks(c(0, 1), 0L))
+  testthat::expect_null(.rateMap_category_legend_breaks(c(0, 1, 2), 2.2))
+  testthat::expect_null(.rateMap_category_legend_breaks(c(1, 4), 2L))
+  testthat::expect_null(.rateMap_category_legend_breaks(c(0, NA_real_, 1), 2L))
+  testthat::expect_null(.rateMap_category_legend_breaks(c(0, 2, 2), 2L))
   testthat::expect_null(.rateMap_add_category_legend(list(rate_categories = NULL)))
   testthat::expect_equal(
     .rateMap_map_value(c("0" = 1), c("0" = 7), start = 2, end = 3),
@@ -1517,6 +1536,22 @@ test_that("rateMap uses progress/workers and plot() draws separately", {
   .rate_map_with_pdf({
     graphics::plot.new()
     graphics::plot.window(xlim = c(0, 1), ylim = c(0, 1))
+    testthat::expect_equal(
+      .rateMap_category_legend_label_index(c("0", "1"), c(0, 1), 1),
+      c(1L, 2L)
+    )
+    testthat::expect_equal(
+      .rateMap_category_legend_label_index(c("0", "1", "2"), c(0, 0.5, 1), 0.5),
+      1:3
+    )
+    testthat::expect_equal(
+      .rateMap_category_legend_label_index(
+        c("long left label", "long middle label", "long right label"),
+        c(0, 0.01, 0.02),
+        2
+      ),
+      c(1L, 3L)
+    )
     testthat::expect_null(.rateMap_add_category_legend(
       list(
         rate_categories = data.frame(lower = 1, upper = 1, value = 1),
@@ -1527,6 +1562,23 @@ test_that("rateMap uses progress/workers and plot() draws separately", {
       legend = 0.5,
       x_pos = 0.2,
       y_pos = 0.2
+    ))
+
+    testthat::expect_null(.rateMap_add_category_legend(
+      list(
+        rate_categories = data.frame(
+          lower = c(0, 2),
+          upper = c(2, 5),
+          value = c(NA_real_, NA_real_)
+        ),
+        cols = c(slow = "red", fast = "blue"),
+        category_breaks = c(0, 2, 5),
+        title = "custom categories",
+        lims = c(0, 5)
+      ),
+      legend = 0.5,
+      x_pos = 0.2,
+      y_pos = 0.3
     ))
 
     out <- .rate_map_eval_no_error(rateMap(

@@ -38,7 +38,9 @@ discrete ordered bins or \code{"continuous"} for a continuous ramp.}
 \item{category_bin_method}{Optional automatic category-binning method:
 \code{"pretty"} or \code{"equal"}.}
 
-\item{category_breaks}{Optional strictly increasing category boundaries.}
+\item{category_breaks}{Optional strictly increasing category boundaries.
+Category legends draw valid numeric interval breaks with proportional
+segment widths.}
 
 \item{category_labels}{Optional labels for displayed categories.}
 

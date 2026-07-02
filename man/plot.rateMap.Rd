@@ -68,7 +68,9 @@ for equal-width numeric intervals. Ignored when \code{category_breaks} is
 supplied.}
 
 \item{category_breaks}{Optional category-break override for
-\code{color_mode = "category"}. Custom breaks override automatic bins.}
+\code{color_mode = "category"}. Custom breaks override automatic bins. Category
+legends draw valid numeric interval breaks with proportional segment
+widths.}
 
 \item{category_labels}{Optional category-label override for
 \code{color_mode = "category"}.}

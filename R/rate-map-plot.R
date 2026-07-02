@@ -96,6 +96,52 @@
   markers
 }
 
+.rateMap_category_legend_breaks <- function(breaks, n_colors) {
+  if (!is.numeric(breaks) ||
+      !is.numeric(n_colors) ||
+      length(n_colors) != 1L ||
+      !is.finite(n_colors) ||
+      n_colors < 1L ||
+      n_colors != as.integer(n_colors) ||
+      length(breaks) != as.integer(n_colors) + 1L ||
+      any(!is.finite(breaks)) ||
+      is.unsorted(breaks, strictly = TRUE) ||
+      diff(range(breaks)) <= 0) {
+    return(NULL)
+  }
+
+  breaks
+}
+
+.rateMap_category_legend_x <- function(breaks, x0, x1, direction = "rightwards") {
+  legend <- x1 - x0
+  frac <- (breaks - min(breaks)) / diff(range(breaks))
+  if (identical(direction, "leftwards")) {
+    x1 - frac * legend
+  } else {
+    x0 + frac * legend
+  }
+}
+
+.rateMap_category_legend_label_index <- function(labels, tick_x, fsize) {
+  n_labels <- length(labels)
+  if (n_labels <= 2L) {
+    return(seq_len(n_labels))
+  }
+
+  label_widths <- graphics::strwidth(labels, cex = fsize)
+  tick_order <- order(tick_x)
+  gap <- diff(tick_x[tick_order])
+  ordered_widths <- label_widths[tick_order]
+  fits <- all((utils::head(ordered_widths, -1L) + utils::tail(ordered_widths, -1L)) / 2 <=
+                0.9 * gap)
+  if (isTRUE(fits)) {
+    seq_len(n_labels)
+  } else {
+    c(1L, n_labels)
+  }
+}
+
 .rateMap_add_category_legend <- function(x,
                                          legend,
                                          x_pos,
@@ -189,29 +235,52 @@
     )
   } else {
     bar_cols <- x$cols
-    if (length(bar_cols) == 1L) {
-      bar_cols <- rep(bar_cols, 2L)
+    legend_breaks <- .rateMap_category_legend_breaks(x$category_breaks, length(bar_cols))
+    if (!is.null(legend_breaks)) {
+      xs <- .rateMap_category_legend_x(legend_breaks, x0, x1, direction)
+      graphics::rect(
+        pmin(utils::head(xs, -1L), utils::tail(xs, -1L)),
+        y0,
+        pmax(utils::head(xs, -1L), utils::tail(xs, -1L)),
+        y1,
+        col = unname(bar_cols),
+        border = NA
+      )
+      graphics::segments(xs, y0, xs, y1, col = "grey20", lwd = 0.5)
+      break_labels <- formatC(legend_breaks, digits = digits, format = "fg")
+      label_index <- .rateMap_category_legend_label_index(break_labels, xs, fsize)
+      graphics::text(
+        xs[label_index],
+        rep(y1 + label_gap, length(label_index)),
+        labels = break_labels[label_index],
+        cex = fsize,
+        adj = c(0.5, 0.5)
+      )
+    } else {
+      if (length(bar_cols) == 1L) {
+        bar_cols <- rep(bar_cols, 2L)
+      }
+      if (identical(direction, "leftwards")) {
+        bar_cols <- rev(bar_cols)
+        lims <- rev(lims)
+      }
+      xs <- seq(x0, x1, length.out = length(bar_cols) + 1L)
+      graphics::rect(
+        xs[-length(xs)],
+        y0,
+        xs[-1L],
+        y1,
+        col = unname(bar_cols),
+        border = NA
+      )
+      graphics::text(
+        c(x0, x1),
+        rep(y1 + label_gap, 2L),
+        labels = formatC(lims, digits = digits, format = "fg"),
+        cex = fsize,
+        adj = c(0.5, 0.5)
+      )
     }
-    if (identical(direction, "leftwards")) {
-      bar_cols <- rev(bar_cols)
-      lims <- rev(lims)
-    }
-    xs <- seq(x0, x1, length.out = length(bar_cols) + 1L)
-    graphics::rect(
-      xs[-length(xs)],
-      y0,
-      xs[-1L],
-      y1,
-      col = unname(bar_cols),
-      border = NA
-    )
-    graphics::text(
-      c(x0, x1),
-      rep(y1 + label_gap, 2L),
-      labels = formatC(lims, digits = digits, format = "fg"),
-      cex = fsize,
-      adj = c(0.5, 0.5)
-    )
   }
   if (isTRUE(outline)) {
     graphics::rect(x0, y0, x1, y1, border = "grey30")
@@ -498,6 +567,8 @@
 #' @param category_bin_method Optional automatic category-binning method:
 #'   `"pretty"` or `"equal"`.
 #' @param category_breaks Optional strictly increasing category boundaries.
+#'   Category legends draw valid numeric interval breaks with proportional
+#'   segment widths.
 #' @param category_labels Optional labels for displayed categories.
 #' @param ncolors Optional number of colors for continuous ramps. If omitted,
 #'   the stored `x$ncolors` value is used, falling back to `256` for older
@@ -928,7 +999,9 @@ rateMapView <- function(x,
 #'   for equal-width numeric intervals. Ignored when `category_breaks` is
 #'   supplied.
 #' @param category_breaks Optional category-break override for
-#'   `color_mode = "category"`. Custom breaks override automatic bins.
+#'   `color_mode = "category"`. Custom breaks override automatic bins. Category
+#'   legends draw valid numeric interval breaks with proportional segment
+#'   widths.
 #' @param category_labels Optional category-label override for
 #'   `color_mode = "category"`.
 #' @param legend_title Optional legend title override for this plot.
