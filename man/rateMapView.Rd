@@ -39,8 +39,8 @@ discrete ordered bins or \code{"continuous"} for a continuous ramp.}
 \code{"pretty"} or \code{"equal"}.}
 
 \item{category_breaks}{Optional strictly increasing category boundaries.
-Category legends draw valid numeric interval breaks with proportional segment
-widths.}
+Category legends draw valid numeric interval breaks with proportional
+segment widths.}
 
 \item{category_labels}{Optional labels for displayed categories.}
 
