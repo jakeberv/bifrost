@@ -217,6 +217,46 @@ rate_map_format_legend <- function(x) {
   formatC(x, digits = 3, format = "fg")
 }
 
+rate_map_category_legend_breaks <- function(breaks, n_colors) {
+  if (!is.numeric(breaks) ||
+      !is.numeric(n_colors) ||
+      length(n_colors) != 1L ||
+      !is.finite(n_colors) ||
+      n_colors < 1L ||
+      n_colors != as.integer(n_colors) ||
+      length(breaks) != as.integer(n_colors) + 1L ||
+      any(!is.finite(breaks)) ||
+      is.unsorted(breaks, strictly = TRUE) ||
+      diff(range(breaks)) <= 0) {
+    return(NULL)
+  }
+
+  breaks
+}
+
+rate_map_category_legend_x <- function(breaks, x0, x1) {
+  x0 + (breaks - min(breaks)) / diff(range(breaks)) * (x1 - x0)
+}
+
+rate_map_category_legend_label_index <- function(labels, tick_x, fsize) {
+  n_labels <- length(labels)
+  if (n_labels <= 2L) {
+    return(seq_len(n_labels))
+  }
+
+  label_widths <- graphics::strwidth(labels, cex = fsize)
+  tick_order <- order(tick_x)
+  gap <- diff(tick_x[tick_order])
+  ordered_widths <- label_widths[tick_order]
+  fits <- all((utils::head(ordered_widths, -1L) + utils::tail(ordered_widths, -1L)) / 2 <=
+                0.9 * gap)
+  if (isTRUE(fits)) {
+    seq_len(n_labels)
+  } else {
+    c(1L, n_labels)
+  }
+}
+
 rate_map_rate_marker_to_value <- function(rate, log) {
   if (!is.numeric(rate) || length(rate) != 1L || !is.finite(rate)) {
     return(NA_real_)
@@ -282,9 +322,6 @@ rate_map_add_color_bar <- function(x, legend, y_frac = 0.19, fsize = 0.9,
   y0 <- usr[3] + y_frac * yr
 
   cols <- unname(x$cols)
-  if (length(cols) == 1L) {
-    cols <- rep(cols, 2L)
-  }
 
   bar_height <- 0.012 * yr * max(lwd / 3, 0.75)
   label_gap <- 0.018 * yr * max(fsize, 0.75)
@@ -348,22 +385,48 @@ rate_map_add_color_bar <- function(x, legend, y_frac = 0.19, fsize = 0.9,
       adj = c(0.5, 0.5)
     )
   } else {
-    xs <- seq(x0, x1, length.out = length(cols) + 1L)
-    graphics::rect(
-      xs[-length(xs)],
-      y0,
-      xs[-1L],
-      y0 + bar_height,
-      col = cols,
-      border = NA
-    )
-    graphics::text(
-      c(x0, x1),
-      rep(y0 + bar_height + label_gap, 2L),
-      labels = rate_map_format_legend(lims),
-      cex = fsize,
-      adj = c(0.5, 0.5)
-    )
+    legend_breaks <- rate_map_category_legend_breaks(x$category_breaks, length(cols))
+    if (!is.null(legend_breaks)) {
+      xs <- rate_map_category_legend_x(legend_breaks, x0, x1)
+      graphics::rect(
+        pmin(utils::head(xs, -1L), utils::tail(xs, -1L)),
+        y0,
+        pmax(utils::head(xs, -1L), utils::tail(xs, -1L)),
+        y0 + bar_height,
+        col = cols,
+        border = NA
+      )
+      graphics::segments(xs, y0, xs, y0 + bar_height, col = "grey20", lwd = 0.5)
+      break_labels <- rate_map_format_legend(legend_breaks)
+      label_index <- rate_map_category_legend_label_index(break_labels, xs, fsize)
+      graphics::text(
+        xs[label_index],
+        rep(y0 + bar_height + label_gap, length(label_index)),
+        labels = break_labels[label_index],
+        cex = fsize,
+        adj = c(0.5, 0.5)
+      )
+    } else {
+      if (length(cols) == 1L) {
+        cols <- rep(cols, 2L)
+      }
+      xs <- seq(x0, x1, length.out = length(cols) + 1L)
+      graphics::rect(
+        xs[-length(xs)],
+        y0,
+        xs[-1L],
+        y0 + bar_height,
+        col = cols,
+        border = NA
+      )
+      graphics::text(
+        c(x0, x1),
+        rep(y0 + bar_height + label_gap, 2L),
+        labels = rate_map_format_legend(lims),
+        cex = fsize,
+        adj = c(0.5, 0.5)
+      )
+    }
   }
   graphics::text(
     mean(c(x0, x1)),

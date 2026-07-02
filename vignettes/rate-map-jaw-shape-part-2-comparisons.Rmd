@@ -423,7 +423,8 @@ jaw_target_rate_map <- rateMap(
   model.
 - In `plot(x, ...)`, `n_categories` sets the target number of automatic
   category bins; `category_bin_method = "equal"` and `category_breaks` give
-  more direct bin control; `ncolors` controls continuous ramps.
+  more direct bin control; numeric manual breaks also set proportional category
+  legend segment widths; `ncolors` controls continuous ramps.
 - Uncertainty maps identify branches where inferred log-rates are stable or
   threshold-sensitive.
 

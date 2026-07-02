@@ -335,6 +335,13 @@ plot(
 knitr::include_graphics(rate_map_artifact("equal_weight_branch_category_ratemap_default.png"))
 ```
 
+```{r rebuild_equal_weight_first_pass_figure, include = FALSE, eval = FALSE}
+rate_map_save_arc_figure(
+  "equal_weight_branch_category_ratemap_default.png",
+  jaw_rate_map_equal_first
+)
+```
+
 In this jaw-shape example, the lowest-rate branches form a broader lower-tail
 cluster that deserves an explicit diagnostic display choice.
 
@@ -475,6 +482,10 @@ plot(jaw_rate_map_equal, n_categories = 5, category_bin_method = "equal")
 plot(jaw_rate_map_equal, category_breaks = c(-17, -15, -13, -11))
 ```
 
+When manual numeric `category_breaks` define unequal intervals, the category
+legend uses proportional segment widths so the displayed bin geometry follows
+the numeric rate scale.
+
 ## Practical Takeaways
 
 - Holding `min_descendant_tips = 10` fixed keeps the candidate-node filter
@@ -489,7 +500,8 @@ plot(jaw_rate_map_equal, category_breaks = c(-17, -15, -13, -11))
   preserving fitted values in the output object.
 - In `plot(x, ...)`, `n_categories` sets the target number of automatic
   category bins; `category_bin_method = "equal"` and `category_breaks` give
-  more direct bin control; `ncolors` controls continuous ramps.
+  more direct bin control; numeric manual breaks also set proportional category
+  legend segment widths; `ncolors` controls continuous ramps.
 
 ## Next Steps
 
