@@ -90,19 +90,14 @@ template:
             '  gap: 0.45rem;',
             '  margin-top: 0.75rem;',
             '}',
-            '.article-artifact-actions .btn {',
-            '  align-items: center;',
-            '  display: inline-flex;',
-            '  gap: 0.35rem;',
-            '  line-height: 1.2;',
-            '}',
+            '.article-artifact-actions .article-pdf-badge,',
             '.article-artifact-actions .article-colab-badge {',
             '  align-items: center;',
             '  display: inline-flex;',
             '  line-height: 1;',
             '  text-decoration: none;',
             '}',
-            '.article-artifact-actions .article-colab-badge img {',
+            '.article-artifact-actions img {',
             '  display: block;',
             '  height: 20px;',
             '}'
@@ -114,9 +109,15 @@ template:
           actions.setAttribute('aria-label', 'Article downloads and notebooks');
 
           const pdf = document.createElement('a');
-          pdf.className = 'btn btn-outline-primary btn-sm';
+          pdf.className = 'article-pdf-badge';
           pdf.href = './' + slug + '.pdf';
-          pdf.textContent = 'Download PDF';
+          pdf.title = 'Download PDF';
+          pdf.setAttribute('aria-label', 'Download PDF');
+
+          const pdfImage = document.createElement('img');
+          pdfImage.src = 'https://img.shields.io/badge/Download%20as%20PDF-EF3939?style=flat-square&logo=adobeacrobatreader&logoColor=white&labelColor=ec1c24';
+          pdfImage.alt = 'Download as PDF';
+          pdf.appendChild(pdfImage);
 
           const colab = document.createElement('a');
           colab.className = 'article-colab-badge';
