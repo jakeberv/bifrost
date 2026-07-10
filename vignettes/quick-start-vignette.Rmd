@@ -1,6 +1,9 @@
 ---
 title: "Quick Start with bifrost"
-output: rmarkdown::html_vignette
+output:
+  rmarkdown::html_vignette: default
+  rmarkdown::pdf_document:
+    latex_engine: xelatex
 vignette: >
   %\VignetteIndexEntry{Quick Start with bifrost}
   %\VignetteEncoding{UTF-8}

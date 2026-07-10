@@ -17,7 +17,9 @@ articles:
 template:
   bootstrap: 5
   includes:
-    in_header: pkgdown/extra-head.html
+    in_header: |
+      <script data-goatcounter="https://bifrost.goatcounter.com/count"
+              async src="https://gc.zgo.at/count.js"></script>
     after_body: |
       <script type="module">
       // Load a pinned, stable Mermaid (v10) and force it to be the one we use.
@@ -48,6 +50,90 @@ template:
 
           mermaid.initialize({ startOnLoad: false, theme: "neutral" });
           mermaid.run({ querySelector: '.mermaid' });
+        };
+
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', run);
+        } else {
+          run();
+        }
+      })();
+      </script>
+      <script>
+      (function addArticleArtifacts() {
+        const run = () => {
+          const article = document.querySelector('.template-article');
+          const header = article && article.querySelector('main .page-header');
+          if (!header || header.querySelector('.article-artifact-actions')) return;
+
+          const sourceCode = header.querySelector('small.dont-index code');
+          const nameCode = header.querySelector('.name code');
+          const sourceText = (sourceCode && sourceCode.textContent) ||
+            (nameCode && nameCode.textContent) ||
+            window.location.pathname.split('/').pop() ||
+            '';
+          let slug = sourceText.replace(/^.*\//, '');
+          const lowerSlug = slug.toLowerCase();
+          if (lowerSlug.endsWith('.rmd')) {
+            slug = slug.slice(0, -4);
+          } else if (lowerSlug.endsWith('.html')) {
+            slug = slug.slice(0, -5);
+          }
+          if (!slug) return;
+
+          const style = document.createElement('style');
+          style.textContent = [
+            '.article-artifact-actions {',
+            '  align-items: center;',
+            '  display: flex;',
+            '  flex-wrap: wrap;',
+            '  gap: 0.45rem;',
+            '  margin-top: 0.75rem;',
+            '}',
+            '.article-artifact-actions .btn {',
+            '  align-items: center;',
+            '  display: inline-flex;',
+            '  gap: 0.35rem;',
+            '  line-height: 1.2;',
+            '}',
+            '.article-artifact-actions .article-colab-badge {',
+            '  align-items: center;',
+            '  display: inline-flex;',
+            '  line-height: 1;',
+            '  text-decoration: none;',
+            '}',
+            '.article-artifact-actions .article-colab-badge img {',
+            '  display: block;',
+            '  height: 20px;',
+            '}'
+          ].join('\n');
+          document.head.appendChild(style);
+
+          const actions = document.createElement('div');
+          actions.className = 'article-artifact-actions';
+          actions.setAttribute('aria-label', 'Article downloads and notebooks');
+
+          const pdf = document.createElement('a');
+          pdf.className = 'btn btn-outline-primary btn-sm';
+          pdf.href = './' + slug + '.pdf';
+          pdf.textContent = 'Download PDF';
+
+          const colab = document.createElement('a');
+          colab.className = 'article-colab-badge';
+          colab.href = 'https://colab.research.google.com/github/jakeberv/bifrost/blob/main/vignettes/colab/' +
+            slug + '.ipynb';
+          colab.target = '_blank';
+          colab.rel = 'noopener noreferrer';
+          colab.title = 'Open in Colab';
+          colab.setAttribute('aria-label', 'Open in Colab');
+
+          const colabImage = document.createElement('img');
+          colabImage.src = 'https://colab.research.google.com/assets/colab-badge.svg';
+          colabImage.alt = 'Open In Colab';
+          colab.appendChild(colabImage);
+
+          actions.append(pdf, colab);
+          header.appendChild(actions);
         };
 
         if (document.readyState === 'loading') {
