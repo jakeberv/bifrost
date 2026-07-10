@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import glob
 import json
 import os
 import re
@@ -31,16 +30,6 @@ def find_repo_root(start: Path) -> Path:
 def discover_slugs(repo_root: Path) -> list[str]:
     rmds = sorted((repo_root / "vignettes").glob("*.Rmd"))
     return [path.stem for path in rmds]
-
-
-def cell(cell_type: str, source: str) -> dict:
-    return {
-        "cell_type": cell_type,
-        "metadata": {},
-        "source": source,
-        "outputs": [] if cell_type == "code" else None,
-        "execution_count": None if cell_type == "code" else None,
-    } | ({} if cell_type == "code" else {"metadata": {}})
 
 
 def markdown_cell(source: str) -> dict:
