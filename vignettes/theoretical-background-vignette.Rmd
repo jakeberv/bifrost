@@ -776,7 +776,7 @@ $$
 $$
 
 ```{r bm_paths, echo = FALSE, fig.width = 10.2, fig.height = 4.9, fig.cap = "**Figure 1.** Brownian motion with two rates. Left: slow green trajectories \\(\\left(\\sigma^2 = 0.1\\right)\\) remain tightly clustered, whereas fast orange trajectories \\(\\left(\\sigma^2 = 0.9\\right)\\) spread more rapidly. Larger \\(\\sigma^2\\) increases diffusion, not directional tendency. Right: disparity through time. Solid colored lines show the mean sampled disparity across repeated batches of 20 trajectories, and ribbons show the central 95% range across those batches.", fig.alt = "Two-panel side-by-side figure. Left panel shows slow green Brownian motion trajectories and fast orange trajectories. Right panel shows mean sampled disparity lines with empirical ribbons for both rates."}
-set.seed(0.1)
+set.seed(0L)
 times <- seq(0, 1, length.out = 250)
 
 simulate_bm_path <- function(sigma2) {

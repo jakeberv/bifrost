@@ -52,7 +52,11 @@ list_repo_files <- function(path) {
 
 discover_vignette_slugs <- function() {
   slugs <- character()
-  parsed <- tryCatch(yaml::read_yaml("_pkgdown.yml"), error = function(e) NULL)
+  parsed <- if (requireNamespace("yaml", quietly = TRUE)) {
+    tryCatch(yaml::read_yaml("_pkgdown.yml"), error = function(e) NULL)
+  } else {
+    NULL
+  }
   if (!is.null(parsed)) {
     collect_contents <- function(x) {
       out <- character()

@@ -3,19 +3,26 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import tempfile
 from pathlib import Path
 
 
-def run(repo: Path, *args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
+def run(
+    repo: Path,
+    *args: str,
+    check: bool = True,
+    env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
     result = subprocess.run(
         args,
         cwd=repo,
         check=False,
         text=True,
         capture_output=True,
+        env=env,
     )
     if check and result.returncode != 0:
         raise AssertionError(
@@ -90,6 +97,43 @@ def main() -> None:
     all_slugs = run(
         source, "Rscript", "tools/vignette_artifacts.R", "slugs", "--sep", "space"
     ).stdout.split()
+
+    with tempfile.TemporaryDirectory(prefix="bifrost-r-profile-") as temp:
+        profile = Path(temp) / "Rprofile"
+        profile.write_text(
+            "invisible(utils::capture.output(trace(\n"
+            "  base::loadNamespace,\n"
+            "  tracer = quote(if (identical(package, 'yaml')) {\n"
+            "    stop('yaml hidden for artifact test')\n"
+            "  }),\n"
+            "  print = FALSE\n"
+            ")))\n"
+            "requireNamespace <- function(package, ...) {\n"
+            "  if (identical(package, 'yaml')) return(FALSE)\n"
+            "  base::requireNamespace(package, ...)\n"
+            "}\n"
+        )
+        env = os.environ.copy()
+        env["R_PROFILE_USER"] = str(profile)
+        fallback_slugs = run(
+            source,
+            "Rscript",
+            "tools/vignette_artifacts.R",
+            "slugs",
+            "--sep",
+            "space",
+            env=env,
+        ).stdout.split()
+        assert_plan(fallback_slugs, all_slugs, "slug discovery without yaml")
+
+    theoretical_rmd = (
+        source / "vignettes/theoretical-background-vignette.Rmd"
+    ).read_text()
+    theoretical_notebook = (
+        source / "vignettes/colab/theoretical-background-vignette.ipynb"
+    ).read_text()
+    if "set.seed(0.1)" in theoretical_rmd or "set.seed(0.1)" in theoretical_notebook:
+        raise AssertionError("theoretical vignette must use an explicit integer seed")
 
     with tempfile.TemporaryDirectory(prefix="bifrost-artifact-tests-") as temp:
         repo = Path(temp) / "repo"
