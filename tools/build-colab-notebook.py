@@ -19,7 +19,9 @@ RAW_BASE = "https://raw.githubusercontent.com/jakeberv/bifrost/main/vignettes"
 PKGDOWN_ARTICLES = "https://jakeberv.com/bifrost/articles"
 COMMON_COLAB_PACKAGES = ("remotes", "knitr")
 COLAB_PACKAGES_BY_SLUG = {
+    "jaw-shape-vignette": ("geomorph",),
     "pca-model-selection-and-bifrost-vignette": ("phylolm",),
+    "rate-map-jaw-shape-vignette": ("geomorph",),
 }
 
 
@@ -116,15 +118,8 @@ def is_eval_false(header: str) -> bool:
     return header_has(header, "eval", "FALSE")
 
 
-def is_eval_true(header: str) -> bool:
-    return header_has(header, "eval", "TRUE")
-
-
-def sets_default_eval_false(code: str) -> bool:
-    return (
-        "opts_chunk$set" in code
-        and re.search(r"\beval\s*=\s*FALSE\b", code, re.IGNORECASE) is not None
-    )
+def is_hidden_unevaluated(header: str) -> bool:
+    return header_has(header, "include", "FALSE") and is_eval_false(header)
 
 
 def is_html_or_pkgdown(header: str, code: str) -> bool:
@@ -218,40 +213,26 @@ def convert(slug: str, repo_root: Path) -> dict:
         code_cell(setup_source(slug)),
     ]
 
-    default_eval_false = False
     for block_type, header, content in parse_chunks(body):
         if block_type == "markdown":
             if content:
                 cells.append(markdown_cell(rewrite_markdown_links(content) + "\n"))
             continue
 
-        image_paths = image_paths_from_code(content)
-        effective_eval_false = is_eval_false(header) or (default_eval_false and not is_eval_true(header))
-
-        if image_paths and not effective_eval_false:
-            cells.append(markdown_cell(raw_image_markdown(image_paths) + "\n"))
-            if sets_default_eval_false(content):
-                default_eval_false = True
+        if is_hidden_unevaluated(header):
             continue
 
-        if effective_eval_false:
-            if content.strip():
-                cells.append(markdown_cell("```r\n" + content.strip() + "\n```\n"))
-            if sets_default_eval_false(content):
-                default_eval_false = True
+        image_paths = image_paths_from_code(content)
+        if image_paths:
+            cells.append(markdown_cell(raw_image_markdown(image_paths) + "\n"))
             continue
 
         if is_html_or_pkgdown(header, content):
             cells.append(markdown_cell("_This pkgdown-only HTML chunk was omitted from the Colab notebook._\n"))
-            if sets_default_eval_false(content):
-                default_eval_false = True
             continue
 
         if content.strip():
             cells.append(code_cell(content.strip() + "\n"))
-
-        if sets_default_eval_false(content):
-            default_eval_false = True
 
     return {
         "cells": cells,
