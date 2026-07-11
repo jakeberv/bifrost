@@ -422,6 +422,25 @@ test_that("search print data carries the progress setting", {
   testthat::expect_match(rendered, "Progress: TRUE", fixed = TRUE)
 })
 
+test_that("print.bifrost_search formats captured threshold expressions", {
+  object <- structure(
+    list(
+      user_input = list(
+        shift_acceptance_threshold = quote(-Inf),
+        progress = TRUE
+      ),
+      shift_nodes_no_uncertainty = integer(),
+      warnings = character()
+    ),
+    class = c("bifrost_search", "list")
+  )
+
+  testthat::expect_no_error(
+    output <- paste(testthat::capture_output(print(object)), collapse = "\n")
+  )
+  testthat::expect_match(output, "Threshold: -Inf", fixed = TRUE)
+})
+
 .fake_candidate_fit <- function(IC, formula, tree, trait_data, ...) {
   list(GIC = list(GIC = tree$ic))
 }

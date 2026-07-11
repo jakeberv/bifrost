@@ -219,7 +219,10 @@
     .bifrost_kv("Regimes", ifelse(is.na(d$regimes), "NA", .bifrost_fmt_int(d$regimes))),
     .bifrost_kv("MinTips", if (!is.null(d$min_desc)) .bifrost_fmt_int(d$min_desc) else NULL),
     .bifrost_kv("Cores", if (!is.null(d$num_cores)) .bifrost_fmt_int(d$num_cores) else NULL),
-    .bifrost_kv("Threshold", if (!is.null(d$thr)) .bifrost_fmt_num(as.numeric(d$thr), 2) else NULL)
+    .bifrost_kv(
+      "Threshold",
+      if (!is.null(d$thr)) .bifrost_fmt_val(d$thr, digits = 2) else NULL
+    )
   )
   .bifrost_pack_line(
     2,
