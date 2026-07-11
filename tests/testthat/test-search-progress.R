@@ -70,7 +70,7 @@ test_that("search status rows appear progressively and finalize together", {
         tick(message = paste(label, "complete"))
         list(value = label, done = paste(label, "done"))
       },
-      handler = session$handler(label)
+      session = session
     )
   }
 
@@ -237,9 +237,9 @@ test_that("search CLI renderer finalizes persistent rows as separate lines", {
   testthat::expect_gte(length(rendered), 2L)
 })
 
-test_that("search CLI renderer emits output through an active row", {
-  old_cli_dynamic <- options(cli.dynamic = TRUE)
-  on.exit(options(old_cli_dynamic), add = TRUE)
+test_that("search CLI renderer redraws active rows below verbose output", {
+  old_cli_options <- options(cli.dynamic = TRUE, cli.width = 200)
+  on.exit(options(old_cli_options), add = TRUE)
   session <- .bifrost_search_progress_session(TRUE)
   on.exit(session$finalize(), add = TRUE)
 
@@ -247,21 +247,33 @@ test_that("search CLI renderer emits output through an active row", {
     .bifrost_search_run_stage(
       enabled = TRUE,
       steps = 1L,
-      initial_message = "[1/1] Output stage",
+      initial_message = "[1/3] Candidate scoring",
       work = function(tick) {
-        tick(message = "[1/1] Output stage complete")
-        list(value = NULL, done = "[1/1] Output stage done")
+        tick(message = "[1/3] Candidate scoring complete")
+        list(value = NULL, done = "[1/3] Candidate scoring done")
       },
-      handler = session$handler("[1/1] Output stage")
+      session = session
     )
-    session$output("real renderer verbose output")
-    session$finalize()
+    session$output("verbose detail")
+    .bifrost_search_run_stage(
+      enabled = TRUE,
+      steps = 1L,
+      initial_message = "[2/3] Greedy shift search",
+      work = function(tick) {
+        tick(message = "[2/3] Greedy shift search complete")
+        list(value = NULL, done = "[2/3] Greedy shift search done")
+      },
+      session = session
+    )
     session$finalize()
   }, type = "message")
 
   plain <- cli::ansi_strip(paste(rendered, collapse = "\n"))
-  testthat::expect_match(plain, "real renderer verbose output", fixed = TRUE)
-  testthat::expect_match(plain, "[1/1] Output stage", fixed = TRUE)
+  verbose_pos <- max(gregexpr("verbose detail", plain, fixed = TRUE)[[1L]])
+  stage1_pos <- max(gregexpr("[1/3] Candidate scoring", plain, fixed = TRUE)[[1L]])
+  stage2_pos <- max(gregexpr("[2/3] Greedy shift search", plain, fixed = TRUE)[[1L]])
+  testthat::expect_gt(stage1_pos, verbose_pos)
+  testthat::expect_gt(stage2_pos, verbose_pos)
 })
 
 test_that("search progress stage runner reports lifecycle and returns work value", {
@@ -818,16 +830,21 @@ test_that("candidate scoring emits heartbeats without advancing completion", {
   testthat::expect_gte(sum(update_amounts == 0), 2L)
 })
 
-test_that("search emits candidate and greedy stages independently of verbose", {
+test_that("public search shares progress rows with verbose output", {
   testthat::skip_if_not_installed("ape")
   testthat::skip_if_not_installed("phytools")
   testthat::skip_if_not_installed("mvMORPH")
 
   events <- new.env(parent = emptyenv())
-  events$types <- character()
-  events$messages <- character()
+  events$created <- character()
+  events$updates <- list()
+  events$output <- character()
+  events$done <- character()
+  progress_session <- .bifrost_search_progress_session
   testthat::local_mocked_bindings(
-    .bifrost_search_progress_handler = function() .collect_progress_handler(events)
+    .bifrost_search_progress_session = function(enabled) {
+      progress_session(enabled, .recording_search_renderer(events))
+    }
   )
 
   set.seed(20260711)
@@ -847,18 +864,29 @@ test_that("search emits candidate and greedy stages independently of verbose", {
       plot = FALSE,
       IC = "GIC",
       store_model_fit_history = FALSE,
-      verbose = FALSE,
+      verbose = TRUE,
       method = "LL"
     )
   )
 
-  finish_messages <- events$messages[events$types == "finish"]
   testthat::expect_s3_class(result, "bifrost_search")
   testthat::expect_identical(result$user_input$progress, TRUE)
-  testthat::expect_true(any(grepl("[1/3] Candidate scoring", finish_messages, fixed = TRUE)))
-  testthat::expect_true(any(grepl("[2/3] Greedy shift search", finish_messages, fixed = TRUE)))
-  testthat::expect_match(skipped, "[3/3] IC-weight re-estimation", fixed = TRUE)
-  testthat::expect_false(any(grepl("Generating candidate shift models", skipped, fixed = TRUE)))
+  testthat::expect_identical(events$created, c(
+    "[1/3] Candidate scoring",
+    "[2/3] Greedy shift search",
+    "[3/3] IC-weight re-estimation"
+  ))
+  testthat::expect_true(any(grepl(
+    "Sorting and evaluating shifts",
+    events$output,
+    fixed = TRUE
+  )))
+  testthat::expect_identical(events$done, paste0("row-", 1:3))
+  testthat::expect_true(any(grepl(
+    "Generating candidate shift models",
+    skipped,
+    fixed = TRUE
+  )))
 })
 
 test_that("greedy search ticks for accepted, rejected, and recoverable-error fits", {
@@ -1099,9 +1127,12 @@ test_that("public search renders progress through accepted-shift weight re-estim
   testthat::skip_if_not_installed("mvMORPH")
 
   events <- new.env(parent = emptyenv())
-  events$types <- character()
-  events$messages <- character()
+  events$created <- character()
+  events$updates <- list()
+  events$output <- character()
+  events$done <- character()
   fit_count <- 0L
+  progress_session <- .bifrost_search_progress_session
   testthat::local_mocked_bindings(
     fitMvglsAndExtractGIC.formula = function(formula, tree, trait_data, ...) {
       fit_count <<- fit_count + 1L
@@ -1111,7 +1142,9 @@ test_that("public search renders progress through accepted-shift weight re-estim
       )
     },
     removeShiftFromTree = function(tree, shift_node, stem = FALSE) tree,
-    .bifrost_search_progress_handler = function() .collect_progress_handler(events)
+    .bifrost_search_progress_session = function(enabled) {
+      progress_session(enabled, .recording_search_renderer(events))
+    }
   )
 
   set.seed(20260714)
@@ -1135,17 +1168,17 @@ test_that("public search renders progress through accepted-shift weight re-estim
     method = "LL"
   ))
 
-  finish_messages <- events$messages[events$types == "finish"]
   testthat::expect_gt(length(result$shift_nodes_no_uncertainty), 0L)
   testthat::expect_equal(
     nrow(result$ic_weights),
     length(result$shift_nodes_no_uncertainty)
   )
-  testthat::expect_true(any(grepl(
-    "[3/3] IC-weight re-estimation",
-    finish_messages,
-    fixed = TRUE
-  )))
+  testthat::expect_identical(events$created, c(
+    "[1/3] Candidate scoring",
+    "[2/3] Greedy shift search",
+    "[3/3] IC-weight re-estimation"
+  ))
+  testthat::expect_identical(events$done, paste0("row-", 1:3))
 })
 
 test_that("requested IC-weight stage reports why zero-shift work is skipped", {
@@ -1158,13 +1191,18 @@ test_that("requested IC-weight stage reports why zero-shift work is skipped", {
   traits <- matrix(stats::rnorm(20), ncol = 2)
   rownames(traits) <- tree$tip.label
   events <- new.env(parent = emptyenv())
-  events$types <- character()
-  events$messages <- character()
+  events$created <- character()
+  events$updates <- list()
+  events$output <- character()
+  events$done <- character()
+  progress_session <- .bifrost_search_progress_session
   testthat::local_mocked_bindings(
-    .bifrost_search_progress_handler = function() .collect_progress_handler(events)
+    .bifrost_search_progress_session = function(enabled) {
+      progress_session(enabled, .recording_search_renderer(events))
+    }
   )
 
-  messages <- testthat::capture_messages(
+  suppressWarnings(
     searchOptimalConfiguration(
       baseline_tree = tree,
       trait_data = traits,
@@ -1182,11 +1220,13 @@ test_that("requested IC-weight stage reports why zero-shift work is skipped", {
     )
   )
 
+  statuses <- vapply(events$updates, `[[`, character(1), "status")
   testthat::expect_true(any(grepl(
     "[3/3] IC-weight re-estimation - skipped: no accepted shifts",
-    messages,
+    statuses,
     fixed = TRUE
   )))
+  testthat::expect_identical(events$done, paste0("row-", 1:3))
 })
 
 test_that("zero-candidate searches leave all three skipped stage lines", {
@@ -1198,8 +1238,19 @@ test_that("zero-candidate searches leave all three skipped stage lines", {
   tree <- ape::rtree(10)
   traits <- matrix(stats::rnorm(20), ncol = 2)
   rownames(traits) <- tree$tip.label
+  events <- new.env(parent = emptyenv())
+  events$created <- character()
+  events$updates <- list()
+  events$output <- character()
+  events$done <- character()
+  progress_session <- .bifrost_search_progress_session
+  testthat::local_mocked_bindings(
+    .bifrost_search_progress_session = function(enabled) {
+      progress_session(enabled, .recording_search_renderer(events))
+    }
+  )
 
-  messages <- testthat::capture_messages(
+  suppressWarnings(
     searchOptimalConfiguration(
       baseline_tree = tree,
       trait_data = traits,
@@ -1217,7 +1268,14 @@ test_that("zero-candidate searches leave all three skipped stage lines", {
     )
   )
 
-  testthat::expect_true(any(grepl("[1/3] Candidate scoring - skipped", messages, fixed = TRUE)))
-  testthat::expect_true(any(grepl("[2/3] Greedy shift search - skipped", messages, fixed = TRUE)))
-  testthat::expect_true(any(grepl("[3/3] IC-weight re-estimation - skipped", messages, fixed = TRUE)))
+  testthat::expect_identical(events$created, c(
+    "[1/3] Candidate scoring",
+    "[2/3] Greedy shift search",
+    "[3/3] IC-weight re-estimation"
+  ))
+  statuses <- vapply(events$updates, `[[`, character(1), "status")
+  testthat::expect_true(any(grepl("[1/3] Candidate scoring - skipped", statuses, fixed = TRUE)))
+  testthat::expect_true(any(grepl("[2/3] Greedy shift search - skipped", statuses, fixed = TRUE)))
+  testthat::expect_true(any(grepl("[3/3] IC-weight re-estimation - skipped", statuses, fixed = TRUE)))
+  testthat::expect_identical(events$done, paste0("row-", 1:3))
 })

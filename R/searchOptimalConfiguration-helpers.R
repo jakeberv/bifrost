@@ -443,11 +443,21 @@
                                       steps,
                                       initial_message,
                                       work,
-                                      handler = .bifrost_search_progress_handler()) {
+                                      handler = NULL,
+                                      session = NULL) {
   if (!isTRUE(enabled)) {
     no_op_tick <- function(...) invisible(NULL)
     stage_result <- work(no_op_tick)
     return(stage_result$value)
+  }
+
+  owns_session <- is.null(session) && is.null(handler)
+  if (owns_session) {
+    session <- .bifrost_search_progress_session(TRUE)
+    on.exit(session$finalize(), add = TRUE)
+  }
+  if (is.null(handler)) {
+    handler <- session$handler(initial_message)
   }
 
   progressr::with_progress(
@@ -472,9 +482,16 @@
   )
 }
 
-.bifrost_search_report_skipped_stage <- function(enabled, label, reason) {
+.bifrost_search_report_skipped_stage <- function(enabled,
+                                                 label,
+                                                 reason,
+                                                 session = NULL) {
   if (isTRUE(enabled)) {
-    cli::cli_alert_info("{label} - skipped: {reason}")
+    if (!is.null(session)) {
+      session$skip(label, reason)
+    } else {
+      cli::cli_alert_info("{label} - skipped: {reason}")
+    }
   }
 
   invisible(NULL)

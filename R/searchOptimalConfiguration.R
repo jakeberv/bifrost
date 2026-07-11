@@ -347,6 +347,9 @@ searchOptimalConfiguration <-
     on.exit(options(bifrost.verbose = old_verbose_opt), add = TRUE)
     options(bifrost.verbose = isTRUE(verbose))
 
+    progress_session <- .bifrost_search_progress_session(isTRUE(progress))
+    on.exit(progress_session$finalize(), add = TRUE)
+
     #internal helper for capturing verbose output
     .progress <- function(...) {
       if (!isTRUE(verbose)) return(invisible(NULL))
@@ -354,7 +357,9 @@ searchOptimalConfiguration <-
       txt <- sprintf(...)
 
       # In RStudio interactive plotting, use stdout (cat) because messages can get swallowed.
-      if (isTRUE(plot) && interactive() && identical(Sys.getenv("RSTUDIO"), "1")) {
+      if (progress_session$has_rows()) {
+        progress_session$output(txt)
+      } else if (isTRUE(plot) && interactive() && identical(Sys.getenv("RSTUDIO"), "1")) {
         cat(txt, "\n", sep = "")
         if (sink.number(type = "output") == 0) utils::flush.console()
       } else {
@@ -405,6 +410,7 @@ searchOptimalConfiguration <-
         enabled = progress,
         steps = length(candidate_trees_shifts),
         initial_message = "[1/3] Candidate scoring",
+        session = progress_session,
         work = function(tick) {
           value <- .bifrost_search_score_candidates(
             candidate_trees_shifts = candidate_trees_shifts,
@@ -440,7 +446,8 @@ searchOptimalConfiguration <-
       .bifrost_search_report_skipped_stage(
         progress,
         "[1/3] Candidate scoring",
-        "no eligible candidate shifts"
+        "no eligible candidate shifts",
+        session = progress_session
       )
       candidate_scores <- .bifrost_search_score_candidates(
         candidate_trees_shifts = candidate_trees_shifts,
@@ -513,6 +520,7 @@ searchOptimalConfiguration <-
         enabled = progress,
         steps = length(sorted_candidates),
         initial_message = "[2/3] Greedy shift search",
+        session = progress_session,
         work = function(tick) {
           value <- run_forward_search(tick)
           counts <- value$outcome_counts
@@ -534,7 +542,8 @@ searchOptimalConfiguration <-
       .bifrost_search_report_skipped_stage(
         progress,
         "[2/3] Greedy shift search",
-        "no candidates to evaluate"
+        "no candidates to evaluate",
+        session = progress_session
       )
       forward_search <- run_forward_search(function(...) invisible(NULL))
     }
@@ -602,13 +611,15 @@ searchOptimalConfiguration <-
       .bifrost_search_report_skipped_stage(
         progress,
         "[3/3] IC-weight re-estimation",
-        "not requested"
+        "not requested",
+        session = progress_session
       )
     } else if (weight_reestimation_requested && accepted_shift_count == 0L) {
       .bifrost_search_report_skipped_stage(
         progress,
         "[3/3] IC-weight re-estimation",
-        "no accepted shifts"
+        "no accepted shifts",
+        session = progress_session
       )
     }
 
@@ -645,6 +656,7 @@ searchOptimalConfiguration <-
         enabled = progress,
         steps = accepted_shift_count,
         initial_message = "[3/3] IC-weight re-estimation",
+        session = progress_session,
         work = function(tick) {
           value <- calculate_ic_weights(tick)
           list(
