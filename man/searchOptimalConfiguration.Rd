@@ -18,8 +18,8 @@ searchOptimalConfiguration(
   IC = "GIC",
   store_model_fit_history = TRUE,
   verbose = FALSE,
-  progress = TRUE,
-  ...
+  ...,
+  progress = TRUE
 )
 }
 \arguments{
@@ -98,15 +98,6 @@ acceptance, rejection, and IC messages. By default, these details are emitted vi
 they are written via \code{cat()} so they remain visible while plots are updating.
 This is independent of \code{progress}.}
 
-\item{progress}{Logical. If \code{TRUE} (default), show three persistent CLI progress
-lines for candidate scoring, the greedy shift search, and optional IC-weight
-re-estimation. On dynamic terminals, the spinner redraws continuously while a model
-fit is running; counts, percentages, and ETA advance only after completed fits.
-To keep the main process responsive for these redraws, otherwise serial fits run one
-at a time in a background Future. Set to \code{FALSE} to disable these lines and the
-heartbeat path; use \code{progress = FALSE, verbose = FALSE} for completely quiet
-execution.}
-
 \item{...}{Additional arguments passed to \code{\link[mvMORPH]{mvgls}} (e.g., \code{method},
 \code{penalty}, \code{target}, \code{error}, \code{REML}, etc.). In the workflows
 emphasized in the package vignettes, \code{method = "H&L"} is used for
@@ -116,6 +107,15 @@ should also be used when \code{IC = "BIC"}. In \pkg{mvMORPH}, \code{method = "H&
 is restricted to intercept-only models and the \code{"RidgeArch"} penalty.
 Setting \code{error = TRUE} asks \code{mvgls()} to estimate a nuisance
 measurement-error (intraspecific-variance) term from the data.}
+
+\item{progress}{Logical. If \code{TRUE} (default), show three persistent CLI progress
+lines for candidate scoring, the greedy shift search, and optional IC-weight
+re-estimation. On dynamic terminals, the spinner redraws continuously while a model
+fit is running; counts, percentages, and ETA advance only after completed fits.
+To keep the main process responsive for these redraws, otherwise serial fits run one
+at a time in a background Future. Set to \code{FALSE} to disable these lines and the
+heartbeat path; use \code{progress = FALSE, verbose = FALSE} for completely quiet
+execution.}
 }
 \value{
 A named \code{list} with (at minimum):

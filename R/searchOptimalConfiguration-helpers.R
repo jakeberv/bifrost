@@ -143,7 +143,7 @@
       current = row$current,
       total = row$total,
       status = status,
-      force = TRUE
+      force = !heartbeat || cli::is_dynamic_tty("stderr")
     )
     stage_rows[[index]] <<- row
     invisible(NULL)

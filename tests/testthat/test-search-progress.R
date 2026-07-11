@@ -620,6 +620,44 @@ test_that("search CLI handler can render a heartbeat with its private state", {
   testthat::expect_true(any(grepl("render heartbeat", rendered, fixed = TRUE)))
 })
 
+test_that("non-dynamic search output stays bounded across heartbeats", {
+  old_cli_options <- options(cli.dynamic = FALSE, cli.width = 200)
+  on.exit(options(old_cli_options), add = TRUE)
+  session <- .bifrost_search_progress_session(TRUE)
+  handler <- session$handler("non-dynamic heartbeat stage")
+  reporter <- get("reporter", envir = environment(handler))
+  config <- list(max_steps = 3L)
+
+  rendered <- utils::capture.output({
+    reporter$initiate(
+      config,
+      list(step = 0L, message = "starting"),
+      list(amount = 1)
+    )
+    reporter$update(
+      config,
+      list(step = 1L, message = "one complete"),
+      list(amount = 1)
+    )
+    for (i in seq_len(8L)) {
+      reporter$update(
+        config,
+        list(step = 2L, message = paste("heartbeat", i)),
+        list(amount = 0)
+      )
+    }
+    reporter$finish(
+      config,
+      list(step = 3L, message = "stage complete"),
+      list(amount = 1)
+    )
+    session$finalize()
+  }, type = "message")
+
+  testthat::expect_lte(length(rendered), 5L)
+  testthat::expect_true(any(grepl("stage complete", rendered, fixed = TRUE)))
+})
+
 test_that("search CLI reporter handles every terminal lifecycle callback", {
   events <- new.env(parent = emptyenv())
   events$created <- character()
@@ -690,6 +728,184 @@ test_that("search progress is a default-on public argument", {
     formals(searchOptimalConfiguration)$progress,
     TRUE
   )
+})
+
+test_that("public search keeps positional dots while progress is keyword-only", {
+  testthat::skip_if_not_installed("ape")
+  testthat::skip_if_not_installed("phytools")
+
+  set.seed(20260715)
+  tree <- ape::rtree(6)
+  traits <- matrix(stats::rnorm(12), ncol = 2)
+  rownames(traits) <- tree$tip.label
+  forwarded_methods <- character()
+  enabled_sessions <- logical()
+  events <- new.env(parent = emptyenv())
+  events$created <- character()
+  events$updates <- list()
+  events$output <- character()
+  events$done <- character()
+  progress_session <- .bifrost_search_progress_session
+
+  testthat::local_mocked_bindings(
+    generatePaintedTrees = function(tree, min_tips, state = "shift") {
+      list(tree)
+    },
+    fitMvglsAndExtractGIC.formula = function(formula, tree, trait_data, ...) {
+      dots <- list(...)
+      forwarded_methods <<- c(
+        forwarded_methods,
+        if (length(dots) == 0L) "<missing>" else dots[[1L]]
+      )
+      list(
+        model = list(corrSt = list(phy = tree)),
+        GIC = list(GIC = 100)
+      )
+    },
+    .bifrost_search_forward = function(
+        sorted_candidates,
+        current_best_tree,
+        current_best_ic,
+        ...) {
+      list(
+        current_best_tree = current_best_tree,
+        current_best_ic = current_best_ic,
+        shift_vec = list(),
+        shifts_no_uncertainty = integer(),
+        model_with_shift_no_uncertainty = NULL,
+        best_tree_no_uncertainty = NULL,
+        warnings_list = list(),
+        outcome_counts = c(accepted = 0L, rejected = 0L, error = 0L),
+        model_fit_history = list()
+      )
+    },
+    .bifrost_search_progress_session = function(enabled) {
+      enabled_sessions <<- c(enabled_sessions, enabled)
+      progress_session(enabled, .recording_search_renderer(events))
+    }
+  )
+
+  positional_args <- list(
+    baseline_tree = tree,
+    trait_data = traits,
+    formula = "trait_data ~ 1",
+    min_descendant_tips = ape::Ntip(tree),
+    num_cores = 1,
+    ic_uncertainty_threshold = 1,
+    shift_acceptance_threshold = 1e9,
+    uncertaintyweights = FALSE,
+    uncertaintyweights_par = FALSE,
+    plot = FALSE,
+    IC = "GIC",
+    store_model_fit_history = FALSE,
+    verbose = FALSE
+  )
+  positional_args[[length(positional_args) + 1L]] <- "positional-method"
+
+  default_result <- suppressWarnings(do.call(
+    searchOptimalConfiguration,
+    positional_args
+  ))
+  positional_args$progress <- FALSE
+  disabled_result <- suppressWarnings(do.call(
+    searchOptimalConfiguration,
+    positional_args
+  ))
+
+  testthat::expect_identical(
+    tail(names(formals(searchOptimalConfiguration)), 2L),
+    c("...", "progress")
+  )
+  testthat::expect_identical(
+    forwarded_methods,
+    rep("positional-method", 2L)
+  )
+  testthat::expect_true(default_result$user_input$progress)
+  testthat::expect_false(disabled_result$user_input$progress)
+  testthat::expect_identical(enabled_sessions, c(TRUE, FALSE))
+  testthat::expect_identical(events$created, c(
+    "[1/3] Candidate scoring",
+    "[2/3] Greedy shift search",
+    "[3/3] IC-weight re-estimation"
+  ))
+})
+
+test_that("dual weight flags fail before public search work or progress rows", {
+  testthat::skip_if_not_installed("ape")
+  testthat::skip_if_not_installed("phytools")
+
+  set.seed(20260716)
+  tree <- ape::rtree(6)
+  traits <- matrix(stats::rnorm(12), ncol = 2)
+  rownames(traits) <- tree$tip.label
+  candidate_calls <- 0L
+  fit_calls <- 0L
+  events <- new.env(parent = emptyenv())
+  events$created <- character()
+  events$updates <- list()
+  events$output <- character()
+  events$done <- character()
+  progress_session <- .bifrost_search_progress_session
+
+  testthat::local_mocked_bindings(
+    generatePaintedTrees = function(tree, min_tips, state = "shift") {
+      candidate_calls <<- candidate_calls + 1L
+      list(tree)
+    },
+    fitMvglsAndExtractGIC.formula = function(formula, tree, trait_data, ...) {
+      fit_calls <<- fit_calls + 1L
+      list(
+        model = list(corrSt = list(phy = tree)),
+        GIC = list(GIC = 100)
+      )
+    },
+    .bifrost_search_forward = function(
+        sorted_candidates,
+        current_best_tree,
+        current_best_ic,
+        ...) {
+      list(
+        current_best_tree = current_best_tree,
+        current_best_ic = current_best_ic,
+        shift_vec = list(),
+        shifts_no_uncertainty = integer(),
+        model_with_shift_no_uncertainty = NULL,
+        best_tree_no_uncertainty = NULL,
+        warnings_list = list(),
+        outcome_counts = c(accepted = 0L, rejected = 0L, error = 0L),
+        model_fit_history = list()
+      )
+    },
+    .bifrost_search_progress_session = function(enabled) {
+      progress_session(enabled, .recording_search_renderer(events))
+    }
+  )
+
+  testthat::expect_error(
+    searchOptimalConfiguration(
+      baseline_tree = tree,
+      trait_data = traits,
+      min_descendant_tips = ape::Ntip(tree),
+      num_cores = 1,
+      uncertaintyweights = TRUE,
+      uncertaintyweights_par = TRUE,
+      plot = FALSE,
+      IC = "GIC",
+      store_model_fit_history = FALSE,
+      verbose = FALSE,
+      progress = TRUE,
+      method = "LL"
+    ),
+    "Exactly one of uncertaintyweights or uncertaintyweights_par must be TRUE.",
+    fixed = TRUE
+  )
+
+  testthat::expect_identical(candidate_calls, 0L)
+  testthat::expect_identical(fit_calls, 0L)
+  testthat::expect_length(events$created, 0L)
+  testthat::expect_length(events$updates, 0L)
+  testthat::expect_length(events$output, 0L)
+  testthat::expect_length(events$done, 0L)
 })
 
 test_that("search progress helpers cover empty work and seedless callers", {

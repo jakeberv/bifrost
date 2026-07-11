@@ -339,8 +339,12 @@ searchOptimalConfiguration <-
            IC = "GIC",
            store_model_fit_history = TRUE,
            verbose = FALSE,
-           progress = TRUE,
-           ...) {
+           ...,
+           progress = TRUE) {
+
+    if (isTRUE(uncertaintyweights) && isTRUE(uncertaintyweights_par)) {
+      stop("Exactly one of uncertaintyweights or uncertaintyweights_par must be TRUE.")
+    }
 
     #capturing global option for verbose to pass to internal helpers
     old_verbose_opt <- getOption("bifrost.verbose")
@@ -370,8 +374,12 @@ searchOptimalConfiguration <-
     }
 
     # Capture user input
-    user_input <- as.list(match.call())
+    matched_call <- match.call(expand.dots = FALSE)
+    dots_input <- as.list(matched_call$...)
+    matched_call$... <- NULL
+    user_input <- as.list(matched_call)
     user_input$progress <- isTRUE(progress)
+    user_input <- c(user_input, dots_input)
 
     if (!(inherits(formula, "formula") ||
           (is.character(formula) && length(formula) == 1L && !is.na(formula)))) {
