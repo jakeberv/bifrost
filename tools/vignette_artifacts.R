@@ -158,6 +158,7 @@ shared_dependencies <- function() {
   files <- c(
     "DESCRIPTION",
     "_pkgdown.yml",
+    ".github/workflows/pkgdown.yml",
     "tools/vignette_artifacts.R",
     "tools/render-vignette-pdf.R",
     "tools/build-colab-notebook.py",

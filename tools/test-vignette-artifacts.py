@@ -90,6 +90,13 @@ def make_fixture(source: Path, destination: Path) -> None:
     ]:
         shutil.copy2(source / "tools" / filename, tools / filename)
 
+    workflows = destination / ".github/workflows"
+    workflows.mkdir(parents=True)
+    shutil.copy2(
+        source / ".github/workflows/pkgdown.yml",
+        workflows / "pkgdown.yml",
+    )
+
     run(destination, "git", "init", "-q")
     run(destination, "git", "config", "user.email", "test@example.com")
     run(destination, "git", "config", "user.name", "Artifact Test")
@@ -210,6 +217,16 @@ def main() -> None:
         )
         shutil.copy2(source / "vignettes/jaw-shape/IC_decay.png", deleted_asset)
 
+        pkgdown_workflow = repo / ".github/workflows/pkgdown.yml"
+        with pkgdown_workflow.open("a") as handle:
+            handle.write("\n# Artifact cache workflow-change probe.\n")
+        assert_plan(
+            plan(repo, "pdf", pdf_dir, "", cache_dir=cache_dir),
+            all_slugs,
+            "production workflow invalidates all cached PDFs",
+        )
+        shutil.copy2(source / ".github/workflows/pkgdown.yml", pkgdown_workflow)
+
         with (repo / "vignettes/quick-start-vignette.Rmd").open("a") as handle:
             handle.write("\nArtifact planner source-change probe.\n")
         commit(repo, "change one vignette")
@@ -299,6 +316,8 @@ def main() -> None:
     for pattern in ["vignettes/**/*.rds", "vignettes/**/*.RDS"]:
         if pattern not in workflow:
             raise AssertionError(f"PDF cache key is missing {pattern}")
+    if "'.github/workflows/pkgdown.yml'" not in workflow:
+        raise AssertionError("PDF cache key must include its production workflow")
 
     renderer = (source / "tools/render-vignette-pdf.R").read_text()
     if "rmarkdown::resolve_output_format(" not in renderer:
@@ -329,6 +348,10 @@ def main() -> None:
         raise AssertionError("PR artifact workflow must isolate Colab updates in a job")
     if "    permissions:\n      contents: write\n" not in pr_workflow:
         raise AssertionError("Colab update job must declare its write permission locally")
+    if "ref: ${{ github.event.pull_request.head.sha }}" not in pr_workflow:
+        raise AssertionError("PR artifact checks must pin checkout to the event SHA")
+    if "ref: ${{ github.event.pull_request.head.ref }}" in pr_workflow:
+        raise AssertionError("PR artifact checks must not checkout a mutable branch ref")
 
     print("Vignette artifact integration checks passed.")
 
