@@ -11,6 +11,13 @@ import sys
 import urllib.parse
 from pathlib import Path
 
+from colab_dependencies import (
+    BASE_R_PACKAGES,
+    COMMON_COLAB_PACKAGES,
+    description_hard_dependencies,
+    referenced_r_packages,
+)
+
 
 REPO = "https://github.com/jakeberv/bifrost"
 COLAB_BASE = "https://colab.research.google.com/github/jakeberv/bifrost/blob/main/vignettes/colab"
@@ -23,13 +30,6 @@ RUNTIME_NOTE = (
     "uses the runtime's host CPUs, not the TPU itself. Otherwise, choose the "
     "available runtime with the most CPUs."
 )
-COMMON_COLAB_PACKAGES = ("remotes", "knitr")
-COLAB_PACKAGES_BY_SLUG = {
-    "jaw-shape-vignette": ("geomorph",),
-    "pca-model-selection-and-bifrost-vignette": ("phylolm",),
-    "rate-map-jaw-shape-vignette": ("geomorph",),
-}
-
 
 def find_repo_root(start: Path) -> Path:
     path = start.resolve()
@@ -42,6 +42,21 @@ def find_repo_root(start: Path) -> Path:
 def discover_slugs(repo_root: Path) -> list[str]:
     rmds = sorted((repo_root / "vignettes").glob("*.Rmd"))
     return [path.stem for path in rmds]
+
+
+def colab_packages(repo_root: Path, cells: list[dict]) -> tuple[str, ...]:
+    code = "\n".join(
+        cell["source"] for cell in cells if cell["cell_type"] == "code"
+    )
+    referenced = referenced_r_packages(repo_root, code)
+    available = (
+        BASE_R_PACKAGES
+        | description_hard_dependencies(repo_root / "DESCRIPTION")
+        | set(COMMON_COLAB_PACKAGES)
+        | {"bifrost"}
+    )
+    optional = sorted(referenced - available)
+    return COMMON_COLAB_PACKAGES + tuple(optional)
 
 
 def markdown_cell(source: str) -> dict:
@@ -184,8 +199,7 @@ def rewrite_markdown_links(markdown: str) -> str:
     )
 
 
-def setup_source(slug: str) -> str:
-    packages = COMMON_COLAB_PACKAGES + COLAB_PACKAGES_BY_SLUG.get(slug, ())
+def setup_source(packages: tuple[str, ...]) -> str:
     package_vector = ", ".join(json.dumps(package) for package in packages)
     return f"""message("Detected logical CPUs: ", parallel::detectCores(logical = TRUE))
 if (!dir.exists("/content/bifrost")) {{
@@ -218,7 +232,6 @@ def convert(slug: str, repo_root: Path) -> dict:
             f"Converted from [`vignettes/{slug}.Rmd`]({REPO}/blob/main/vignettes/{slug}.Rmd).\n\n"
             f"{RUNTIME_NOTE}"
         ),
-        code_cell(setup_source(slug)),
     ]
 
     for block_type, header, content in parse_chunks(body):
@@ -241,6 +254,8 @@ def convert(slug: str, repo_root: Path) -> dict:
 
         if content.strip():
             cells.append(code_cell(content.strip() + "\n"))
+
+    cells.insert(1, code_cell(setup_source(colab_packages(repo_root, cells))))
 
     return {
         "cells": cells,
