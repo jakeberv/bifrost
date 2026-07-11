@@ -17,6 +17,10 @@ COLAB_BASE = "https://colab.research.google.com/github/jakeberv/bifrost/blob/mai
 COLAB_BADGE = "https://colab.research.google.com/assets/colab-badge.svg"
 RAW_BASE = "https://raw.githubusercontent.com/jakeberv/bifrost/main/vignettes"
 PKGDOWN_ARTICLES = "https://jakeberv.com/bifrost/articles"
+COMMON_COLAB_PACKAGES = ("remotes", "knitr")
+COLAB_PACKAGES_BY_SLUG = {
+    "pca-model-selection-and-bifrost-vignette": ("phylolm",),
+}
 
 
 def find_repo_root(start: Path) -> Path:
@@ -179,14 +183,20 @@ def rewrite_markdown_links(markdown: str) -> str:
     )
 
 
-def setup_source() -> str:
-    return """if (!dir.exists("/content/bifrost")) {
+def setup_source(slug: str) -> str:
+    packages = COMMON_COLAB_PACKAGES + COLAB_PACKAGES_BY_SLUG.get(slug, ())
+    package_vector = ", ".join(json.dumps(package) for package in packages)
+    return f"""if (!dir.exists("/content/bifrost")) {{
   system("git clone --depth 1 https://github.com/jakeberv/bifrost.git /content/bifrost")
-}
-if (!requireNamespace("remotes", quietly = TRUE)) {
-  install.packages("remotes", repos = "https://cloud.r-project.org")
-}
-remotes::install_local("/content/bifrost", dependencies = TRUE, upgrade = "never")
+}}
+colab_packages <- c({package_vector})
+missing_packages <- colab_packages[
+  !vapply(colab_packages, requireNamespace, logical(1), quietly = TRUE)
+]
+if (length(missing_packages)) {{
+  install.packages(missing_packages, repos = "https://cloud.r-project.org")
+}}
+remotes::install_local("/content/bifrost", dependencies = NA, upgrade = "never")
 setwd("/content/bifrost/vignettes")
 """
 
@@ -205,7 +215,7 @@ def convert(slug: str, repo_root: Path) -> dict:
             f"{colab_badge_markdown(slug)}\n\n"
             f"Converted from [`vignettes/{slug}.Rmd`]({REPO}/blob/main/vignettes/{slug}.Rmd)."
         ),
-        code_cell(setup_source()),
+        code_cell(setup_source(slug)),
     ]
 
     default_eval_false = False

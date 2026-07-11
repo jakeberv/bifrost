@@ -153,6 +153,22 @@ def main() -> None:
             raise AssertionError(
                 f"{notebook_path.name} setup must use a shallow Git clone"
             )
+        if "dependencies = NA" not in setup or "dependencies = TRUE" in setup:
+            raise AssertionError(
+                f"{notebook_path.name} setup must install only hard package dependencies"
+            )
+        if '"knitr"' not in setup:
+            raise AssertionError(
+                f"{notebook_path.name} setup must install the shared knitr dependency"
+            )
+
+        expects_phylolm = (
+            notebook_path.stem == "pca-model-selection-and-bifrost-vignette"
+        )
+        if ('"phylolm"' in setup) != expects_phylolm:
+            raise AssertionError(
+                f"{notebook_path.name} setup has the wrong vignette-specific dependencies"
+            )
 
     with tempfile.TemporaryDirectory(prefix="bifrost-artifact-tests-") as temp:
         repo = Path(temp) / "repo"
