@@ -239,6 +239,14 @@ def main() -> None:
         if pattern not in workflow:
             raise AssertionError(f"PDF cache key is missing {pattern}")
 
+    pr_workflow = (source / ".github/workflows/vignette-artifacts.yml").read_text()
+    if "\npermissions:\n  contents: write\n" in pr_workflow:
+        raise AssertionError("PR artifact workflow must not grant write access globally")
+    if "  update-colab:\n" not in pr_workflow:
+        raise AssertionError("PR artifact workflow must isolate Colab updates in a job")
+    if "    permissions:\n      contents: write\n" not in pr_workflow:
+        raise AssertionError("Colab update job must declare its write permission locally")
+
     print("Vignette artifact integration checks passed.")
 
 

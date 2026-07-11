@@ -16,11 +16,13 @@ on:
       - vignettes/**
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   vignette-artifacts:
     runs-on: ubuntu-latest
+    outputs:
+      colab_slugs: ${{ steps.changed.outputs.colab_slugs }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -76,24 +78,17 @@ jobs:
             python3 tools/build-colab-notebook.py --slug "$slug"
           done
 
-      - name: Commit updated Colab notebooks
-        if: steps.changed.outputs.colab_slugs != '' && github.event.pull_request.head.repo.full_name == github.repository
-        shell: bash
-        env:
-          HEAD_REF: ${{ github.event.pull_request.head.ref }}
-        run: |
-          if [ -z "$(git status --porcelain -- vignettes/colab)" ]; then
-            echo "Generated Colab notebooks are already up to date."
-            exit 0
-          fi
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add vignettes/colab
-          git commit -m "Update generated Colab notebooks"
-          git push origin "HEAD:${HEAD_REF}"
+      - name: Upload generated Colab notebooks
+        if: steps.changed.outputs.colab_slugs != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: colab-notebooks-${{ github.event.pull_request.head.sha }}
+          path: vignettes/colab/*.ipynb
+          if-no-files-found: error
+          retention-days: 1
 
       - name: Check committed Colab notebooks are fresh
+        if: github.event.pull_request.head.repo.full_name != github.repository
         shell: bash
         run: |
           if [ -z "$(git status --porcelain -- vignettes/colab)" ]; then
@@ -114,3 +109,41 @@ jobs:
             Rscript tools/render-vignette-pdf.R "$slug" --output-dir /tmp/vignette-pdfs
             test -s "/tmp/vignette-pdfs/${slug}.pdf"
           done
+
+  update-colab:
+    needs: vignette-artifacts
+    if: >-
+      needs.vignette-artifacts.outputs.colab_slugs != '' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Download generated Colab notebooks
+        uses: actions/download-artifact@v4
+        with:
+          name: colab-notebooks-${{ github.event.pull_request.head.sha }}
+          path: vignettes/colab
+
+      - name: Commit updated Colab notebooks
+        shell: bash
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          if [ -z "$(git status --porcelain -- vignettes/colab)" ]; then
+            echo "Generated Colab notebooks are already up to date."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add vignettes/colab
+          git commit -m "Update generated Colab notebooks"
+          git push origin "HEAD:${HEAD_REF}"
