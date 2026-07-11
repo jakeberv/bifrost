@@ -54,9 +54,13 @@ main <- function(args) {
       stop("Missing vignette source for slug '", slug, "': ", input, call. = FALSE)
     }
     message("Rendering PDF for ", slug)
+    pdf_format <- rmarkdown::resolve_output_format(
+      input,
+      output_format = "rmarkdown::pdf_document"
+    )
     rmarkdown::render(
       input = input,
-      output_format = "rmarkdown::pdf_document",
+      output_format = pdf_format,
       output_file = paste0(slug, ".pdf"),
       output_dir = output_dir,
       clean = TRUE,
