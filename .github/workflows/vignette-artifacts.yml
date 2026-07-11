@@ -55,9 +55,6 @@ jobs:
           extra-packages: any::pkgdown, local::.
           needs: website
 
-      - name: Test vignette artifact planning
-        run: python3 tools/test-vignette-artifacts.py
-
       - name: Plan changed vignette artifacts
         id: changed
         shell: bash
@@ -77,6 +74,9 @@ jobs:
           for slug in ${{ steps.changed.outputs.colab_slugs }}; do
             python3 tools/build-colab-notebook.py --slug "$slug"
           done
+
+      - name: Test vignette artifacts
+        run: python3 tools/test-vignette-artifacts.py
 
       - name: Upload generated Colab notebooks
         if: steps.changed.outputs.colab_slugs != ''

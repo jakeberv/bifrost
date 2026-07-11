@@ -5,10 +5,58 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
 from pathlib import Path
+
+
+BASE_R_PACKAGES = {
+    "base",
+    "compiler",
+    "datasets",
+    "graphics",
+    "grDevices",
+    "grid",
+    "methods",
+    "parallel",
+    "splines",
+    "stats",
+    "stats4",
+    "tcltk",
+    "tools",
+    "utils",
+}
+
+R_PACKAGE_REFERENCE_SCRIPT = r"""
+code <- paste(readLines(file("stdin"), warn = FALSE), collapse = "\n")
+expressions <- parse(text = code)
+packages <- character()
+
+walk <- function(node) {
+  if (is.call(node)) {
+    operator <- node[[1L]]
+    if (is.symbol(operator)) {
+      operator_name <- as.character(operator)
+      if (operator_name %in% c("::", ":::") && length(node) >= 3L) {
+        packages <<- c(packages, as.character(node[[2L]]))
+      }
+      if (operator_name %in% c("library", "require", "requireNamespace") &&
+          length(node) >= 2L &&
+          (is.symbol(node[[2L]]) || is.character(node[[2L]]))) {
+        packages <<- c(packages, as.character(node[[2L]]))
+      }
+    }
+    invisible(lapply(as.list(node), walk))
+  } else if (is.expression(node) || is.pairlist(node)) {
+    invisible(lapply(as.list(node), walk))
+  }
+}
+
+walk(expressions)
+cat(sort(unique(packages)), sep = "\n")
+"""
 
 
 def run(
@@ -16,6 +64,7 @@ def run(
     *args: str,
     check: bool = True,
     env: dict[str, str] | None = None,
+    input_text: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
     result = subprocess.run(
         args,
@@ -24,6 +73,7 @@ def run(
         text=True,
         capture_output=True,
         env=env,
+        input=input_text,
     )
     if check and result.returncode != 0:
         raise AssertionError(
@@ -31,6 +81,67 @@ def run(
             f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
         )
     return result
+
+
+def description_hard_dependencies(path: Path) -> set[str]:
+    fields: dict[str, list[str]] = {}
+    current = ""
+    for line in path.read_text().splitlines():
+        if line[:1].isspace() and current:
+            fields[current].append(line.strip())
+            continue
+        if ":" not in line:
+            current = ""
+            continue
+        current, value = line.split(":", 1)
+        fields[current] = [value.strip()]
+
+    packages: set[str] = set()
+    for field in ("Depends", "Imports", "LinkingTo"):
+        for entry in ",".join(fields.get(field, [])).split(","):
+            match = re.match(r"\s*([A-Za-z][A-Za-z0-9.]*)", entry)
+            if match and match.group(1) != "R":
+                packages.add(match.group(1))
+    return packages
+
+
+def referenced_r_packages(repo: Path, code: str) -> set[str]:
+    result = run(
+        repo,
+        "Rscript",
+        "-e",
+        R_PACKAGE_REFERENCE_SCRIPT,
+        input_text=code,
+    )
+    return set(result.stdout.split())
+
+
+def bootstrapped_packages(setup: str) -> set[str]:
+    match = re.search(r"colab_packages\s*<-\s*c\((.*?)\)", setup, re.DOTALL)
+    if not match:
+        return set()
+    return set(re.findall(r'["\']([A-Za-z][A-Za-z0-9.]*)["\']', match.group(1)))
+
+
+def missing_notebook_dependencies(
+    repo: Path,
+    notebook: dict,
+    hard_dependencies: set[str],
+) -> set[str]:
+    setup = notebook["cells"][1]["source"]
+    executable_code = "\n".join(
+        cell["source"]
+        for cell in notebook["cells"][2:]
+        if cell["cell_type"] == "code"
+    )
+    referenced = referenced_r_packages(repo, executable_code)
+    available = (
+        BASE_R_PACKAGES
+        | hard_dependencies
+        | bootstrapped_packages(setup)
+        | {"bifrost"}
+    )
+    return referenced - available
 
 
 def commit(repo: Path, message: str) -> str:
@@ -146,8 +257,12 @@ def main() -> None:
     if "set.seed(0.1)" in theoretical_rmd or "set.seed(0.1)" in theoretical_notebook:
         raise AssertionError("theoretical vignette must use an explicit integer seed")
 
+    hard_dependencies = description_hard_dependencies(source / "DESCRIPTION")
+    dependency_probe: dict | None = None
     for notebook_path in sorted((source / "vignettes/colab").glob("*.ipynb")):
         notebook = json.loads(notebook_path.read_text())
+        if notebook_path.stem == "quick-start-vignette":
+            dependency_probe = json.loads(json.dumps(notebook))
         setup = notebook["cells"][1]["source"]
         if "git clone --depth 1 " not in setup:
             raise AssertionError(
@@ -169,6 +284,35 @@ def main() -> None:
             raise AssertionError(
                 f"{notebook_path.name} setup has the wrong vignette-specific dependencies"
             )
+        missing = missing_notebook_dependencies(source, notebook, hard_dependencies)
+        if missing:
+            raise AssertionError(
+                f"{notebook_path.name} executable cells use packages unavailable in "
+                f"Colab setup: {', '.join(sorted(missing))}. Add them to "
+                "COLAB_PACKAGES_BY_SLUG."
+            )
+
+    if dependency_probe is None:
+        raise AssertionError("quick-start notebook is required for dependency audit probe")
+    dependency_probe["cells"].append(
+        {
+            "cell_type": "code",
+            "source": (
+                "plotly::plot_ly()\n"
+                "library(RColorBrewer)\n"
+                'requireNamespace("geomorph", quietly = TRUE)\n'
+            ),
+        }
+    )
+    probe_missing = missing_notebook_dependencies(
+        source, dependency_probe, hard_dependencies
+    )
+    expected_probe_missing = {"RColorBrewer", "geomorph", "plotly"}
+    if probe_missing != expected_probe_missing:
+        raise AssertionError(
+            "dependency audit probe expected "
+            f"{sorted(expected_probe_missing)}, got {sorted(probe_missing)}"
+        )
 
     with tempfile.TemporaryDirectory(prefix="bifrost-artifact-tests-") as temp:
         repo = Path(temp) / "repo"
@@ -368,6 +512,12 @@ def main() -> None:
         raise AssertionError("PR artifact checks must pin checkout to the event SHA")
     if "ref: ${{ github.event.pull_request.head.ref }}" in pr_workflow:
         raise AssertionError("PR artifact checks must not checkout a mutable branch ref")
+    generate_step = pr_workflow.index("      - name: Generate changed Colab notebooks")
+    audit_step = pr_workflow.index("      - name: Test vignette artifacts")
+    if audit_step < generate_step:
+        raise AssertionError(
+            "PR artifact workflow must audit dependencies after notebook generation"
+        )
 
     print("Vignette artifact integration checks passed.")
 
