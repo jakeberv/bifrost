@@ -28,6 +28,7 @@ BASE_R_PACKAGES = {
     "tools",
     "utils",
 }
+COMMON_COLAB_PACKAGES = {"remotes", "knitr"}
 
 R_PACKAGE_REFERENCE_SCRIPT = r"""
 code <- paste(readLines(file("stdin"), warn = FALSE), collapse = "\n")
@@ -42,9 +43,13 @@ walk <- function(node) {
       if (operator_name %in% c("::", ":::") && length(node) >= 3L) {
         packages <<- c(packages, as.character(node[[2L]]))
       }
-      if (operator_name %in% c("library", "require", "requireNamespace") &&
+      if (operator_name %in% c("library", "require") &&
           length(node) >= 2L &&
           (is.symbol(node[[2L]]) || is.character(node[[2L]]))) {
+        packages <<- c(packages, as.character(node[[2L]]))
+      }
+      if (operator_name %in% c("requireNamespace", "loadNamespace") &&
+          length(node) >= 2L && is.character(node[[2L]])) {
         packages <<- c(packages, as.character(node[[2L]]))
       }
     }
@@ -109,6 +114,7 @@ def referenced_r_packages(repo: Path, code: str) -> set[str]:
     result = run(
         repo,
         "Rscript",
+        "--vanilla",
         "-e",
         R_PACKAGE_REFERENCE_SCRIPT,
         input_text=code,
@@ -267,9 +273,16 @@ def main() -> None:
             "```\n\n"
             "```{r visible, eval=FALSE}\n"
             "visible_probe <- TRUE\n"
+            "library(autoLibrary)\n"
+            'requireNamespace("autoRequired", quietly = TRUE)\n'
+            'loadNamespace("autoLoaded")\n'
+            "autoNamespace::run()\n"
+            "ape::Ntip(NULL)\n"
+            "stats::lm(visible_probe ~ 1)\n"
             "```\n\n"
             "```{r hidden, include=FALSE, eval=FALSE}\n"
             "hidden_probe <- TRUE\n"
+            "hiddenPackage::run()\n"
             "```\n"
         )
         run(
@@ -291,6 +304,23 @@ def main() -> None:
             raise AssertionError("visible eval=FALSE chunks must be executable in Colab")
         if "hidden_probe <- TRUE" in policy_code:
             raise AssertionError("hidden unevaluated chunks must be omitted from Colab")
+        policy_setup_packages = bootstrapped_packages(
+            policy_notebook["cells"][1]["source"]
+        )
+        expected_policy_packages = {
+            "remotes",
+            "knitr",
+            "autoLibrary",
+            "autoLoaded",
+            "autoNamespace",
+            "autoRequired",
+        }
+        if policy_setup_packages != expected_policy_packages:
+            raise AssertionError(
+                "automatic dependency probe expected "
+                f"{sorted(expected_policy_packages)}, got "
+                f"{sorted(policy_setup_packages)}"
+            )
 
     theoretical_rmd = (
         source / "vignettes/theoretical-background-vignette.Rmd"
@@ -355,19 +385,29 @@ def main() -> None:
                 f"{notebook_path.name} setup must install the shared knitr dependency"
             )
 
-        expects_phylolm = (
-            notebook_path.stem == "pca-model-selection-and-bifrost-vignette"
+        body_code = "\n".join(
+            cell["source"]
+            for cell in notebook["cells"][2:]
+            if cell["cell_type"] == "code"
         )
-        if ('"phylolm"' in setup) != expects_phylolm:
+        expected_optional = referenced_r_packages(source, body_code) - (
+            BASE_R_PACKAGES
+            | hard_dependencies
+            | COMMON_COLAB_PACKAGES
+            | {"bifrost"}
+        )
+        actual_optional = bootstrapped_packages(setup) - COMMON_COLAB_PACKAGES
+        if actual_optional != expected_optional:
             raise AssertionError(
-                f"{notebook_path.name} setup has the wrong vignette-specific dependencies"
+                f"{notebook_path.name} expected automatic optional dependencies "
+                f"{sorted(expected_optional)}, got {sorted(actual_optional)}"
             )
         missing = missing_notebook_dependencies(source, notebook, hard_dependencies)
         if missing:
             raise AssertionError(
                 f"{notebook_path.name} executable cells use packages unavailable in "
-                f"Colab setup: {', '.join(sorted(missing))}. Add them to "
-                "COLAB_PACKAGES_BY_SLUG."
+                f"Colab setup: {', '.join(sorted(missing))}. Automatic dependency "
+                "detection did not add them to the setup cell."
             )
 
     if dependency_probe is None:
