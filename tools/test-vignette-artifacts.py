@@ -307,6 +307,17 @@ def main() -> None:
         notebook = json.loads(notebook_path.read_text())
         if notebook_path.stem == "quick-start-vignette":
             dependency_probe = json.loads(json.dumps(notebook))
+        runtime_note = notebook["cells"][0]["source"]
+        for phrase in (
+            "Recommended Colab runtime",
+            "v5e-1 TPU",
+            "host CPUs",
+            "runtime with the most CPUs",
+        ):
+            if phrase not in runtime_note:
+                raise AssertionError(
+                    f"{notebook_path.name} runtime note is missing {phrase!r}"
+                )
         fenced_r_examples = [
             cell
             for cell in notebook["cells"]
@@ -327,6 +338,10 @@ def main() -> None:
                 f"{notebook_path.name} contains hidden vignette maintenance code"
             )
         setup = notebook["cells"][1]["source"]
+        if "parallel::detectCores(logical = TRUE)" not in setup:
+            raise AssertionError(
+                f"{notebook_path.name} setup must report detected logical CPUs"
+            )
         if "git clone --depth 1 " not in setup:
             raise AssertionError(
                 f"{notebook_path.name} setup must use a shallow Git clone"

@@ -17,6 +17,12 @@ COLAB_BASE = "https://colab.research.google.com/github/jakeberv/bifrost/blob/mai
 COLAB_BADGE = "https://colab.research.google.com/assets/colab-badge.svg"
 RAW_BASE = "https://raw.githubusercontent.com/jakeberv/bifrost/main/vignettes"
 PKGDOWN_ARTICLES = "https://jakeberv.com/bifrost/articles"
+RUNTIME_NOTE = (
+    "> **Recommended Colab runtime:** For compute-intensive examples, choose "
+    "**Runtime > Change runtime type > v5e-1 TPU** when available. This notebook "
+    "uses the runtime's host CPUs, not the TPU itself. Otherwise, choose the "
+    "available runtime with the most CPUs."
+)
 COMMON_COLAB_PACKAGES = ("remotes", "knitr")
 COLAB_PACKAGES_BY_SLUG = {
     "jaw-shape-vignette": ("geomorph",),
@@ -181,7 +187,8 @@ def rewrite_markdown_links(markdown: str) -> str:
 def setup_source(slug: str) -> str:
     packages = COMMON_COLAB_PACKAGES + COLAB_PACKAGES_BY_SLUG.get(slug, ())
     package_vector = ", ".join(json.dumps(package) for package in packages)
-    return f"""if (!dir.exists("/content/bifrost")) {{
+    return f"""message("Detected logical CPUs: ", parallel::detectCores(logical = TRUE))
+if (!dir.exists("/content/bifrost")) {{
   system("git clone --depth 1 https://github.com/jakeberv/bifrost.git /content/bifrost")
 }}
 colab_packages <- c({package_vector})
@@ -208,7 +215,8 @@ def convert(slug: str, repo_root: Path) -> dict:
         markdown_cell(
             f"# {title}\n\n"
             f"{colab_badge_markdown(slug)}\n\n"
-            f"Converted from [`vignettes/{slug}.Rmd`]({REPO}/blob/main/vignettes/{slug}.Rmd)."
+            f"Converted from [`vignettes/{slug}.Rmd`]({REPO}/blob/main/vignettes/{slug}.Rmd).\n\n"
+            f"{RUNTIME_NOTE}"
         ),
         code_cell(setup_source(slug)),
     ]
