@@ -21,6 +21,148 @@
   )
 }
 
+.recording_search_renderer <- function(events) {
+  list(
+    create = function(label, total) {
+      id <- paste0("row-", length(events$created) + 1L)
+      events$created <- c(events$created, label)
+      list(id = id, label = label, total = total)
+    },
+    update = function(row, state, current, total, status, force = TRUE) {
+      events$updates <- c(events$updates, list(list(
+        id = row$id,
+        state = state,
+        current = current,
+        total = total,
+        status = status
+      )))
+      invisible(NULL)
+    },
+    output = function(row, text) {
+      events$output <- c(events$output, text)
+      invisible(NULL)
+    },
+    done = function(row, result) {
+      events$done <- c(events$done, row$id)
+      invisible(NULL)
+    }
+  )
+}
+
+test_that("search status rows appear progressively and finalize together", {
+  events <- new.env(parent = emptyenv())
+  events$created <- character()
+  events$updates <- list()
+  events$output <- character()
+  events$done <- character()
+  session <- .bifrost_search_progress_session(
+    TRUE,
+    .recording_search_renderer(events)
+  )
+
+  run_stage <- function(label) {
+    .bifrost_search_run_stage(
+      enabled = TRUE,
+      steps = 1L,
+      initial_message = label,
+      work = function(tick) {
+        tick(message = paste(label, "complete"))
+        list(value = label, done = paste(label, "done"))
+      },
+      handler = session$handler(label)
+    )
+  }
+
+  run_stage("[1/3] Candidate scoring")
+  testthat::expect_length(events$created, 1L)
+  testthat::expect_length(events$done, 0L)
+  session$output("verbose between stages")
+
+  run_stage("[2/3] Greedy shift search")
+  testthat::expect_length(events$created, 2L)
+  testthat::expect_length(events$done, 0L)
+
+  session$skip("[3/3] IC-weight re-estimation", "not requested")
+  testthat::expect_length(events$created, 3L)
+  testthat::expect_equal(tail(events$updates, 1L)[[1L]]$state, "skipped")
+  testthat::expect_identical(session$rows(), c(
+    "[1/3] Candidate scoring",
+    "[2/3] Greedy shift search",
+    "[3/3] IC-weight re-estimation"
+  ))
+  testthat::expect_length(events$done, 0L)
+
+  session$finalize()
+  session$finalize()
+  testthat::expect_length(events$done, 3L)
+  testthat::expect_identical(events$done, paste0("row-", 1:3))
+  testthat::expect_identical(events$output, "verbose between stages")
+})
+
+test_that("search status session marks failures before rethrowing them", {
+  events <- new.env(parent = emptyenv())
+  events$created <- character()
+  events$updates <- list()
+  events$output <- character()
+  events$done <- character()
+  session <- .bifrost_search_progress_session(
+    TRUE,
+    .recording_search_renderer(events)
+  )
+
+  testthat::expect_error(
+    .bifrost_search_run_stage(
+      enabled = TRUE,
+      steps = 2L,
+      initial_message = "failing stage",
+      work = function(tick) {
+        tick(message = "one complete")
+        stop("synthetic session failure")
+      },
+      handler = session$handler("failing stage")
+    ),
+    "synthetic session failure"
+  )
+
+  testthat::expect_true(any(vapply(
+    events$updates,
+    function(event) identical(event$state, "failed"),
+    logical(1)
+  )))
+  testthat::expect_length(events$done, 0L)
+  session$finalize()
+  session$finalize()
+  testthat::expect_identical(events$done, "row-1")
+})
+
+test_that("search CLI renderer can persist and finalize a skipped row", {
+  old_cli_dynamic <- options(cli.dynamic = TRUE)
+  on.exit(options(old_cli_dynamic), add = TRUE)
+  session <- .bifrost_search_progress_session(TRUE)
+
+  testthat::expect_no_error(
+    rendered <- utils::capture.output({
+      session$skip("[3/3] IC-weight re-estimation", "not requested")
+      session$finalize()
+    }, type = "message")
+  )
+  testthat::expect_true(any(grepl("[3/3] IC-weight", rendered, fixed = TRUE)))
+})
+
+test_that("search CLI renderer finalizes persistent rows as separate lines", {
+  old_cli_dynamic <- options(cli.dynamic = TRUE)
+  on.exit(options(old_cli_dynamic), add = TRUE)
+  session <- .bifrost_search_progress_session(TRUE)
+
+  rendered <- utils::capture.output({
+    session$skip("[1/2] First stage", "not requested")
+    session$skip("[2/2] Second stage", "not requested")
+    session$finalize()
+  }, type = "message")
+
+  testthat::expect_gte(length(rendered), 2L)
+})
+
 test_that("search progress stage runner reports lifecycle and returns work value", {
   events <- new.env(parent = emptyenv())
   events$types <- character()
@@ -249,7 +391,17 @@ test_that("verbose message and plotting-style stdout coexist with stage progress
 })
 
 test_that("search progress handler is a persistent cli handler", {
-  handler <- .bifrost_search_progress_handler()
+  events <- new.env(parent = emptyenv())
+  events$created <- character()
+  events$updates <- list()
+  events$output <- character()
+  events$done <- character()
+  session <- .bifrost_search_progress_session(
+    TRUE,
+    .recording_search_renderer(events)
+  )
+  handler <- session$handler("persistent stage")
+
   testthat::expect_s3_class(handler, "cli_progression_handler")
   testthat::expect_false(get("clear", envir = environment(handler)))
   testthat::expect_identical(get("enable_after", envir = environment(handler)), 0)
@@ -257,22 +409,47 @@ test_that("search progress handler is a persistent cli handler", {
 })
 
 test_that("search CLI handler redraws zero-increment heartbeat events", {
-  handler <- .bifrost_search_progress_handler()
+  events <- new.env(parent = emptyenv())
+  events$created <- character()
+  events$updates <- list()
+  events$output <- character()
+  events$done <- character()
+  session <- .bifrost_search_progress_session(
+    TRUE,
+    .recording_search_renderer(events)
+  )
+  handler <- session$handler("heartbeat stage")
   reporter <- get("reporter", envir = environment(handler))
-  update_body <- paste(deparse(body(reporter$update)), collapse = "\n")
+  config <- list(max_steps = 3L)
 
-  testthat::expect_false(grepl(
-    "progression$amount == 0",
-    update_body,
-    fixed = TRUE
-  ))
+  reporter$initiate(
+    config,
+    list(step = 0L, message = "starting"),
+    list(amount = 1)
+  )
+  reporter$update(
+    config,
+    list(step = 1L, message = "first complete"),
+    list(amount = 1)
+  )
+  reporter$update(
+    config,
+    list(step = 2L, message = "heartbeat"),
+    list(amount = 0)
+  )
+
+  heartbeat <- tail(events$updates, 1L)[[1L]]
+  testthat::expect_identical(heartbeat$current, 1L)
+  testthat::expect_identical(heartbeat$total, 2L)
+  testthat::expect_identical(heartbeat$status, "heartbeat")
 })
 
 test_that("search CLI handler can render a heartbeat with its private state", {
   old_cli_dynamic <- options(cli.dynamic = TRUE)
   on.exit(options(old_cli_dynamic), add = TRUE)
+  session <- .bifrost_search_progress_session(TRUE)
 
-  rendered <- utils::capture.output(
+  rendered <- utils::capture.output({
     value <- .bifrost_search_run_stage(
       enabled = TRUE,
       steps = 2L,
@@ -282,23 +459,30 @@ test_that("search CLI handler can render a heartbeat with its private state", {
         tick(message = "first complete")
         tick(message = "second complete")
         list(value = 7L, done = "render done")
-      }
-    ),
-    type = "message"
-  )
+      },
+      handler = session$handler("render test")
+    )
+    session$finalize()
+  }, type = "message")
 
   testthat::expect_identical(value, 7L)
   testthat::expect_true(any(grepl("render heartbeat", rendered, fixed = TRUE)))
 })
 
 test_that("search CLI reporter handles every terminal lifecycle callback", {
-  handler <- .bifrost_search_progress_handler()
+  events <- new.env(parent = emptyenv())
+  events$created <- character()
+  events$updates <- list()
+  events$output <- character()
+  events$done <- character()
+  session <- .bifrost_search_progress_session(
+    TRUE,
+    .recording_search_renderer(events)
+  )
+  handler <- session$handler("lifecycle stage")
   reporter <- get("reporter", envir = environment(handler))
-  active_config <- list(max_steps = 3L, times = 3L)
-  initial_config <- list(max_steps = 3L, times = 2L)
-  ignored_config <- list(max_steps = 3L, times = 1L)
-  active_state <- list(enabled = TRUE, step = 1L, message = "working")
-  disabled_state <- list(enabled = FALSE, step = 0L, message = "disabled")
+  config <- list(max_steps = 3L)
+  active_state <- list(step = 1L, message = "working")
   update <- list(amount = 1)
   heartbeat <- list(amount = 0)
   failure <- structure(
@@ -306,27 +490,27 @@ test_that("search CLI reporter handles every terminal lifecycle callback", {
     class = c("simpleError", "error", "condition")
   )
 
-  rendered <- utils::capture.output({
-    reporter$reset()
-    reporter$hide()
-    reporter$unhide()
-    reporter$initiate(ignored_config, active_state, update)
-    reporter$initiate(initial_config, disabled_state, update)
-    reporter$update(initial_config, active_state, update)
+  reporter$reset()
+  reporter$hide()
+  reporter$unhide()
+  reporter$initiate(config, active_state, update)
+  reporter$update(config, active_state, heartbeat)
+  reporter$finish(
+    config,
+    list(step = 3L, message = "lifecycle complete"),
+    update
+  )
 
-    reporter$initiate(initial_config, active_state, update)
-    reporter$hide()
-    reporter$unhide()
-    reporter$update(active_config, active_state, heartbeat)
-    reporter$finish(active_config, active_state, update)
-    reporter$finish(active_config, active_state, update)
-    reporter$interrupt(active_config, active_state, failure)
+  failed_handler <- session$handler("failed lifecycle stage")
+  failed_reporter <- get("reporter", envir = environment(failed_handler))
+  failed_reporter$interrupt(config, active_state, failure)
 
-    reporter$reset()
-    reporter$interrupt(active_config, active_state, failure)
-  }, type = "message")
-
-  testthat::expect_true(any(grepl("synthetic lifecycle failure", rendered, fixed = TRUE)))
+  states <- vapply(events$updates, `[[`, character(1), "state")
+  testthat::expect_true("complete" %in% states)
+  testthat::expect_true("failed" %in% states)
+  testthat::expect_length(events$done, 0L)
+  session$finalize()
+  testthat::expect_identical(events$done, c("row-1", "row-2"))
 })
 
 test_that("skipped search stages are persistent only when progress is enabled", {

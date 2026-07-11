@@ -1,4 +1,256 @@
-.bifrost_search_progress_handler <- function() {
+.bifrost_search_cli_renderer <- function() {
+  format <- paste0(
+    "{if (stage_state == 'active') cli::pb_spin else ",
+    "if (stage_state == 'failed') cli::symbol$cross else ",
+    "if (stage_state == 'skipped') cli::symbol$info else cli::symbol$tick} ",
+    "{cli::pb_bar} {cli::pb_percent} ",
+    "[{cli::pb_current}/{cli::pb_total}] ",
+    "{if (stage_state == 'active') paste0('(ETA: ', cli::pb_eta, ')') ",
+    "else paste0('[', cli::pb_elapsed, ']')} {status}"
+  )
+  cli_n_colors <- cli::num_ansi_colors()
+
+  cli_progress_call <- function(fun, ...) {
+    old_options <- options(
+      cli.num_colors = cli_n_colors,
+      crayon.enabled = cli_n_colors > 1L,
+      crayon.colors = cli_n_colors
+    )
+    on.exit(options(old_options), add = TRUE)
+
+    withCallingHandlers(
+      fun(...),
+      cliMessage = function(message) {
+        output <- conditionMessage(message)
+        cat(output, file = stderr())
+        invokeRestart("muffleMessage")
+      }
+    )
+  }
+
+  list(
+    create = function(label, total) {
+      row_env <- new.env(parent = baseenv())
+      row_env$stage_state <- "active"
+      row_env$status <- label
+      row_env$output_text <- ""
+      old_handlers <- options(cli.progress_handlers_only = "cli")
+      old_show_after <- options(cli.progress_show_after = 0)
+      on.exit(options(old_show_after), add = TRUE)
+      on.exit(options(old_handlers), add = TRUE)
+
+      id <- cli_progress_call(
+        cli::cli_progress_bar,
+        total = total,
+        format = format,
+        format_done = format,
+        format_failed = format,
+        clear = FALSE,
+        current = FALSE,
+        auto_terminate = FALSE,
+        .auto_close = FALSE,
+        .envir = row_env
+      )
+      list(id = id, envir = row_env)
+    },
+    update = function(row, state, current, total, status, force = TRUE) {
+      row$envir$stage_state <- state
+      row$envir$status <- status
+      cli_progress_call(
+        cli::cli_progress_update,
+        id = row$id,
+        set = current,
+        total = total,
+        status = status,
+        force = force,
+        .envir = row$envir
+      )
+      invisible(NULL)
+    },
+    output = function(row, text) {
+      row$envir$output_text <- text
+      cli_progress_call(
+        cli::cli_progress_output,
+        "{output_text}",
+        id = row$id,
+        .envir = row$envir
+      )
+      invisible(NULL)
+    },
+    done = function(row, result) {
+      cli_progress_call(
+        cli::cli_progress_done,
+        id = row$id,
+        result = if (identical(result, "failed")) "failed" else "done",
+        .envir = row$envir
+      )
+      invisible(NULL)
+    }
+  )
+}
+
+.bifrost_search_progress_session <- function(
+    enabled,
+    renderer = .bifrost_search_cli_renderer()) {
+  stage_rows <- list()
+  finalized <- FALSE
+  session <- NULL
+
+  row_index <- function(label) {
+    match(label, names(stage_rows), nomatch = 0L)
+  }
+
+  update_stage <- function(label,
+                           config,
+                           state,
+                           progression,
+                           row_state,
+                           status = NULL) {
+    if (!isTRUE(enabled) || finalized) {
+      return(invisible(NULL))
+    }
+
+    display_total <- config$max_steps - 1L
+    display_step <- min(state$step, display_total)
+    index <- row_index(label)
+    if (index == 0L) {
+      stage_rows[[length(stage_rows) + 1L]] <<- list(
+        label = label,
+        row = renderer$create(label, display_total),
+        current = 0,
+        total = display_total,
+        state = "active"
+      )
+      names(stage_rows)[[length(stage_rows)]] <<- label
+      index <- length(stage_rows)
+    }
+
+    row <- stage_rows[[index]]
+    heartbeat <- isTRUE(progression$amount == 0)
+    if (!heartbeat) {
+      row$current <- display_step
+    }
+    row$total <- display_total
+    row$state <- row_state
+    if (is.null(status)) {
+      status <- paste(state$message, collapse = "")
+    }
+    renderer$update(
+      row$row,
+      state = row_state,
+      current = row$current,
+      total = row$total,
+      status = status,
+      force = TRUE
+    )
+    stage_rows[[index]] <<- row
+    invisible(NULL)
+  }
+
+  session <- list(
+    handler = function(label) {
+      .bifrost_search_progress_handler(session, label)
+    },
+    update_stage = update_stage,
+    skip = function(label, reason) {
+      if (!isTRUE(enabled) || finalized) {
+        return(invisible(NULL))
+      }
+
+      index <- row_index(label)
+      if (index == 0L) {
+        stage_rows[[length(stage_rows) + 1L]] <<- list(
+          label = label,
+          row = renderer$create(label, 1L),
+          current = 1L,
+          total = 1L,
+          state = "skipped"
+        )
+        names(stage_rows)[[length(stage_rows)]] <<- label
+        index <- length(stage_rows)
+      }
+      row <- stage_rows[[index]]
+      row$state <- "skipped"
+      renderer$update(
+        row$row,
+        state = "skipped",
+        current = row$current,
+        total = row$total,
+        status = paste0(label, " - skipped: ", reason),
+        force = TRUE
+      )
+      stage_rows[[index]] <<- row
+      invisible(NULL)
+    },
+    output = function(text) {
+      if (!isTRUE(enabled) || finalized || length(stage_rows) == 0L) {
+        return(invisible(NULL))
+      }
+      renderer$output(stage_rows[[length(stage_rows)]]$row, text)
+      invisible(NULL)
+    },
+    has_rows = function() {
+      isTRUE(enabled) && length(stage_rows) > 0L
+    },
+    rows = function() {
+      names(stage_rows)
+    },
+    finalize = function() {
+      if (finalized) {
+        return(invisible(NULL))
+      }
+      finalized <<- TRUE
+      for (row in stage_rows) {
+        renderer$done(row$row, row$state)
+      }
+      invisible(NULL)
+    }
+  )
+  session
+}
+
+.bifrost_search_progress_handler <- function(session = NULL, label = NULL) {
+  if (is.null(session)) {
+    return(.bifrost_search_legacy_progress_handler())
+  }
+
+  reporter <- list(
+    reset = function(...) invisible(NULL),
+    hide = function(...) invisible(NULL),
+    unhide = function(...) invisible(NULL),
+    initiate = function(config, state, progression, ...) {
+      session$update_stage(label, config, state, progression, "active")
+    },
+    update = function(config, state, progression, ...) {
+      session$update_stage(label, config, state, progression, "active")
+    },
+    finish = function(config, state, progression, ...) {
+      session$update_stage(label, config, state, progression, "complete")
+    },
+    interrupt = function(config, state, progression, ...) {
+      session$update_stage(
+        label,
+        config,
+        state,
+        progression,
+        "failed",
+        status = conditionMessage(progression)
+      )
+    }
+  )
+
+  progressr::make_progression_handler(
+    "cli",
+    reporter = reporter,
+    enable = TRUE,
+    enable_after = 0,
+    interval = 0,
+    clear = FALSE,
+    target = "terminal"
+  )
+}
+
+.bifrost_search_legacy_progress_handler <- function() {
   format <- paste0(
     "{cli::pb_spin} {cli::pb_bar} {cli::pb_percent} ",
     "[{cli::pb_current}/{cli::pb_total}] ",
