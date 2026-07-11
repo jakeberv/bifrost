@@ -178,7 +178,9 @@ test_that("animated Future failures cancel remaining work and restore settings",
   )
   elapsed <- proc.time()[["elapsed"]] - started
 
-  testthat::expect_lt(elapsed, 3)
+  if (!identical(Sys.getenv("R_COVR"), "true")) {
+    testthat::expect_lt(elapsed, 3)
+  }
   testthat::expect_s3_class(future::plan("next"), "sequential")
   testthat::expect_identical(Sys.getenv("OMP_NUM_THREADS"), "7")
   testthat::expect_identical(Sys.getenv("OPENBLAS_NUM_THREADS"), "8")
@@ -289,6 +291,44 @@ test_that("search CLI handler can render a heartbeat with its private state", {
   testthat::expect_true(any(grepl("render heartbeat", rendered, fixed = TRUE)))
 })
 
+test_that("search CLI reporter handles every terminal lifecycle callback", {
+  handler <- .bifrost_search_progress_handler()
+  reporter <- get("reporter", envir = environment(handler))
+  active_config <- list(max_steps = 3L, times = 3L)
+  initial_config <- list(max_steps = 3L, times = 2L)
+  ignored_config <- list(max_steps = 3L, times = 1L)
+  active_state <- list(enabled = TRUE, step = 1L, message = "working")
+  disabled_state <- list(enabled = FALSE, step = 0L, message = "disabled")
+  update <- list(amount = 1)
+  heartbeat <- list(amount = 0)
+  failure <- structure(
+    list(message = "synthetic lifecycle failure", call = NULL, amount = 1),
+    class = c("simpleError", "error", "condition")
+  )
+
+  rendered <- utils::capture.output({
+    reporter$reset()
+    reporter$hide()
+    reporter$unhide()
+    reporter$initiate(ignored_config, active_state, update)
+    reporter$initiate(initial_config, disabled_state, update)
+    reporter$update(initial_config, active_state, update)
+
+    reporter$initiate(initial_config, active_state, update)
+    reporter$hide()
+    reporter$unhide()
+    reporter$update(active_config, active_state, heartbeat)
+    reporter$finish(active_config, active_state, update)
+    reporter$finish(active_config, active_state, update)
+    reporter$interrupt(active_config, active_state, failure)
+
+    reporter$reset()
+    reporter$interrupt(active_config, active_state, failure)
+  }, type = "message")
+
+  testthat::expect_true(any(grepl("synthetic lifecycle failure", rendered, fixed = TRUE)))
+})
+
 test_that("skipped search stages are persistent only when progress is enabled", {
   shown <- testthat::capture_messages(
     .bifrost_search_report_skipped_stage(
@@ -315,6 +355,71 @@ test_that("search progress is a default-on public argument", {
     formals(searchOptimalConfiguration)$progress,
     TRUE
   )
+})
+
+test_that("search progress helpers cover empty work and seedless callers", {
+  random_env <- globalenv()
+  had_seed <- exists(".Random.seed", envir = random_env, inherits = FALSE)
+  old_seed <- if (had_seed) get(".Random.seed", envir = random_env) else NULL
+  old_plan <- future::plan("list")
+  on.exit({
+    future::plan(old_plan)
+    if (had_seed) {
+      assign(".Random.seed", old_seed, envir = random_env)
+    } else if (exists(".Random.seed", envir = random_env, inherits = FALSE)) {
+      rm(".Random.seed", envir = random_env)
+    }
+  }, add = TRUE)
+
+  if (exists(".Random.seed", envir = random_env, inherits = FALSE)) {
+    rm(".Random.seed", envir = random_env)
+  }
+  seeds <- .bifrost_search_rng_seeds(2L)
+  testthat::expect_length(seeds, 2L)
+  testthat::expect_false(exists(".Random.seed", envir = random_env, inherits = FALSE))
+
+  random_value <- .bifrost_search_with_rng_seed(
+    seeds[[1L]],
+    function() stats::runif(1L)
+  )
+  testthat::expect_length(random_value, 1L)
+  testthat::expect_false(exists(".Random.seed", envir = random_env, inherits = FALSE))
+
+  future::plan(future::sequential)
+  testthat::expect_identical(.bifrost_search_await_futures(list()), list())
+  testthat::expect_identical(
+    .bifrost_search_await_work(function() 12L, interval = 0.01),
+    12L
+  )
+  testthat::expect_identical(
+    .bifrost_search_future_lapply(
+      integer(),
+      identity,
+      workers = 1L,
+      is_rstudio_flag = TRUE,
+      heartbeat = function() invisible(NULL)
+    ),
+    list()
+  )
+})
+
+test_that("search print data carries the progress setting", {
+  object <- structure(
+    list(
+      user_input = list(progress = TRUE),
+      shift_nodes_no_uncertainty = integer(),
+      warnings = character()
+    ),
+    class = c("bifrost_search", "list")
+  )
+
+  print_data <- .bifrost_collect_print_data(object)
+  rendered <- paste(testthat::capture_output(
+    .bifrost_print_search_block(print_data)
+  ), collapse = "\n")
+
+  testthat::expect_true(print_data$progress)
+  testthat::expect_match(rendered, "Progress: TRUE", fixed = TRUE)
 })
 
 .fake_candidate_fit <- function(IC, formula, tree, trait_data, ...) {
@@ -639,6 +744,104 @@ test_that("IC-weight re-estimation ticks once per completed serial and parallel 
   testthat::expect_equal(sum(parallel$amounts > 0), 2L)
   testthat::expect_gte(sum(serial$amounts == 0), 2L)
   testthat::expect_gte(sum(parallel$amounts == 0), 2L)
+})
+
+test_that("serial IC weights retain the direct no-heartbeat path", {
+  testthat::skip_if_not_installed("ape")
+  testthat::skip_if_not_installed("phytools")
+
+  set.seed(47)
+  tree <- ape::rtree(10)
+  shifted_tree <- phytools::paintSubTree(
+    tree,
+    node = ape::Ntip(tree) + 1L,
+    state = 0
+  )
+  shift_node <- as.integer(sub(
+    "Node ",
+    "",
+    names(generatePaintedTrees(shifted_tree, min_tips = 3))[2L]
+  ))
+  shifted_tree <- addShiftToModel(shifted_tree, shift_node, 0L)$tree
+  ticks <- character()
+
+  weights <- .bifrost_search_calculate_ic_weights(
+    uncertaintyweights = TRUE,
+    uncertaintyweights_par = FALSE,
+    shift_vec = list(shift_node),
+    best_tree_no_uncertainty = shifted_tree,
+    model_with_shift_no_uncertainty = list(GIC = list(GIC = 80)),
+    IC = "GIC",
+    formula = trait_data ~ 1,
+    trait_data = matrix(0, nrow = ape::Ntip(tree), ncol = 1),
+    args_list = list(),
+    num_cores = 1L,
+    is_rstudio = FALSE,
+    verbose_log = function(...) invisible(NULL),
+    tick = function(...) ticks <<- c(ticks, list(...)$message),
+    heartbeat = NULL,
+    fit = function(IC, formula, tree, trait_data, ...) {
+      list(GIC = list(GIC = 90))
+    }
+  )
+
+  testthat::expect_equal(nrow(weights), 1L)
+  testthat::expect_length(ticks, 1L)
+})
+
+test_that("public search renders progress through accepted-shift weight re-estimation", {
+  testthat::skip_if_not_installed("ape")
+  testthat::skip_if_not_installed("phytools")
+  testthat::skip_if_not_installed("mvMORPH")
+
+  events <- new.env(parent = emptyenv())
+  events$types <- character()
+  events$messages <- character()
+  fit_count <- 0L
+  testthat::local_mocked_bindings(
+    fitMvglsAndExtractGIC.formula = function(formula, tree, trait_data, ...) {
+      fit_count <<- fit_count + 1L
+      list(
+        model = list(corrSt = list(phy = tree)),
+        GIC = list(GIC = 1000 - fit_count)
+      )
+    },
+    removeShiftFromTree = function(tree, shift_node, stem = FALSE) tree,
+    .bifrost_search_progress_handler = function() .collect_progress_handler(events)
+  )
+
+  set.seed(20260714)
+  tree <- ape::rtree(8)
+  traits <- matrix(stats::rnorm(16), ncol = 2)
+  rownames(traits) <- tree$tip.label
+
+  result <- suppressWarnings(searchOptimalConfiguration(
+    baseline_tree = tree,
+    trait_data = traits,
+    min_descendant_tips = 3,
+    num_cores = 1,
+    shift_acceptance_threshold = -Inf,
+    uncertaintyweights = TRUE,
+    uncertaintyweights_par = FALSE,
+    plot = FALSE,
+    IC = "GIC",
+    store_model_fit_history = FALSE,
+    verbose = FALSE,
+    progress = TRUE,
+    method = "LL"
+  ))
+
+  finish_messages <- events$messages[events$types == "finish"]
+  testthat::expect_gt(length(result$shift_nodes_no_uncertainty), 0L)
+  testthat::expect_equal(
+    nrow(result$ic_weights),
+    length(result$shift_nodes_no_uncertainty)
+  )
+  testthat::expect_true(any(grepl(
+    "[3/3] IC-weight re-estimation",
+    finish_messages,
+    fixed = TRUE
+  )))
 })
 
 test_that("requested IC-weight stage reports why zero-shift work is skipped", {
