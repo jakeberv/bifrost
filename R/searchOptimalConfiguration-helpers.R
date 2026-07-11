@@ -119,7 +119,8 @@
         row = renderer$create(label, display_total),
         current = 0,
         total = display_total,
-        state = "active"
+        state = "active",
+        status = label
       )
       names(stage_rows)[[length(stage_rows)]] <<- label
       index <- length(stage_rows)
@@ -135,6 +136,7 @@
     if (is.null(status)) {
       status <- paste(state$message, collapse = "")
     }
+    row$status <- status
     renderer$update(
       row$row,
       state = row_state,
@@ -164,19 +166,21 @@
           row = renderer$create(label, 1L),
           current = 1L,
           total = 1L,
-          state = "skipped"
+          state = "skipped",
+          status = label
         )
         names(stage_rows)[[length(stage_rows)]] <<- label
         index <- length(stage_rows)
       }
       row <- stage_rows[[index]]
       row$state <- "skipped"
+      row$status <- paste0(label, " - skipped: ", reason)
       renderer$update(
         row$row,
         state = "skipped",
         current = row$current,
         total = row$total,
-        status = paste0(label, " - skipped: ", reason),
+        status = row$status,
         force = TRUE
       )
       stage_rows[[index]] <<- row
@@ -187,6 +191,16 @@
         return(invisible(NULL))
       }
       renderer$output(stage_rows[[length(stage_rows)]]$row, text)
+      for (row in stage_rows) {
+        renderer$update(
+          row$row,
+          state = row$state,
+          current = row$current,
+          total = row$total,
+          status = row$status,
+          force = TRUE
+        )
+      }
       invisible(NULL)
     },
     has_rows = function() {

@@ -243,35 +243,42 @@ test_that("search CLI renderer redraws active rows below verbose output", {
   session <- .bifrost_search_progress_session(TRUE)
   on.exit(session$finalize(), add = TRUE)
 
-  rendered <- utils::capture.output({
-    .bifrost_search_run_stage(
-      enabled = TRUE,
-      steps = 1L,
-      initial_message = "[1/3] Candidate scoring",
-      work = function(tick) {
-        tick(message = "[1/3] Candidate scoring complete")
-        list(value = NULL, done = "[1/3] Candidate scoring done")
-      },
-      session = session
-    )
-    session$output("verbose detail")
-    .bifrost_search_run_stage(
-      enabled = TRUE,
-      steps = 1L,
-      initial_message = "[2/3] Greedy shift search",
-      work = function(tick) {
-        tick(message = "[2/3] Greedy shift search complete")
-        list(value = NULL, done = "[2/3] Greedy shift search done")
-      },
-      session = session
-    )
-    session$finalize()
-  }, type = "message")
+  .bifrost_search_run_stage(
+    enabled = TRUE,
+    steps = 1L,
+    initial_message = "[1/3] Candidate scoring",
+    work = function(tick) {
+      tick(message = "[1/3] Candidate scoring complete")
+      list(value = NULL, done = "[1/3] Candidate scoring done")
+    },
+    session = session
+  )
+  .bifrost_search_run_stage(
+    enabled = TRUE,
+    steps = 1L,
+    initial_message = "[2/3] Greedy shift search",
+    work = function(tick) {
+      tick(message = "[2/3] Greedy shift search complete")
+      list(value = NULL, done = "[2/3] Greedy shift search done")
+    },
+    session = session
+  )
 
-  plain <- cli::ansi_strip(paste(rendered, collapse = "\n"))
+  rendered <- utils::capture.output(
+    session$output("verbose detail"),
+    type = "message"
+  )
+
+  plain <- gsub(
+    "\r",
+    "",
+    cli::ansi_strip(paste(rendered, collapse = "\n")),
+    fixed = TRUE
+  )
   verbose_pos <- max(gregexpr("verbose detail", plain, fixed = TRUE)[[1L]])
   stage1_pos <- max(gregexpr("[1/3] Candidate scoring", plain, fixed = TRUE)[[1L]])
   stage2_pos <- max(gregexpr("[2/3] Greedy shift search", plain, fixed = TRUE)[[1L]])
+  testthat::expect_gt(verbose_pos, 0L)
   testthat::expect_gt(stage1_pos, verbose_pos)
   testthat::expect_gt(stage2_pos, verbose_pos)
 })
@@ -298,6 +305,37 @@ test_that("search progress stage runner reports lifecycle and returns work value
   testthat::expect_equal(sum(events$types == "update"), 2L)
   testthat::expect_gte(sum(events$types == "finish"), 1L)
   testthat::expect_true(any(grepl("Candidate scoring complete", events$messages, fixed = TRUE)))
+})
+
+test_that("search progress stage runner owns and finalizes its default session", {
+  events <- new.env(parent = emptyenv())
+  events$constructed <- 0L
+  events$created <- character()
+  events$updates <- list()
+  events$output <- character()
+  events$done <- character()
+  progress_session <- .bifrost_search_progress_session
+  testthat::local_mocked_bindings(
+    .bifrost_search_progress_session = function(enabled) {
+      events$constructed <- events$constructed + 1L
+      progress_session(enabled, .recording_search_renderer(events))
+    }
+  )
+
+  value <- .bifrost_search_run_stage(
+    enabled = TRUE,
+    steps = 1L,
+    initial_message = "owned stage",
+    work = function(tick) {
+      tick(message = "owned stage complete")
+      list(value = 73L, done = "owned stage done")
+    }
+  )
+
+  testthat::expect_identical(value, 73L)
+  testthat::expect_identical(events$constructed, 1L)
+  testthat::expect_identical(events$created, "owned stage")
+  testthat::expect_identical(events$done, "row-1")
 })
 
 test_that("a heartbeat after the final completion remains valid until stage finish", {
