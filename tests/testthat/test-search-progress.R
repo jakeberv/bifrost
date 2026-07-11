@@ -59,6 +59,7 @@ test_that("search status rows appear progressively and finalize together", {
     TRUE,
     .recording_search_renderer(events)
   )
+  testthat::expect_false(session$has_rows())
 
   run_stage <- function(label) {
     .bifrost_search_run_stage(
@@ -74,6 +75,7 @@ test_that("search status rows appear progressively and finalize together", {
   }
 
   run_stage("[1/3] Candidate scoring")
+  testthat::expect_true(session$has_rows())
   testthat::expect_length(events$created, 1L)
   testthat::expect_length(events$done, 0L)
   session$output("verbose between stages")
@@ -97,6 +99,78 @@ test_that("search status rows appear progressively and finalize together", {
   testthat::expect_length(events$done, 3L)
   testthat::expect_identical(events$done, paste0("row-", 1:3))
   testthat::expect_identical(events$output, "verbose between stages")
+
+  event_counts <- c(
+    created = length(events$created),
+    updates = length(events$updates),
+    output = length(events$output),
+    done = length(events$done)
+  )
+  session$update_stage(
+    "[4/4] Too late",
+    list(max_steps = 2L),
+    list(step = 1L, message = "ignored update"),
+    list(amount = 1),
+    "active"
+  )
+  session$skip("[4/4] Too late", "already finalized")
+  session$output("ignored output")
+  session$finalize()
+  testthat::expect_identical(c(
+    created = length(events$created),
+    updates = length(events$updates),
+    output = length(events$output),
+    done = length(events$done)
+  ), event_counts)
+})
+
+test_that("disabled search status session never touches its renderer", {
+  events <- new.env(parent = emptyenv())
+  events$created <- character()
+  events$updates <- list()
+  events$output <- character()
+  events$done <- character()
+  session <- .bifrost_search_progress_session(
+    FALSE,
+    .recording_search_renderer(events)
+  )
+  handler <- session$handler("disabled stage")
+  reporter <- get("reporter", envir = environment(handler))
+  config <- list(max_steps = 2L)
+  state <- list(step = 1L, message = "ignored")
+  progression <- list(amount = 1)
+
+  testthat::expect_false(session$has_rows())
+  testthat::expect_identical(session$rows(), character())
+  reporter$initiate(config, state, progression)
+  reporter$update(config, state, progression)
+  reporter$finish(config, state, progression)
+  reporter$interrupt(
+    config,
+    state,
+    structure(
+      list(message = "ignored failure", call = NULL, amount = 1),
+      class = c("simpleError", "error", "condition")
+    )
+  )
+  session$update_stage(
+    "disabled direct stage",
+    config,
+    state,
+    progression,
+    "active"
+  )
+  session$skip("disabled skipped stage", "not requested")
+  session$output("disabled output")
+  session$finalize()
+  session$finalize()
+
+  testthat::expect_false(session$has_rows())
+  testthat::expect_identical(session$rows(), character())
+  testthat::expect_length(events$created, 0L)
+  testthat::expect_length(events$updates, 0L)
+  testthat::expect_length(events$output, 0L)
+  testthat::expect_length(events$done, 0L)
 })
 
 test_that("search status session marks failures before rethrowing them", {
@@ -161,6 +235,33 @@ test_that("search CLI renderer finalizes persistent rows as separate lines", {
   }, type = "message")
 
   testthat::expect_gte(length(rendered), 2L)
+})
+
+test_that("search CLI renderer emits output through an active row", {
+  old_cli_dynamic <- options(cli.dynamic = TRUE)
+  on.exit(options(old_cli_dynamic), add = TRUE)
+  session <- .bifrost_search_progress_session(TRUE)
+  on.exit(session$finalize(), add = TRUE)
+
+  rendered <- utils::capture.output({
+    .bifrost_search_run_stage(
+      enabled = TRUE,
+      steps = 1L,
+      initial_message = "[1/1] Output stage",
+      work = function(tick) {
+        tick(message = "[1/1] Output stage complete")
+        list(value = NULL, done = "[1/1] Output stage done")
+      },
+      handler = session$handler("[1/1] Output stage")
+    )
+    session$output("real renderer verbose output")
+    session$finalize()
+    session$finalize()
+  }, type = "message")
+
+  plain <- cli::ansi_strip(paste(rendered, collapse = "\n"))
+  testthat::expect_match(plain, "real renderer verbose output", fixed = TRUE)
+  testthat::expect_match(plain, "[1/1] Output stage", fixed = TRUE)
 })
 
 test_that("search progress stage runner reports lifecycle and returns work value", {

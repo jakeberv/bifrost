@@ -193,7 +193,12 @@
       isTRUE(enabled) && length(stage_rows) > 0L
     },
     rows = function() {
-      names(stage_rows)
+      vapply(
+        stage_rows,
+        function(row) row$label,
+        character(1),
+        USE.NAMES = FALSE
+      )
     },
     finalize = function() {
       if (finalized) {
