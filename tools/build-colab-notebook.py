@@ -17,9 +17,17 @@ COLAB_BASE = "https://colab.research.google.com/github/jakeberv/bifrost/blob/mai
 COLAB_BADGE = "https://colab.research.google.com/assets/colab-badge.svg"
 RAW_BASE = "https://raw.githubusercontent.com/jakeberv/bifrost/main/vignettes"
 PKGDOWN_ARTICLES = "https://jakeberv.com/bifrost/articles"
+RUNTIME_NOTE = (
+    "> **Recommended Colab runtime:** For compute-intensive examples, choose "
+    "**Runtime > Change runtime type > v5e-1 TPU** when available. This notebook "
+    "uses the runtime's host CPUs, not the TPU itself. Otherwise, choose the "
+    "available runtime with the most CPUs."
+)
 COMMON_COLAB_PACKAGES = ("remotes", "knitr")
 COLAB_PACKAGES_BY_SLUG = {
+    "jaw-shape-vignette": ("geomorph",),
     "pca-model-selection-and-bifrost-vignette": ("phylolm",),
+    "rate-map-jaw-shape-vignette": ("geomorph",),
 }
 
 
@@ -116,15 +124,8 @@ def is_eval_false(header: str) -> bool:
     return header_has(header, "eval", "FALSE")
 
 
-def is_eval_true(header: str) -> bool:
-    return header_has(header, "eval", "TRUE")
-
-
-def sets_default_eval_false(code: str) -> bool:
-    return (
-        "opts_chunk$set" in code
-        and re.search(r"\beval\s*=\s*FALSE\b", code, re.IGNORECASE) is not None
-    )
+def is_hidden_unevaluated(header: str) -> bool:
+    return header_has(header, "include", "FALSE") and is_eval_false(header)
 
 
 def is_html_or_pkgdown(header: str, code: str) -> bool:
@@ -186,7 +187,8 @@ def rewrite_markdown_links(markdown: str) -> str:
 def setup_source(slug: str) -> str:
     packages = COMMON_COLAB_PACKAGES + COLAB_PACKAGES_BY_SLUG.get(slug, ())
     package_vector = ", ".join(json.dumps(package) for package in packages)
-    return f"""if (!dir.exists("/content/bifrost")) {{
+    return f"""message("Detected logical CPUs: ", parallel::detectCores(logical = TRUE))
+if (!dir.exists("/content/bifrost")) {{
   system("git clone --depth 1 https://github.com/jakeberv/bifrost.git /content/bifrost")
 }}
 colab_packages <- c({package_vector})
@@ -213,45 +215,32 @@ def convert(slug: str, repo_root: Path) -> dict:
         markdown_cell(
             f"# {title}\n\n"
             f"{colab_badge_markdown(slug)}\n\n"
-            f"Converted from [`vignettes/{slug}.Rmd`]({REPO}/blob/main/vignettes/{slug}.Rmd)."
+            f"Converted from [`vignettes/{slug}.Rmd`]({REPO}/blob/main/vignettes/{slug}.Rmd).\n\n"
+            f"{RUNTIME_NOTE}"
         ),
         code_cell(setup_source(slug)),
     ]
 
-    default_eval_false = False
     for block_type, header, content in parse_chunks(body):
         if block_type == "markdown":
             if content:
                 cells.append(markdown_cell(rewrite_markdown_links(content) + "\n"))
             continue
 
-        image_paths = image_paths_from_code(content)
-        effective_eval_false = is_eval_false(header) or (default_eval_false and not is_eval_true(header))
-
-        if image_paths and not effective_eval_false:
-            cells.append(markdown_cell(raw_image_markdown(image_paths) + "\n"))
-            if sets_default_eval_false(content):
-                default_eval_false = True
+        if is_hidden_unevaluated(header):
             continue
 
-        if effective_eval_false:
-            if content.strip():
-                cells.append(markdown_cell("```r\n" + content.strip() + "\n```\n"))
-            if sets_default_eval_false(content):
-                default_eval_false = True
+        image_paths = image_paths_from_code(content)
+        if image_paths:
+            cells.append(markdown_cell(raw_image_markdown(image_paths) + "\n"))
             continue
 
         if is_html_or_pkgdown(header, content):
             cells.append(markdown_cell("_This pkgdown-only HTML chunk was omitted from the Colab notebook._\n"))
-            if sets_default_eval_false(content):
-                default_eval_false = True
             continue
 
         if content.strip():
             cells.append(code_cell(content.strip() + "\n"))
-
-        if sets_default_eval_false(content):
-            default_eval_false = True
 
     return {
         "cells": cells,

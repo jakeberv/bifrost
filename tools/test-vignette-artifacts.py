@@ -248,6 +248,50 @@ def main() -> None:
         ).stdout.split()
         assert_plan(fallback_slugs, all_slugs, "slug discovery without yaml")
 
+    with tempfile.TemporaryDirectory(prefix="bifrost-colab-policy-") as temp:
+        repo = Path(temp) / "repo"
+        (repo / "tools").mkdir(parents=True)
+        (repo / "vignettes").mkdir()
+        shutil.copy2(source / "DESCRIPTION", repo / "DESCRIPTION")
+        shutil.copy2(source / "_pkgdown.yml", repo / "_pkgdown.yml")
+        shutil.copy2(
+            source / "tools/build-colab-notebook.py",
+            repo / "tools/build-colab-notebook.py",
+        )
+        (repo / "vignettes/colab-policy-probe.Rmd").write_text(
+            "---\n"
+            'title: "Colab policy probe"\n'
+            "---\n\n"
+            "```{r setup, include=FALSE}\n"
+            "knitr::opts_chunk$set(eval = FALSE)\n"
+            "```\n\n"
+            "```{r visible, eval=FALSE}\n"
+            "visible_probe <- TRUE\n"
+            "```\n\n"
+            "```{r hidden, include=FALSE, eval=FALSE}\n"
+            "hidden_probe <- TRUE\n"
+            "```\n"
+        )
+        run(
+            repo,
+            "python3",
+            "tools/build-colab-notebook.py",
+            "--slug",
+            "colab-policy-probe",
+        )
+        policy_notebook = json.loads(
+            (repo / "vignettes/colab/colab-policy-probe.ipynb").read_text()
+        )
+        policy_code = "\n".join(
+            cell["source"]
+            for cell in policy_notebook["cells"]
+            if cell["cell_type"] == "code"
+        )
+        if "visible_probe <- TRUE" not in policy_code:
+            raise AssertionError("visible eval=FALSE chunks must be executable in Colab")
+        if "hidden_probe <- TRUE" in policy_code:
+            raise AssertionError("hidden unevaluated chunks must be omitted from Colab")
+
     theoretical_rmd = (
         source / "vignettes/theoretical-background-vignette.Rmd"
     ).read_text()
@@ -263,7 +307,41 @@ def main() -> None:
         notebook = json.loads(notebook_path.read_text())
         if notebook_path.stem == "quick-start-vignette":
             dependency_probe = json.loads(json.dumps(notebook))
+        runtime_note = notebook["cells"][0]["source"]
+        for phrase in (
+            "Recommended Colab runtime",
+            "v5e-1 TPU",
+            "host CPUs",
+            "runtime with the most CPUs",
+        ):
+            if phrase not in runtime_note:
+                raise AssertionError(
+                    f"{notebook_path.name} runtime note is missing {phrase!r}"
+                )
+        fenced_r_examples = [
+            cell
+            for cell in notebook["cells"]
+            if cell["cell_type"] == "markdown" and "```r\n" in cell["source"]
+        ]
+        if fenced_r_examples:
+            raise AssertionError(
+                f"{notebook_path.name} contains R examples that are not executable cells"
+            )
+        hidden_maintenance_cells = [
+            cell
+            for cell in notebook["cells"]
+            if cell["cell_type"] == "code"
+            and "rate_map_save_arc_figure(" in cell["source"]
+        ]
+        if hidden_maintenance_cells:
+            raise AssertionError(
+                f"{notebook_path.name} contains hidden vignette maintenance code"
+            )
         setup = notebook["cells"][1]["source"]
+        if "parallel::detectCores(logical = TRUE)" not in setup:
+            raise AssertionError(
+                f"{notebook_path.name} setup must report detected logical CPUs"
+            )
         if "git clone --depth 1 " not in setup:
             raise AssertionError(
                 f"{notebook_path.name} setup must use a shallow Git clone"
