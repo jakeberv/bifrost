@@ -152,6 +152,40 @@ def main() -> None:
         make_fixture(source, repo)
 
         base = run(repo, "git", "rev-parse", "HEAD").stdout.strip()
+        fake_bin = Path(temp) / "fake-bin"
+        fake_bin.mkdir()
+        fake_git = fake_bin / "git"
+        fake_git.write_text(
+            "#!/bin/sh\n"
+            "printf '%s\\n' 'vignettes/quick-start-vignette.Rmd'\n"
+            "printf '%s\\n' 'R/warning-from-stderr.R' >&2\n"
+        )
+        fake_git.chmod(0o755)
+        fake_env = os.environ.copy()
+        fake_env["PATH"] = f"{fake_bin}{os.pathsep}{fake_env['PATH']}"
+        fake_profile = Path(temp) / "fake-git.Rprofile"
+        fake_profile.write_text(
+            f"Sys.setenv(PATH = {json.dumps(fake_env['PATH'])})\n"
+        )
+        fake_env["R_PROFILE_USER"] = str(fake_profile)
+        stderr_probe = run(
+            repo,
+            "Rscript",
+            "tools/vignette_artifacts.R",
+            "plan",
+            "--target",
+            "colab",
+            "--artifact-dir",
+            "vignettes/colab",
+            "--base",
+            "probe-base",
+            "--ignore-missing",
+            "--sep",
+            "space",
+            env=fake_env,
+        ).stdout.split()
+        assert_plan(stderr_probe, ["quick-start-vignette"], "Git stderr isolation")
+
         pdf_dir = Path(temp) / "pdfs"
         cache_dir = Path(temp) / "cache"
         pdf_dir.mkdir()
@@ -281,6 +315,8 @@ def main() -> None:
         raise AssertionError("pkgdown PDF link must use the encoded vignette slug")
     if "encodedSlug + '.ipynb';" not in pkgdown_config:
         raise AssertionError("pkgdown Colab link must use the encoded vignette slug")
+    if "actions.setAttribute('role', 'group');" not in pkgdown_config:
+        raise AssertionError("pkgdown artifact action label must describe a group")
 
     artifact_tool = (source / "tools/vignette_artifacts.R").read_text()
     if '"MISSING"' not in artifact_tool:

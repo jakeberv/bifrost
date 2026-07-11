@@ -228,12 +228,14 @@ git_changed_files <- function(base) {
   if (is.null(base) || !nzchar(base)) {
     return(character())
   }
+  stderr_path <- tempfile("vignette-git-stderr-")
+  on.exit(unlink(stderr_path), add = TRUE)
   out <- tryCatch(
     suppressWarnings(system2(
       "git",
       c("diff", "--name-only", paste0(base, "...HEAD")),
       stdout = TRUE,
-      stderr = TRUE
+      stderr = stderr_path
     )),
     error = function(e) {
       stop("Could not compute changed vignette inputs: ", conditionMessage(e),
@@ -242,9 +244,14 @@ git_changed_files <- function(base) {
   )
   status <- attr(out, "status")
   if (!is.null(status) && status != 0L) {
+    stderr <- if (file.exists(stderr_path)) {
+      readLines(stderr_path, warn = FALSE)
+    } else {
+      character()
+    }
     stop(
       "Could not compute changed vignette inputs against '", base, "':\n",
-      paste(out, collapse = "\n"),
+      paste(c(out, stderr), collapse = "\n"),
       call. = FALSE
     )
   }

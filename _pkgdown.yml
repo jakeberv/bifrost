@@ -107,6 +107,7 @@ template:
 
           const actions = document.createElement('div');
           actions.className = 'article-artifact-actions';
+          actions.setAttribute('role', 'group');
           actions.setAttribute('aria-label', 'Article downloads and notebooks');
 
           const pdf = document.createElement('a');
