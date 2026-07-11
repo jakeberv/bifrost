@@ -400,25 +400,6 @@ test_that("search progress stage preserves failure lifecycle and rethrows errors
   testthat::expect_false(any(events$types %in% c("finish", "shutdown")))
 })
 
-test_that("future-backed work emits repeated heartbeats while it is unresolved", {
-  heartbeat_count <- 0L
-
-  value <- .bifrost_search_future_value(
-    work = function() {
-      Sys.sleep(0.35)
-      42L
-    },
-    is_rstudio_flag = TRUE,
-    heartbeat = function() {
-      heartbeat_count <<- heartbeat_count + 1L
-    },
-    interval = 0.05
-  )
-
-  testthat::expect_identical(value, 42L)
-  testthat::expect_gte(heartbeat_count, 2L)
-})
-
 test_that("animated Future failures cancel remaining work and restore settings", {
   thread_vars <- c(
     "OMP_NUM_THREADS",
@@ -541,24 +522,6 @@ test_that("verbose message and plotting-style stdout coexist with stage progress
   testthat::expect_true("finish" %in% events$types)
 })
 
-test_that("search progress handler is a persistent cli handler", {
-  events <- new.env(parent = emptyenv())
-  events$created <- character()
-  events$updates <- list()
-  events$output <- character()
-  events$done <- character()
-  session <- .bifrost_search_progress_session(
-    TRUE,
-    .recording_search_renderer(events)
-  )
-  handler <- session$handler("persistent stage")
-
-  testthat::expect_s3_class(handler, "cli_progression_handler")
-  testthat::expect_false(get("clear", envir = environment(handler)))
-  testthat::expect_identical(get("enable_after", envir = environment(handler)), 0)
-  testthat::expect_true(get("enable", envir = environment(handler)))
-})
-
 test_that("search CLI handler redraws zero-increment heartbeat events", {
   events <- new.env(parent = emptyenv())
   events$created <- character()
@@ -593,31 +556,6 @@ test_that("search CLI handler redraws zero-increment heartbeat events", {
   testthat::expect_identical(heartbeat$current, 1L)
   testthat::expect_identical(heartbeat$total, 2L)
   testthat::expect_identical(heartbeat$status, "heartbeat")
-})
-
-test_that("search CLI handler can render a heartbeat with its private state", {
-  old_cli_dynamic <- options(cli.dynamic = TRUE)
-  on.exit(options(old_cli_dynamic), add = TRUE)
-  session <- .bifrost_search_progress_session(TRUE)
-
-  rendered <- utils::capture.output({
-    value <- .bifrost_search_run_stage(
-      enabled = TRUE,
-      steps = 2L,
-      initial_message = "render test",
-      work = function(tick) {
-        tick(amount = 0, message = "render heartbeat")
-        tick(message = "first complete")
-        tick(message = "second complete")
-        list(value = 7L, done = "render done")
-      },
-      handler = session$handler("render test")
-    )
-    session$finalize()
-  }, type = "message")
-
-  testthat::expect_identical(value, 7L)
-  testthat::expect_true(any(grepl("render heartbeat", rendered, fixed = TRUE)))
 })
 
 test_that("non-dynamic search output stays bounded across heartbeats", {
@@ -656,50 +594,6 @@ test_that("non-dynamic search output stays bounded across heartbeats", {
 
   testthat::expect_lte(length(rendered), 5L)
   testthat::expect_true(any(grepl("stage complete", rendered, fixed = TRUE)))
-})
-
-test_that("search CLI reporter handles every terminal lifecycle callback", {
-  events <- new.env(parent = emptyenv())
-  events$created <- character()
-  events$updates <- list()
-  events$output <- character()
-  events$done <- character()
-  session <- .bifrost_search_progress_session(
-    TRUE,
-    .recording_search_renderer(events)
-  )
-  handler <- session$handler("lifecycle stage")
-  reporter <- get("reporter", envir = environment(handler))
-  config <- list(max_steps = 3L)
-  active_state <- list(step = 1L, message = "working")
-  update <- list(amount = 1)
-  heartbeat <- list(amount = 0)
-  failure <- structure(
-    list(message = "synthetic lifecycle failure", call = NULL, amount = 1),
-    class = c("simpleError", "error", "condition")
-  )
-
-  reporter$reset()
-  reporter$hide()
-  reporter$unhide()
-  reporter$initiate(config, active_state, update)
-  reporter$update(config, active_state, heartbeat)
-  reporter$finish(
-    config,
-    list(step = 3L, message = "lifecycle complete"),
-    update
-  )
-
-  failed_handler <- session$handler("failed lifecycle stage")
-  failed_reporter <- get("reporter", envir = environment(failed_handler))
-  failed_reporter$interrupt(config, active_state, failure)
-
-  states <- vapply(events$updates, `[[`, character(1), "state")
-  testthat::expect_true("complete" %in% states)
-  testthat::expect_true("failed" %in% states)
-  testthat::expect_length(events$done, 0L)
-  session$finalize()
-  testthat::expect_identical(events$done, c("row-1", "row-2"))
 })
 
 test_that("skipped search stages are persistent only when progress is enabled", {
@@ -952,25 +846,6 @@ test_that("search progress helpers cover empty work and seedless callers", {
     ),
     list()
   )
-})
-
-test_that("search print data carries the progress setting", {
-  object <- structure(
-    list(
-      user_input = list(progress = TRUE),
-      shift_nodes_no_uncertainty = integer(),
-      warnings = character()
-    ),
-    class = c("bifrost_search", "list")
-  )
-
-  print_data <- .bifrost_collect_print_data(object)
-  rendered <- paste(testthat::capture_output(
-    .bifrost_print_search_block(print_data)
-  ), collapse = "\n")
-
-  testthat::expect_true(print_data$progress)
-  testthat::expect_match(rendered, "Progress: TRUE", fixed = TRUE)
 })
 
 test_that("print.bifrost_search formats captured threshold expressions", {

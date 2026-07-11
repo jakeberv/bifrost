@@ -21,8 +21,7 @@
     withCallingHandlers(
       fun(...),
       cliMessage = function(message) {
-        output <- conditionMessage(message)
-        cat(output, file = stderr())
+        cat(conditionMessage(message), file = stderr())
         invokeRestart("muffleMessage")
       }
     )
@@ -30,14 +29,15 @@
 
   list(
     create = function(label, total) {
-      row_env <- new.env(parent = baseenv())
-      row_env$stage_state <- "active"
-      row_env$status <- label
-      row_env$output_text <- ""
-      old_handlers <- options(cli.progress_handlers_only = "cli")
-      old_show_after <- options(cli.progress_show_after = 0)
-      on.exit(options(old_show_after), add = TRUE)
-      on.exit(options(old_handlers), add = TRUE)
+      row_env <- list2env(
+        list(stage_state = "active", status = label, output_text = ""),
+        parent = baseenv()
+      )
+      old_options <- options(
+        cli.progress_handlers_only = "cli",
+        cli.progress_show_after = 0
+      )
+      on.exit(options(old_options), add = TRUE)
 
       id <- cli_progress_call(
         cli::cli_progress_bar,
@@ -65,7 +65,6 @@
         force = force,
         .envir = row$envir
       )
-      invisible(NULL)
     },
     output = function(row, text) {
       row$envir$output_text <- text
@@ -75,7 +74,6 @@
         id = row$id,
         .envir = row$envir
       )
-      invisible(NULL)
     },
     done = function(row, result) {
       cli_progress_call(
@@ -84,7 +82,6 @@
         result = if (identical(result, "failed")) "failed" else "done",
         .envir = row$envir
       )
-      invisible(NULL)
     }
   )
 }
@@ -94,10 +91,36 @@
     renderer = .bifrost_search_cli_renderer()) {
   stage_rows <- list()
   finalized <- FALSE
-  session <- NULL
 
-  row_index <- function(label) {
-    match(label, names(stage_rows), nomatch = 0L)
+  inactive <- function() !isTRUE(enabled) || finalized
+
+  add_row <- function(label,
+                      total,
+                      current = 0L,
+                      state = "active",
+                      status = label) {
+    row <- list(
+      label = label,
+      row = renderer$create(label, total),
+      current = current,
+      total = total,
+      state = state,
+      status = status
+    )
+    stage_rows[[label]] <<- row
+    row
+  }
+
+  render <- function(row, force = TRUE) {
+    renderer$update(
+      row$row,
+      state = row$state,
+      current = row$current,
+      total = row$total,
+      status = row$status,
+      force = force
+    )
+    row
   }
 
   update_stage <- function(label,
@@ -106,350 +129,102 @@
                            progression,
                            row_state,
                            status = NULL) {
-    if (!isTRUE(enabled) || finalized) {
+    if (inactive()) {
       return(invisible(NULL))
     }
 
     display_total <- config$max_steps - 1L
     display_step <- min(state$step, display_total)
-    index <- row_index(label)
-    if (index == 0L) {
-      stage_rows[[length(stage_rows) + 1L]] <<- list(
-        label = label,
-        row = renderer$create(label, display_total),
-        current = 0,
-        total = display_total,
-        state = "active",
-        status = label
-      )
-      names(stage_rows)[[length(stage_rows)]] <<- label
-      index <- length(stage_rows)
-    }
-
-    row <- stage_rows[[index]]
+    row <- stage_rows[[label]]
+    if (is.null(row)) row <- add_row(label, display_total)
     heartbeat <- isTRUE(progression$amount == 0)
-    if (!heartbeat) {
-      row$current <- display_step
-    }
+    if (!heartbeat) row$current <- display_step
     row$total <- display_total
     row$state <- row_state
-    if (is.null(status)) {
-      status <- paste(state$message, collapse = "")
-    }
-    row$status <- status
-    renderer$update(
-      row$row,
-      state = row_state,
-      current = row$current,
-      total = row$total,
-      status = status,
+    row$status <- if (is.null(status)) paste(state$message, collapse = "") else status
+    stage_rows[[label]] <<- render(
+      row,
       force = !heartbeat || cli::is_dynamic_tty("stderr")
     )
-    stage_rows[[index]] <<- row
     invisible(NULL)
   }
 
-  session <- list(
-    handler = function(label) {
-      .bifrost_search_progress_handler(session, label)
-    },
+  handler <- function(label) {
+    report <- function(config,
+                       state,
+                       progression,
+                       row_state = "active",
+                       status = NULL) {
+      update_stage(label, config, state, progression, row_state, status)
+    }
+    reporter <- list(
+      reset = function(...) invisible(NULL),
+      hide = function(...) invisible(NULL),
+      unhide = function(...) invisible(NULL),
+      initiate = function(config, state, progression, ...) {
+        report(config, state, progression)
+      },
+      update = function(config, state, progression, ...) {
+        report(config, state, progression)
+      },
+      finish = function(config, state, progression, ...) {
+        report(config, state, progression, "complete")
+      },
+      interrupt = function(config, state, progression, ...) {
+        report(
+          config,
+          state,
+          progression,
+          "failed",
+          conditionMessage(progression)
+        )
+      }
+    )
+    progressr::make_progression_handler(
+      "cli",
+      reporter = reporter,
+      enable = TRUE,
+      enable_after = 0,
+      interval = 0,
+      clear = FALSE,
+      target = "terminal"
+    )
+  }
+
+  list(
+    handler = handler,
     update_stage = update_stage,
     skip = function(label, reason) {
-      if (!isTRUE(enabled) || finalized) {
-        return(invisible(NULL))
+      if (inactive()) return(invisible(NULL))
+      row <- stage_rows[[label]]
+      if (is.null(row)) {
+        row <- add_row(label, 1L, current = 1L, state = "skipped")
       }
-
-      index <- row_index(label)
-      if (index == 0L) {
-        stage_rows[[length(stage_rows) + 1L]] <<- list(
-          label = label,
-          row = renderer$create(label, 1L),
-          current = 1L,
-          total = 1L,
-          state = "skipped",
-          status = label
-        )
-        names(stage_rows)[[length(stage_rows)]] <<- label
-        index <- length(stage_rows)
-      }
-      row <- stage_rows[[index]]
       row$state <- "skipped"
       row$status <- paste0(label, " - skipped: ", reason)
-      renderer$update(
-        row$row,
-        state = "skipped",
-        current = row$current,
-        total = row$total,
-        status = row$status,
-        force = TRUE
-      )
-      stage_rows[[index]] <<- row
+      stage_rows[[label]] <<- render(row)
       invisible(NULL)
     },
     output = function(text) {
-      if (!isTRUE(enabled) || finalized || length(stage_rows) == 0L) {
+      if (inactive() || length(stage_rows) == 0L) {
         return(invisible(NULL))
       }
       renderer$output(stage_rows[[length(stage_rows)]]$row, text)
-      for (row in stage_rows) {
-        renderer$update(
-          row$row,
-          state = row$state,
-          current = row$current,
-          total = row$total,
-          status = row$status,
-          force = TRUE
-        )
+      for (label in names(stage_rows)) {
+        stage_rows[[label]] <<- render(stage_rows[[label]])
       }
       invisible(NULL)
     },
-    has_rows = function() {
-      isTRUE(enabled) && length(stage_rows) > 0L
-    },
-    rows = function() {
-      vapply(
-        stage_rows,
-        function(row) row$label,
-        character(1),
-        USE.NAMES = FALSE
-      )
-    },
+    has_rows = function() isTRUE(enabled) && length(stage_rows) > 0L,
+    rows = function() if (length(stage_rows)) names(stage_rows) else character(),
     finalize = function() {
-      if (finalized) {
-        return(invisible(NULL))
-      }
+      if (finalized) return(invisible(NULL))
       finalized <<- TRUE
       for (row in stage_rows) {
         renderer$done(row$row, row$state)
       }
       invisible(NULL)
     }
-  )
-  session
-}
-
-.bifrost_search_progress_handler <- function(session = NULL, label = NULL) {
-  if (is.null(session)) {
-    return(.bifrost_search_legacy_progress_handler())
-  }
-
-  reporter <- list(
-    reset = function(...) invisible(NULL),
-    hide = function(...) invisible(NULL),
-    unhide = function(...) invisible(NULL),
-    initiate = function(config, state, progression, ...) {
-      session$update_stage(label, config, state, progression, "active")
-    },
-    update = function(config, state, progression, ...) {
-      session$update_stage(label, config, state, progression, "active")
-    },
-    finish = function(config, state, progression, ...) {
-      session$update_stage(label, config, state, progression, "complete")
-    },
-    interrupt = function(config, state, progression, ...) {
-      session$update_stage(
-        label,
-        config,
-        state,
-        progression,
-        "failed",
-        status = conditionMessage(progression)
-      )
-    }
-  )
-
-  progressr::make_progression_handler(
-    "cli",
-    reporter = reporter,
-    enable = TRUE,
-    enable_after = 0,
-    interval = 0,
-    clear = FALSE,
-    target = "terminal"
-  )
-}
-
-.bifrost_search_legacy_progress_handler <- function() {
-  format <- paste0(
-    "{cli::pb_spin} {cli::pb_bar} {cli::pb_percent} ",
-    "[{cli::pb_current}/{cli::pb_total}] ",
-    "(ETA: {cli::pb_eta}) {cli::pb_status}"
-  )
-  format_done <- paste0(
-    "{cli::symbol$tick} {cli::pb_bar} {cli::pb_percent} ",
-    "[{cli::pb_current}/{cli::pb_total}] ",
-    "[{cli::pb_elapsed}] {cli::pb_status}"
-  )
-  format_failed <- paste0(
-    "{cli::symbol$cross} {cli::pb_bar} {cli::pb_percent} ",
-    "[{cli::pb_current}/{cli::pb_total}] ",
-    "[{cli::pb_elapsed}] {cli::pb_status}"
-  )
-
-  cli_n_colors <- cli::num_ansi_colors()
-  dynamic_terminal <- cli::is_dynamic_tty("stderr")
-  cli_progress_call <- function(fun, ...) {
-    old_options <- options(
-      cli.num_colors = cli_n_colors,
-      crayon.enabled = cli_n_colors > 1L,
-      crayon.colors = cli_n_colors
-    )
-    on.exit(options(old_options), add = TRUE)
-
-    withCallingHandlers(
-      fun(...),
-      cliMessage = function(message) {
-        output <- conditionMessage(message)
-        if (identical(fun, cli::cli_progress_done)) {
-          output <- gsub("[\n\r]+$", "", output)
-        }
-        cat(output, file = stderr())
-        invokeRestart("muffleMessage")
-      }
-    )
-  }
-
-  reporter <- local({
-    progress_bar <- NULL
-    progress_finished <- FALSE
-
-    make_progress_bar <- function(total) {
-      if (!is.null(progress_bar)) {
-        return(invisible(progress_bar))
-      }
-
-      progress_env <- new.env(parent = baseenv())
-      progress_env$total <- total
-      old_handlers <- options(cli.progress_handlers_only = "cli")
-      old_show_after <- options(cli.progress_show_after = 0)
-      on.exit(options(old_show_after), add = TRUE)
-      on.exit(options(old_handlers), add = TRUE)
-
-      id <- cli_progress_call(
-        cli::cli_progress_bar,
-        total = total,
-        format = format,
-        format_done = format_done,
-        format_failed = format_failed,
-        clear = FALSE,
-        auto_terminate = FALSE,
-        .auto_close = FALSE,
-        .envir = progress_env
-      )
-      progress_bar <<- list(id = id, envir = progress_env, total = total)
-      invisible(progress_bar)
-    }
-
-    update_progress_bar <- function(config, state, progression = NULL) {
-      display_total <- config$max_steps - 1L
-      display_step <- min(state$step, display_total)
-      make_progress_bar(display_total)
-      if (!is.null(progression) && identical(progression$amount, 0)) {
-        cli_progress_call(
-          cli::cli_progress_update,
-          id = progress_bar$id,
-          inc = 0,
-          status = state$message,
-          force = dynamic_terminal,
-          .envir = progress_bar$envir
-        )
-      } else {
-        cli_progress_call(
-          cli::cli_progress_update,
-          id = progress_bar$id,
-          set = display_step,
-          status = state$message,
-          force = TRUE,
-          .envir = progress_bar$envir
-        )
-      }
-    }
-
-    erase_progress_bar <- function() {
-      if (is.null(progress_bar)) {
-        return(invisible(NULL))
-      }
-      width <- max(cli::console_width() - 1L, 1L)
-      cat(paste0("\r", strrep(" ", width), "\r"), file = stderr())
-      invisible(NULL)
-    }
-
-    redraw_progress_bar <- function() {
-      if (is.null(progress_bar)) {
-        return(invisible(NULL))
-      }
-      cli_progress_call(
-        cli::cli_progress_update,
-        id = progress_bar$id,
-        inc = 0,
-        force = TRUE,
-        .envir = progress_bar$envir
-      )
-    }
-
-    list(
-      reset = function(...) {
-        progress_bar <<- NULL
-        progress_finished <<- FALSE
-        invisible(NULL)
-      },
-      hide = function(...) erase_progress_bar(),
-      unhide = function(...) redraw_progress_bar(),
-      initiate = function(config, state, progression, ...) {
-        if (!state$enabled || config$times == 1L) {
-          return(invisible(NULL))
-        }
-        update_progress_bar(config, state, progression)
-      },
-      update = function(config, state, progression, ...) {
-        if (!state$enabled || config$times <= 2L) {
-          return(invisible(NULL))
-        }
-        update_progress_bar(config, state, progression)
-      },
-      finish = function(config, state, progression, ...) {
-        if (progress_finished) {
-          return(invisible(NULL))
-        }
-        update_progress_bar(config, state, progression)
-        cli_progress_call(
-          cli::cli_progress_done,
-          id = progress_bar$id,
-          result = "done",
-          .envir = progress_bar$envir
-        )
-        cat("\n", file = stderr())
-        progress_bar <<- NULL
-        progress_finished <<- TRUE
-        invisible(NULL)
-      },
-      interrupt = function(config, state, progression, ...) {
-        if (progress_finished) {
-          return(invisible(NULL))
-        }
-        update_progress_bar(config, state, progression)
-        cli_progress_call(
-          cli::cli_progress_done,
-          id = progress_bar$id,
-          result = "failed",
-          .envir = progress_bar$envir
-        )
-        cat("\n", conditionMessage(progression), "\n", file = stderr())
-        progress_bar <<- NULL
-        progress_finished <<- TRUE
-        invisible(NULL)
-      }
-    )
-  })
-
-  progressr::make_progression_handler(
-    "cli",
-    reporter = reporter,
-    enable = TRUE,
-    enable_after = 0,
-    interval = 0,
-    clear = FALSE,
-    target = "terminal"
   )
 }
 
@@ -500,13 +275,9 @@
                                                  label,
                                                  reason,
                                                  session = NULL) {
-  if (isTRUE(enabled)) {
-    if (!is.null(session)) {
-      session$skip(label, reason)
-    } else {
-      cli::cli_alert_info("{label} - skipped: {reason}")
-    }
-  }
+  if (!isTRUE(enabled)) return(invisible(NULL))
+  if (is.null(session)) cli::cli_alert_info("{label} - skipped: {reason}")
+  else session$skip(label, reason)
 
   invisible(NULL)
 }
@@ -525,11 +296,7 @@
   old_threads <- Sys.getenv(thread_vars, unset = NA_character_)
   old_plan <- future::plan("list")
 
-  if (isTRUE(ensure_async) && workers <= 1L) {
-    backend_workers <- 2L
-  } else {
-    backend_workers <- workers
-  }
+  backend_workers <- if (isTRUE(ensure_async) && workers <= 1L) 2L else workers
 
   Sys.setenv(
     OMP_NUM_THREADS = "1",
@@ -674,26 +441,6 @@
     heartbeat = heartbeat,
     interval = interval
   )[[1L]]
-}
-
-.bifrost_search_future_value <- function(work,
-                                         is_rstudio_flag,
-                                         heartbeat = function() invisible(NULL),
-                                         interval = 0.1) {
-  .bifrost_search_with_future_plan(
-    workers = 1L,
-    is_rstudio_flag = is_rstudio_flag,
-    ensure_async = TRUE,
-    work = function() {
-      seed <- .bifrost_search_rng_seeds(1L)[[1L]]
-      .bifrost_search_await_work(
-        work,
-        heartbeat = heartbeat,
-        seed = seed,
-        interval = interval
-      )
-    }
-  )
 }
 
 .bifrost_search_future_lapply <- function(X,
