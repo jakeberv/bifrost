@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
@@ -134,6 +135,14 @@ def main() -> None:
     ).read_text()
     if "set.seed(0.1)" in theoretical_rmd or "set.seed(0.1)" in theoretical_notebook:
         raise AssertionError("theoretical vignette must use an explicit integer seed")
+
+    for notebook_path in sorted((source / "vignettes/colab").glob("*.ipynb")):
+        notebook = json.loads(notebook_path.read_text())
+        setup = notebook["cells"][1]["source"]
+        if "git clone --depth 1 " not in setup:
+            raise AssertionError(
+                f"{notebook_path.name} setup must use a shallow Git clone"
+            )
 
     with tempfile.TemporaryDirectory(prefix="bifrost-artifact-tests-") as temp:
         repo = Path(temp) / "repo"

@@ -181,7 +181,7 @@ def rewrite_markdown_links(markdown: str) -> str:
 
 def setup_source() -> str:
     return """if (!dir.exists("/content/bifrost")) {
-  system("git clone https://github.com/jakeberv/bifrost.git /content/bifrost")
+  system("git clone --depth 1 https://github.com/jakeberv/bifrost.git /content/bifrost")
 }
 if (!requireNamespace("remotes", quietly = TRUE)) {
   install.packages("remotes", repos = "https://cloud.r-project.org")
