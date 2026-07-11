@@ -131,7 +131,7 @@ def missing_notebook_dependencies(
     setup = notebook["cells"][1]["source"]
     executable_code = "\n".join(
         cell["source"]
-        for cell in notebook["cells"][2:]
+        for cell in notebook["cells"]
         if cell["cell_type"] == "code"
     )
     referenced = referenced_r_packages(repo, executable_code)
@@ -294,6 +294,7 @@ def main() -> None:
 
     if dependency_probe is None:
         raise AssertionError("quick-start notebook is required for dependency audit probe")
+    dependency_probe["cells"][1]["source"] += "htmltools::tagList()\n"
     dependency_probe["cells"].append(
         {
             "cell_type": "code",
@@ -307,7 +308,7 @@ def main() -> None:
     probe_missing = missing_notebook_dependencies(
         source, dependency_probe, hard_dependencies
     )
-    expected_probe_missing = {"RColorBrewer", "geomorph", "plotly"}
+    expected_probe_missing = {"RColorBrewer", "geomorph", "htmltools", "plotly"}
     if probe_missing != expected_probe_missing:
         raise AssertionError(
             "dependency audit probe expected "
@@ -512,8 +513,23 @@ def main() -> None:
         raise AssertionError("PR artifact checks must pin checkout to the event SHA")
     if "ref: ${{ github.event.pull_request.head.ref }}" in pr_workflow:
         raise AssertionError("PR artifact checks must not checkout a mutable branch ref")
-    generate_step = pr_workflow.index("      - name: Generate changed Colab notebooks")
-    audit_step = pr_workflow.index("      - name: Test vignette artifacts")
+    generate_step_name = "      - name: Generate changed Colab notebooks"
+    audit_step_name = "      - name: Test vignette artifacts"
+    generate_step = pr_workflow.find(generate_step_name)
+    audit_step = pr_workflow.find(audit_step_name)
+    missing_steps = [
+        name.strip()
+        for name, position in (
+            (generate_step_name, generate_step),
+            (audit_step_name, audit_step),
+        )
+        if position == -1
+    ]
+    if missing_steps:
+        raise AssertionError(
+            "PR artifact workflow is missing required steps: "
+            + ", ".join(missing_steps)
+        )
     if audit_step < generate_step:
         raise AssertionError(
             "PR artifact workflow must audit dependencies after notebook generation"
