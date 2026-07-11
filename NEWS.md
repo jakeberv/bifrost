@@ -2,8 +2,10 @@
 
 * Search progress:
   - `searchOptimalConfiguration()` now displays persistent, Future-compatible CLI progress for candidate scoring, greedy shift evaluation, and IC-weight re-estimation by default.
+  - Reached stage rows remain stacked at the bottom while `verbose = TRUE` output streams above them.
   - Stage spinners now redraw continuously during long model fits while completion counts, percentages, and ETA advance only after a fit finishes.
   - Added `progress = FALSE` as an explicit opt-out independent of detailed `verbose` messages.
+  - Captured expression-valued search inputs now print safely in `print.bifrost_search()` output.
 
 * Documentation / vignettes:
   - Added a new "Quick Start with bifrost" vignette with a minimal end-to-end simulated example.
