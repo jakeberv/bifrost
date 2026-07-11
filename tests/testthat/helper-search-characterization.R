@@ -10,7 +10,9 @@ bifrost_characterization_formula_label <- function(formula) {
 }
 
 bifrost_characterization_run_search <- function(...) {
-  suppressWarnings(suppressMessages(searchOptimalConfiguration(...)))
+  args <- list(...)
+  if (is.null(args$progress)) args$progress <- FALSE
+  suppressWarnings(suppressMessages(do.call(searchOptimalConfiguration, args)))
 }
 
 bifrost_characterization_result_names <- function(result) {

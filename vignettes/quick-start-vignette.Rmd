@@ -75,7 +75,8 @@ res <- searchOptimalConfiguration(
   IC                         = "GIC",
   plot                       = FALSE,
   store_model_fit_history    = FALSE,
-  verbose                    = FALSE
+  verbose                    = FALSE,
+  progress                   = FALSE
 )
 
 # For this single-regime BM1 simulation, we typically expect no inferred shifts
@@ -116,7 +117,8 @@ The arguments you will tune most often are:
 - `uncertaintyweights` or `uncertaintyweights_par`: request serial or parallel per-shift IC support calculations.
 - `store_model_fit_history`: retain the search path for later inspection and plotting.
 - `plot`: draw or update SIMMAP plots during the search.
-- `verbose`: emit progress messages during fitting.
+- `verbose`: emit detailed fitting and search-decision messages.
+- `progress`: display the three persistent search-stage progress lines; set it to `FALSE` for quiet batch or document builds.
 
 Practical starting points:
 

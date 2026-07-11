@@ -22,6 +22,7 @@ BugReports: https://github.com/jakeberv/bifrost/issues
 Depends: R (>= 4.1)
 Imports:
     ape,
+    cli (>= 3.6.0),
     future,
     future.apply,
     progressr,

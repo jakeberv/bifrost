@@ -136,6 +136,7 @@
   thr        <- .bifrost_ui(x, "shift_acceptance_threshold")
   plot       <- .bifrost_ui(x, "plot")
   verbose    <- .bifrost_ui(x, "verbose")
+  progress   <- .bifrost_ui(x, "progress")
   store_hist <- .bifrost_ui(x, "store_model_fit_history")
   uw_s       <- .bifrost_ui(x, "uncertaintyweights")
   uw_p       <- .bifrost_ui(x, "uncertaintyweights_par")
@@ -180,6 +181,7 @@
     thr = thr,
     plot = plot,
     verbose = verbose,
+    progress = progress,
     store_hist = store_hist,
     wmode = wmode,
     method = method,
@@ -223,6 +225,7 @@
     2,
     .bifrost_kv("Plot", if (!is.null(d$plot)) .bifrost_fmt_lgl(d$plot) else NULL),
     .bifrost_kv("Verbose", if (!is.null(d$verbose)) .bifrost_fmt_lgl(d$verbose) else NULL),
+    .bifrost_kv("Progress", if (!is.null(d$progress)) .bifrost_fmt_lgl(d$progress) else NULL),
     .bifrost_kv("FitHistory", if (!is.null(d$store_hist)) .bifrost_fmt_lgl(d$store_hist) else NULL),
     .bifrost_kv("Weights", d$wmode)
   )

@@ -18,6 +18,7 @@ searchOptimalConfiguration(
   IC = "GIC",
   store_model_fit_history = TRUE,
   verbose = FALSE,
+  progress = TRUE,
   ...
 )
 }
@@ -90,11 +91,17 @@ models, acceptance decisions, and IC values. To keep memory usage low during the
 per-iteration results are written to a temporary directory (\code{tempdir()}) and read back
 into memory at the end of the run.}
 
-\item{verbose}{Logical. If \code{TRUE}, report progress during candidate generation and model
-fitting. By default, progress is emitted via \code{message()}. When \code{plot = TRUE} in an
-interactive \code{RStudio} session, progress is written via \code{cat()} so it remains visible
-while plots are updating. Set to \code{FALSE} to run quietly (default). Use
-\code{suppressMessages()} (and \code{capture.output()} if needed) to silence or capture output.}
+\item{verbose}{Logical. If \code{TRUE}, emit detailed candidate-generation, fitting,
+acceptance, rejection, and IC messages. By default, these details are emitted via
+\code{message()}. When \code{plot = TRUE} in an interactive \code{RStudio} session,
+they are written via \code{cat()} so they remain visible while plots are updating.
+This is independent of \code{progress}.}
+
+\item{progress}{Logical. If \code{TRUE} (default), show three persistent CLI progress
+lines for candidate scoring, the greedy shift search, and optional IC-weight
+re-estimation. Progress works with both serial and \pkg{future}-based execution and
+is shown in non-interactive console sessions. Set to \code{FALSE} to disable these
+lines; use \code{progress = FALSE, verbose = FALSE} for completely quiet execution.}
 
 \item{...}{Additional arguments passed to \code{\link[mvMORPH]{mvgls}} (e.g., \code{method},
 \code{penalty}, \code{target}, \code{error}, \code{REML}, etc.). In the workflows
@@ -186,7 +193,8 @@ shift removed and comparing the two ICs via \code{\link[mvMORPH]{aicw}}.
 \strong{Parallelization.} When \code{num_cores = 1}, candidates are scored serially. For
 larger values, candidate sub-model fits are distributed with \pkg{future} +
 \pkg{future.apply}. On Unix outside \code{RStudio}, \code{multicore} is used; otherwise
-\code{multisession} is used. A sequential plan is restored afterward.
+\code{multisession} is used. A sequential plan is restored afterward. Parallel workers
+signal completion through \pkg{progressr}; only the main R process renders progress.
 
 \strong{Plotting.} If \code{plot = TRUE}, trees are rendered with
 \code{\link[phytools]{plotSimmap}()}; shift IDs are labeled with \code{\link[ape]{nodelabels}()}.
@@ -280,7 +288,8 @@ res <- searchOptimalConfiguration(
   IC                         = "GIC",
   plot                       = FALSE,
   store_model_fit_history    = FALSE,
-  verbose                    = FALSE
+  verbose                    = FALSE,
+  progress                   = FALSE
 )
 
 res$shift_nodes_no_uncertainty
@@ -303,7 +312,8 @@ res_hl <- searchOptimalConfiguration(
   method                     = "H&L",
   error                      = TRUE,
   store_model_fit_history    = TRUE,
-  verbose                    = TRUE
+  verbose                    = TRUE,
+  progress                   = FALSE
 )
 
 # Formula-based search with a predictor:
@@ -327,7 +337,8 @@ res_ll <- searchOptimalConfiguration(
   method                     = "LL",
   error                      = TRUE,
   store_model_fit_history    = TRUE,
-  verbose                    = TRUE
+  verbose                    = TRUE,
+  progress                   = FALSE
 )
 }
 }

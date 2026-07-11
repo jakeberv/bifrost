@@ -1,5 +1,9 @@
 # bifrost 0.1.4
 
+* Search progress:
+  - `searchOptimalConfiguration()` now displays persistent, Future-compatible CLI progress for candidate scoring, greedy shift evaluation, and IC-weight re-estimation by default.
+  - Added `progress = FALSE` as an explicit opt-out independent of detailed `verbose` messages.
+
 * Documentation / vignettes:
   - Added a new "Quick Start with bifrost" vignette with a minimal end-to-end simulated example.
   - Clarified `searchOptimalConfiguration()` documentation around acceptable tree inputs, recommended `mvgls()` methods (`"H&L"` vs `"LL"`), and the role of `error = TRUE`.

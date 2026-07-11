@@ -78,11 +78,16 @@
 #'   models, acceptance decisions, and IC values. To keep memory usage low during the search,
 #'   per-iteration results are written to a temporary directory (\code{tempdir()}) and read back
 #'   into memory at the end of the run.
-#' @param verbose Logical. If \code{TRUE}, report progress during candidate generation and model
-#'   fitting. By default, progress is emitted via \code{message()}. When \code{plot = TRUE} in an
-#'   interactive \code{RStudio} session, progress is written via \code{cat()} so it remains visible
-#'   while plots are updating. Set to \code{FALSE} to run quietly (default). Use
-#'   \code{suppressMessages()} (and \code{capture.output()} if needed) to silence or capture output.
+#' @param verbose Logical. If \code{TRUE}, emit detailed candidate-generation, fitting,
+#'   acceptance, rejection, and IC messages. By default, these details are emitted via
+#'   \code{message()}. When \code{plot = TRUE} in an interactive \code{RStudio} session,
+#'   they are written via \code{cat()} so they remain visible while plots are updating.
+#'   This is independent of \code{progress}.
+#' @param progress Logical. If \code{TRUE} (default), show three persistent CLI progress
+#'   lines for candidate scoring, the greedy shift search, and optional IC-weight
+#'   re-estimation. Progress works with both serial and \pkg{future}-based execution and
+#'   is shown in non-interactive console sessions. Set to \code{FALSE} to disable these
+#'   lines; use \code{progress = FALSE, verbose = FALSE} for completely quiet execution.
 #' @param ... Additional arguments passed to \code{\link[mvMORPH]{mvgls}} (e.g., \code{method},
 #'   \code{penalty}, \code{target}, \code{error}, \code{REML}, etc.). In the workflows
 #'   emphasized in the package vignettes, \code{method = "H&L"} is used for
@@ -127,7 +132,8 @@
 #' \strong{Parallelization.} When \code{num_cores = 1}, candidates are scored serially. For
 #' larger values, candidate sub-model fits are distributed with \pkg{future} +
 #' \pkg{future.apply}. On Unix outside \code{RStudio}, \code{multicore} is used; otherwise
-#' \code{multisession} is used. A sequential plan is restored afterward.
+#' \code{multisession} is used. A sequential plan is restored afterward. Parallel workers
+#' signal completion through \pkg{progressr}; only the main R process renders progress.
 #'
 #' \strong{Plotting.} If \code{plot = TRUE}, trees are rendered with
 #' \code{\link[phytools]{plotSimmap}()}; shift IDs are labeled with \code{\link[ape]{nodelabels}()}.
@@ -249,7 +255,8 @@
 #'   IC                         = "GIC",
 #'   plot                       = FALSE,
 #'   store_model_fit_history    = FALSE,
-#'   verbose                    = FALSE
+#'   verbose                    = FALSE,
+#'   progress                   = FALSE
 #' )
 #'
 #' res$shift_nodes_no_uncertainty
@@ -272,7 +279,8 @@
 #'   method                     = "H&L",
 #'   error                      = TRUE,
 #'   store_model_fit_history    = TRUE,
-#'   verbose                    = TRUE
+#'   verbose                    = TRUE,
+#'   progress                   = FALSE
 #' )
 #'
 #' # Formula-based search with a predictor:
@@ -296,7 +304,8 @@
 #'   method                     = "LL",
 #'   error                      = TRUE,
 #'   store_model_fit_history    = TRUE,
-#'   verbose                    = TRUE
+#'   verbose                    = TRUE,
+#'   progress                   = FALSE
 #' )
 #' }
 #' @importFrom future plan multicore multisession sequential
@@ -323,6 +332,7 @@ searchOptimalConfiguration <-
            IC = "GIC",
            store_model_fit_history = TRUE,
            verbose = FALSE,
+           progress = TRUE,
            ...) {
 
     #capturing global option for verbose to pass to internal helpers
@@ -349,6 +359,7 @@ searchOptimalConfiguration <-
 
     # Capture user input
     user_input <- as.list(match.call())
+    user_input$progress <- isTRUE(progress)
 
     if (!(inherits(formula, "formula") ||
           (is.character(formula) && length(formula) == 1L && !is.na(formula)))) {
@@ -382,16 +393,49 @@ searchOptimalConfiguration <-
 
     .progress("%s", "Fitting sub-models in parallel...")
 
-    candidate_scores <- .bifrost_search_score_candidates(
-      candidate_trees_shifts = candidate_trees_shifts,
-      baseline_ic = baseline_ic,
-      IC = IC,
-      formula = formula,
-      trait_data = trait_data,
-      args_list = args_list,
-      num_cores = num_cores,
-      is_rstudio = is_rstudio
-    )
+    if (length(candidate_trees_shifts) > 0L) {
+      candidate_scores <- .bifrost_search_run_stage(
+        enabled = progress,
+        steps = length(candidate_trees_shifts),
+        initial_message = "[1/3] Candidate scoring",
+        work = function(tick) {
+          value <- .bifrost_search_score_candidates(
+            candidate_trees_shifts = candidate_trees_shifts,
+            baseline_ic = baseline_ic,
+            IC = IC,
+            formula = formula,
+            trait_data = trait_data,
+            args_list = args_list,
+            num_cores = num_cores,
+            is_rstudio = is_rstudio,
+            tick = tick
+          )
+          list(
+            value = value,
+            done = sprintf(
+              "[1/3] Candidate scoring - %d candidates complete",
+              length(candidate_trees_shifts)
+            )
+          )
+        }
+      )
+    } else {
+      .bifrost_search_report_skipped_stage(
+        progress,
+        "[1/3] Candidate scoring",
+        "no eligible candidate shifts"
+      )
+      candidate_scores <- .bifrost_search_score_candidates(
+        candidate_trees_shifts = candidate_trees_shifts,
+        baseline_ic = baseline_ic,
+        IC = IC,
+        formula = formula,
+        trait_data = trait_data,
+        args_list = args_list,
+        num_cores = num_cores,
+        is_rstudio = is_rstudio
+      )
+    }
 
     .progress("%s", "Sorting and evaluating shifts...")
     sorted_candidates <- candidate_scores$sorted_candidates
@@ -417,21 +461,55 @@ searchOptimalConfiguration <-
     # Where to store on-disk history (CRAN-safe temp location)
     sub_dir <- .bifrost_search_history_dir(store_model_fit_history)
 
-    forward_search <- .bifrost_search_forward(
-      sorted_candidates = sorted_candidates,
-      current_best_tree = current_best_tree,
-      current_best_ic = current_best_ic,
-      shift_id = shift_id,
-      IC = IC,
-      formula = formula,
-      trait_data = trait_data,
-      shift_acceptance_threshold = shift_acceptance_threshold,
-      store_model_fit_history = store_model_fit_history,
-      sub_dir = sub_dir,
-      plot = plot,
-      progress = .progress,
-      ...
-    )
+    run_forward_search <- function(tick) {
+      .bifrost_search_forward(
+        sorted_candidates = sorted_candidates,
+        current_best_tree = current_best_tree,
+        current_best_ic = current_best_ic,
+        shift_id = shift_id,
+        IC = IC,
+        formula = formula,
+        trait_data = trait_data,
+        shift_acceptance_threshold = shift_acceptance_threshold,
+        store_model_fit_history = store_model_fit_history,
+        sub_dir = sub_dir,
+        plot = plot,
+        verbose_log = .progress,
+        tick = tick,
+        ...
+      )
+    }
+
+    if (length(sorted_candidates) > 0L) {
+      forward_search <- .bifrost_search_run_stage(
+        enabled = progress,
+        steps = length(sorted_candidates),
+        initial_message = "[2/3] Greedy shift search",
+        work = function(tick) {
+          value <- run_forward_search(tick)
+          counts <- value$outcome_counts
+          list(
+            value = value,
+            done = sprintf(
+              paste0(
+                "[2/3] Greedy shift search - ",
+                "%d accepted, %d rejected, %d errors"
+              ),
+              counts[["accepted"]],
+              counts[["rejected"]],
+              counts[["error"]]
+            )
+          )
+        }
+      )
+    } else {
+      .bifrost_search_report_skipped_stage(
+        progress,
+        "[2/3] Greedy shift search",
+        "no candidates to evaluate"
+      )
+      forward_search <- run_forward_search(function(...) invisible(NULL))
+    }
 
     current_best_tree <- forward_search$current_best_tree
     current_best_ic <- forward_search$current_best_ic
@@ -486,20 +564,63 @@ searchOptimalConfiguration <-
     # }
 
     # New Section for Calculating Information Criterion Weights Post Optimization
-    ic_weights_df <- .bifrost_search_calculate_ic_weights(
-      uncertaintyweights = uncertaintyweights,
-      uncertaintyweights_par = uncertaintyweights_par,
-      shift_vec = shift_vec,
-      best_tree_no_uncertainty = best_tree_no_uncertainty,
-      model_with_shift_no_uncertainty = model_with_shift_no_uncertainty,
-      IC = IC,
-      formula = formula,
-      trait_data = trait_data,
-      args_list = args_list,
-      num_cores = num_cores,
-      is_rstudio = is_rstudio,
-      progress = .progress
+    weight_reestimation_requested <- xor(
+      isTRUE(uncertaintyweights),
+      isTRUE(uncertaintyweights_par)
     )
+    accepted_shift_count <- length(unlist(shift_vec))
+
+    if (!isTRUE(uncertaintyweights) && !isTRUE(uncertaintyweights_par)) {
+      .bifrost_search_report_skipped_stage(
+        progress,
+        "[3/3] IC-weight re-estimation",
+        "not requested"
+      )
+    } else if (weight_reestimation_requested && accepted_shift_count == 0L) {
+      .bifrost_search_report_skipped_stage(
+        progress,
+        "[3/3] IC-weight re-estimation",
+        "no accepted shifts"
+      )
+    }
+
+    calculate_ic_weights <- function(tick) {
+      .bifrost_search_calculate_ic_weights(
+        uncertaintyweights = uncertaintyweights,
+        uncertaintyweights_par = uncertaintyweights_par,
+        shift_vec = shift_vec,
+        best_tree_no_uncertainty = best_tree_no_uncertainty,
+        model_with_shift_no_uncertainty = model_with_shift_no_uncertainty,
+        IC = IC,
+        formula = formula,
+        trait_data = trait_data,
+        args_list = args_list,
+        num_cores = num_cores,
+        is_rstudio = is_rstudio,
+        verbose_log = .progress,
+        tick = tick
+      )
+    }
+
+    if (weight_reestimation_requested && accepted_shift_count > 0L) {
+      ic_weights_df <- .bifrost_search_run_stage(
+        enabled = progress,
+        steps = accepted_shift_count,
+        initial_message = "[3/3] IC-weight re-estimation",
+        work = function(tick) {
+          value <- calculate_ic_weights(tick)
+          list(
+            value = value,
+            done = sprintf(
+              "[3/3] IC-weight re-estimation - %d shifts complete",
+              accepted_shift_count
+            )
+          )
+        }
+      )
+    } else {
+      ic_weights_df <- calculate_ic_weights(function(...) invisible(NULL))
+    }
 
     # Print statements for the optimal configuration and delta GIC/BIC
     if (IC == "GIC") {
