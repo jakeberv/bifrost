@@ -1,6 +1,9 @@
 ^bifrost\.Rproj$
 ^\.git($|/)
 ^\.Rproj\.user$
+^\.cache($|/)
+^\.playwright-cli($|/)
+(^|/)__pycache__($|/)
 ^LICENSE\.md$
 ^_pkgdown\.yml$
 ^docs$
@@ -27,5 +30,5 @@
 ^lint\.txt$
 ^.lintr$
 ^lintr\.R$
-^tools/cran-downloads($|/)
+^tools($|/)
 ^vignettes($|/)

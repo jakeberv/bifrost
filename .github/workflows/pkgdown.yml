@@ -21,6 +21,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Pandoc
         uses: r-lib/actions/setup-pandoc@v2
@@ -29,6 +31,9 @@ jobs:
         uses: r-lib/actions/setup-r@v2
         with:
           use-public-rspm: true
+
+      - name: Setup TinyTeX
+        uses: r-lib/actions/setup-tinytex@v2
 
       - name: Install R dependencies (incl. pkgdown)
         uses: r-lib/actions/setup-r-dependencies@v2
@@ -43,6 +48,48 @@ jobs:
             new_process = FALSE,
             install = FALSE
           )
+
+      - name: Restore cached vignette PDFs
+        id: vignette-pdf-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/vignette-artifacts
+          key: vignette-pdfs-${{ runner.os }}-${{ hashFiles('vignettes/**/*.Rmd', 'vignettes/**/*.png', 'vignettes/**/*.gif', 'vignettes/**/*.jpg', 'vignettes/**/*.jpeg', 'vignettes/**/*.svg', 'vignettes/**/*.csv', 'vignettes/**/*.txt', 'vignettes/**/*.rds', 'vignettes/**/*.RDS', 'vignettes/**/*.R', 'R/**', 'inst/extdata/**', 'DESCRIPTION', '_pkgdown.yml', '.github/workflows/pkgdown.yml', 'tools/vignette_artifacts.R', 'tools/render-vignette-pdf.R', 'tools/build-colab-notebook.py', 'tools/test-vignette-artifacts.py') }}
+          restore-keys: |
+            vignette-pdfs-${{ runner.os }}-
+
+      - name: Restore PDFs into docs/
+        run: Rscript tools/vignette_artifacts.R restore-pdfs --pdf-dir docs/articles --cache-dir .cache/vignette-artifacts
+
+      - name: Plan PDF renders
+        id: vignette-pdfs
+        shell: bash
+        run: |
+          slugs="$(Rscript tools/vignette_artifacts.R plan --target pdf --artifact-dir docs/articles --cache-dir .cache/vignette-artifacts --sep space)"
+          echo "slugs=${slugs}" >> "$GITHUB_OUTPUT"
+          if [ -n "$slugs" ]; then
+            echo "Rendering PDFs for: $slugs"
+          else
+            echo "All vignette PDFs restored from cache."
+          fi
+
+      - name: Render changed vignette PDFs
+        if: steps.vignette-pdfs.outputs.slugs != ''
+        shell: bash
+        run: |
+          for slug in ${{ steps.vignette-pdfs.outputs.slugs }}; do
+            Rscript tools/render-vignette-pdf.R "$slug" --output-dir docs/articles
+          done
+
+      - name: Update vignette PDF cache
+        run: Rscript tools/vignette_artifacts.R update-cache --pdf-dir docs/articles --cache-dir .cache/vignette-artifacts
+
+      - name: Save vignette PDF cache
+        if: steps.vignette-pdf-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .cache/vignette-artifacts
+          key: ${{ steps.vignette-pdf-cache.outputs.cache-primary-key }}
 
       - name: Upload site artifact for Pages
         uses: actions/upload-pages-artifact@v3

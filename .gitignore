@@ -10,6 +10,7 @@ man/figures/*
 /doc/
 /Meta/
 CRAN-SUBMISSION
+*.log
 vignettes/jaw-shape/gr1_lrg.jpg
 CI-notes.txt
 lint.txt
@@ -18,4 +19,6 @@ lintr.R
 experimental/
 /local-cache/
 /preview/
+/.cache/
+__pycache__/
 /tools/cran-downloads/node_modules/

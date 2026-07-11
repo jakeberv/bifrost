@@ -1,0 +1,149 @@
+name: Check vignette artifacts
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/pkgdown.yml
+      - .github/workflows/vignette-artifacts.yml
+      - _pkgdown.yml
+      - DESCRIPTION
+      - R/**
+      - inst/extdata/**
+      - tools/vignette_artifacts.R
+      - tools/render-vignette-pdf.R
+      - tools/build-colab-notebook.py
+      - tools/test-vignette-artifacts.py
+      - vignettes/**
+
+permissions:
+  contents: read
+
+jobs:
+  vignette-artifacts:
+    runs-on: ubuntu-latest
+    outputs:
+      colab_slugs: ${{ steps.changed.outputs.colab_slugs }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Fetch base branch
+        shell: bash
+        run: |
+          git fetch --no-tags --prune \
+            "https://github.com/${{ github.event.pull_request.base.repo.full_name }}.git" \
+            "${{ github.base_ref }}:refs/remotes/base/${{ github.base_ref }}"
+
+      - name: Setup Pandoc
+        uses: r-lib/actions/setup-pandoc@v2
+
+      - name: Setup R
+        uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+
+      - name: Setup TinyTeX
+        uses: r-lib/actions/setup-tinytex@v2
+
+      - name: Install R dependencies
+        uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: any::pkgdown, local::.
+          needs: website
+
+      - name: Test vignette artifact planning
+        run: python3 tools/test-vignette-artifacts.py
+
+      - name: Plan changed vignette artifacts
+        id: changed
+        shell: bash
+        run: |
+          base="base/${{ github.base_ref }}"
+          colab_slugs="$(Rscript tools/vignette_artifacts.R plan --target colab --artifact-dir vignettes/colab --base "$base" --sep space)"
+          pdf_slugs="$(Rscript tools/vignette_artifacts.R plan --target pdf --artifact-dir /tmp/vignette-pdfs --base "$base" --ignore-missing --sep space)"
+          echo "colab_slugs=${colab_slugs}" >> "$GITHUB_OUTPUT"
+          echo "pdf_slugs=${pdf_slugs}" >> "$GITHUB_OUTPUT"
+          echo "Colab slugs: ${colab_slugs:-none}"
+          echo "PDF slugs: ${pdf_slugs:-none}"
+
+      - name: Generate changed Colab notebooks
+        if: steps.changed.outputs.colab_slugs != ''
+        shell: bash
+        run: |
+          for slug in ${{ steps.changed.outputs.colab_slugs }}; do
+            python3 tools/build-colab-notebook.py --slug "$slug"
+          done
+
+      - name: Upload generated Colab notebooks
+        if: steps.changed.outputs.colab_slugs != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: colab-notebooks-${{ github.event.pull_request.head.sha }}
+          path: vignettes/colab/*.ipynb
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Check committed Colab notebooks are fresh
+        if: github.event.pull_request.head.repo.full_name != github.repository
+        shell: bash
+        run: |
+          if [ -z "$(git status --porcelain -- vignettes/colab)" ]; then
+            echo "Committed Colab notebooks are fresh."
+            exit 0
+          fi
+
+          git status --short -- vignettes/colab
+          echo "::error::Forked PRs cannot be auto-updated. Run python3 tools/build-colab-notebook.py for the stale vignette slug(s), commit vignettes/colab/*.ipynb, and push the update."
+          exit 1
+
+      - name: Smoke-render changed vignette PDFs
+        if: steps.changed.outputs.pdf_slugs != ''
+        shell: bash
+        run: |
+          mkdir -p /tmp/vignette-pdfs
+          for slug in ${{ steps.changed.outputs.pdf_slugs }}; do
+            Rscript tools/render-vignette-pdf.R "$slug" --output-dir /tmp/vignette-pdfs
+            test -s "/tmp/vignette-pdfs/${slug}.pdf"
+          done
+
+  update-colab:
+    needs: vignette-artifacts
+    if: >-
+      needs.vignette-artifacts.outputs.colab_slugs != '' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Download generated Colab notebooks
+        uses: actions/download-artifact@v4
+        with:
+          name: colab-notebooks-${{ github.event.pull_request.head.sha }}
+          path: vignettes/colab
+
+      - name: Commit updated Colab notebooks
+        shell: bash
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          if [ -z "$(git status --porcelain -- vignettes/colab)" ]; then
+            echo "Generated Colab notebooks are already up to date."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add vignettes/colab
+          git commit -m "Update generated Colab notebooks"
+          git push origin "HEAD:${HEAD_REF}"
