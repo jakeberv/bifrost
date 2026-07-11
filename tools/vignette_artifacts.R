@@ -176,8 +176,13 @@ slug_hashes <- function(slugs = discover_vignette_slugs()) {
   shared <- shared_dependencies()
   stats::setNames(lapply(slugs, function(slug) {
     files <- sort(unique(c(vignette_dependencies(slug), shared)))
-    files <- files[file.exists(files) & !dir.exists(files)]
-    hashes <- vapply(files, hash_file, character(1))
+    hashes <- vapply(files, function(path) {
+      if (file.exists(path) && !dir.exists(path)) {
+        hash_file(path)
+      } else {
+        "MISSING"
+      }
+    }, character(1))
     digest::digest(paste(c(files, hashes), collapse = "\n"), algo = "sha256")
   }), slugs)
 }

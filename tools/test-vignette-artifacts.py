@@ -45,6 +45,7 @@ def plan(
     artifact_dir: Path,
     base: str,
     *,
+    cache_dir: Path | None = None,
     ignore_missing: bool = True,
 ) -> list[str]:
     args = [
@@ -60,6 +61,8 @@ def plan(
         "--sep",
         "space",
     ]
+    if cache_dir is not None:
+        args.extend(["--cache-dir", str(cache_dir)])
     if ignore_missing:
         args.append("--ignore-missing")
     return run(repo, *args).stdout.split()
@@ -149,6 +152,30 @@ def main() -> None:
         make_fixture(source, repo)
 
         base = run(repo, "git", "rev-parse", "HEAD").stdout.strip()
+        pdf_dir = Path(temp) / "pdfs"
+        cache_dir = Path(temp) / "cache"
+        pdf_dir.mkdir()
+        for slug in all_slugs:
+            (pdf_dir / f"{slug}.pdf").write_bytes(b"%PDF-artifact-test")
+        run(
+            repo,
+            "Rscript",
+            "tools/vignette_artifacts.R",
+            "update-cache",
+            "--pdf-dir",
+            str(pdf_dir),
+            "--cache-dir",
+            str(cache_dir),
+        )
+        deleted_asset = repo / "vignettes/jaw-shape/IC_decay.png"
+        deleted_asset.unlink()
+        assert_plan(
+            plan(repo, "pdf", pdf_dir, "", cache_dir=cache_dir),
+            ["jaw-shape-vignette"],
+            "deleted dependency invalidates manifest",
+        )
+        shutil.copy2(source / "vignettes/jaw-shape/IC_decay.png", deleted_asset)
+
         with (repo / "vignettes/quick-start-vignette.Rmd").open("a") as handle:
             handle.write("\nArtifact planner source-change probe.\n")
         commit(repo, "change one vignette")
@@ -248,6 +275,16 @@ def main() -> None:
         raise AssertionError("pkgdown config must inline the GoatCounter header include")
     if (source / "pkgdown/extra-head.html").exists():
         raise AssertionError("unused pkgdown header include must not remain tracked")
+    if "const encodedSlug = encodeURIComponent(slug);" not in pkgdown_config:
+        raise AssertionError("pkgdown artifact links must URL-encode vignette slugs")
+    if "pdf.href = './' + encodedSlug + '.pdf';" not in pkgdown_config:
+        raise AssertionError("pkgdown PDF link must use the encoded vignette slug")
+    if "encodedSlug + '.ipynb';" not in pkgdown_config:
+        raise AssertionError("pkgdown Colab link must use the encoded vignette slug")
+
+    artifact_tool = (source / "tools/vignette_artifacts.R").read_text()
+    if '"MISSING"' not in artifact_tool:
+        raise AssertionError("artifact hashes must mark missing dependency paths")
 
     pr_workflow = (source / ".github/workflows/vignette-artifacts.yml").read_text()
     if "\npermissions:\n  contents: write\n" in pr_workflow:

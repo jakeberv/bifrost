@@ -80,6 +80,7 @@ template:
             slug = slug.slice(0, -5);
           }
           if (!slug) return;
+          const encodedSlug = encodeURIComponent(slug);
 
           const style = document.createElement('style');
           style.textContent = [
@@ -110,7 +111,7 @@ template:
 
           const pdf = document.createElement('a');
           pdf.className = 'article-pdf-badge';
-          pdf.href = './' + slug + '.pdf';
+          pdf.href = './' + encodedSlug + '.pdf';
           pdf.title = 'Download PDF';
           pdf.setAttribute('aria-label', 'Download PDF');
 
@@ -122,7 +123,7 @@ template:
           const colab = document.createElement('a');
           colab.className = 'article-colab-badge';
           colab.href = 'https://colab.research.google.com/github/jakeberv/bifrost/blob/main/vignettes/colab/' +
-            slug + '.ipynb';
+            encodedSlug + '.ipynb';
           colab.target = '_blank';
           colab.rel = 'noopener noreferrer';
           colab.title = 'Open in Colab';
