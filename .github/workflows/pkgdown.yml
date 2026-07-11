@@ -54,7 +54,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .cache/vignette-artifacts
-          key: vignette-pdfs-${{ runner.os }}-${{ hashFiles('vignettes/**/*.Rmd', 'vignettes/**/*.png', 'vignettes/**/*.gif', 'vignettes/**/*.jpg', 'vignettes/**/*.jpeg', 'vignettes/**/*.svg', 'vignettes/**/*.csv', 'vignettes/**/*.txt', 'vignettes/**/*.rds', 'vignettes/**/*.RDS', 'vignettes/**/*.R', 'R/**', 'inst/extdata/**', 'DESCRIPTION', '_pkgdown.yml', '.github/workflows/pkgdown.yml', 'tools/vignette_artifacts.R', 'tools/render-vignette-pdf.R', 'tools/build-colab-notebook.py', 'tools/test-vignette-artifacts.py') }}
+          key: vignette-pdfs-${{ runner.os }}-${{ hashFiles('vignettes/**/*.Rmd', 'vignettes/**/*.png', 'vignettes/**/*.gif', 'vignettes/**/*.jpg', 'vignettes/**/*.jpeg', 'vignettes/**/*.svg', 'vignettes/**/*.csv', 'vignettes/**/*.txt', 'vignettes/**/*.rds', 'vignettes/**/*.RDS', 'vignettes/**/*.R', 'R/**', 'inst/extdata/**', 'DESCRIPTION', '_pkgdown.yml', '.github/workflows/pkgdown.yml', 'tools/vignette_artifacts.R', 'tools/render-vignette-pdf.R', 'tools/build-colab-notebook.py', 'tools/colab_dependencies.py', 'tools/test-vignette-artifacts.py') }}
           restore-keys: |
             vignette-pdfs-${{ runner.os }}-
 

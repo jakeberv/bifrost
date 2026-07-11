@@ -11,57 +11,12 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-
-BASE_R_PACKAGES = {
-    "base",
-    "compiler",
-    "datasets",
-    "graphics",
-    "grDevices",
-    "grid",
-    "methods",
-    "parallel",
-    "splines",
-    "stats",
-    "stats4",
-    "tcltk",
-    "tools",
-    "utils",
-}
-COMMON_COLAB_PACKAGES = {"remotes", "knitr"}
-
-R_PACKAGE_REFERENCE_SCRIPT = r"""
-code <- paste(readLines(file("stdin"), warn = FALSE), collapse = "\n")
-expressions <- parse(text = code)
-packages <- character()
-
-walk <- function(node) {
-  if (is.call(node)) {
-    operator <- node[[1L]]
-    if (is.symbol(operator)) {
-      operator_name <- as.character(operator)
-      if (operator_name %in% c("::", ":::") && length(node) >= 3L) {
-        packages <<- c(packages, as.character(node[[2L]]))
-      }
-      if (operator_name %in% c("library", "require") &&
-          length(node) >= 2L &&
-          (is.symbol(node[[2L]]) || is.character(node[[2L]]))) {
-        packages <<- c(packages, as.character(node[[2L]]))
-      }
-      if (operator_name %in% c("requireNamespace", "loadNamespace") &&
-          length(node) >= 2L && is.character(node[[2L]])) {
-        packages <<- c(packages, as.character(node[[2L]]))
-      }
-    }
-    invisible(lapply(as.list(node), walk))
-  } else if (is.expression(node) || is.pairlist(node)) {
-    invisible(lapply(as.list(node), walk))
-  }
-}
-
-walk(expressions)
-cat(sort(unique(packages)), sep = "\n")
-"""
+from colab_dependencies import (
+    BASE_R_PACKAGES,
+    COMMON_COLAB_PACKAGES,
+    description_hard_dependencies,
+    referenced_r_packages,
+)
 
 
 def run(
@@ -69,7 +24,6 @@ def run(
     *args: str,
     check: bool = True,
     env: dict[str, str] | None = None,
-    input_text: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
     result = subprocess.run(
         args,
@@ -78,7 +32,6 @@ def run(
         text=True,
         capture_output=True,
         env=env,
-        input=input_text,
     )
     if check and result.returncode != 0:
         raise AssertionError(
@@ -86,40 +39,6 @@ def run(
             f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
         )
     return result
-
-
-def description_hard_dependencies(path: Path) -> set[str]:
-    fields: dict[str, list[str]] = {}
-    current = ""
-    for line in path.read_text().splitlines():
-        if line[:1].isspace() and current:
-            fields[current].append(line.strip())
-            continue
-        if ":" not in line:
-            current = ""
-            continue
-        current, value = line.split(":", 1)
-        fields[current] = [value.strip()]
-
-    packages: set[str] = set()
-    for field in ("Depends", "Imports", "LinkingTo"):
-        for entry in ",".join(fields.get(field, [])).split(","):
-            match = re.match(r"\s*([A-Za-z][A-Za-z0-9.]*)", entry)
-            if match and match.group(1) != "R":
-                packages.add(match.group(1))
-    return packages
-
-
-def referenced_r_packages(repo: Path, code: str) -> set[str]:
-    result = run(
-        repo,
-        "Rscript",
-        "--vanilla",
-        "-e",
-        R_PACKAGE_REFERENCE_SCRIPT,
-        input_text=code,
-    )
-    return set(result.stdout.split())
 
 
 def bootstrapped_packages(setup: str) -> set[str]:
@@ -201,6 +120,7 @@ def make_fixture(source: Path, destination: Path) -> None:
     tools.mkdir()
     for filename in [
         "build-colab-notebook.py",
+        "colab_dependencies.py",
         "render-vignette-pdf.R",
         "test-vignette-artifacts.py",
         "vignette_artifacts.R",
@@ -263,6 +183,10 @@ def main() -> None:
         shutil.copy2(
             source / "tools/build-colab-notebook.py",
             repo / "tools/build-colab-notebook.py",
+        )
+        shutil.copy2(
+            source / "tools/colab_dependencies.py",
+            repo / "tools/colab_dependencies.py",
         )
         (repo / "vignettes/colab-policy-probe.Rmd").write_text(
             "---\n"
@@ -393,10 +317,10 @@ def main() -> None:
         expected_optional = referenced_r_packages(source, body_code) - (
             BASE_R_PACKAGES
             | hard_dependencies
-            | COMMON_COLAB_PACKAGES
+            | set(COMMON_COLAB_PACKAGES)
             | {"bifrost"}
         )
-        actual_optional = bootstrapped_packages(setup) - COMMON_COLAB_PACKAGES
+        actual_optional = bootstrapped_packages(setup) - set(COMMON_COLAB_PACKAGES)
         if actual_optional != expected_optional:
             raise AssertionError(
                 f"{notebook_path.name} expected automatic optional dependencies "
@@ -597,6 +521,8 @@ def main() -> None:
             raise AssertionError(f"PDF cache key is missing {pattern}")
     if "'.github/workflows/pkgdown.yml'" not in workflow:
         raise AssertionError("PDF cache key must include its production workflow")
+    if "'tools/colab_dependencies.py'" not in workflow:
+        raise AssertionError("PDF cache key must include Colab dependency detection")
 
     renderer = (source / "tools/render-vignette-pdf.R").read_text()
     if "rmarkdown::resolve_output_format(" not in renderer:
@@ -619,6 +545,8 @@ def main() -> None:
     artifact_tool = (source / "tools/vignette_artifacts.R").read_text()
     if '"MISSING"' not in artifact_tool:
         raise AssertionError("artifact hashes must mark missing dependency paths")
+    if '"tools/colab_dependencies.py"' not in artifact_tool:
+        raise AssertionError("artifact hashes must include Colab dependency detection")
 
     pr_workflow = (source / ".github/workflows/vignette-artifacts.yml").read_text()
     if "\npermissions:\n  contents: write\n" in pr_workflow:
@@ -631,6 +559,8 @@ def main() -> None:
         raise AssertionError("PR artifact checks must pin checkout to the event SHA")
     if "ref: ${{ github.event.pull_request.head.ref }}" in pr_workflow:
         raise AssertionError("PR artifact checks must not checkout a mutable branch ref")
+    if "      - tools/colab_dependencies.py" not in pr_workflow:
+        raise AssertionError("PR artifact workflow must watch Colab dependency detection")
     generate_step_name = "      - name: Generate changed Colab notebooks"
     audit_step_name = "      - name: Test vignette artifacts"
     generate_step = pr_workflow.find(generate_step_name)

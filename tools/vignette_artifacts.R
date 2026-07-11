@@ -162,6 +162,7 @@ shared_dependencies <- function() {
     "tools/vignette_artifacts.R",
     "tools/render-vignette-pdf.R",
     "tools/build-colab-notebook.py",
+    "tools/colab_dependencies.py",
     "tools/test-vignette-artifacts.py",
     repo_rel(list_repo_files("R")),
     repo_rel(list_repo_files("inst/extdata"))
