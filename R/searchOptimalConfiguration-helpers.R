@@ -1,87 +1,85 @@
 .bifrost_search_cli_renderer <- function() {
-  format <- paste0(
-    "{if (stage_state == 'active') cli::pb_spin else ",
-    "if (stage_state == 'failed') cli::symbol$cross else ",
-    "if (stage_state == 'skipped') cli::symbol$info else cli::symbol$tick} ",
-    "{cli::pb_bar} {cli::pb_percent} ",
-    "[{cli::pb_current}/{cli::pb_total}] ",
-    "{if (stage_state == 'active') paste0('(ETA: ', cli::pb_eta, ')') ",
-    "else paste0('[', cli::pb_elapsed, ']')} {status}"
-  )
-  cli_n_colors <- cli::num_ansi_colors()
+  rows <- list()
+  visible <- 0L
+  dynamic <- cli::is_dynamic_tty("stderr")
+  spinner <- cli::get_spinner()
+  now <- function() proc.time()[["elapsed"]]
 
-  cli_progress_call <- function(fun, ...) {
-    old_options <- options(
-      cli.num_colors = cli_n_colors,
-      crayon.enabled = cli_n_colors > 1L,
-      crayon.colors = cli_n_colors
-    )
-    on.exit(options(old_options), add = TRUE)
+  duration <- function(seconds) sprintf("%.1fs", seconds)
 
-    withCallingHandlers(
-      fun(...),
-      cliMessage = function(message) {
-        cat(conditionMessage(message), file = stderr())
-        invokeRestart("muffleMessage")
-      }
+  format_row <- function(row) {
+    end <- if (is.null(row$finished)) now() else row$finished
+    elapsed <- end - row$started
+    ratio <- if (row$total > 0L) min(row$current / row$total, 1) else 1
+    filled <- round(30 * ratio)
+    bar <- paste0(
+      strrep(if (cli::is_utf8_output()) "\u25a0" else "=", filled),
+      strrep(if (cli::is_utf8_output()) " " else "-", 30L - filled)
     )
+    icon <- switch(
+      row$state,
+      active = spinner$frames[[floor(1000 * elapsed / spinner$interval) %%
+        length(spinner$frames) + 1L]],
+      failed = cli::symbol$cross,
+      skipped = cli::symbol$info,
+      cli::symbol$tick
+    )
+    timing <- if (row$state == "active") {
+      eta <- if (row$current == 0L) "?" else duration(
+        elapsed * (row$total - row$current) / row$current
+      )
+      paste0("(ETA: ", eta, ")")
+    } else paste0("[", duration(elapsed), "]")
+    cli::ansi_strtrim(sprintf(
+      "%s %s %3d%% [%d/%d] %s %s",
+      icon, cli::col_green(bar), round(100 * ratio), row$current,
+      row$total, timing, row$status
+    ), cli::console_width())
+  }
+
+  clear <- function() {
+    if (!dynamic || visible == 0L) return(invisible(NULL))
+    cat("\r\033[2K", file = stderr())
+    for (i in seq_len(visible - 1L)) cat("\033[1A\r\033[2K", file = stderr())
+    visible <<- 0L
+  }
+
+  draw <- function(final = FALSE) {
+    lines <- vapply(rows, format_row, character(1))
+    clear()
+    cat(paste(lines, collapse = "\n"), if (final) "\n" else "\r",
+        sep = "", file = stderr())
+    if (!final) visible <<- length(lines)
   }
 
   list(
     create = function(label, total) {
-      row_env <- list2env(
-        list(stage_state = "active", status = label, output_text = ""),
-        parent = baseenv()
-      )
-      old_options <- options(
-        cli.progress_handlers_only = "cli",
-        cli.progress_show_after = 0
-      )
-      on.exit(options(old_options), add = TRUE)
-
-      id <- cli_progress_call(
-        cli::cli_progress_bar,
-        total = total,
-        format = format,
-        format_done = format,
-        format_failed = format,
-        clear = FALSE,
-        current = FALSE,
-        auto_terminate = FALSE,
-        .auto_close = FALSE,
-        .envir = row_env
-      )
-      list(id = id, envir = row_env)
+      id <- paste0("stage-", length(rows) + 1L)
+      rows[[id]] <<- list2env(list(
+        state = "active", current = 0L, total = total, status = label,
+        started = now(), finished = NULL, finalized = FALSE
+      ), parent = baseenv())
+      list(id = id, envir = rows[[id]])
     },
     update = function(row, state, current, total, status, force = TRUE) {
-      row$envir$stage_state <- state
-      row$envir$status <- status
-      cli_progress_call(
-        cli::cli_progress_update,
-        id = row$id,
-        set = current,
-        total = total,
-        status = status,
-        force = force,
-        .envir = row$envir
+      values <- row$envir
+      values$state <- state
+      values$current <- current
+      values$total <- total
+      values$status <- status
+      if (state != "active" && is.null(values$finished)) values$finished <- now()
+      if (dynamic) draw() else if (force) cat(
+        format_row(values), "\n", sep = "", file = stderr()
       )
     },
     output = function(row, text) {
-      row$envir$output_text <- text
-      cli_progress_call(
-        cli::cli_progress_output,
-        "{output_text}",
-        id = row$id,
-        .envir = row$envir
-      )
+      clear()
+      cat(text, "\n", sep = "", file = stderr())
+      if (dynamic) draw()
     },
     done = function(row, result) {
-      cli_progress_call(
-        cli::cli_progress_done,
-        id = row$id,
-        result = if (identical(result, "failed")) "failed" else "done",
-        .envir = row$envir
-      )
+      row$envir$finalized <- TRUE
+      if (dynamic && all(vapply(rows, `[[`, logical(1), "finalized"))) draw(TRUE)
     }
   )
 }

@@ -237,6 +237,41 @@ test_that("search CLI renderer finalizes persistent rows as separate lines", {
   testthat::expect_gte(length(rendered), 2L)
 })
 
+test_that("search CLI renderer grows a live multi-line stage stack", {
+  old_cli_options <- options(
+    cli.dynamic = TRUE,
+    cli.num_colors = 1,
+    cli.width = 200
+  )
+  on.exit(options(old_cli_options), add = TRUE)
+  session <- .bifrost_search_progress_session(TRUE)
+  on.exit(session$finalize(), add = TRUE)
+
+  run_stage <- function(label) {
+    .bifrost_search_run_stage(
+      enabled = TRUE,
+      steps = 1L,
+      initial_message = label,
+      work = function(tick) {
+        tick(message = paste(label, "complete"))
+        list(value = NULL, done = paste(label, "done"))
+      },
+      session = session
+    )
+  }
+
+  rendered <- utils::capture.output({
+    run_stage("[1/3] Candidate scoring")
+    run_stage("[2/3] Greedy shift search")
+  }, type = "message")
+
+  testthat::expect_match(
+    paste(rendered, collapse = "\n"),
+    "\033[1A",
+    fixed = TRUE
+  )
+})
+
 test_that("search CLI renderer redraws active rows below verbose output", {
   old_cli_options <- options(cli.dynamic = TRUE, cli.width = 200)
   on.exit(options(old_cli_options), add = TRUE)
