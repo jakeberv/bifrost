@@ -2,6 +2,7 @@
 
 * Search progress:
   - `searchOptimalConfiguration()` now displays persistent, Future-compatible CLI progress for candidate scoring, greedy shift evaluation, and IC-weight re-estimation by default.
+  - Stage spinners now redraw continuously during long model fits while completion counts, percentages, and ETA advance only after a fit finishes.
   - Added `progress = FALSE` as an explicit opt-out independent of detailed `verbose` messages.
 
 * Documentation / vignettes:

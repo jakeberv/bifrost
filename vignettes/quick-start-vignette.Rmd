@@ -118,7 +118,7 @@ The arguments you will tune most often are:
 - `store_model_fit_history`: retain the search path for later inspection and plotting.
 - `plot`: draw or update SIMMAP plots during the search.
 - `verbose`: emit detailed fitting and search-decision messages.
-- `progress`: display the three persistent search-stage progress lines; set it to `FALSE` for quiet batch or document builds.
+- `progress`: display three persistent search-stage lines with a continuously animated spinner during long fits; counts and ETA advance only when fits complete. Set it to `FALSE` for quiet batch or document builds.
 
 Practical starting points:
 

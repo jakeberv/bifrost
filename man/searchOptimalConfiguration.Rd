@@ -51,7 +51,8 @@ to be considered as a candidate shift (forwarded to \code{generatePaintedTrees})
 reduce the number of candidate shifts by excluding very small clades. For empirical datasets,
 values around \code{10} are a reasonable starting choice and can be tuned in sensitivity analyses.}
 
-\item{num_cores}{Integer. Number of workers for candidate scoring. Uses plain
+\item{num_cores}{Integer. Maximum number of concurrent model fits during candidate
+scoring and parallel IC-weight re-estimation. With \code{progress = FALSE}, uses plain
 serial evaluation when \code{num_cores = 1}. For \code{num_cores > 1}, uses
 \code{future::plan(multicore)} on Unix outside \code{RStudio}; otherwise uses
 \code{future::plan(multisession)}. During the parallel candidate-scoring blocks,
@@ -99,9 +100,12 @@ This is independent of \code{progress}.}
 
 \item{progress}{Logical. If \code{TRUE} (default), show three persistent CLI progress
 lines for candidate scoring, the greedy shift search, and optional IC-weight
-re-estimation. Progress works with both serial and \pkg{future}-based execution and
-is shown in non-interactive console sessions. Set to \code{FALSE} to disable these
-lines; use \code{progress = FALSE, verbose = FALSE} for completely quiet execution.}
+re-estimation. On dynamic terminals, the spinner redraws continuously while a model
+fit is running; counts, percentages, and ETA advance only after completed fits.
+To keep the main process responsive for these redraws, otherwise serial fits run one
+at a time in a background Future. Set to \code{FALSE} to disable these lines and the
+heartbeat path; use \code{progress = FALSE, verbose = FALSE} for completely quiet
+execution.}
 
 \item{...}{Additional arguments passed to \code{\link[mvMORPH]{mvgls}} (e.g., \code{method},
 \code{penalty}, \code{target}, \code{error}, \code{REML}, etc.). In the workflows
@@ -190,11 +194,14 @@ is \code{TRUE}, compute an IC weight for each accepted shift by refitting the fi
 shift removed and comparing the two ICs via \code{\link[mvMORPH]{aicw}}.
 }
 
-\strong{Parallelization.} When \code{num_cores = 1}, candidates are scored serially. For
-larger values, candidate sub-model fits are distributed with \pkg{future} +
-\pkg{future.apply}. On Unix outside \code{RStudio}, \code{multicore} is used; otherwise
-\code{multisession} is used. A sequential plan is restored afterward. Parallel workers
-signal completion through \pkg{progressr}; only the main R process renders progress.
+\strong{Parallelization.} \code{num_cores} caps simultaneous model fits: candidate scoring
+and parallel IC-weight re-estimation may use all requested workers, while the greedy
+search and serial IC weights always run one fit at a time. With progress enabled, fits
+run in Future workers so the main process can poll and redraw the spinner without
+advancing completion. On Unix outside \code{RStudio}, \code{multicore} is used; otherwise
+\code{multisession} is used. The previous Future plan is restored afterward. Workers
+signal conditions through \pkg{progressr}; only the main R process renders progress,
+verbose messages, and plots.
 
 \strong{Plotting.} If \code{plot = TRUE}, trees are rendered with
 \code{\link[phytools]{plotSimmap}()}; shift IDs are labeled with \code{\link[ape]{nodelabels}()}.

@@ -2,6 +2,7 @@
   record <- function(config, state, progression, ...) {
     events$types <- c(events$types, progression$type)
     events$messages <- c(events$messages, paste(state$message, collapse = ""))
+    events$amounts <- c(events$amounts, progression$amount)
     invisible(NULL)
   }
 
@@ -38,8 +39,34 @@ test_that("search progress stage runner reports lifecycle and returns work value
   )
 
   testthat::expect_identical(value, 42L)
-  testthat::expect_identical(events$types, c("initiate", "update", "update", "finish"))
+  testthat::expect_identical(events$types[[1L]], "initiate")
+  testthat::expect_equal(sum(events$types == "update"), 2L)
+  testthat::expect_gte(sum(events$types == "finish"), 1L)
   testthat::expect_true(any(grepl("Candidate scoring complete", events$messages, fixed = TRUE)))
+})
+
+test_that("a heartbeat after the final completion remains valid until stage finish", {
+  events <- new.env(parent = emptyenv())
+  events$types <- character()
+  events$messages <- character()
+  events$amounts <- numeric()
+
+  value <- .bifrost_search_run_stage(
+    enabled = TRUE,
+    steps = 1L,
+    initial_message = "boundary stage",
+    work = function(tick) {
+      tick(message = "fit complete")
+      tick(amount = 0, message = "collecting result")
+      list(value = 11L, done = "boundary stage complete")
+    },
+    handler = .collect_progress_handler(events)
+  )
+
+  testthat::expect_identical(value, 11L)
+  testthat::expect_identical(events$types[[1L]], "initiate")
+  testthat::expect_equal(sum(events$types == "update"), 2L)
+  testthat::expect_gte(sum(events$types == "finish"), 1L)
 })
 
 test_that("disabled search progress stage runs without creating a handler", {
@@ -80,6 +107,116 @@ test_that("search progress stage preserves failure lifecycle and rethrows errors
   testthat::expect_false(any(events$types %in% c("finish", "shutdown")))
 })
 
+test_that("future-backed work emits repeated heartbeats while it is unresolved", {
+  heartbeat_count <- 0L
+
+  value <- .bifrost_search_future_value(
+    work = function() {
+      Sys.sleep(0.35)
+      42L
+    },
+    is_rstudio_flag = TRUE,
+    heartbeat = function() {
+      heartbeat_count <<- heartbeat_count + 1L
+    },
+    interval = 0.05
+  )
+
+  testthat::expect_identical(value, 42L)
+  testthat::expect_gte(heartbeat_count, 2L)
+})
+
+test_that("animated Future failures cancel remaining work and restore settings", {
+  thread_vars <- c(
+    "OMP_NUM_THREADS",
+    "OPENBLAS_NUM_THREADS",
+    "MKL_NUM_THREADS",
+    "VECLIB_MAXIMUM_THREADS",
+    "NUMEXPR_NUM_THREADS"
+  )
+  old_threads <- Sys.getenv(thread_vars, unset = NA_character_)
+  old_plan <- future::plan("list")
+  on.exit({
+    future::plan(old_plan)
+    for (nm in thread_vars) {
+      value <- old_threads[[nm]]
+      if (is.na(value)) {
+        Sys.unsetenv(nm)
+      } else {
+        do.call(Sys.setenv, stats::setNames(list(value), nm))
+      }
+    }
+  }, add = TRUE)
+
+  future::plan(future::sequential)
+  Sys.setenv(
+    OMP_NUM_THREADS = "7",
+    OPENBLAS_NUM_THREADS = "8",
+    MKL_NUM_THREADS = "9",
+    VECLIB_MAXIMUM_THREADS = "10",
+    NUMEXPR_NUM_THREADS = "11"
+  )
+
+  started <- proc.time()[["elapsed"]]
+  testthat::expect_error(
+    .bifrost_search_future_lapply(
+      1:2,
+      function(i) {
+        if (i == 1L) {
+          Sys.sleep(0.15)
+          stop("synthetic worker failure")
+        }
+        Sys.sleep(5)
+        i
+      },
+      workers = 2L,
+      is_rstudio_flag = TRUE,
+      heartbeat = function() invisible(NULL),
+      interval = 0.05
+    ),
+    "synthetic worker failure"
+  )
+  elapsed <- proc.time()[["elapsed"]] - started
+
+  testthat::expect_lt(elapsed, 3)
+  testthat::expect_s3_class(future::plan("next"), "sequential")
+  testthat::expect_identical(Sys.getenv("OMP_NUM_THREADS"), "7")
+  testthat::expect_identical(Sys.getenv("OPENBLAS_NUM_THREADS"), "8")
+  testthat::expect_identical(Sys.getenv("MKL_NUM_THREADS"), "9")
+  testthat::expect_identical(Sys.getenv("VECLIB_MAXIMUM_THREADS"), "10")
+  testthat::expect_identical(Sys.getenv("NUMEXPR_NUM_THREADS"), "11")
+})
+
+test_that("animated Future RNG is caller-safe and independent of chunk layout", {
+  run_random_work <- function(workers) {
+    set.seed(42)
+    .bifrost_search_future_lapply(
+      1:6,
+      function(i) stats::runif(1),
+      workers = workers,
+      is_rstudio_flag = TRUE,
+      heartbeat = function() invisible(NULL),
+      interval = 0.01
+    )
+  }
+
+  set.seed(101)
+  seed_before <- .Random.seed
+  deterministic <- .bifrost_search_future_lapply(
+    1:3,
+    identity,
+    workers = 2L,
+    is_rstudio_flag = TRUE,
+    heartbeat = function() invisible(NULL),
+    interval = 0.01
+  )
+
+  testthat::expect_identical(deterministic, as.list(1:3))
+  testthat::expect_identical(.Random.seed, seed_before)
+  testthat::expect_equal(run_random_work(1L), run_random_work(2L))
+  testthat::expect_equal(run_random_work(2L), run_random_work(3L))
+})
+
 test_that("verbose message and plotting-style stdout coexist with stage progress", {
   events <- new.env(parent = emptyenv())
   events$types <- character()
@@ -115,6 +252,41 @@ test_that("search progress handler is a persistent cli handler", {
   testthat::expect_false(get("clear", envir = environment(handler)))
   testthat::expect_identical(get("enable_after", envir = environment(handler)), 0)
   testthat::expect_true(get("enable", envir = environment(handler)))
+})
+
+test_that("search CLI handler redraws zero-increment heartbeat events", {
+  handler <- .bifrost_search_progress_handler()
+  reporter <- get("reporter", envir = environment(handler))
+  update_body <- paste(deparse(body(reporter$update)), collapse = "\n")
+
+  testthat::expect_false(grepl(
+    "progression$amount == 0",
+    update_body,
+    fixed = TRUE
+  ))
+})
+
+test_that("search CLI handler can render a heartbeat with its private state", {
+  old_cli_dynamic <- options(cli.dynamic = TRUE)
+  on.exit(options(old_cli_dynamic), add = TRUE)
+
+  rendered <- utils::capture.output(
+    value <- .bifrost_search_run_stage(
+      enabled = TRUE,
+      steps = 2L,
+      initial_message = "render test",
+      work = function(tick) {
+        tick(amount = 0, message = "render heartbeat")
+        tick(message = "first complete")
+        tick(message = "second complete")
+        list(value = 7L, done = "render done")
+      }
+    ),
+    type = "message"
+  )
+
+  testthat::expect_identical(value, 7L)
+  testthat::expect_true(any(grepl("render heartbeat", rendered, fixed = TRUE)))
 })
 
 test_that("skipped search stages are persistent only when progress is enabled", {
@@ -193,6 +365,48 @@ test_that("candidate scoring ticks once per completed fit in serial and multises
   testthat::expect_length(parallel$messages, 3L)
   testthat::expect_setequal(serial$messages, paste("[1/3] Candidate scoring - completed", names(candidate_trees)))
   testthat::expect_setequal(parallel$messages, serial$messages)
+})
+
+test_that("candidate scoring emits heartbeats without advancing completion", {
+  candidate_trees <- list("Node 11" = list(ic = 95))
+  events <- new.env(parent = emptyenv())
+  events$types <- character()
+  events$messages <- character()
+  events$amounts <- numeric()
+
+  slow_fit <- function(IC, formula, tree, trait_data, ...) {
+    Sys.sleep(0.3)
+    list(GIC = list(GIC = tree$ic))
+  }
+
+  .bifrost_search_run_stage(
+    enabled = TRUE,
+    steps = 1L,
+    initial_message = "[1/3] Candidate scoring",
+    work = function(tick) {
+      value <- .bifrost_search_score_candidates(
+        candidate_trees_shifts = candidate_trees,
+        baseline_ic = 100,
+        IC = "GIC",
+        formula = trait_data ~ 1,
+        trait_data = matrix(0, nrow = 1),
+        args_list = list(),
+        num_cores = 1L,
+        is_rstudio = TRUE,
+        tick = tick,
+        heartbeat = function() {
+          tick(amount = 0, message = "[1/3] Candidate scoring - fitting")
+        },
+        fit = slow_fit
+      )
+      list(value = value, done = "[1/3] Candidate scoring complete")
+    },
+    handler = .collect_progress_handler(events)
+  )
+
+  update_amounts <- events$amounts[events$types == "update"]
+  testthat::expect_equal(sum(update_amounts > 0), 1L)
+  testthat::expect_gte(sum(update_amounts == 0), 2L)
 })
 
 test_that("search emits candidate and greedy stages independently of verbose", {
@@ -287,6 +501,63 @@ test_that("greedy search ticks for accepted, rejected, and recoverable-error fit
   testthat::expect_length(result$warnings_list, 1L)
 })
 
+test_that("greedy search emits heartbeats while one proposal fit is running", {
+  testthat::skip_if_not_installed("ape")
+  testthat::skip_if_not_installed("phytools")
+
+  set.seed(46)
+  tree <- ape::rtree(10)
+  baseline <- phytools::paintSubTree(
+    tree,
+    node = ape::Ntip(tree) + 1L,
+    state = 0
+  )
+  candidate <- generatePaintedTrees(baseline, min_tips = 3)[2]
+  events <- new.env(parent = emptyenv())
+  events$types <- character()
+  events$messages <- character()
+  events$amounts <- numeric()
+
+  slow_fit <- function(IC, formula, tree, trait_data, ...) {
+    Sys.sleep(0.3)
+    list(GIC = list(GIC = 99))
+  }
+
+  .bifrost_search_run_stage(
+    enabled = TRUE,
+    steps = 1L,
+    initial_message = "[2/3] Greedy shift search",
+    work = function(tick) {
+      value <- .bifrost_search_forward(
+        sorted_candidates = candidate,
+        current_best_tree = baseline,
+        current_best_ic = 100,
+        shift_id = 0,
+        IC = "GIC",
+        formula = trait_data ~ 1,
+        trait_data = matrix(0, nrow = ape::Ntip(tree), ncol = 1),
+        shift_acceptance_threshold = 5,
+        store_model_fit_history = FALSE,
+        sub_dir = NULL,
+        plot = FALSE,
+        verbose_log = function(...) invisible(NULL),
+        tick = tick,
+        heartbeat = function() {
+          tick(amount = 0, message = "[2/3] Greedy shift search - fitting")
+        },
+        is_rstudio = TRUE,
+        fit = slow_fit
+      )
+      list(value = value, done = "[2/3] Greedy shift search complete")
+    },
+    handler = .collect_progress_handler(events)
+  )
+
+  update_amounts <- events$amounts[events$types == "update"]
+  testthat::expect_equal(sum(update_amounts > 0), 1L)
+  testthat::expect_gte(sum(update_amounts == 0), 2L)
+})
+
 test_that("IC-weight re-estimation ticks once per completed serial and parallel refit", {
   testthat::skip_if_not_installed("ape")
   testthat::skip_if_not_installed("phytools")
@@ -309,6 +580,7 @@ test_that("IC-weight re-estimation ticks once per completed serial and parallel 
   }
 
   fake_fit <- function(IC, formula, tree, trait_data, ...) {
+    Sys.sleep(0.3)
     list(GIC = list(GIC = 90))
   }
 
@@ -316,6 +588,7 @@ test_that("IC-weight re-estimation ticks once per completed serial and parallel 
     events <- new.env(parent = emptyenv())
     events$types <- character()
     events$messages <- character()
+    events$amounts <- numeric()
     value <- .bifrost_search_run_stage(
       enabled = TRUE,
       steps = length(shift_nodes),
@@ -335,6 +608,9 @@ test_that("IC-weight re-estimation ticks once per completed serial and parallel 
           is_rstudio = parallel,
           verbose_log = function(...) invisible(NULL),
           tick = tick,
+          heartbeat = function() {
+            tick(amount = 0, message = "[3/3] IC-weight re-estimation - fitting")
+          },
           fit = fake_fit
         )
         list(
@@ -346,7 +622,8 @@ test_that("IC-weight re-estimation ticks once per completed serial and parallel 
     )
     list(
       value = value,
-      messages = events$messages[events$types == "update"]
+      messages = events$messages[events$types == "update" & events$amounts > 0],
+      amounts = events$amounts[events$types == "update"]
     )
   }
 
@@ -358,6 +635,10 @@ test_that("IC-weight re-estimation ticks once per completed serial and parallel 
   testthat::expect_equal(nrow(parallel$value), 2L)
   testthat::expect_setequal(serial$messages, expected)
   testthat::expect_setequal(parallel$messages, expected)
+  testthat::expect_equal(sum(serial$amounts > 0), 2L)
+  testthat::expect_equal(sum(parallel$amounts > 0), 2L)
+  testthat::expect_gte(sum(serial$amounts == 0), 2L)
+  testthat::expect_gte(sum(parallel$amounts == 0), 2L)
 })
 
 test_that("requested IC-weight stage reports why zero-shift work is skipped", {
