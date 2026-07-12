@@ -72,21 +72,21 @@
   list(
     create = function(label, total) {
       id <- paste0("stage-", length(rows) + 1L)
-      rows[[id]] <<- list2env(list(
+      row <- list2env(list(
         state = "active", current = 0L, total = total, status = label,
         started = now(), finished = NULL, finalized = FALSE
       ), parent = baseenv())
-      list(id = id, envir = rows[[id]])
+      rows[[id]] <<- row
+      row
     },
     update = function(row, state, current, total, status, force = TRUE) {
-      values <- row$envir
-      values$state <- state
-      values$current <- current
-      values$total <- total
-      values$status <- status
-      if (state != "active" && is.null(values$finished)) values$finished <- now()
+      row$state <- state
+      row$current <- current
+      row$total <- total
+      row$status <- status
+      if (state != "active" && is.null(row$finished)) row$finished <- now()
       if (dynamic) draw() else if (force) cat(
-        format_row(values), "\n", sep = "", file = stderr()
+        format_row(row), "\n", sep = "", file = stderr()
       )
     },
     output = function(row, text) {
@@ -95,8 +95,8 @@
       cat(text, "\n", sep = "", file = stderr())
       if (dynamic) draw()
     },
-    done = function(row, result) {
-      row$envir$finalized <- TRUE
+    done = function(row) {
+      row$finalized <- TRUE
       if (dynamic && all(vapply(rows, `[[`, logical(1), "finalized"))) draw(TRUE)
     }
   )
@@ -116,7 +116,6 @@
                       state = "active",
                       status = label) {
     row <- list(
-      label = label,
       row = renderer$create(label, total),
       current = current,
       total = total,
@@ -170,19 +169,16 @@
                        state,
                        progression,
                        row_state = "active",
-                       status = NULL) {
+                       status = NULL,
+                       ...) {
       update_stage(label, config, state, progression, row_state, status)
     }
     reporter <- list(
       reset = function(...) invisible(NULL),
       hide = function(...) invisible(NULL),
       unhide = function(...) invisible(NULL),
-      initiate = function(config, state, progression, ...) {
-        report(config, state, progression)
-      },
-      update = function(config, state, progression, ...) {
-        report(config, state, progression)
-      },
+      initiate = report,
+      update = report,
       finish = function(config, state, progression, ...) {
         report(config, state, progression, "complete")
       },
@@ -237,7 +233,7 @@
       if (finalized) return(invisible(NULL))
       finalized <<- TRUE
       for (row in stage_rows) {
-        renderer$done(row$row, row$state)
+        renderer$done(row$row)
       }
       invisible(NULL)
     }

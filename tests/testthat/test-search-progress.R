@@ -42,7 +42,7 @@
       events$output <- c(events$output, text)
       invisible(NULL)
     },
-    done = function(row, result) {
+    done = function(row) {
       events$done <- c(events$done, row$id)
       invisible(NULL)
     }
