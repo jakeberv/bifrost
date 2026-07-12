@@ -434,27 +434,21 @@ searchOptimalConfiguration <-
               function() {
                 tick(
                   amount = 0,
-                  message = "[1/3] Candidate scoring - fitting candidates"
+                  message = "[1/3] Scoring candidates"
                 )
               }
             } else {
               NULL
             }
           )
-          list(
-            value = value,
-            done = sprintf(
-              "[1/3] Candidate scoring - %d candidates complete",
-              length(candidate_trees_shifts)
-            )
-          )
+          list(value = value, done = "[1/3] Candidates scored")
         }
       )
     } else {
       .bifrost_search_report_skipped_stage(
         progress,
         "[1/3] Candidate scoring",
-        "no eligible candidate shifts",
+        "No candidates",
         session = progress_session
       )
       candidate_scores <- .bifrost_search_score_candidates(
@@ -512,7 +506,7 @@ searchOptimalConfiguration <-
           function() {
             tick(
               amount = 0,
-              message = "[2/3] Greedy shift search - fitting proposal"
+              message = "[2/3] Fitting proposal"
             )
           }
         } else {
@@ -531,26 +525,14 @@ searchOptimalConfiguration <-
         session = progress_session,
         work = function(tick) {
           value <- run_forward_search(tick)
-          counts <- value$outcome_counts
-          list(
-            value = value,
-            done = sprintf(
-              paste0(
-                "[2/3] Greedy shift search - ",
-                "%d accepted, %d rejected, %d errors"
-              ),
-              counts[["accepted"]],
-              counts[["rejected"]],
-              counts[["error"]]
-            )
-          )
+          list(value = value, done = "[2/3] Search complete")
         }
       )
     } else {
       .bifrost_search_report_skipped_stage(
         progress,
         "[2/3] Greedy shift search",
-        "no candidates to evaluate",
+        "No proposals",
         session = progress_session
       )
       forward_search <- run_forward_search(function(...) invisible(NULL))
@@ -619,14 +601,14 @@ searchOptimalConfiguration <-
       .bifrost_search_report_skipped_stage(
         progress,
         "[3/3] IC-weight re-estimation",
-        "not requested",
+        "Not requested",
         session = progress_session
       )
     } else if (weight_reestimation_requested && accepted_shift_count == 0L) {
       .bifrost_search_report_skipped_stage(
         progress,
         "[3/3] IC-weight re-estimation",
-        "no accepted shifts",
+        "No shifts",
         session = progress_session
       )
     }
@@ -650,7 +632,7 @@ searchOptimalConfiguration <-
           function() {
             tick(
               amount = 0,
-              message = "[3/3] IC-weight re-estimation - fitting model"
+              message = "[3/3] Estimating weights"
             )
           }
         } else {
@@ -667,13 +649,7 @@ searchOptimalConfiguration <-
         session = progress_session,
         work = function(tick) {
           value <- calculate_ic_weights(tick)
-          list(
-            value = value,
-            done = sprintf(
-              "[3/3] IC-weight re-estimation - %d shifts complete",
-              accepted_shift_count
-            )
-          )
+          list(value = value, done = "[3/3] Weights estimated")
         }
       )
     } else {

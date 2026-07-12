@@ -220,7 +220,7 @@ test_that("search CLI renderer can persist and finalize a skipped row", {
       session$finalize()
     }, type = "message")
   )
-  testthat::expect_true(any(grepl("[3/3] IC-weight", rendered, fixed = TRUE)))
+  testthat::expect_true(any(grepl("[3/3] not requested", rendered, fixed = TRUE)))
 })
 
 test_that("search CLI renderer finalizes persistent rows as separate lines", {
@@ -656,19 +656,18 @@ test_that("skipped search stages are persistent only when progress is enabled", 
     .bifrost_search_report_skipped_stage(
       TRUE,
       "[3/3] IC-weight re-estimation",
-      "not requested"
+      "Not requested"
     )
   )
   hidden <- testthat::capture_messages(
     .bifrost_search_report_skipped_stage(
       FALSE,
       "[3/3] IC-weight re-estimation",
-      "not requested"
+      "Not requested"
     )
   )
 
-  testthat::expect_match(shown, "[3/3] IC-weight re-estimation", fixed = TRUE)
-  testthat::expect_match(shown, "skipped: not requested", fixed = TRUE)
+  testthat::expect_match(shown, "[3/3] Not requested", fixed = TRUE)
   testthat::expect_length(hidden, 0L)
 })
 
@@ -968,7 +967,7 @@ test_that("candidate scoring ticks once per completed fit in serial and multises
   testthat::expect_identical(names(serial$result$sorted_candidates), c("Node 12", "Node 11", "Node 13"))
   testthat::expect_length(serial$messages, 3L)
   testthat::expect_length(parallel$messages, 3L)
-  testthat::expect_setequal(serial$messages, paste("[1/3] Candidate scoring - completed", names(candidate_trees)))
+  testthat::expect_setequal(serial$messages, paste("[1/3]", names(candidate_trees), "scored"))
   testthat::expect_setequal(parallel$messages, serial$messages)
 })
 
@@ -1117,7 +1116,7 @@ test_that("greedy search ticks for accepted, rejected, and recoverable-error fit
   testthat::expect_length(messages, 3L)
   testthat::expect_match(messages[1], "accepted", fixed = TRUE)
   testthat::expect_match(messages[2], "rejected", fixed = TRUE)
-  testthat::expect_match(messages[3], "error", fixed = TRUE)
+  testthat::expect_match(messages[3], "failed", fixed = TRUE)
   testthat::expect_length(result$shifts_no_uncertainty, 1L)
   testthat::expect_length(result$warnings_list, 1L)
 })
@@ -1251,7 +1250,7 @@ test_that("IC-weight re-estimation ticks once per completed serial and parallel 
   serial <- run_weights(FALSE)
   parallel <- run_weights(TRUE)
 
-  expected <- paste("[3/3] IC-weight re-estimation - completed node", shift_nodes)
+  expected <- paste("[3/3] Weighted node", shift_nodes)
   testthat::expect_equal(nrow(serial$value), 2L)
   testthat::expect_equal(nrow(parallel$value), 2L)
   testthat::expect_setequal(serial$messages, expected)
@@ -1406,7 +1405,7 @@ test_that("requested IC-weight stage reports why zero-shift work is skipped", {
 
   statuses <- vapply(events$updates, `[[`, character(1), "status")
   testthat::expect_true(any(grepl(
-    "[3/3] IC-weight re-estimation - skipped: no accepted shifts",
+    "[3/3] No shifts",
     statuses,
     fixed = TRUE
   )))
@@ -1458,8 +1457,8 @@ test_that("zero-candidate searches leave all three skipped stage lines", {
     "[3/3] IC-weight re-estimation"
   ))
   statuses <- vapply(events$updates, `[[`, character(1), "status")
-  testthat::expect_true(any(grepl("[1/3] Candidate scoring - skipped", statuses, fixed = TRUE)))
-  testthat::expect_true(any(grepl("[2/3] Greedy shift search - skipped", statuses, fixed = TRUE)))
-  testthat::expect_true(any(grepl("[3/3] IC-weight re-estimation - skipped", statuses, fixed = TRUE)))
+  testthat::expect_true(any(grepl("[1/3] No candidates", statuses, fixed = TRUE)))
+  testthat::expect_true(any(grepl("[2/3] No proposals", statuses, fixed = TRUE)))
+  testthat::expect_true(any(grepl("[3/3] Not requested", statuses, fixed = TRUE)))
   testthat::expect_identical(events$done, paste0("row-", 1:3))
 })

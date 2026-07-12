@@ -208,7 +208,7 @@
         row <- add_row(label, 1L, current = 1L, state = "skipped")
       }
       row$state <- "skipped"
-      row$status <- paste0(label, " - skipped: ", reason)
+      row$status <- paste(sub(" .*", "", label), reason)
       stage_rows[[label]] <<- render(row)
       invisible(NULL)
     },
@@ -283,7 +283,7 @@
                                                  reason,
                                                  session = NULL) {
   if (!isTRUE(enabled)) return(invisible(NULL))
-  if (is.null(session)) cli::cli_alert_info("{label} - skipped: {reason}")
+  if (is.null(session)) cli::cli_alert_info("{sub(' .*', '', label)} {reason}")
   else session$skip(label, reason)
 
   invisible(NULL)
@@ -594,8 +594,7 @@
       tree <- candidate_trees_shifts[[i]]
       result <- do.call(fit, c(list(IC, formula, tree, trait_data), args_list))
       tick(message = paste(
-        "[1/3] Candidate scoring - completed",
-        names(candidate_trees_shifts)[i]
+        "[1/3]", names(candidate_trees_shifts)[i], "scored"
       ))
       result
     },
@@ -839,9 +838,9 @@
     })
     outcome_counts[[outcome]] <- outcome_counts[[outcome]] + 1L
     tick(message = sprintf(
-      "[2/3] Greedy shift search - node %d %s",
+      "[2/3] Node %d %s",
       shift_node_number,
-      outcome
+      if (outcome == "error") "failed" else outcome
     ))
     if (isTRUE(store_model_fit_history) && !is.null(sub_dir)) {
       iteration_num <- i + 1L
@@ -986,8 +985,7 @@
               ic_weight_row
             )
             tick(message = sprintf(
-              "[3/3] IC-weight re-estimation - completed node %d",
-              shift_node_number
+              "[3/3] Weighted node %d", shift_node_number
             ))
           }
 
@@ -1029,8 +1027,7 @@
             icw <- aicw(c(original_ic, ic_without_shift))$aicweights
 
             tick(message = sprintf(
-              "[3/3] IC-weight re-estimation - completed node %d",
-              unlist(shift_vec)[i]
+              "[3/3] Weighted node %d", unlist(shift_vec)[i]
             ))
 
             c(
