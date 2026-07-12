@@ -205,7 +205,6 @@
 
   list(
     handler = handler,
-    update_stage = update_stage,
     skip = function(label, reason) {
       if (inactive()) return(invisible(NULL))
       row <- stage_rows[[label]]
@@ -228,7 +227,6 @@
       invisible(NULL)
     },
     has_rows = function() isTRUE(enabled) && length(stage_rows) > 0L,
-    rows = function() if (length(stage_rows)) names(stage_rows) else character(),
     finalize = function() {
       if (finalized) return(invisible(NULL))
       finalized <<- TRUE
@@ -244,6 +242,7 @@
                                       steps,
                                       initial_message,
                                       work,
+                                      done_message = initial_message,
                                       handler = NULL,
                                       session = NULL,
                                       skipped = NULL) {
@@ -255,8 +254,7 @@
   }
   if (!isTRUE(enabled)) {
     no_op_tick <- function(...) invisible(NULL)
-    stage_result <- work(no_op_tick)
-    return(stage_result$value)
+    return(work(no_op_tick))
   }
 
   owns_session <- is.null(session) && is.null(handler)
@@ -279,9 +277,9 @@
         auto_finish = FALSE,
         on_exit = FALSE
       )
-      stage_result <- work(tick)
-      tick(type = "finish", message = stage_result$done)
-      stage_result$value
+      value <- work(tick)
+      tick(type = "finish", message = done_message)
+      value
     },
     handlers = handler,
     cleanup = FALSE,

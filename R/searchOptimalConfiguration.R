@@ -417,10 +417,11 @@ searchOptimalConfiguration <-
       enabled = progress,
       steps = length(candidate_trees_shifts),
       initial_message = "[1/3] Candidate scoring",
+      done_message = "[1/3] Candidates scored",
       session = progress_session,
       skipped = if (length(candidate_trees_shifts) == 0L) "No candidates",
       work = function(tick) {
-        value <- .bifrost_search_score_candidates(
+        .bifrost_search_score_candidates(
           candidate_trees_shifts = candidate_trees_shifts,
           baseline_ic = baseline_ic,
           IC = IC,
@@ -434,7 +435,6 @@ searchOptimalConfiguration <-
             progress, tick, "[1/3] Scoring candidates"
           )
         )
-        list(value = value, done = "[1/3] Candidates scored")
       }
     )
 
@@ -489,12 +489,10 @@ searchOptimalConfiguration <-
       enabled = progress,
       steps = length(sorted_candidates),
       initial_message = "[2/3] Greedy shift search",
+      done_message = "[2/3] Search complete",
       session = progress_session,
       skipped = if (length(sorted_candidates) == 0L) "No proposals",
-      work = function(tick) {
-        value <- run_forward_search(tick)
-        list(value = value, done = "[2/3] Search complete")
-      }
+      work = run_forward_search
     )
 
     current_best_tree <- forward_search$current_best_tree
@@ -550,10 +548,8 @@ searchOptimalConfiguration <-
     # }
 
     # New Section for Calculating Information Criterion Weights Post Optimization
-    weight_reestimation_requested <- xor(
-      isTRUE(uncertaintyweights),
+    weight_reestimation_requested <- isTRUE(uncertaintyweights) ||
       isTRUE(uncertaintyweights_par)
-    )
     accepted_shift_count <- length(unlist(shift_vec))
 
     weight_skip_reason <- if (!weight_reestimation_requested) {
@@ -587,12 +583,10 @@ searchOptimalConfiguration <-
       enabled = progress,
       steps = accepted_shift_count,
       initial_message = "[3/3] IC-weight re-estimation",
+      done_message = "[3/3] Weights estimated",
       session = progress_session,
       skipped = weight_skip_reason,
-      work = function(tick) {
-        value <- calculate_ic_weights(tick)
-        list(value = value, done = "[3/3] Weights estimated")
-      }
+      work = calculate_ic_weights
     )
 
     # Print statements for the optimal configuration and delta GIC/BIC

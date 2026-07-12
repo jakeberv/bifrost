@@ -89,9 +89,10 @@ test_that("search status rows appear progressively and finalize together", {
       enabled = TRUE,
       steps = 1L,
       initial_message = label,
+      done_message = paste(label, "done"),
       work = function(tick) {
         tick(message = paste(label, "complete"))
-        list(value = label, done = paste(label, "done"))
+        label
       },
       session = session
     )
@@ -110,11 +111,6 @@ test_that("search status rows appear progressively and finalize together", {
   session$skip("[3/3] IC-weight re-estimation", "not requested")
   testthat::expect_length(events$created, 3L)
   testthat::expect_equal(tail(events$updates, 1L)[[1L]]$state, "skipped")
-  testthat::expect_identical(session$rows(), c(
-    "[1/3] Candidate scoring",
-    "[2/3] Greedy shift search",
-    "[3/3] IC-weight re-estimation"
-  ))
   testthat::expect_length(events$done, 0L)
 
   session$finalize()
@@ -128,13 +124,6 @@ test_that("search status rows appear progressively and finalize together", {
     updates = length(events$updates),
     output = length(events$output),
     done = length(events$done)
-  )
-  session$update_stage(
-    "[4/4] Too late",
-    list(max_steps = 2L),
-    list(step = 1L, message = "ignored update"),
-    list(amount = 1),
-    "active"
   )
   session$skip("[4/4] Too late", "already finalized")
   session$output("ignored output")
@@ -160,7 +149,6 @@ test_that("disabled search status session never touches its renderer", {
   progression <- list(amount = 1)
 
   testthat::expect_false(session$has_rows())
-  testthat::expect_identical(session$rows(), character())
   reporter$initiate(config, state, progression)
   reporter$update(config, state, progression)
   reporter$finish(config, state, progression)
@@ -172,20 +160,12 @@ test_that("disabled search status session never touches its renderer", {
       class = c("simpleError", "error", "condition")
     )
   )
-  session$update_stage(
-    "disabled direct stage",
-    config,
-    state,
-    progression,
-    "active"
-  )
   session$skip("disabled skipped stage", "not requested")
   session$output("disabled output")
   session$finalize()
   session$finalize()
 
   testthat::expect_false(session$has_rows())
-  testthat::expect_identical(session$rows(), character())
   testthat::expect_length(events$created, 0L)
   testthat::expect_length(events$updates, 0L)
   testthat::expect_length(events$output, 0L)
@@ -267,9 +247,10 @@ test_that("search CLI renderer grows a live multi-line stage stack", {
       enabled = TRUE,
       steps = 1L,
       initial_message = label,
+      done_message = paste(label, "done"),
       work = function(tick) {
         tick(message = paste(label, "complete"))
-        list(value = NULL, done = paste(label, "done"))
+        NULL
       },
       session = session
     )
@@ -339,9 +320,10 @@ test_that("search CLI renderer redraws active rows below verbose output", {
     enabled = TRUE,
     steps = 1L,
     initial_message = "[1/3] Candidate scoring",
+    done_message = "[1/3] Candidate scoring done",
     work = function(tick) {
       tick(message = "[1/3] Candidate scoring complete")
-      list(value = NULL, done = "[1/3] Candidate scoring done")
+      NULL
     },
     session = session
   )
@@ -349,9 +331,10 @@ test_that("search CLI renderer redraws active rows below verbose output", {
     enabled = TRUE,
     steps = 1L,
     initial_message = "[2/3] Greedy shift search",
+    done_message = "[2/3] Greedy shift search done",
     work = function(tick) {
       tick(message = "[2/3] Greedy shift search complete")
-      list(value = NULL, done = "[2/3] Greedy shift search done")
+      NULL
     },
     session = session
   )
@@ -382,10 +365,11 @@ test_that("search progress stage runner reports lifecycle and returns work value
     enabled = TRUE,
     steps = 2L,
     initial_message = "[1/3] Candidate scoring",
+    done_message = "[1/3] Candidate scoring complete",
     work = function(tick) {
       tick(message = "candidate 1")
       tick(message = "candidate 2")
-      list(value = 42L, done = "[1/3] Candidate scoring complete")
+      42L
     },
     handler = .collect_progress_handler(events)
   )
@@ -412,9 +396,10 @@ test_that("search progress stage runner owns and finalizes its default session",
     enabled = TRUE,
     steps = 1L,
     initial_message = "owned stage",
+    done_message = "owned stage done",
     work = function(tick) {
       tick(message = "owned stage complete")
-      list(value = 73L, done = "owned stage done")
+      73L
     }
   )
 
@@ -431,10 +416,11 @@ test_that("a heartbeat after the final completion remains valid until stage fini
     enabled = TRUE,
     steps = 1L,
     initial_message = "boundary stage",
+    done_message = "boundary stage complete",
     work = function(tick) {
       tick(message = "fit complete")
       tick(amount = 0, message = "collecting result")
-      list(value = 11L, done = "boundary stage complete")
+      11L
     },
     handler = .collect_progress_handler(events)
   )
@@ -452,7 +438,7 @@ test_that("disabled search progress stage runs without creating a handler", {
     initial_message = "disabled",
     work = function(tick) {
       tick(message = "ignored")
-      list(value = "result", done = "done")
+      "result"
     },
     handler = stop("handler must remain lazy when progress is disabled")
   )
@@ -584,11 +570,12 @@ test_that("verbose message and plotting-style stdout coexist with stage progress
         enabled = TRUE,
         steps = 1L,
         initial_message = "plotting stage",
+        done_message = "plotting stage complete",
         work = function(tick) {
           cat("plotting-style verbose output\n")
           message("ordinary verbose message")
           tick(message = "fit complete")
-          list(value = 7L, done = "plotting stage complete")
+          7L
         },
         handler = .collect_progress_handler(events)
       )
@@ -946,8 +933,9 @@ test_that("candidate scoring ticks once per completed fit in serial and multises
       enabled = TRUE,
       steps = length(candidate_trees),
       initial_message = "[1/3] Candidate scoring",
+      done_message = "[1/3] Candidate scoring complete",
       work = function(tick) {
-        value <- .bifrost_search_score_candidates(
+        .bifrost_search_score_candidates(
           candidate_trees_shifts = candidate_trees,
           baseline_ic = 100,
           IC = "GIC",
@@ -959,7 +947,6 @@ test_that("candidate scoring ticks once per completed fit in serial and multises
           tick = tick,
           fit = .fake_candidate_fit
         )
-        list(value = value, done = "[1/3] Candidate scoring complete")
       },
       handler = .collect_progress_handler(events)
     )
@@ -990,8 +977,9 @@ test_that("candidate scoring emits heartbeats without advancing completion", {
     enabled = TRUE,
     steps = 1L,
     initial_message = "[1/3] Candidate scoring",
+    done_message = "[1/3] Candidate scoring complete",
     work = function(tick) {
-      value <- .bifrost_search_score_candidates(
+      .bifrost_search_score_candidates(
         candidate_trees_shifts = candidate_trees,
         baseline_ic = 100,
         IC = "GIC",
@@ -1006,7 +994,6 @@ test_that("candidate scoring emits heartbeats without advancing completion", {
         },
         fit = slow_fit
       )
-      list(value = value, done = "[1/3] Candidate scoring complete")
     },
     handler = .collect_progress_handler(events)
   )
@@ -1141,8 +1128,9 @@ test_that("greedy search emits heartbeats while one proposal fit is running", {
     enabled = TRUE,
     steps = 1L,
     initial_message = "[2/3] Greedy shift search",
+    done_message = "[2/3] Greedy shift search complete",
     work = function(tick) {
-      value <- .bifrost_search_forward(
+      .bifrost_search_forward(
         sorted_candidates = candidate,
         current_best_tree = baseline,
         current_best_ic = 100,
@@ -1162,7 +1150,6 @@ test_that("greedy search emits heartbeats while one proposal fit is running", {
         is_rstudio = TRUE,
         fit = slow_fit
       )
-      list(value = value, done = "[2/3] Greedy shift search complete")
     },
     handler = .collect_progress_handler(events)
   )
@@ -1204,8 +1191,9 @@ test_that("IC-weight re-estimation ticks once per completed serial and parallel 
       enabled = TRUE,
       steps = length(shift_nodes),
       initial_message = "[3/3] IC-weight re-estimation",
+      done_message = "[3/3] IC-weight re-estimation complete",
       work = function(tick) {
-        weights <- .bifrost_search_calculate_ic_weights(
+        .bifrost_search_calculate_ic_weights(
           uncertaintyweights = !parallel,
           uncertaintyweights_par = parallel,
           shift_vec = as.list(shift_nodes),
@@ -1223,10 +1211,6 @@ test_that("IC-weight re-estimation ticks once per completed serial and parallel 
             tick(amount = 0, message = "[3/3] IC-weight re-estimation - fitting")
           },
           fit = fake_fit
-        )
-        list(
-          value = weights,
-          done = "[3/3] IC-weight re-estimation complete"
         )
       },
       handler = .collect_progress_handler(events)
