@@ -38,12 +38,12 @@
       )))
       invisible(NULL)
     },
-    output = function(row, text) {
+    output = function(text) {
       events$output <- c(events$output, text)
       invisible(NULL)
     },
-    done = function(row) {
-      events$done <- c(events$done, row$id)
+    done = function() {
+      events$done <- paste0("row-", seq_along(events$created))
       invisible(NULL)
     }
   )

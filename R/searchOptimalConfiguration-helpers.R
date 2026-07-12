@@ -74,7 +74,7 @@
       id <- paste0("stage-", length(rows) + 1L)
       row <- list2env(list(
         state = "active", current = 0L, total = total, status = label,
-        started = now(), finished = NULL, finalized = FALSE
+        started = now(), finished = NULL
       ), parent = baseenv())
       rows[[id]] <<- row
       row
@@ -89,16 +89,13 @@
         format_row(row), "\n", sep = "", file = stderr()
       )
     },
-    output = function(row, text) {
+    output = function(text) {
       clear()
       if (wrap_disabled) set_wrap(TRUE)
       cat(text, "\n", sep = "", file = stderr())
       if (dynamic) draw()
     },
-    done = function(row) {
-      row$finalized <- TRUE
-      if (dynamic && all(vapply(rows, `[[`, logical(1), "finalized"))) draw(TRUE)
-    }
+    done = function() if (dynamic) draw(TRUE)
   )
 }
 
@@ -115,27 +112,26 @@
                       current = 0L,
                       state = "active",
                       status = label) {
-    row <- list(
-      row = renderer$create(label, total),
+    row <- list2env(list(
+      renderer_row = renderer$create(label, total),
       current = current,
       total = total,
       state = state,
       status = status
-    )
+    ), parent = emptyenv())
     stage_rows[[label]] <<- row
     row
   }
 
   render <- function(row, force = TRUE) {
     renderer$update(
-      row$row,
+      row$renderer_row,
       state = row$state,
       current = row$current,
       total = row$total,
       status = row$status,
       force = force
     )
-    row
   }
 
   update_stage <- function(label,
@@ -157,7 +153,7 @@
     row$total <- display_total
     row$state <- row_state
     row$status <- if (is.null(status)) paste(state$message, collapse = "") else status
-    stage_rows[[label]] <<- render(
+    render(
       row,
       force = !heartbeat || cli::is_dynamic_tty("stderr")
     )
@@ -213,26 +209,22 @@
       }
       row$state <- "skipped"
       row$status <- paste(sub(" .*", "", label), reason)
-      stage_rows[[label]] <<- render(row)
+      render(row)
       invisible(NULL)
     },
     output = function(text) {
       if (inactive() || length(stage_rows) == 0L) {
         return(invisible(NULL))
       }
-      renderer$output(stage_rows[[length(stage_rows)]]$row, text)
-      for (label in names(stage_rows)) {
-        stage_rows[[label]] <<- render(stage_rows[[label]])
-      }
+      renderer$output(text)
+      for (row in stage_rows) render(row)
       invisible(NULL)
     },
     has_rows = function() isTRUE(enabled) && length(stage_rows) > 0L,
     finalize = function() {
       if (finalized) return(invisible(NULL))
       finalized <<- TRUE
-      for (row in stage_rows) {
-        renderer$done(row$row)
-      }
+      if (length(stage_rows)) renderer$done()
       invisible(NULL)
     }
   )
