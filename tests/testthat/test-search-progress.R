@@ -115,6 +115,7 @@ test_that("search status rows appear progressively and finalize together", {
 
   session$finalize()
   session$finalize()
+  testthat::expect_false(session$has_rows())
   testthat::expect_length(events$done, 3L)
   testthat::expect_identical(events$done, paste0("row-", 1:3))
   testthat::expect_identical(events$output, "verbose between stages")
@@ -581,8 +582,14 @@ test_that("animated Future RNG is caller-safe and independent of chunk layout", 
 
   testthat::expect_identical(deterministic, list(1L, NULL, 3L))
   testthat::expect_identical(.Random.seed, seed_before)
+  testthat::expect_equal(run_random_work(0L), run_random_work(1L))
   testthat::expect_equal(run_random_work(1L), run_random_work(2L))
   testthat::expect_equal(run_random_work(2L), run_random_work(3L))
+  testthat::expect_error(
+    run_random_work(NA_integer_),
+    "`workers` must be a single finite number",
+    fixed = TRUE
+  )
 })
 
 test_that("verbose message and plotting-style stdout coexist with stage progress", {

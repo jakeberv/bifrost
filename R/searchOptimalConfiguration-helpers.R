@@ -222,7 +222,7 @@
       }
       invisible(NULL)
     },
-    has_rows = function() isTRUE(enabled) && length(stage_rows) > 0L,
+    has_rows = function() !inactive() && length(stage_rows) > 0L,
     finalize = function() {
       if (finalized) return(invisible(NULL))
       finalized <<- TRUE
@@ -470,8 +470,14 @@
   if (length(X) == 0L) {
     return(list())
   }
+  if (length(workers) != 1L ||
+      !is.numeric(workers) ||
+      !isTRUE(is.finite(workers))) {
+    stop("`workers` must be a single finite number.", call. = FALSE)
+  }
+  workers <- max(1L, as.integer(workers))
 
-  chunk_count <- min(as.integer(workers), length(X))
+  chunk_count <- min(workers, length(X))
   chunks <- split(
     seq_along(X),
     rep(seq_len(chunk_count), length.out = length(X))
