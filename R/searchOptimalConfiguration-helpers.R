@@ -15,7 +15,7 @@
     ratio <- if (row$total > 0L) min(row$current / row$total, 1) else 1
     filled <- round(30 * ratio)
     bar <- paste0(
-      strrep(if (cli::is_utf8_output()) "\u2588" else "=", filled),
+      strrep(if (cli::is_utf8_output()) "\u25a0" else "=", filled),
       strrep(if (cli::is_utf8_output()) " " else "-", 30L - filled)
     )
     icon <- switch(
