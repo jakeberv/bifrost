@@ -272,6 +272,28 @@ test_that("search CLI renderer grows a live multi-line stage stack", {
   )
 })
 
+test_that("search CLI renderer protects live rows from terminal reflow", {
+  old_cli_options <- options(
+    cli.dynamic = TRUE,
+    cli.num_colors = 1,
+    cli.width = 160
+  )
+  on.exit(options(old_cli_options), add = TRUE)
+  session <- .bifrost_search_progress_session(TRUE)
+  on.exit(session$finalize(), add = TRUE)
+
+  rendered <- utils::capture.output({
+    session$skip("[1/2] First stage", strrep("wide status ", 8L))
+    options(cli.width = 40)
+    session$skip("[2/2] Second stage", "complete")
+    session$finalize()
+  }, type = "message")
+
+  output <- paste(rendered, collapse = "\n")
+  testthat::expect_match(output, "\033[?7l", fixed = TRUE)
+  testthat::expect_match(output, "\033[?7h", fixed = TRUE)
+})
+
 test_that("search CLI renderer hides and restores the terminal cursor", {
   old_cli_dynamic <- options(cli.dynamic = TRUE)
   on.exit(options(old_cli_dynamic), add = TRUE)

@@ -2,6 +2,7 @@
   rows <- list()
   visible <- 0L
   cursor_hidden <- FALSE
+  wrap_disabled <- FALSE
   dynamic <- cli::is_dynamic_tty("stderr")
   spinner <- cli::get_spinner()
   now <- function() proc.time()[["elapsed"]]
@@ -35,7 +36,7 @@
       "%s %s %3d%% [%d/%d] %s %s",
       icon, cli::col_green(bar), round(100 * ratio), row$current,
       row$total, timing, row$status
-    ), cli::console_width())
+    ), max(cli::console_width() - 1L, 1L))
   }
 
   clear <- function() {
@@ -45,6 +46,11 @@
     visible <<- 0L
   }
 
+  set_wrap <- function(enabled) {
+    cat(if (enabled) "\033[?7h" else "\033[?7l", file = stderr())
+    wrap_disabled <<- !enabled
+  }
+
   draw <- function(final = FALSE) {
     if (!final && !cursor_hidden && isTRUE(getOption("cli.hide_cursor", TRUE))) {
       cli::ansi_hide_cursor("stderr")
@@ -52,6 +58,8 @@
     }
     lines <- vapply(rows, format_row, character(1))
     clear()
+    if (final && wrap_disabled) set_wrap(TRUE)
+    if (!final && !wrap_disabled) set_wrap(FALSE)
     cat(paste(lines, collapse = "\n"), if (final) "\n" else "\r",
         sep = "", file = stderr())
     if (!final) visible <<- length(lines)
@@ -83,6 +91,7 @@
     },
     output = function(row, text) {
       clear()
+      if (wrap_disabled) set_wrap(TRUE)
       cat(text, "\n", sep = "", file = stderr())
       if (dynamic) draw()
     },
