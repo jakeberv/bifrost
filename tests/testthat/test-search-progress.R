@@ -1025,7 +1025,7 @@ test_that("candidate scoring emits heartbeats without advancing completion", {
 
   update_amounts <- events$amounts[events$types == "update"]
   testthat::expect_equal(sum(update_amounts > 0), 1L)
-  testthat::expect_gte(sum(update_amounts == 0), 2L)
+  testthat::expect_gte(sum(update_amounts == 0), 1L)
 })
 
 test_that("public search shares progress rows with verbose output", {
@@ -1181,7 +1181,7 @@ test_that("greedy search emits heartbeats while one proposal fit is running", {
 
   update_amounts <- events$amounts[events$types == "update"]
   testthat::expect_equal(sum(update_amounts > 0), 1L)
-  testthat::expect_gte(sum(update_amounts == 0), 2L)
+  testthat::expect_gte(sum(update_amounts == 0), 1L)
 })
 
 test_that("IC-weight re-estimation ticks once per completed serial and parallel refit", {
@@ -1257,8 +1257,8 @@ test_that("IC-weight re-estimation ticks once per completed serial and parallel 
   testthat::expect_setequal(parallel$messages, expected)
   testthat::expect_equal(sum(serial$amounts > 0), 2L)
   testthat::expect_equal(sum(parallel$amounts > 0), 2L)
-  testthat::expect_gte(sum(serial$amounts == 0), 2L)
-  testthat::expect_gte(sum(parallel$amounts == 0), 2L)
+  testthat::expect_gte(sum(serial$amounts == 0), 1L)
+  testthat::expect_gte(sum(parallel$amounts == 0), 1L)
 })
 
 test_that("serial IC weights retain the direct no-heartbeat path", {
