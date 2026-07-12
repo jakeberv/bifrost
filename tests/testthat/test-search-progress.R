@@ -272,6 +272,26 @@ test_that("search CLI renderer grows a live multi-line stage stack", {
   )
 })
 
+test_that("search CLI renderer hides and restores the terminal cursor", {
+  old_cli_dynamic <- options(cli.dynamic = TRUE)
+  on.exit(options(old_cli_dynamic), add = TRUE)
+  cursor_events <- character()
+  testthat::local_mocked_bindings(
+    ansi_hide_cursor = function(stream) {
+      cursor_events <<- c(cursor_events, paste("hide", stream))
+    },
+    ansi_show_cursor = function(stream) {
+      cursor_events <<- c(cursor_events, paste("show", stream))
+    },
+    .package = "cli"
+  )
+  session <- .bifrost_search_progress_session(TRUE)
+  session$skip("[1/1] Test stage", "complete")
+  session$finalize()
+
+  testthat::expect_identical(cursor_events, c("hide stderr", "show stderr"))
+})
+
 test_that("search CLI renderer redraws active rows below verbose output", {
   old_cli_options <- options(cli.dynamic = TRUE, cli.width = 200)
   on.exit(options(old_cli_options), add = TRUE)

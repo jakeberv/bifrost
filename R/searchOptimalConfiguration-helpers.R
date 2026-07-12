@@ -1,6 +1,7 @@
 .bifrost_search_cli_renderer <- function() {
   rows <- list()
   visible <- 0L
+  cursor_hidden <- FALSE
   dynamic <- cli::is_dynamic_tty("stderr")
   spinner <- cli::get_spinner()
   now <- function() proc.time()[["elapsed"]]
@@ -45,11 +46,19 @@
   }
 
   draw <- function(final = FALSE) {
+    if (!final && !cursor_hidden && isTRUE(getOption("cli.hide_cursor", TRUE))) {
+      cli::ansi_hide_cursor("stderr")
+      cursor_hidden <<- TRUE
+    }
     lines <- vapply(rows, format_row, character(1))
     clear()
     cat(paste(lines, collapse = "\n"), if (final) "\n" else "\r",
         sep = "", file = stderr())
     if (!final) visible <<- length(lines)
+    if (final && cursor_hidden) {
+      cli::ansi_show_cursor("stderr")
+      cursor_hidden <<- FALSE
+    }
   }
 
   list(
