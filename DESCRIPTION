@@ -23,7 +23,7 @@ Depends: R (>= 4.1)
 Imports:
     ape,
     cli (>= 3.6.0),
-    future,
+    future (>= 1.49.0),
     future.apply,
     parallel,
     progressr,

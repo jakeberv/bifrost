@@ -1410,9 +1410,14 @@ test_that("zero-candidate searches leave all three skipped stage lines", {
   traits <- matrix(stats::rnorm(20), ncol = 2)
   rownames(traits) <- tree$tip.label
   events <- .new_search_renderer_events()
+  future_plans <- 0L
   recording_session <- .recording_search_session(events)
   testthat::local_mocked_bindings(
-    .bifrost_search_progress_session = recording_session
+    .bifrost_search_progress_session = recording_session,
+    .bifrost_search_with_future_plan = function(...) {
+      future_plans <<- future_plans + 1L
+      stop("Future setup should not run")
+    }
   )
 
   suppressWarnings(
@@ -1442,5 +1447,6 @@ test_that("zero-candidate searches leave all three skipped stage lines", {
   testthat::expect_true(any(grepl("[1/3] No candidates", statuses, fixed = TRUE)))
   testthat::expect_true(any(grepl("[2/3] No proposals", statuses, fixed = TRUE)))
   testthat::expect_true(any(grepl("[3/3] Not requested", statuses, fixed = TRUE)))
+  testthat::expect_identical(future_plans, 0L)
   testthat::expect_identical(events$done, paste0("row-", 1:3))
 })

@@ -700,7 +700,9 @@
                                    fit = .bifrost_search_fit_ic,
                                    .future_plan_active = FALSE,
                                    ...) {
-  if (!is.null(heartbeat) && !isTRUE(.future_plan_active)) {
+  if (length(sorted_candidates) > 0L &&
+      !is.null(heartbeat) &&
+      !isTRUE(.future_plan_active)) {
     dots <- list(...)
     forward_args <- c(list(
       sorted_candidates = sorted_candidates,
