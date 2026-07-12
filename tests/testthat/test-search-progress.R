@@ -547,14 +547,14 @@ test_that("animated Future RNG is caller-safe and independent of chunk layout", 
   seed_before <- .Random.seed
   deterministic <- .bifrost_search_future_lapply(
     1:3,
-    identity,
+    function(i) if (i == 2L) NULL else i,
     workers = 2L,
     is_rstudio_flag = TRUE,
     heartbeat = function() invisible(NULL),
     interval = 0.01
   )
 
-  testthat::expect_identical(deterministic, as.list(1:3))
+  testthat::expect_identical(deterministic, list(1L, NULL, 3L))
   testthat::expect_identical(.Random.seed, seed_before)
   testthat::expect_equal(run_random_work(1L), run_random_work(2L))
   testthat::expect_equal(run_random_work(2L), run_random_work(3L))

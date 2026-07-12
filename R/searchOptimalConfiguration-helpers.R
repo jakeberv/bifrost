@@ -485,11 +485,10 @@
       chunk_futures <- lapply(chunks, function(indices) {
         future::future({
           lapply(indices, function(i) {
-            value <- seeded_eval(
+            seeded_eval(
               item_seeds[[i]],
               function() FUN(X[[i]])
             )
-            list(index = i, value = value)
           })
         }, seed = item_seeds[[indices[[1L]]]])
       })
@@ -501,10 +500,8 @@
       )
 
       values <- vector("list", length(X))
-      for (chunk_value in chunk_values) {
-        for (entry in chunk_value) {
-          values[entry$index] <- list(entry$value)
-        }
+      for (i in seq_along(chunks)) {
+        values[chunks[[i]]] <- chunk_values[[i]]
       }
       values
     }
