@@ -217,7 +217,9 @@
         return(invisible(NULL))
       }
       renderer$output(text)
-      for (row in stage_rows) render(row)
+      if (!cli::is_dynamic_tty("stderr")) {
+        for (row in stage_rows) render(row)
+      }
       invisible(NULL)
     },
     has_rows = function() isTRUE(enabled) && length(stage_rows) > 0L,

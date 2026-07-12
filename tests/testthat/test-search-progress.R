@@ -353,9 +353,29 @@ test_that("search CLI renderer redraws active rows below verbose output", {
   verbose_pos <- max(gregexpr("verbose detail", plain, fixed = TRUE)[[1L]])
   stage1_pos <- max(gregexpr("[1/3] Candidate scoring", plain, fixed = TRUE)[[1L]])
   stage2_pos <- max(gregexpr("[2/3] Greedy shift search", plain, fixed = TRUE)[[1L]])
+  cursor_ups <- gregexpr("\033[1A", paste(rendered, collapse = "\n"), fixed = TRUE)[[1L]]
   testthat::expect_gt(verbose_pos, 0L)
   testthat::expect_gt(stage1_pos, verbose_pos)
   testthat::expect_gt(stage2_pos, verbose_pos)
+  testthat::expect_length(cursor_ups[cursor_ups > 0L], 1L)
+})
+
+test_that("non-dynamic verbose output reprints persistent rows", {
+  old_cli_dynamic <- options(cli.dynamic = FALSE)
+  on.exit(options(old_cli_dynamic), add = TRUE)
+  events <- .new_search_renderer_events()
+  session <- .bifrost_search_progress_session(
+    TRUE,
+    .recording_search_renderer(events)
+  )
+
+  session$skip("[1/2] First stage", "complete")
+  session$skip("[2/2] Second stage", "complete")
+  updates_before <- length(events$updates)
+  session$output("verbose detail")
+
+  testthat::expect_identical(events$output, "verbose detail")
+  testthat::expect_length(events$updates, updates_before + 2L)
 })
 
 test_that("search progress stage runner reports lifecycle and returns work value", {
@@ -490,6 +510,15 @@ test_that("animated Future failures cancel remaining work and restore settings",
   }, add = TRUE)
 
   future::plan(future::sequential)
+  cancelled <- 0L
+  cancel_future <- future::cancel
+  testthat::local_mocked_bindings(
+    cancel = function(future, ...) {
+      cancelled <<- cancelled + 1L
+      cancel_future(future, ...)
+    },
+    .package = "future"
+  )
   Sys.setenv(
     OMP_NUM_THREADS = "7",
     OPENBLAS_NUM_THREADS = "8",
@@ -498,16 +527,15 @@ test_that("animated Future failures cancel remaining work and restore settings",
     NUMEXPR_NUM_THREADS = "11"
   )
 
-  started <- proc.time()[["elapsed"]]
   testthat::expect_error(
     .bifrost_search_future_lapply(
       1:2,
       function(i) {
         if (i == 1L) {
-          Sys.sleep(0.15)
+          Sys.sleep(0.05)
           stop("synthetic worker failure")
         }
-        Sys.sleep(5)
+        Sys.sleep(1)
         i
       },
       workers = 2L,
@@ -517,11 +545,8 @@ test_that("animated Future failures cancel remaining work and restore settings",
     ),
     "synthetic worker failure"
   )
-  elapsed <- proc.time()[["elapsed"]] - started
 
-  if (!identical(Sys.getenv("R_COVR"), "true")) {
-    testthat::expect_lt(elapsed, 3)
-  }
+  testthat::expect_gt(cancelled, 0L)
   testthat::expect_s3_class(future::plan("next"), "sequential")
   testthat::expect_identical(Sys.getenv("OMP_NUM_THREADS"), "7")
   testthat::expect_identical(Sys.getenv("OPENBLAS_NUM_THREADS"), "8")
