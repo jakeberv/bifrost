@@ -22,8 +22,10 @@ BugReports: https://github.com/jakeberv/bifrost/issues
 Depends: R (>= 4.1)
 Imports:
     ape,
-    future,
+    cli (>= 3.6.0),
+    future (>= 1.49.0),
     future.apply,
+    parallel,
     progressr,
     phytools,
     grDevices,
@@ -40,7 +42,6 @@ Suggests:
     geomorph,
     knitr,
     palaeoverse,
-    parallel,
     patchwork,
     pbmcapply,
     phylolm,

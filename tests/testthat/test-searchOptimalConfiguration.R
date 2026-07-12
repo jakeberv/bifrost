@@ -90,7 +90,8 @@ test_that("searchOptimalConfiguration runs end-to-end on simulated data (GIC)", 
     IC                         = "GIC",
     store_model_fit_history    = FALSE,
     method                     = "LL",
-    uncertaintyweights = TRUE
+    uncertaintyweights        = TRUE,
+    progress                   = FALSE
   )
 
   # Core structure checks (present names)
@@ -144,7 +145,8 @@ test_that("searchOptimalConfiguration runs end-to-end on simulated data (BIC)", 
     IC                         = "BIC",
     store_model_fit_history    = TRUE,
     method                     = "LL",
-    uncertaintyweights_par = TRUE
+    uncertaintyweights_par     = TRUE,
+    progress                   = FALSE
   )
 
   # Core structure checks (present names)
@@ -202,7 +204,8 @@ test_that("searchOptimalConfiguration accepts formula objects and mixed-type nam
     plot                       = FALSE,
     IC                         = "GIC",
     store_model_fit_history    = FALSE,
-    method                     = "LL"
+    method                     = "LL",
+    progress                   = FALSE
   ))
 
   testthat::expect_type(res, "list")
@@ -234,6 +237,7 @@ test_that("ic_weights are internally consistent when present", {
     store_model_fit_history    = FALSE,
     method                     = "LL",
     verbose                    = FALSE,
+    progress                    = FALSE,
     IC                         = "GIC",
     uncertaintyweights_par     = TRUE
   )
@@ -288,7 +292,8 @@ test_that("searchOptimalConfiguration also runs in purely sequential mode", {
     plot                       = FALSE,
     IC                         = "GIC",
     store_model_fit_history    = FALSE,
-    method                     = "LL"
+    method                     = "LL",
+    progress                   = FALSE
   )
 
   # Minimal sanity checks
@@ -318,7 +323,8 @@ test_that("searchOptimalConfiguration returns sensible output when no shifts are
     IC                         = "GIC",
     store_model_fit_history    = TRUE,
     method                     = "LL",
-    uncertaintyweights = TRUE
+    uncertaintyweights        = TRUE,
+    progress                   = FALSE
   )
 
   # No shifts detected
@@ -392,7 +398,8 @@ test_that("searchOptimalConfiguration records accepted steps with history (and c
     #postorder_traversal        = TRUE,   # hit postorder switch
     IC                         = "GIC",
     store_model_fit_history    = TRUE,   # ensure history writer runs
-    method                     = "LL"
+    method                     = "LL",
+    progress                   = FALSE
   )
 
   # We expect at least one shift to be recorded/accepted under -Inf threshold
@@ -466,7 +473,8 @@ test_that("searchOptimalConfiguration emits progress output when verbose = TRUE"
       plot                       = FALSE,
       store_model_fit_history    = FALSE,
       method                     = "LL",
-      verbose                    = TRUE
+      verbose                    = TRUE,
+      progress                    = FALSE
     )
   )
   testthat::expect_true(grepl("Generating candidate shift models", combined_a))
@@ -486,7 +494,8 @@ test_that("searchOptimalConfiguration emits progress output when verbose = TRUE"
       plot                       = TRUE,
       store_model_fit_history    = FALSE,
       method                     = "LL",
-      verbose                    = TRUE
+      verbose                    = TRUE,
+      progress                    = FALSE
     )
   )
   testthat::expect_true(grepl("Generating candidate shift models", combined_b))
@@ -526,7 +535,8 @@ test_that("searchOptimalConfiguration is quiet when verbose = FALSE", {
       plot                       = FALSE,
       store_model_fit_history    = FALSE,
       method                     = "LL",
-      verbose                    = FALSE
+      verbose                    = FALSE,
+      progress                   = FALSE
     )
   )
   testthat::expect_equal(nchar(cap_a$msgs), 0)
@@ -547,7 +557,8 @@ test_that("searchOptimalConfiguration is quiet when verbose = FALSE", {
       plot                       = TRUE,
       store_model_fit_history    = FALSE,
       method                     = "LL",
-      verbose                    = FALSE
+      verbose                    = FALSE,
+      progress                   = FALSE
     )
   )
   testthat::expect_equal(nchar(cap_b$msgs), 0)
@@ -576,6 +587,7 @@ test_that("searchOptimalConfiguration errors on invalid IC", {
       store_model_fit_history    = FALSE,
       method                     = "LL",
       verbose                    = FALSE,
+      progress                    = FALSE,
       IC                         = "AIC"
     ),
     "IC must be GIC or BIC"
@@ -603,11 +615,12 @@ test_that("searchOptimalConfiguration errors if both uncertaintyweights flags ar
       store_model_fit_history    = FALSE,
       method                     = "LL",
       verbose                    = FALSE,
+      progress                    = FALSE,
       IC                         = "GIC",
       uncertaintyweights         = TRUE,
       uncertaintyweights_par     = TRUE
     ),
-    "Exactly one of uncertaintyweights or uncertaintyweights_par must be TRUE"
+    "uncertaintyweights and uncertaintyweights_par cannot both be TRUE"
   )
 })
 
@@ -632,6 +645,7 @@ test_that("searchOptimalConfiguration skips IC weights (parallel) when no shifts
     store_model_fit_history    = FALSE,
     method                     = "LL",
     verbose                    = FALSE,
+    progress                    = FALSE,
     IC                         = "GIC",
     uncertaintyweights_par     = TRUE
   )
@@ -673,6 +687,7 @@ test_that("searchOptimalConfiguration takes multisession path when RSTUDIO=1", {
     store_model_fit_history    = FALSE,
     method                     = "LL",
     verbose                    = FALSE,
+    progress                    = FALSE,
     IC                         = "GIC"
   )
 
@@ -719,6 +734,7 @@ test_that("searchOptimalConfiguration restores BLAS/OpenMP env vars after candid
     store_model_fit_history    = FALSE,
     method                     = "LL",
     verbose                    = FALSE,
+    progress                    = FALSE,
     IC                         = "GIC"
   )
 
@@ -756,6 +772,7 @@ test_that("searchOptimalConfiguration returns consistent ic_weights for serial v
     store_model_fit_history    = FALSE,
     method                     = "LL",
     verbose                    = FALSE,
+    progress                    = FALSE,
     IC                         = "GIC",
     uncertaintyweights         = TRUE
   ))
@@ -773,6 +790,7 @@ test_that("searchOptimalConfiguration returns consistent ic_weights for serial v
     store_model_fit_history    = FALSE,
     method                     = "LL",
     verbose                    = FALSE,
+    progress                    = FALSE,
     IC                         = "GIC",
     uncertaintyweights_par     = TRUE
   ))
@@ -842,7 +860,8 @@ test_that("searchOptimalConfiguration does not write files to the working direct
     IC                         = "GIC",
     store_model_fit_history    = TRUE,  # key path we care about
     method                     = "LL",
-    verbose                    = FALSE
+    verbose                    = FALSE,
+    progress                    = FALSE
   )
 
   after <- list.files(".", recursive = TRUE, all.files = TRUE)
@@ -880,7 +899,8 @@ test_that("searchOptimalConfiguration restores options(bifrost.verbose)", {
     IC                         = "GIC",
     store_model_fit_history    = FALSE,
     method                     = "LL",
-    verbose                    = TRUE   # triggers internal options() change
+    verbose                    = TRUE,  # triggers internal options() change
+    progress                   = FALSE
   ))
 
   testthat::expect_identical(getOption("bifrost.verbose"), FALSE)
@@ -906,6 +926,7 @@ test_that("ic_weights has stable schema when requested", {
     store_model_fit_history    = FALSE,
     method                     = "LL",
     verbose                    = FALSE,
+    progress                    = FALSE,
     IC                         = "GIC",
     uncertaintyweights_par     = TRUE
   )
@@ -937,7 +958,8 @@ test_that("model_fit_history ic_acceptance_matrix is well-formed", {
     IC                      = "GIC",
     store_model_fit_history = TRUE,
     method                  = "LL",
-    verbose                 = FALSE
+    verbose                 = FALSE,
+    progress                 = FALSE
   )
 
   testthat::expect_true(is.list(res$model_fit_history))
@@ -973,7 +995,8 @@ test_that("no-shifts path yields a usable model_no_uncertainty", {
     IC                         = "GIC",
     store_model_fit_history    = FALSE,
     method                     = "LL",
-    verbose                    = FALSE
+    verbose                    = FALSE,
+    progress                    = FALSE
   )
 
   testthat::expect_equal(length(res$shift_nodes_no_uncertainty), 0L)
@@ -1017,6 +1040,7 @@ test_that("searchOptimalConfiguration captures warnings from shift evaluation", 
     store_model_fit_history    = FALSE,
     method                     = "LL",
     verbose                    = FALSE,
+    progress                    = FALSE,
     IC                         = "GIC"
   ))
 
@@ -1053,6 +1077,7 @@ test_that("searchOptimalConfiguration records error entries in history and yield
     store_model_fit_history    = TRUE,
     method                     = "LL",
     verbose                    = FALSE,
+    progress                    = FALSE,
     IC                         = "GIC"
   ))
 
@@ -1131,7 +1156,8 @@ test_that("searchOptimalConfiguration uses cat() progress path in interactive RS
       IC                         = "GIC",
       store_model_fit_history    = FALSE,
       method                     = "LL",
-      verbose                    = TRUE
+      verbose                    = TRUE,
+      progress                    = FALSE
     )))
   })
 
@@ -1157,7 +1183,8 @@ test_that("searchOptimalConfiguration validates formula input types", {
       min_descendant_tips = 3,
       num_cores = 1,
       plot = FALSE,
-      IC = "GIC"
+      IC = "GIC",
+      progress = FALSE
     ),
     "single character string or formula object"
   )
@@ -1266,6 +1293,7 @@ test_that("searchOptimalConfiguration serial ic_weights executes BIC branch", {
     plot                       = FALSE,
     store_model_fit_history    = FALSE,
     verbose                    = FALSE,
+    progress                    = FALSE,
     IC                         = "BIC",
     uncertaintyweights         = TRUE    # SERIAL weights path
   ))
@@ -1311,6 +1339,7 @@ test_that("searchOptimalConfiguration captures warnings from shift evaluation (B
     store_model_fit_history    = FALSE,
     method                     = "LL",
     verbose                    = FALSE,
+    progress                    = FALSE,
     IC                         = "BIC"
   ))
 

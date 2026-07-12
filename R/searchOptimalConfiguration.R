@@ -46,7 +46,8 @@
 #'   to be considered as a candidate shift (forwarded to \code{generatePaintedTrees}). Larger values
 #'   reduce the number of candidate shifts by excluding very small clades. For empirical datasets,
 #'   values around \code{10} are a reasonable starting choice and can be tuned in sensitivity analyses.
-#' @param num_cores Integer. Number of workers for candidate scoring. Uses plain
+#' @param num_cores Integer. Maximum number of concurrent model fits during candidate
+#'   scoring and parallel IC-weight re-estimation. With \code{progress = FALSE}, uses plain
 #'   serial evaluation when \code{num_cores = 1}. For \code{num_cores > 1}, uses
 #'   \code{future::plan(multicore)} on Unix outside \code{RStudio}; otherwise uses
 #'   \code{future::plan(multisession)}. During the parallel candidate-scoring blocks,
@@ -78,11 +79,19 @@
 #'   models, acceptance decisions, and IC values. To keep memory usage low during the search,
 #'   per-iteration results are written to a temporary directory (\code{tempdir()}) and read back
 #'   into memory at the end of the run.
-#' @param verbose Logical. If \code{TRUE}, report progress during candidate generation and model
-#'   fitting. By default, progress is emitted via \code{message()}. When \code{plot = TRUE} in an
-#'   interactive \code{RStudio} session, progress is written via \code{cat()} so it remains visible
-#'   while plots are updating. Set to \code{FALSE} to run quietly (default). Use
-#'   \code{suppressMessages()} (and \code{capture.output()} if needed) to silence or capture output.
+#' @param verbose Logical. If \code{TRUE}, emit detailed candidate-generation, fitting,
+#'   acceptance, rejection, and IC messages. By default, these details are emitted via
+#'   \code{message()}. When \code{plot = TRUE} in an interactive \code{RStudio} session,
+#'   they are written via \code{cat()} so they remain visible while plots are updating.
+#'   This is independent of \code{progress}.
+#' @param progress Logical. If \code{TRUE} (default), show three persistent CLI progress
+#'   lines for candidate scoring, the greedy shift search, and optional IC-weight
+#'   re-estimation. On dynamic terminals, the spinner redraws continuously while a model
+#'   fit is running; counts, percentages, and ETA advance only after completed fits.
+#'   To keep the main process responsive for these redraws, otherwise serial fits run one
+#'   at a time in a background Future. Set to \code{FALSE} to disable these lines and the
+#'   heartbeat path; use \code{progress = FALSE, verbose = FALSE} for completely quiet
+#'   execution.
 #' @param ... Additional arguments passed to \code{\link[mvMORPH]{mvgls}} (e.g., \code{method},
 #'   \code{penalty}, \code{target}, \code{error}, \code{REML}, etc.). In the workflows
 #'   emphasized in the package vignettes, \code{method = "H&L"} is used for
@@ -124,10 +133,14 @@
 #'         shift removed and comparing the two ICs via \code{\link[mvMORPH]{aicw}}.
 #' }
 #'
-#' \strong{Parallelization.} When \code{num_cores = 1}, candidates are scored serially. For
-#' larger values, candidate sub-model fits are distributed with \pkg{future} +
-#' \pkg{future.apply}. On Unix outside \code{RStudio}, \code{multicore} is used; otherwise
-#' \code{multisession} is used. A sequential plan is restored afterward.
+#' \strong{Parallelization.} \code{num_cores} caps simultaneous model fits: candidate scoring
+#' and parallel IC-weight re-estimation may use all requested workers, while the greedy
+#' search and serial IC weights always run one fit at a time. With progress enabled, fits
+#' run in Future workers so the main process can poll and redraw the spinner without
+#' advancing completion. On Unix outside \code{RStudio}, \code{multicore} is used; otherwise
+#' \code{multisession} is used. The previous Future plan is restored afterward. Workers
+#' signal conditions through \pkg{progressr}; only the main R process renders progress,
+#' verbose messages, and plots.
 #'
 #' \strong{Plotting.} If \code{plot = TRUE}, trees are rendered with
 #' \code{\link[phytools]{plotSimmap}()}; shift IDs are labeled with \code{\link[ape]{nodelabels}()}.
@@ -249,7 +262,8 @@
 #'   IC                         = "GIC",
 #'   plot                       = FALSE,
 #'   store_model_fit_history    = FALSE,
-#'   verbose                    = FALSE
+#'   verbose                    = FALSE,
+#'   progress                   = FALSE
 #' )
 #'
 #' res$shift_nodes_no_uncertainty
@@ -272,7 +286,8 @@
 #'   method                     = "H&L",
 #'   error                      = TRUE,
 #'   store_model_fit_history    = TRUE,
-#'   verbose                    = TRUE
+#'   verbose                    = TRUE,
+#'   progress                   = FALSE
 #' )
 #'
 #' # Formula-based search with a predictor:
@@ -296,7 +311,8 @@
 #'   method                     = "LL",
 #'   error                      = TRUE,
 #'   store_model_fit_history    = TRUE,
-#'   verbose                    = TRUE
+#'   verbose                    = TRUE,
+#'   progress                   = FALSE
 #' )
 #' }
 #' @importFrom future plan multicore multisession sequential
@@ -323,12 +339,20 @@ searchOptimalConfiguration <-
            IC = "GIC",
            store_model_fit_history = TRUE,
            verbose = FALSE,
-           ...) {
+           ...,
+           progress = TRUE) {
+
+    if (isTRUE(uncertaintyweights) && isTRUE(uncertaintyweights_par)) {
+      stop("uncertaintyweights and uncertaintyweights_par cannot both be TRUE.")
+    }
 
     #capturing global option for verbose to pass to internal helpers
     old_verbose_opt <- getOption("bifrost.verbose")
     on.exit(options(bifrost.verbose = old_verbose_opt), add = TRUE)
     options(bifrost.verbose = isTRUE(verbose))
+
+    progress_session <- .bifrost_search_progress_session(isTRUE(progress))
+    on.exit(progress_session$finalize(), add = TRUE)
 
     #internal helper for capturing verbose output
     .progress <- function(...) {
@@ -337,7 +361,9 @@ searchOptimalConfiguration <-
       txt <- sprintf(...)
 
       # In RStudio interactive plotting, use stdout (cat) because messages can get swallowed.
-      if (isTRUE(plot) && interactive() && identical(Sys.getenv("RSTUDIO"), "1")) {
+      if (progress_session$has_rows()) {
+        progress_session$output(txt)
+      } else if (isTRUE(plot) && interactive() && identical(Sys.getenv("RSTUDIO"), "1")) {
         cat(txt, "\n", sep = "")
         if (sink.number(type = "output") == 0) utils::flush.console()
       } else {
@@ -348,7 +374,12 @@ searchOptimalConfiguration <-
     }
 
     # Capture user input
-    user_input <- as.list(match.call())
+    matched_call <- match.call(expand.dots = FALSE)
+    dots_input <- as.list(matched_call$...)
+    matched_call$... <- NULL
+    user_input <- as.list(matched_call)
+    user_input$progress <- isTRUE(progress)
+    user_input <- c(user_input, dots_input)
 
     if (!(inherits(formula, "formula") ||
           (is.character(formula) && length(formula) == 1L && !is.na(formula)))) {
@@ -382,15 +413,29 @@ searchOptimalConfiguration <-
 
     .progress("%s", "Fitting sub-models in parallel...")
 
-    candidate_scores <- .bifrost_search_score_candidates(
-      candidate_trees_shifts = candidate_trees_shifts,
-      baseline_ic = baseline_ic,
-      IC = IC,
-      formula = formula,
-      trait_data = trait_data,
-      args_list = args_list,
-      num_cores = num_cores,
-      is_rstudio = is_rstudio
+    candidate_scores <- .bifrost_search_run_stage(
+      enabled = progress,
+      steps = length(candidate_trees_shifts),
+      initial_message = "[1/3] Candidate scoring",
+      done_message = "[1/3] Candidates scored",
+      session = progress_session,
+      skipped = if (length(candidate_trees_shifts) == 0L) "No candidates",
+      work = function(tick) {
+        .bifrost_search_score_candidates(
+          candidate_trees_shifts = candidate_trees_shifts,
+          baseline_ic = baseline_ic,
+          IC = IC,
+          formula = formula,
+          trait_data = trait_data,
+          args_list = args_list,
+          num_cores = num_cores,
+          is_rstudio = is_rstudio,
+          tick = tick,
+          heartbeat = .bifrost_search_heartbeat(
+            progress, tick, "[1/3] Scoring candidates"
+          )
+        )
+      }
     )
 
     .progress("%s", "Sorting and evaluating shifts...")
@@ -417,20 +462,37 @@ searchOptimalConfiguration <-
     # Where to store on-disk history (CRAN-safe temp location)
     sub_dir <- .bifrost_search_history_dir(store_model_fit_history)
 
-    forward_search <- .bifrost_search_forward(
-      sorted_candidates = sorted_candidates,
-      current_best_tree = current_best_tree,
-      current_best_ic = current_best_ic,
-      shift_id = shift_id,
-      IC = IC,
-      formula = formula,
-      trait_data = trait_data,
-      shift_acceptance_threshold = shift_acceptance_threshold,
-      store_model_fit_history = store_model_fit_history,
-      sub_dir = sub_dir,
-      plot = plot,
-      progress = .progress,
-      ...
+    run_forward_search <- function(tick) {
+      .bifrost_search_forward(
+        sorted_candidates = sorted_candidates,
+        current_best_tree = current_best_tree,
+        current_best_ic = current_best_ic,
+        shift_id = shift_id,
+        IC = IC,
+        formula = formula,
+        trait_data = trait_data,
+        shift_acceptance_threshold = shift_acceptance_threshold,
+        store_model_fit_history = store_model_fit_history,
+        sub_dir = sub_dir,
+        plot = plot,
+        verbose_log = .progress,
+        tick = tick,
+        heartbeat = .bifrost_search_heartbeat(
+          progress, tick, "[2/3] Fitting proposal"
+        ),
+        is_rstudio = is_rstudio,
+        ...
+      )
+    }
+
+    forward_search <- .bifrost_search_run_stage(
+      enabled = progress,
+      steps = length(sorted_candidates),
+      initial_message = "[2/3] Greedy shift search",
+      done_message = "[2/3] Search complete",
+      session = progress_session,
+      skipped = if (length(sorted_candidates) == 0L) "No proposals",
+      work = run_forward_search
     )
 
     current_best_tree <- forward_search$current_best_tree
@@ -486,19 +548,45 @@ searchOptimalConfiguration <-
     # }
 
     # New Section for Calculating Information Criterion Weights Post Optimization
-    ic_weights_df <- .bifrost_search_calculate_ic_weights(
-      uncertaintyweights = uncertaintyweights,
-      uncertaintyweights_par = uncertaintyweights_par,
-      shift_vec = shift_vec,
-      best_tree_no_uncertainty = best_tree_no_uncertainty,
-      model_with_shift_no_uncertainty = model_with_shift_no_uncertainty,
-      IC = IC,
-      formula = formula,
-      trait_data = trait_data,
-      args_list = args_list,
-      num_cores = num_cores,
-      is_rstudio = is_rstudio,
-      progress = .progress
+    weight_reestimation_requested <- isTRUE(uncertaintyweights) ||
+      isTRUE(uncertaintyweights_par)
+    accepted_shift_count <- length(unlist(shift_vec))
+
+    weight_skip_reason <- if (!weight_reestimation_requested) {
+      "Not requested"
+    } else if (accepted_shift_count == 0L) {
+      "No shifts"
+    }
+
+    calculate_ic_weights <- function(tick) {
+      .bifrost_search_calculate_ic_weights(
+        uncertaintyweights = uncertaintyweights,
+        uncertaintyweights_par = uncertaintyweights_par,
+        shift_vec = shift_vec,
+        best_tree_no_uncertainty = best_tree_no_uncertainty,
+        model_with_shift_no_uncertainty = model_with_shift_no_uncertainty,
+        IC = IC,
+        formula = formula,
+        trait_data = trait_data,
+        args_list = args_list,
+        num_cores = num_cores,
+        is_rstudio = is_rstudio,
+        verbose_log = .progress,
+        tick = tick,
+        heartbeat = .bifrost_search_heartbeat(
+          progress, tick, "[3/3] Estimating weights"
+        )
+      )
+    }
+
+    ic_weights_df <- .bifrost_search_run_stage(
+      enabled = progress,
+      steps = accepted_shift_count,
+      initial_message = "[3/3] IC-weight re-estimation",
+      done_message = "[3/3] Weights estimated",
+      session = progress_session,
+      skipped = weight_skip_reason,
+      work = calculate_ic_weights
     )
 
     # Print statements for the optimal configuration and delta GIC/BIC

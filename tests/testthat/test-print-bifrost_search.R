@@ -32,7 +32,8 @@ test_that("print.bifrost_search prints core sections on a real no-shifts run", {
     IC                         = "GIC",
     store_model_fit_history    = FALSE,
     method                     = "LL",
-    verbose                    = FALSE
+    verbose                    = FALSE,
+    progress                   = FALSE
   )))
 
   testthat::expect_s3_class(res, "bifrost_search")
@@ -90,6 +91,7 @@ test_that("print.bifrost_search prints history plot, penalty/target, and weights
       shift_acceptance_threshold = 20,
       plot = FALSE,
       verbose = TRUE,
+      progress = TRUE,
       store_model_fit_history = TRUE,
       method = "LL",
       error = TRUE,
@@ -119,6 +121,7 @@ test_that("print.bifrost_search prints history plot, penalty/target, and weights
 
   testthat::expect_true(grepl("Penalty", txt, fixed = TRUE))
   testthat::expect_true(grepl("Target", txt, fixed = TRUE))
+  testthat::expect_true(grepl("Progress: TRUE", txt, fixed = TRUE))
 
   testthat::expect_true(grepl("GIC Weights (Support)", txt, fixed = TRUE))
   testthat::expect_true(grepl("\\b12\\b", txt))
@@ -284,4 +287,3 @@ test_that("print.bifrost_search does not print Penalty/Target when absent", {
   testthat::expect_false(grepl("Penalty:", txt, fixed = TRUE))
   testthat::expect_false(grepl("Target:", txt, fixed = TRUE))
 })
-
