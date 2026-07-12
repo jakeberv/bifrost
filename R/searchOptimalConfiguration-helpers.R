@@ -314,7 +314,7 @@
   old_threads <- Sys.getenv(thread_vars, unset = NA_character_)
   old_plan <- future::plan("list")
 
-  backend_workers <- if (isTRUE(ensure_async) && workers <= 1L) 2L else workers
+  backend_workers <- if (isTRUE(ensure_async) && workers <= 1L) I(1L) else workers
 
   Sys.setenv(
     OMP_NUM_THREADS = "1",

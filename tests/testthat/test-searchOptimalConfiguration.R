@@ -620,7 +620,7 @@ test_that("searchOptimalConfiguration errors if both uncertaintyweights flags ar
       uncertaintyweights         = TRUE,
       uncertaintyweights_par     = TRUE
     ),
-    "Exactly one of uncertaintyweights or uncertaintyweights_par must be TRUE"
+    "uncertaintyweights and uncertaintyweights_par cannot both be TRUE"
   )
 })
 

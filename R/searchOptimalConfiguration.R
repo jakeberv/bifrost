@@ -343,7 +343,7 @@ searchOptimalConfiguration <-
            progress = TRUE) {
 
     if (isTRUE(uncertaintyweights) && isTRUE(uncertaintyweights_par)) {
-      stop("Exactly one of uncertaintyweights or uncertaintyweights_par must be TRUE.")
+      stop("uncertaintyweights and uncertaintyweights_par cannot both be TRUE.")
     }
 
     #capturing global option for verbose to pass to internal helpers

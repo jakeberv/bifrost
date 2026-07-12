@@ -592,6 +592,22 @@ test_that("animated Future RNG is caller-safe and independent of chunk layout", 
   )
 })
 
+test_that("animated serial work uses one asynchronous Future worker", {
+  main_pid <- Sys.getpid()
+  backend <- .bifrost_search_with_future_plan(
+    workers = 1L,
+    is_rstudio_flag = TRUE,
+    ensure_async = TRUE,
+    work = function() list(
+      workers = future::nbrOfWorkers(),
+      pid = future::value(future::future(Sys.getpid()))
+    )
+  )
+
+  testthat::expect_identical(backend$workers, 1L)
+  testthat::expect_false(identical(backend$pid, main_pid))
+})
+
 test_that("verbose message and plotting-style stdout coexist with stage progress", {
   events <- .new_search_handler_events()
   output <- character()
@@ -871,7 +887,7 @@ test_that("dual weight flags fail before public search work or progress rows", {
       progress = TRUE,
       method = "LL"
     ),
-    "Exactly one of uncertaintyweights or uncertaintyweights_par must be TRUE.",
+    "uncertaintyweights and uncertaintyweights_par cannot both be TRUE.",
     fixed = TRUE
   )
 
