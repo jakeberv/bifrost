@@ -413,55 +413,37 @@ searchOptimalConfiguration <-
 
     .progress("%s", "Fitting sub-models in parallel...")
 
-    if (length(candidate_trees_shifts) > 0L) {
-      candidate_scores <- .bifrost_search_run_stage(
-        enabled = progress,
-        steps = length(candidate_trees_shifts),
-        initial_message = "[1/3] Candidate scoring",
-        session = progress_session,
-        work = function(tick) {
-          value <- .bifrost_search_score_candidates(
-            candidate_trees_shifts = candidate_trees_shifts,
-            baseline_ic = baseline_ic,
-            IC = IC,
-            formula = formula,
-            trait_data = trait_data,
-            args_list = args_list,
-            num_cores = num_cores,
-            is_rstudio = is_rstudio,
-            tick = tick,
-            heartbeat = if (isTRUE(progress)) {
-              function() {
-                tick(
-                  amount = 0,
-                  message = "[1/3] Scoring candidates"
-                )
-              }
-            } else {
-              NULL
+    candidate_scores <- .bifrost_search_run_stage(
+      enabled = progress,
+      steps = length(candidate_trees_shifts),
+      initial_message = "[1/3] Candidate scoring",
+      session = progress_session,
+      skipped = if (length(candidate_trees_shifts) == 0L) "No candidates",
+      work = function(tick) {
+        value <- .bifrost_search_score_candidates(
+          candidate_trees_shifts = candidate_trees_shifts,
+          baseline_ic = baseline_ic,
+          IC = IC,
+          formula = formula,
+          trait_data = trait_data,
+          args_list = args_list,
+          num_cores = num_cores,
+          is_rstudio = is_rstudio,
+          tick = tick,
+          heartbeat = if (isTRUE(progress)) {
+            function() {
+              tick(
+                amount = 0,
+                message = "[1/3] Scoring candidates"
+              )
             }
-          )
-          list(value = value, done = "[1/3] Candidates scored")
-        }
-      )
-    } else {
-      .bifrost_search_report_skipped_stage(
-        progress,
-        "[1/3] Candidate scoring",
-        "No candidates",
-        session = progress_session
-      )
-      candidate_scores <- .bifrost_search_score_candidates(
-        candidate_trees_shifts = candidate_trees_shifts,
-        baseline_ic = baseline_ic,
-        IC = IC,
-        formula = formula,
-        trait_data = trait_data,
-        args_list = args_list,
-        num_cores = num_cores,
-        is_rstudio = is_rstudio
-      )
-    }
+          } else {
+            NULL
+          }
+        )
+        list(value = value, done = "[1/3] Candidates scored")
+      }
+    )
 
     .progress("%s", "Sorting and evaluating shifts...")
     sorted_candidates <- candidate_scores$sorted_candidates
@@ -517,26 +499,17 @@ searchOptimalConfiguration <-
       )
     }
 
-    if (length(sorted_candidates) > 0L) {
-      forward_search <- .bifrost_search_run_stage(
-        enabled = progress,
-        steps = length(sorted_candidates),
-        initial_message = "[2/3] Greedy shift search",
-        session = progress_session,
-        work = function(tick) {
-          value <- run_forward_search(tick)
-          list(value = value, done = "[2/3] Search complete")
-        }
-      )
-    } else {
-      .bifrost_search_report_skipped_stage(
-        progress,
-        "[2/3] Greedy shift search",
-        "No proposals",
-        session = progress_session
-      )
-      forward_search <- run_forward_search(function(...) invisible(NULL))
-    }
+    forward_search <- .bifrost_search_run_stage(
+      enabled = progress,
+      steps = length(sorted_candidates),
+      initial_message = "[2/3] Greedy shift search",
+      session = progress_session,
+      skipped = if (length(sorted_candidates) == 0L) "No proposals",
+      work = function(tick) {
+        value <- run_forward_search(tick)
+        list(value = value, done = "[2/3] Search complete")
+      }
+    )
 
     current_best_tree <- forward_search$current_best_tree
     current_best_ic <- forward_search$current_best_ic
@@ -597,20 +570,10 @@ searchOptimalConfiguration <-
     )
     accepted_shift_count <- length(unlist(shift_vec))
 
-    if (!isTRUE(uncertaintyweights) && !isTRUE(uncertaintyweights_par)) {
-      .bifrost_search_report_skipped_stage(
-        progress,
-        "[3/3] IC-weight re-estimation",
-        "Not requested",
-        session = progress_session
-      )
-    } else if (weight_reestimation_requested && accepted_shift_count == 0L) {
-      .bifrost_search_report_skipped_stage(
-        progress,
-        "[3/3] IC-weight re-estimation",
-        "No shifts",
-        session = progress_session
-      )
+    weight_skip_reason <- if (!weight_reestimation_requested) {
+      "Not requested"
+    } else if (accepted_shift_count == 0L) {
+      "No shifts"
     }
 
     calculate_ic_weights <- function(tick) {
@@ -641,20 +604,17 @@ searchOptimalConfiguration <-
       )
     }
 
-    if (weight_reestimation_requested && accepted_shift_count > 0L) {
-      ic_weights_df <- .bifrost_search_run_stage(
-        enabled = progress,
-        steps = accepted_shift_count,
-        initial_message = "[3/3] IC-weight re-estimation",
-        session = progress_session,
-        work = function(tick) {
-          value <- calculate_ic_weights(tick)
-          list(value = value, done = "[3/3] Weights estimated")
-        }
-      )
-    } else {
-      ic_weights_df <- calculate_ic_weights(function(...) invisible(NULL))
-    }
+    ic_weights_df <- .bifrost_search_run_stage(
+      enabled = progress,
+      steps = accepted_shift_count,
+      initial_message = "[3/3] IC-weight re-estimation",
+      session = progress_session,
+      skipped = weight_skip_reason,
+      work = function(tick) {
+        value <- calculate_ic_weights(tick)
+        list(value = value, done = "[3/3] Weights estimated")
+      }
+    )
 
     # Print statements for the optimal configuration and delta GIC/BIC
     if (IC == "GIC") {

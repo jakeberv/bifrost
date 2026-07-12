@@ -245,7 +245,14 @@
                                       initial_message,
                                       work,
                                       handler = NULL,
-                                      session = NULL) {
+                                      session = NULL,
+                                      skipped = NULL) {
+  if (!is.null(skipped)) {
+    .bifrost_search_report_skipped_stage(
+      enabled, initial_message, skipped, session
+    )
+    enabled <- FALSE
+  }
   if (!isTRUE(enabled)) {
     no_op_tick <- function(...) invisible(NULL)
     stage_result <- work(no_op_tick)
