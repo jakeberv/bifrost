@@ -49,12 +49,35 @@
   )
 }
 
+.new_search_renderer_events <- function() {
+  list2env(list(
+    created = character(),
+    updates = list(),
+    output = character(),
+    done = character()
+  ), parent = emptyenv())
+}
+
+.new_search_handler_events <- function() {
+  list2env(list(
+    types = character(),
+    messages = character(),
+    amounts = numeric()
+  ), parent = emptyenv())
+}
+
+.recording_search_session <- function(events, observe = function(enabled) NULL) {
+  progress_session <- .bifrost_search_progress_session
+  force(events)
+  force(observe)
+  function(enabled) {
+    observe(enabled)
+    progress_session(enabled, .recording_search_renderer(events))
+  }
+}
+
 test_that("search status rows appear progressively and finalize together", {
-  events <- new.env(parent = emptyenv())
-  events$created <- character()
-  events$updates <- list()
-  events$output <- character()
-  events$done <- character()
+  events <- .new_search_renderer_events()
   session <- .bifrost_search_progress_session(
     TRUE,
     .recording_search_renderer(events)
@@ -125,11 +148,7 @@ test_that("search status rows appear progressively and finalize together", {
 })
 
 test_that("disabled search status session never touches its renderer", {
-  events <- new.env(parent = emptyenv())
-  events$created <- character()
-  events$updates <- list()
-  events$output <- character()
-  events$done <- character()
+  events <- .new_search_renderer_events()
   session <- .bifrost_search_progress_session(
     FALSE,
     .recording_search_renderer(events)
@@ -174,11 +193,7 @@ test_that("disabled search status session never touches its renderer", {
 })
 
 test_that("search status session marks failures before rethrowing them", {
-  events <- new.env(parent = emptyenv())
-  events$created <- character()
-  events$updates <- list()
-  events$output <- character()
-  events$done <- character()
+  events <- .new_search_renderer_events()
   session <- .bifrost_search_progress_session(
     TRUE,
     .recording_search_renderer(events)
@@ -361,9 +376,7 @@ test_that("search CLI renderer redraws active rows below verbose output", {
 })
 
 test_that("search progress stage runner reports lifecycle and returns work value", {
-  events <- new.env(parent = emptyenv())
-  events$types <- character()
-  events$messages <- character()
+  events <- .new_search_handler_events()
 
   value <- .bifrost_search_run_stage(
     enabled = TRUE,
@@ -385,18 +398,14 @@ test_that("search progress stage runner reports lifecycle and returns work value
 })
 
 test_that("search progress stage runner owns and finalizes its default session", {
-  events <- new.env(parent = emptyenv())
+  events <- .new_search_renderer_events()
   events$constructed <- 0L
-  events$created <- character()
-  events$updates <- list()
-  events$output <- character()
-  events$done <- character()
-  progress_session <- .bifrost_search_progress_session
+  recording_session <- .recording_search_session(
+    events,
+    function(enabled) events$constructed <- events$constructed + 1L
+  )
   testthat::local_mocked_bindings(
-    .bifrost_search_progress_session = function(enabled) {
-      events$constructed <- events$constructed + 1L
-      progress_session(enabled, .recording_search_renderer(events))
-    }
+    .bifrost_search_progress_session = recording_session
   )
 
   value <- .bifrost_search_run_stage(
@@ -416,10 +425,7 @@ test_that("search progress stage runner owns and finalizes its default session",
 })
 
 test_that("a heartbeat after the final completion remains valid until stage finish", {
-  events <- new.env(parent = emptyenv())
-  events$types <- character()
-  events$messages <- character()
-  events$amounts <- numeric()
+  events <- .new_search_handler_events()
 
   value <- .bifrost_search_run_stage(
     enabled = TRUE,
@@ -455,9 +461,7 @@ test_that("disabled search progress stage runs without creating a handler", {
 })
 
 test_that("search progress stage preserves failure lifecycle and rethrows errors", {
-  events <- new.env(parent = emptyenv())
-  events$types <- character()
-  events$messages <- character()
+  events <- .new_search_handler_events()
 
   testthat::expect_error(
     .bifrost_search_run_stage(
@@ -571,9 +575,7 @@ test_that("animated Future RNG is caller-safe and independent of chunk layout", 
 })
 
 test_that("verbose message and plotting-style stdout coexist with stage progress", {
-  events <- new.env(parent = emptyenv())
-  events$types <- character()
-  events$messages <- character()
+  events <- .new_search_handler_events()
   output <- character()
 
   messages <- testthat::capture_messages(
@@ -600,11 +602,7 @@ test_that("verbose message and plotting-style stdout coexist with stage progress
 })
 
 test_that("search CLI handler redraws zero-increment heartbeat events", {
-  events <- new.env(parent = emptyenv())
-  events$created <- character()
-  events$updates <- list()
-  events$output <- character()
-  events$done <- character()
+  events <- .new_search_renderer_events()
   session <- .bifrost_search_progress_session(
     TRUE,
     .recording_search_renderer(events)
@@ -710,12 +708,11 @@ test_that("public search keeps positional dots while progress is keyword-only", 
   rownames(traits) <- tree$tip.label
   forwarded_methods <- character()
   enabled_sessions <- logical()
-  events <- new.env(parent = emptyenv())
-  events$created <- character()
-  events$updates <- list()
-  events$output <- character()
-  events$done <- character()
-  progress_session <- .bifrost_search_progress_session
+  events <- .new_search_renderer_events()
+  recording_session <- .recording_search_session(
+    events,
+    function(enabled) enabled_sessions <<- c(enabled_sessions, enabled)
+  )
 
   testthat::local_mocked_bindings(
     generatePaintedTrees = function(tree, min_tips, state = "shift") {
@@ -745,14 +742,10 @@ test_that("public search keeps positional dots while progress is keyword-only", 
         model_with_shift_no_uncertainty = NULL,
         best_tree_no_uncertainty = NULL,
         warnings_list = list(),
-        outcome_counts = c(accepted = 0L, rejected = 0L, error = 0L),
         model_fit_history = list()
       )
     },
-    .bifrost_search_progress_session = function(enabled) {
-      enabled_sessions <<- c(enabled_sessions, enabled)
-      progress_session(enabled, .recording_search_renderer(events))
-    }
+    .bifrost_search_progress_session = recording_session
   )
 
   positional_args <- list(
@@ -810,12 +803,8 @@ test_that("dual weight flags fail before public search work or progress rows", {
   rownames(traits) <- tree$tip.label
   candidate_calls <- 0L
   fit_calls <- 0L
-  events <- new.env(parent = emptyenv())
-  events$created <- character()
-  events$updates <- list()
-  events$output <- character()
-  events$done <- character()
-  progress_session <- .bifrost_search_progress_session
+  events <- .new_search_renderer_events()
+  recording_session <- .recording_search_session(events)
 
   testthat::local_mocked_bindings(
     generatePaintedTrees = function(tree, min_tips, state = "shift") {
@@ -842,13 +831,10 @@ test_that("dual weight flags fail before public search work or progress rows", {
         model_with_shift_no_uncertainty = NULL,
         best_tree_no_uncertainty = NULL,
         warnings_list = list(),
-        outcome_counts = c(accepted = 0L, rejected = 0L, error = 0L),
         model_fit_history = list()
       )
     },
-    .bifrost_search_progress_session = function(enabled) {
-      progress_session(enabled, .recording_search_renderer(events))
-    }
+    .bifrost_search_progress_session = recording_session
   )
 
   testthat::expect_error(
@@ -955,9 +941,7 @@ test_that("candidate scoring ticks once per completed fit in serial and multises
   )
 
   run_scoring <- function(num_cores, is_rstudio) {
-    events <- new.env(parent = emptyenv())
-    events$types <- character()
-    events$messages <- character()
+    events <- .new_search_handler_events()
     result <- .bifrost_search_run_stage(
       enabled = TRUE,
       steps = length(candidate_trees),
@@ -995,10 +979,7 @@ test_that("candidate scoring ticks once per completed fit in serial and multises
 
 test_that("candidate scoring emits heartbeats without advancing completion", {
   candidate_trees <- list("Node 11" = list(ic = 95))
-  events <- new.env(parent = emptyenv())
-  events$types <- character()
-  events$messages <- character()
-  events$amounts <- numeric()
+  events <- .new_search_handler_events()
 
   slow_fit <- function(IC, formula, tree, trait_data, ...) {
     Sys.sleep(0.3)
@@ -1040,16 +1021,10 @@ test_that("public search shares progress rows with verbose output", {
   testthat::skip_if_not_installed("phytools")
   testthat::skip_if_not_installed("mvMORPH")
 
-  events <- new.env(parent = emptyenv())
-  events$created <- character()
-  events$updates <- list()
-  events$output <- character()
-  events$done <- character()
-  progress_session <- .bifrost_search_progress_session
+  events <- .new_search_renderer_events()
+  recording_session <- .recording_search_session(events)
   testthat::local_mocked_bindings(
-    .bifrost_search_progress_session = function(enabled) {
-      progress_session(enabled, .recording_search_renderer(events))
-    }
+    .bifrost_search_progress_session = recording_session
   )
 
   set.seed(20260711)
@@ -1155,10 +1130,7 @@ test_that("greedy search emits heartbeats while one proposal fit is running", {
     state = 0
   )
   candidate <- generatePaintedTrees(baseline, min_tips = 3)[2]
-  events <- new.env(parent = emptyenv())
-  events$types <- character()
-  events$messages <- character()
-  events$amounts <- numeric()
+  events <- .new_search_handler_events()
 
   slow_fit <- function(IC, formula, tree, trait_data, ...) {
     Sys.sleep(0.3)
@@ -1227,10 +1199,7 @@ test_that("IC-weight re-estimation ticks once per completed serial and parallel 
   }
 
   run_weights <- function(parallel) {
-    events <- new.env(parent = emptyenv())
-    events$types <- character()
-    events$messages <- character()
-    events$amounts <- numeric()
+    events <- .new_search_handler_events()
     value <- .bifrost_search_run_stage(
       enabled = TRUE,
       steps = length(shift_nodes),
@@ -1331,13 +1300,9 @@ test_that("public search renders progress through accepted-shift weight re-estim
   testthat::skip_if_not_installed("phytools")
   testthat::skip_if_not_installed("mvMORPH")
 
-  events <- new.env(parent = emptyenv())
-  events$created <- character()
-  events$updates <- list()
-  events$output <- character()
-  events$done <- character()
+  events <- .new_search_renderer_events()
   fit_count <- 0L
-  progress_session <- .bifrost_search_progress_session
+  recording_session <- .recording_search_session(events)
   testthat::local_mocked_bindings(
     fitMvglsAndExtractGIC.formula = function(formula, tree, trait_data, ...) {
       fit_count <<- fit_count + 1L
@@ -1347,9 +1312,7 @@ test_that("public search renders progress through accepted-shift weight re-estim
       )
     },
     removeShiftFromTree = function(tree, shift_node, stem = FALSE) tree,
-    .bifrost_search_progress_session = function(enabled) {
-      progress_session(enabled, .recording_search_renderer(events))
-    }
+    .bifrost_search_progress_session = recording_session
   )
 
   set.seed(20260714)
@@ -1395,16 +1358,10 @@ test_that("requested IC-weight stage reports why zero-shift work is skipped", {
   tree <- ape::rtree(10)
   traits <- matrix(stats::rnorm(20), ncol = 2)
   rownames(traits) <- tree$tip.label
-  events <- new.env(parent = emptyenv())
-  events$created <- character()
-  events$updates <- list()
-  events$output <- character()
-  events$done <- character()
-  progress_session <- .bifrost_search_progress_session
+  events <- .new_search_renderer_events()
+  recording_session <- .recording_search_session(events)
   testthat::local_mocked_bindings(
-    .bifrost_search_progress_session = function(enabled) {
-      progress_session(enabled, .recording_search_renderer(events))
-    }
+    .bifrost_search_progress_session = recording_session
   )
 
   suppressWarnings(
@@ -1443,16 +1400,10 @@ test_that("zero-candidate searches leave all three skipped stage lines", {
   tree <- ape::rtree(10)
   traits <- matrix(stats::rnorm(20), ncol = 2)
   rownames(traits) <- tree$tip.label
-  events <- new.env(parent = emptyenv())
-  events$created <- character()
-  events$updates <- list()
-  events$output <- character()
-  events$done <- character()
-  progress_session <- .bifrost_search_progress_session
+  events <- .new_search_renderer_events()
+  recording_session <- .recording_search_session(events)
   testthat::local_mocked_bindings(
-    .bifrost_search_progress_session = function(enabled) {
-      progress_session(enabled, .recording_search_renderer(events))
-    }
+    .bifrost_search_progress_session = recording_session
   )
 
   suppressWarnings(
