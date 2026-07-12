@@ -301,6 +301,13 @@
   invisible(NULL)
 }
 
+.bifrost_search_heartbeat <- function(enabled, tick, message) {
+  if (!isTRUE(enabled)) return(NULL)
+  force(tick)
+  force(message)
+  function() tick(amount = 0, message = message)
+}
+
 .bifrost_search_with_future_plan <- function(workers,
                                             is_rstudio_flag,
                                             work,
@@ -739,7 +746,6 @@
   best_tree_no_uncertainty <- NULL #initialize output
   # Initialize the list to collect warning messages
   warnings_list <- list()
-  outcome_counts <- c(accepted = 0L, rejected = 0L, error = 0L)
   fit_seeds <- if (is.null(heartbeat)) {
     NULL
   } else {
@@ -848,7 +854,6 @@
       }
 
     })
-    outcome_counts[[outcome]] <- outcome_counts[[outcome]] + 1L
     tick(message = sprintf(
       "[2/3] Node %d %s",
       shift_node_number,
@@ -874,7 +879,6 @@
     model_with_shift_no_uncertainty = model_with_shift_no_uncertainty,
     best_tree_no_uncertainty = best_tree_no_uncertainty,
     warnings_list = warnings_list,
-    outcome_counts = outcome_counts,
     model_fit_history = model_fit_history
   )
 }

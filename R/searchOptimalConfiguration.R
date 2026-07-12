@@ -430,16 +430,9 @@ searchOptimalConfiguration <-
           num_cores = num_cores,
           is_rstudio = is_rstudio,
           tick = tick,
-          heartbeat = if (isTRUE(progress)) {
-            function() {
-              tick(
-                amount = 0,
-                message = "[1/3] Scoring candidates"
-              )
-            }
-          } else {
-            NULL
-          }
+          heartbeat = .bifrost_search_heartbeat(
+            progress, tick, "[1/3] Scoring candidates"
+          )
         )
         list(value = value, done = "[1/3] Candidates scored")
       }
@@ -484,16 +477,9 @@ searchOptimalConfiguration <-
         plot = plot,
         verbose_log = .progress,
         tick = tick,
-        heartbeat = if (isTRUE(progress)) {
-          function() {
-            tick(
-              amount = 0,
-              message = "[2/3] Fitting proposal"
-            )
-          }
-        } else {
-          NULL
-        },
+        heartbeat = .bifrost_search_heartbeat(
+          progress, tick, "[2/3] Fitting proposal"
+        ),
         is_rstudio = is_rstudio,
         ...
       )
@@ -591,16 +577,9 @@ searchOptimalConfiguration <-
         is_rstudio = is_rstudio,
         verbose_log = .progress,
         tick = tick,
-        heartbeat = if (isTRUE(progress)) {
-          function() {
-            tick(
-              amount = 0,
-              message = "[3/3] Estimating weights"
-            )
-          }
-        } else {
-          NULL
-        }
+        heartbeat = .bifrost_search_heartbeat(
+          progress, tick, "[3/3] Estimating weights"
+        )
       )
     }
 
