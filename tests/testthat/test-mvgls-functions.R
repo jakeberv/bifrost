@@ -1,303 +1,129 @@
-# Unit tests for fitMvglsAndExtractGIC and fitMvglsAndExtractBIC functions
+# tests/testthat/test-mvgls-functions.R
 
-library(testthat)
-library(ape)
-library(mvMORPH)
-
-# Helper function to create test data
-create_test_data <- function(n_tips = 20, n_traits = 2, min_tips_high = 5) {
-  # Generate a random phylogenetic tree
-  set.seed(123)  # For reproducibility
-  base_tree <- rcoal(n_tips)
-  
-  # Generate painted trees using the custom function
-  painted_trees <- generatePaintedTrees(base_tree, min_tips = min_tips_high)
-  
-  # Select the first painted tree for testing
-  painted_tree <- painted_trees[[1]]
-  
-  # Generate simulated trait data
-  trait_data <- mvSIM(painted_tree, nsim = n_traits, model = "BMM", param = list(sigma = 0.1, theta = 0))
-  
-  # Ensure trait_data is a matrix with proper row names
-  if (!is.matrix(trait_data)) {
-    trait_data <- as.matrix(trait_data)
-  }
-  rownames(trait_data) <- painted_tree$tip.label
-  
-  return(list(painted_tree = painted_tree, trait_data = trait_data))
+skip_if_mvgls_function_deps <- function() {
+  testthat::skip_if_not_installed("ape")
+  testthat::skip_if_not_installed("phytools")
+  testthat::skip_if_not_installed("mvMORPH")
 }
 
-# Group: fitMvglsAndExtractGIC behavior
-# Test: fitMvglsAndExtractGIC works with valid inputs (smoke test with valid inputs)
-test_that("fitMvglsAndExtractGIC works with valid inputs", {
-  skip_if_not_installed("mvMORPH")
-  skip_if_not_installed("ape")
-  
-  # Create test data
-  test_data <- create_test_data(n_tips = 20, n_traits = 2)
-  painted_tree <- test_data$painted_tree
-  trait_data <- test_data$trait_data
-  
-  # Test the function
-  result <- fitMvglsAndExtractGIC(painted_tree, trait_data)
-  
-  # Check that result is a list with correct elements
-  expect_type(result, "list")
-  expect_named(result, c("model", "GIC"))
-  
-  # Check that model is of correct class (mvgls object)
-  expect_s3_class(result$model, "mvgls")
-  
-  # Check that GIC is a numeric value
-  expect_type(result$GIC$GIC, "double")
-  expect_length(result$GIC, 7)
-  expect_false(any(is.na(result$GIC)))
-})
-
-
-# Test: fitMvglsAndExtractGIC handles multiple traits (edge-case input)
-test_that("fitMvglsAndExtractGIC handles multiple traits", {
-  skip_if_not_installed("mvMORPH")
-  skip_if_not_installed("ape")
-  
-  # Create test data with multiple traits
-  test_data <- create_test_data(n_tips = 25, n_traits = 10)
-  painted_tree <- test_data$painted_tree
-  trait_data <- test_data$trait_data
-  
-  # Test the function
-  result <- fitMvglsAndExtractGIC(painted_tree, trait_data)
-  
-  # Check results
-  expect_type(result, "list")
-  expect_named(result, c("model", "GIC"))
-  expect_s3_class(result$model, "mvgls")
-  expect_type(result$GIC$GIC, "double")
-})
-
-# Test: fitMvglsAndExtractGIC throws error for non-matrix trait_data (expects error)
-test_that("fitMvglsAndExtractGIC throws error for non-matrix trait_data", {
-  skip_if_not_installed("mvMORPH")
-  skip_if_not_installed("ape")
-  
-  # Create test data
-  test_data <- create_test_data(n_tips = 20, n_traits = 2)
-  painted_tree <- test_data$painted_tree
-  trait_data <- as.data.frame(test_data$trait_data)  # Convert to data.frame
-  
-  # Test that error is thrown
-  expect_error(
-    fitMvglsAndExtractGIC(painted_tree, trait_data),
-    "trait_data must be a matrix."
+make_mvgls_function_tree <- function(n_tip = 18, seed = 301) {
+  set.seed(seed)
+  tree <- phytools::pbtree(n = n_tip, scale = 1)
+  baseline <- phytools::paintSubTree(
+    tree,
+    node = ape::Ntip(tree) + 1L,
+    state = "0",
+    anc.state = "0",
+    stem = FALSE
   )
-})
-
-# Test: fitMvglsAndExtractGIC does not work on univariate data
-test_that("fitMvglsAndExtractGIC does not work on univariate data", {
-  skip_if_not_installed("mvMORPH")
-  skip_if_not_installed("ape")
-  
-  # Create test data
-  test_data <- create_test_data(n_tips = 20, n_traits = 1)
-  painted_tree <- test_data$painted_tree
-  trait_data <- test_data$trait_data
-
-  # Test that error is thrown
-  expect_error(
-    fitMvglsAndExtractGIC(painted_tree, trait_data),
-    "mvgls can be used only with multivariate datasets. See \"gls\" function in \"nlme\" or \"phylolm\" package instead."
+  phytools::paintSubTree(
+    baseline,
+    node = ape::Ntip(baseline) + 2L,
+    state = "1",
+    stem = TRUE
   )
-})
+}
 
-# Test: fitMvglsAndExtractGIC throws error for mismatched row names (expects error)
-test_that("fitMvglsAndExtractGIC throws error for mismatched row names", {
-  skip_if_not_installed("mvMORPH")
-  skip_if_not_installed("ape")
-  
-  # Create test data
-  test_data <- create_test_data(n_tips = 20, n_traits = 2)
-  painted_tree <- test_data$painted_tree
-  trait_data <- test_data$trait_data
-  
-  # Modify row names to create mismatch
-  rownames(trait_data)[1] <- "wrong_name"
-  
-  # Test that error is thrown
-  expect_error(
-    fitMvglsAndExtractGIC(painted_tree, trait_data),
-    "Row names of trait_data must exactly match the tip labels of the tree."
+make_mvgls_trait_matrix <- function(tree, n_traits = 2, seed = 302) {
+  set.seed(seed)
+  n <- ape::Ntip(tree)
+  x <- stats::rnorm(n)
+  out <- replicate(n_traits, x + stats::rnorm(n, sd = 0.5))
+  colnames(out) <- paste0("trait", seq_len(n_traits))
+  rownames(out) <- tree$tip.label
+  out
+}
+
+mvgls_ic_specs <- function() {
+  list(
+    GIC = list(
+      fit = fitMvglsAndExtractGIC,
+      field = "GIC",
+      scalar = function(x) as.numeric(x$GIC$GIC),
+      expected_length = 7L
+    ),
+    BIC = list(
+      fit = fitMvglsAndExtractBIC,
+      field = "BIC",
+      scalar = function(x) as.numeric(x$BIC$BIC),
+      expected_length = 4L
+    )
   )
-})
+}
 
-# Group: fitMvglsAndExtractBIC behavior
-# Test: fitMvglsAndExtractBIC works with valid inputs (smoke test with valid inputs)
-test_that("fitMvglsAndExtractBIC works with valid inputs", {
-  skip_if_not_installed("mvMORPH")
-  skip_if_not_installed("ape")
-  
-  # Create test data
-  test_data <- create_test_data(n_tips = 20, n_traits = 2)
-  painted_tree <- test_data$painted_tree
-  trait_data <- test_data$trait_data
-  
-  # Test the function
-  result <- fitMvglsAndExtractBIC(painted_tree, trait_data)
-  
-  # Check that result is a list with correct elements
-  expect_type(result, "list")
-  expect_named(result, c("model", "BIC"))
-  
-  # Check that model is of correct class (mvgls object)
-  expect_s3_class(result$model, "mvgls")
-  
-  # Check that BIC is a numeric value
-  expect_type(result$BIC$BIC, "double")
-  expect_length(result$BIC, 4)
-  expect_false(any(is.na(result$BIC)))
-})
+for (ic_name in names(mvgls_ic_specs())) {
+  local({
+    label <- ic_name
+    spec <- mvgls_ic_specs()[[label]]
 
+    testthat::test_that(paste(label, "intercept wrapper fits a BMM model and returns a scalar criterion"), {
+      skip_if_mvgls_function_deps()
 
-# Test: fitMvglsAndExtractBIC handles multiple traits (edge-case input)
-test_that("fitMvglsAndExtractBIC handles multiple traits", {
-  skip_if_not_installed("mvMORPH")
-  skip_if_not_installed("ape")
-  
-  # Create test data with multiple traits
-  test_data <- create_test_data(n_tips = 25, n_traits = 10)
-  painted_tree <- test_data$painted_tree
-  trait_data <- test_data$trait_data
-  
-  # Test the function
-  result <- fitMvglsAndExtractBIC(painted_tree, trait_data)
-  
-  # Check results
-  expect_type(result, "list")
-  expect_named(result, c("model", "BIC"))
-  expect_s3_class(result$model, "mvgls")
-  expect_type(result$BIC$BIC, "double")
-})
+      tree <- make_mvgls_function_tree(n_tip = 18, seed = 31)
+      trait_data <- make_mvgls_trait_matrix(tree, n_traits = 2, seed = 32)
 
-# Test: fitMvglsAndExtractBIC throws error for non-matrix trait_data (expects error)
-test_that("fitMvglsAndExtractBIC throws error for non-matrix trait_data", {
-  skip_if_not_installed("mvMORPH")
-  skip_if_not_installed("ape")
-  
-  # Create test data
-  test_data <- create_test_data(n_tips = 20, n_traits = 2)
-  painted_tree <- test_data$painted_tree
-  trait_data <- as.data.frame(test_data$trait_data)  # Convert to data.frame
-  
-  # Test that error is thrown
-  expect_error(
-    fitMvglsAndExtractBIC(painted_tree, trait_data),
-    "trait_data must be a matrix."
-  )
-})
+      fit <- suppressWarnings(spec$fit(tree, trait_data))
 
-# Test: fitMvglsAndExtractBIC throws error for univariate trait_data (expects error)
-test_that("fitMvglsAndExtractBIC throws error for univariate trait_data", {
-  skip_if_not_installed("mvMORPH")
-  skip_if_not_installed("ape")
-  
-  # Create test data
-  test_data <- create_test_data(n_tips = 20, n_traits = 1)
-  painted_tree <- test_data$painted_tree
-  trait_data <- test_data$trait_data
-  
-  # Test that error is thrown
-  expect_error(
-    fitMvglsAndExtractBIC(painted_tree, trait_data),
-    "mvgls can be used only with multivariate datasets. See \"gls\" function in \"nlme\" or \"phylolm\" package instead."
-  )
-})
+      testthat::expect_named(fit, c("model", spec$field))
+      testthat::expect_s3_class(fit$model, "mvgls")
+      testthat::expect_length(fit[[spec$field]], spec$expected_length)
+      testthat::expect_true(is.finite(spec$scalar(fit)))
+    })
 
-# Test: fitMvglsAndExtractBIC throws error for mismatched row names (expects error)
-test_that("fitMvglsAndExtractBIC throws error for mismatched row names", {
-  skip_if_not_installed("mvMORPH")
-  skip_if_not_installed("ape")
-  
-  # Create test data
-  test_data <- create_test_data(n_tips = 20, n_traits = 2)
-  painted_tree <- test_data$painted_tree
-  trait_data <- test_data$trait_data
-  
-  # Modify row names to create mismatch
-  rownames(trait_data)[1] <- "wrong_name"
-  
-  # Test that error is thrown
-  expect_error(
-    fitMvglsAndExtractBIC(painted_tree, trait_data),
-    "Row names of trait_data must exactly match the tip labels of the tree."
-  )
-})
+    testthat::test_that(paste(label, "intercept wrapper supports higher-dimensional response matrices"), {
+      skip_if_mvgls_function_deps()
 
-# Group: cross-function consistency
-# Test: GIC and BIC functions produce consistent models
-test_that("GIC and BIC functions produce consistent models", {
-  skip_if_not_installed("mvMORPH")
-  skip_if_not_installed("ape")
-  
-  # Create test data
-  test_data <- create_test_data(n_tips = 20, n_traits = 2)
-  painted_tree <- test_data$painted_tree
-  trait_data <- test_data$trait_data
-  
-  # Test both functions
-  result_gic <- fitMvglsAndExtractGIC(painted_tree, trait_data)
-  result_bic <- fitMvglsAndExtractBIC(painted_tree, trait_data)
-  
-  # Check that both models have same logLik (since they're fitting the same model)
-  expect_equal(logLik(result_gic$model), logLik(result_bic$model))
-  
-  # Check that both produce valid information criteria
-  expect_type(result_gic$GIC$GIC, "double")
-  expect_type(result_bic$BIC$BIC, "double")
-})
+      tree <- make_mvgls_function_tree(n_tip = 24, seed = 33)
+      trait_data <- make_mvgls_trait_matrix(tree, n_traits = 5, seed = 34)
 
-# Group: edge cases
-# Test: functions handle small trees
-test_that("functions handle small trees", {
-  skip_if_not_installed("mvMORPH")
-  skip_if_not_installed("ape")
-  
-  # Create test data with minimum viable tree size
-  test_data <- create_test_data(n_tips = 10, n_traits = 2, min_tips_high = 3)
-  painted_tree <- test_data$painted_tree
-  trait_data <- test_data$trait_data
-  
-  # Test both functions
-  result_gic <- fitMvglsAndExtractGIC(painted_tree, trait_data)
-  result_bic <- fitMvglsAndExtractBIC(painted_tree, trait_data)
-  
-  # Check results
-  expect_type(result_gic, "list")
-  expect_type(result_bic, "list")
-  expect_s3_class(result_gic$model, "mvgls")
-  expect_s3_class(result_bic$model, "mvgls")
-})
+      fit <- suppressWarnings(spec$fit(tree, trait_data))
 
-# Test: functions handle trait data with missing row names
-test_that("functions handle trait data with missing row names", {
-  skip_if_not_installed("mvMORPH")
-  skip_if_not_installed("ape")
-  
-  # Create test data
-  test_data <- create_test_data(n_tips = 20, n_traits = 2)
-  painted_tree <- test_data$painted_tree
-  trait_data <- test_data$trait_data
-  
-  # Remove row names
-  rownames(trait_data) <- NULL
-  
-  # Test that error is thrown for both functions
-  expect_error(
-    fitMvglsAndExtractGIC(painted_tree, trait_data),
-    "Row names of trait_data must exactly match the tip labels of the tree."
-  )
-  
-  expect_error(
-    fitMvglsAndExtractBIC(painted_tree, trait_data),
-    "Row names of trait_data must exactly match the tip labels of the tree."
-  )
+      testthat::expect_s3_class(fit$model, "mvgls")
+      testthat::expect_true(is.finite(spec$scalar(fit)))
+    })
+
+    testthat::test_that(paste(label, "intercept wrapper validates matrix shape and row alignment"), {
+      skip_if_mvgls_function_deps()
+
+      tree <- make_mvgls_function_tree(n_tip = 18, seed = 35)
+      trait_data <- make_mvgls_trait_matrix(tree, n_traits = 2, seed = 36)
+      data_frame <- as.data.frame(trait_data)
+      univariate <- trait_data[, 1, drop = FALSE]
+      mismatched <- trait_data
+      rownames(mismatched)[1] <- "not_a_tip"
+      unnamed <- trait_data
+      rownames(unnamed) <- NULL
+
+      testthat::expect_error(
+        spec$fit(tree, data_frame),
+        "trait_data must be a matrix"
+      )
+      testthat::expect_error(
+        suppressWarnings(spec$fit(tree, univariate)),
+        "multivariate datasets"
+      )
+      testthat::expect_error(
+        spec$fit(tree, mismatched),
+        "Row names of trait_data must exactly match the tip labels of the tree"
+      )
+      testthat::expect_error(
+        spec$fit(tree, unnamed),
+        "Row names of trait_data must exactly match the tip labels of the tree"
+      )
+    })
+  })
+}
+
+testthat::test_that("GIC and BIC intercept wrappers fit the same underlying model", {
+  skip_if_mvgls_function_deps()
+
+  tree <- make_mvgls_function_tree(n_tip = 18, seed = 37)
+  trait_data <- make_mvgls_trait_matrix(tree, n_traits = 2, seed = 38)
+
+  gic <- suppressWarnings(fitMvglsAndExtractGIC(tree, trait_data))
+  bic <- suppressWarnings(fitMvglsAndExtractBIC(tree, trait_data))
+
+  testthat::expect_equal(stats::logLik(gic$model), stats::logLik(bic$model))
+  testthat::expect_true(is.finite(as.numeric(gic$GIC$GIC)))
+  testthat::expect_true(is.finite(as.numeric(bic$BIC$BIC)))
 })

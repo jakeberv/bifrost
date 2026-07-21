@@ -5,7 +5,7 @@ test_that("normalizeMvglsFormulaCall rewrites response-only data.frames for trai
     row.names = c("sp1", "sp2", "sp3")
   )
 
-  normalized <- bifrost:::normalizeMvglsFormulaCall(
+  normalized <- normalizeMvglsFormulaCall(
     formula = "trait_data ~ 1",
     trait_data = dat,
     args_list = list()
@@ -28,14 +28,14 @@ test_that("normalizeMvglsFormulaCall validates inputs and leaves unsupported leg
   )
 
   testthat::expect_error(
-    bifrost:::normalizeMvglsFormulaCall(
+    normalizeMvglsFormulaCall(
       trait_data = dat,
       args_list = list()
     ),
     "must be provided"
   )
   testthat::expect_error(
-    bifrost:::normalizeMvglsFormulaCall(
+    normalizeMvglsFormulaCall(
       formula = 1,
       trait_data = dat,
       args_list = list()
@@ -43,7 +43,7 @@ test_that("normalizeMvglsFormulaCall validates inputs and leaves unsupported leg
     "must be provided"
   )
 
-  unchanged <- bifrost:::normalizeMvglsFormulaCall(
+  unchanged <- normalizeMvglsFormulaCall(
     formula = "trait_data ~ 1",
     trait_data = dat,
     args_list = list(data = dat)
@@ -64,7 +64,7 @@ test_that("normalizeMvglsFormulaCall assigns synthetic names and enforces multiv
   )
   names(dat) <- c("", "")
 
-  normalized <- bifrost:::normalizeMvglsFormulaCall(
+  normalized <- normalizeMvglsFormulaCall(
     formula = "trait_data ~ 1",
     trait_data = dat,
     args_list = list(data = dat)
@@ -77,7 +77,7 @@ test_that("normalizeMvglsFormulaCall assigns synthetic names and enforces multiv
   testthat::expect_identical(colnames(normalized$args_list$data), c("Y1", "Y2"))
 
   testthat::expect_error(
-    bifrost:::normalizeMvglsFormulaCall(
+    normalizeMvglsFormulaCall(
       formula = y1 ~ mass,
       trait_data = data.frame(y1 = c(1, 2, 3), mass = c(4, 5, 6)),
       args_list = list(data = data.frame(y1 = c(1, 2, 3), mass = c(4, 5, 6)))
@@ -94,7 +94,7 @@ test_that("normalizeMvglsFormulaCall can synthesize multivariate names from matr
     row.names = c("sp1", "sp2", "sp3")
   )
 
-  normalized <- bifrost:::normalizeMvglsFormulaCall(
+  normalized <- normalizeMvglsFormulaCall(
     formula = resp ~ mass,
     trait_data = dat,
     args_list = list(data = dat)
@@ -105,6 +105,23 @@ test_that("normalizeMvglsFormulaCall can synthesize multivariate names from matr
     "cbind(Y1, Y2) ~ mass"
   )
   testthat::expect_identical(colnames(normalized$args_list$data), c("Y1", "Y2", "mass"))
+
+  matrix_dat <- matrix(
+    c(1, 2, 3, 4, 5, 6, 10, 11, 12),
+    ncol = 3,
+    dimnames = list(c("sp1", "sp2", "sp3"), c("y1", "y2", "mass"))
+  )
+  matrix_normalized <- normalizeMvglsFormulaCall(
+    formula = cbind(y1, y2) ~ mass,
+    trait_data = matrix_dat,
+    args_list = list(data = matrix_dat)
+  )
+  testthat::expect_true(is.data.frame(matrix_normalized$args_list$data))
+  testthat::expect_identical(
+    paste(deparse(matrix_normalized$formula), collapse = " "),
+    "cbind(y1, y2) ~ mass"
+  )
+  testthat::expect_identical(rownames(matrix_normalized$args_list$data), rownames(matrix_dat))
 })
 
 test_that("normalizeMvglsFormulaCall rewrites legacy indexed formulas onto named columns", {
@@ -116,7 +133,7 @@ test_that("normalizeMvglsFormulaCall rewrites legacy indexed formulas onto named
     row.names = c("sp1", "sp2", "sp3")
   )
 
-  normalized <- bifrost:::normalizeMvglsFormulaCall(
+  normalized <- normalizeMvglsFormulaCall(
     formula = "trait_data[, 2:3] ~ trait_data[, 1]",
     trait_data = dat,
     args_list = list(data = dat)
@@ -128,7 +145,7 @@ test_that("normalizeMvglsFormulaCall rewrites legacy indexed formulas onto named
   )
   testthat::expect_identical(rownames(normalized$args_list$data), rownames(dat))
 
-  intercept_only <- bifrost:::normalizeMvglsFormulaCall(
+  intercept_only <- normalizeMvglsFormulaCall(
     formula = "trait_data[, 1:2] ~ 1",
     trait_data = dat,
     args_list = list(data = dat)
@@ -149,7 +166,7 @@ test_that("normalizeMvglsFormulaCall handles legacy edge cases without changing 
     row.names = c("sp1", "sp2", "sp3")
   )
 
-  unchanged <- bifrost:::normalizeMvglsFormulaCall(
+  unchanged <- normalizeMvglsFormulaCall(
     formula = "cbind(y1, y2) ~ trait_data",
     trait_data = dat,
     args_list = list(data = dat)
@@ -167,7 +184,7 @@ test_that("normalizeMvglsFormulaCall handles legacy edge cases without changing 
     row.names = c("sp1", "sp2", "sp3")
   )
 
-  normalized_unnamed <- bifrost:::normalizeMvglsFormulaCall(
+  normalized_unnamed <- normalizeMvglsFormulaCall(
     formula = "trait_data[, 2] ~ trait_data[, 1]",
     trait_data = unnamed_dat,
     args_list = list(data = unnamed_dat),
@@ -197,7 +214,7 @@ test_that("normalizeMvglsFormulaCall handles legacy edge cases without changing 
   )
   class(drop_names_dat) <- c("bifrost_drop_names_df", class(drop_names_dat))
 
-  normalized_drop_names <- bifrost:::normalizeMvglsFormulaCall(
+  normalized_drop_names <- normalizeMvglsFormulaCall(
     formula = "trait_data[, 1:2] ~ 1",
     trait_data = drop_names_dat,
     args_list = list(data = drop_names_dat)
@@ -216,7 +233,7 @@ test_that("normalizeMvglsFormulaCall can rewrite single-response data.frames whe
     row.names = c("sp1", "sp2", "sp3")
   )
 
-  normalized <- bifrost:::normalizeMvglsFormulaCall(
+  normalized <- normalizeMvglsFormulaCall(
     formula = "trait_data ~ 1",
     trait_data = dat,
     args_list = list(),
@@ -231,7 +248,7 @@ test_that("normalizeMvglsFormulaCall can rewrite single-response data.frames whe
   testthat::expect_identical(colnames(normalized$args_list$data), "y1")
   testthat::expect_identical(rownames(normalized$args_list$data), rownames(dat))
 
-  indexed <- bifrost:::normalizeMvglsFormulaCall(
+  indexed <- normalizeMvglsFormulaCall(
     formula = "trait_data[, 1] ~ 1",
     trait_data = dat,
     args_list = list(data = dat),
@@ -252,7 +269,7 @@ test_that("normalizeMvglsFormulaCall can synthesize names for unnamed single res
     row.names = c("sp1", "sp2", "sp3")
   )
 
-  normalized <- bifrost:::normalizeMvglsFormulaCall(
+  normalized <- normalizeMvglsFormulaCall(
     formula = I(y1) ~ mass,
     trait_data = dat,
     args_list = list(data = dat),
