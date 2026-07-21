@@ -21,4 +21,5 @@ experimental/
 /preview/
 /.cache/
 __pycache__/
+.playwright-cli/
 /tools/cran-downloads/node_modules/
