@@ -1,0 +1,2016 @@
+---
+title: "Passerine Body Plan Evolution, Part 2: Lineage-Rate Summaries"
+output:
+  rmarkdown::html_vignette: default
+  rmarkdown::pdf_document:
+    latex_engine: xelatex
+vignette: >
+  %\VignetteIndexEntry{Passerine Body Plan Evolution, Part 2: Lineage-Rate Summaries}
+  %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown}
+---
+
+```{r, include = FALSE}
+library(bifrost)
+
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+
+vignette_figure_caption <- function(html, latex) {
+  pandoc_to <- knitr::opts_knit$get("rmarkdown.pandoc.to")
+  if (is.character(pandoc_to) && length(pandoc_to) == 1L && grepl("^html", pandoc_to)) html else latex
+}
+
+is_part2_html_output <- function() {
+  pandoc_to <- knitr::opts_knit$get("rmarkdown.pandoc.to")
+  isTRUE(knitr::is_html_output()) &&
+    is.character(pandoc_to) &&
+    length(pandoc_to) == 1 &&
+    grepl("^html", pandoc_to)
+}
+
+# Keep the interactive and static Figure 1 toy examples synchronized.
+lineage_decay_widget <- list(
+  defaults = list(
+    decay_base = 2,
+    half_life = 5,
+    max_age = 25,
+    normalize_weights = TRUE
+  ),
+  tree_height = 20,
+  example_ages = c(0, 5, 10, 15, 20),
+  state_rates = c(
+    slow = 0.0011,
+    intermediate = 0.0024,
+    fast = 0.0034
+  ),
+  path_nodes = data.frame(
+    element = 1:4,
+    age = c(20, 8, 4, 2),
+    younger_age = c(8, 4, 2, 0),
+    y = c(205, 205, 245, 273),
+    state = c("slow", "intermediate", "fast", "fast"),
+    stringsAsFactors = FALSE
+  )
+)
+
+lineage_decay_widget_json <- function(settings) {
+  path_json <- vapply(seq_len(nrow(settings$path_nodes)), function(i) {
+    node <- settings$path_nodes[i, ]
+    sprintf(
+      '{"element":%d,"age":%g,"youngerAge":%g,"y":%g,"state":"%s"}',
+      node$element,
+      node$age,
+      node$younger_age,
+      node$y,
+      node$state
+    )
+  }, character(1))
+  rate_json <- paste(
+    sprintf(
+      '"%s":%g',
+      names(settings$state_rates),
+      unname(settings$state_rates)
+    ),
+    collapse = ","
+  )
+  sprintf(
+    paste0(
+      '{"defaults":{"decayBase":%g,"halfLife":%g,"maxAge":%g,',
+      '"normalizeWeights":%s},"treeHeight":%g,"exampleAges":[%s],',
+      '"rates":{%s},"pathNodes":[%s]}'
+    ),
+    settings$defaults$decay_base,
+    settings$defaults$half_life,
+    settings$defaults$max_age,
+    if (isTRUE(settings$defaults$normalize_weights)) "true" else "false",
+    settings$tree_height,
+    paste(settings$example_ages, collapse = ","),
+    rate_json,
+    paste(path_json, collapse = ",")
+  )
+}
+```
+```{r, echo=FALSE, results='asis'}
+if (is_part2_html_output()) cat('<style>
+/* Remove any default borders/shadows around vignette/pkgdown images */
+img, .figure img, .figure > p > img {
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: none !important;
+  background: transparent !important;
+}
+
+p.caption, .caption {
+  border-left: 0.32rem solid #d8dde3;
+  color: #2f3439;
+  font-size: inherit;
+  line-height: inherit;
+  margin: 0.15rem 3.8% 1.45rem 3.8%;
+  padding: 0 0 0 1rem;
+  text-align: left !important;
+}
+
+p.caption strong, .caption strong {
+  font-weight: 700;
+}
+
+h2 {
+  margin-top: 2.25rem;
+}
+
+h3 {
+  margin-top: 2rem;
+  margin-bottom: 0.8rem;
+}
+
+div.figure,
+figure {
+  margin-bottom: 1.7rem;
+}
+
+div.figure + div.section,
+figure + div.section {
+  margin-top: 2rem;
+}
+
+code {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+div.sourceCode,
+pre.sourceCode,
+pre,
+pre code,
+code.sourceCode,
+pre > code.sourceCode,
+pre > code.sourceCode > span {
+  max-width: 100%;
+  white-space: pre-wrap !important;
+  overflow-wrap: anywhere !important;
+  word-break: break-word !important;
+}
+
+div.sourceCode,
+pre {
+  overflow-x: auto;
+}
+
+pre > code.sourceCode > span {
+  display: inline !important;
+  text-indent: 0 !important;
+  padding-left: 0 !important;
+}
+
+@media (max-width: 640px) {
+  img, .figure img, .figure > p > img {
+    width: 100% !important;
+    height: auto !important;
+  }
+}
+</style>
+')
+```
+
+## Introduction
+
+Part 2 asks how a fitted multi-regime Brownian motion model (BMM) can be turned into a species-level summary of evolutionary tempo. The focal `bifrost` search estimates scalar transformations of a multivariate phenotypic variance-covariance matrix on a mapped phylogeny; those fitted rates live on regimes and ancestral histories, not directly in a tidy table of extant species. `lineage_rates()` provides that bridge by collapsing each extant species' inherited regime history into a present-biased lineage-rate statistic.
+
+Berv et al. (2026) used this statistic as a way to ask whether recent evolutionary tempo inferred from deep-time rate shifts relates to contemporary species-level and assemblage-level predictors. This vignette stays at the reusable package step: it shows how the final mapped tree and fitted regime rates become one present-weighted summary per tip, while keeping the terminal fitted rate available as a separate comparison. The compact object is enough for this calculation; the full archive remains the source for proposal history, sensitivity searches, and candidate model fits.
+
+## Computing lineage-rate summaries
+
+The purpose of `lineage_rates()` is to summarize the rate history inherited by each extant lineage when the terminal regime alone is too narrow a description. Two species can share the same terminal fitted rate after inheriting different ancestral regimes, and two lineages with similar recent rates can carry different amounts of deeper history. The statistic therefore treats the mapped BMM as a piecewise-constant history of multivariate evolutionary tempo and computes a temporally filtered average along each root-to-tip path.
+
+In the avian body-plan example, the state value being averaged is the scalar BMM rate assigned to each mapped regime, interpreted by Berv et al. (2026) as the mean of the diagonal variances in that regime's evolutionary variance-covariance matrix. The resulting `log_lineage_rate` is not an instantaneous tip-rate estimate or a hard recent-time-window average. It is a tunable, present-biased summary of inherited regime history, reported by Berv et al. (2026) under `decay_base = 2`, `half_life = 5`, and normalized weights.
+
+The key object is an age-decay kernel. Following the `lineage_rates()` documentation, the normalized weighted lineage-rate statistic is
+
+\[
+\bar{r}_{\mathrm{WLR}} =
+\frac{1}{Z} \sum_{i=1}^{L} b^{-a_i/T} r_i
+\]
+
+where
+
+\[
+Z = \sum_{j=1}^{L} b^{-a_j/T}.
+\]
+
+Here \(r_i\) is the fitted value for ancestral node or path element \(i\), \(a_i\) is that element's age before the selected reference point, \(b\) is `decay_base`, \(T\) is the `half_life` argument used as a decay time scale, and \(L\) is the number of included path elements. For the top-level statistic used here, \(i\) indexes ancestral nodes along the lineage, including the root and excluding the terminal tip state. When `half_life = NULL`, the kernel is \(b^{-a_i}\) instead of \(b^{-a_i/T}\); when `normalize_weights = FALSE`, the \(1/Z\) normalization is skipped.
+
+The name `half_life` is literal only when `decay_base = 2`: a path element \(T\) Myr older then receives \(2^{-1} = 1/2\) the raw weight of a present-day element. More generally, an element \(T\) Myr older receives \(1/b\) the raw weight, so the slider below labels \(T\) as the decay scale while noting the manuscript half-life setting. Figure 1 shows how the settings interact, then traces those same settings through a miniature mapped lineage before the lineage-rate table is computed.
+
+### How decay base and decay scale shape lineage-rate memory
+
+```{r focal_lineage_decay_kernel_part2_interactive, echo=FALSE, results='asis', eval=is_part2_html_output()}
+cat(r"(
+<figure id="lineage-decay-widget-part2" class="lineage-decay-widget" data-integrated-lineage-widget>
+)")
+cat(
+  '<script type="application/json" id="ldw-settings-part2">',
+  lineage_decay_widget_json(lineage_decay_widget),
+  '</script>'
+)
+cat(r"(
+<style>
+#lineage-decay-widget-part2 {
+margin: 1rem 3.8% 1.2rem 3.8%;
+}
+#lineage-decay-widget-part2 .ldw-shell {
+border: 0;
+border-radius: 0;
+background: #ffffff;
+padding: 0.15rem 0 0.35rem 0;
+}
+#lineage-decay-widget-part2 .caption {
+margin-top: 1rem;
+}
+#lineage-decay-widget-part2 .ldw-control-panel {
+border-top: 1px solid #edf1ef;
+margin: 0.1rem auto 0 auto;
+max-width: 760px;
+padding-top: 0.72rem;
+width: min(760px, 100%);
+}
+#lineage-decay-widget-part2 .ldw-plot-shell {
+position: relative;
+}
+#lineage-decay-widget-part2 .ldw-axis-slider {
+bottom: 5.05rem;
+display: grid;
+gap: 0.05rem;
+left: 7.1%;
+position: absolute;
+width: 35.8%;
+}
+#lineage-decay-widget-part2 .ldw-axis-slider label {
+align-items: baseline;
+color: #5b646b;
+display: flex;
+font-size: 10.5px;
+font-weight: 600;
+justify-content: space-between;
+line-height: 1.1;
+}
+#lineage-decay-widget-part2 .ldw-axis-slider output {
+color: #3d464d;
+display: inline;
+font-size: 11px;
+font-variant-numeric: tabular-nums;
+font-weight: 700;
+}
+#lineage-decay-widget-part2 .ldw-axis-slider input[type="range"] {
+height: 13px;
+margin: 0;
+}
+#lineage-decay-widget-part2 .ldw-controls {
+display: grid;
+grid-template-columns: 1fr;
+gap: 0.5rem;
+align-items: start;
+justify-content: center;
+margin: 0 auto 0.48rem auto;
+max-width: 720px;
+width: min(720px, 100%);
+}
+#lineage-decay-widget-part2 .ldw-control label {
+color: #263238;
+display: block;
+font-size: 13.5px;
+font-weight: 700;
+margin-bottom: 0.28rem;
+}
+#lineage-decay-widget-part2 .ldw-control-label {
+display: flex;
+flex-direction: column;
+gap: 0.12rem;
+}
+#lineage-decay-widget-part2 .ldw-control-title {
+line-height: 1.18;
+white-space: nowrap;
+}
+#lineage-decay-widget-part2 .ldw-control-note {
+color: #6a737b;
+font-size: 11px;
+font-weight: 400;
+line-height: 1.2;
+}
+#lineage-decay-widget-part2 .ldw-control output {
+color: #3d464d;
+display: inline;
+font-variant-numeric: tabular-nums;
+font-size: 14px;
+font-weight: 700;
+margin: 0;
+padding: 0;
+}
+#lineage-decay-widget-part2 input[type="range"] {
+accent-color: #4f5963;
+width: 100%;
+}
+#lineage-decay-widget-part2 .ldw-reset-button {
+border: 1px solid #9aa4ad;
+border-radius: 4px;
+background: #f6f7f8;
+color: #3d464d;
+cursor: pointer;
+font-size: 12px;
+font-weight: 700;
+line-height: 1.2;
+padding: 0.4rem 0.65rem;
+}
+#lineage-decay-widget-part2 .ldw-reset-button:hover,
+#lineage-decay-widget-part2 .ldw-reset-button:focus {
+background: #eceff1;
+outline: 2px solid rgba(79, 89, 99, 0.24);
+outline-offset: 2px;
+}
+#lineage-decay-widget-part2 .ldw-switch-control {
+align-items: center;
+color: #263238;
+cursor: pointer;
+display: inline-flex;
+font-size: 12px;
+font-weight: 700;
+gap: 0.42rem;
+line-height: 1.2;
+white-space: nowrap;
+}
+#lineage-decay-widget-part2 .ldw-switch-control input[type="checkbox"] {
+opacity: 0;
+position: absolute;
+}
+#lineage-decay-widget-part2 .ldw-switch-track {
+background: #d8dde3;
+border-radius: 999px;
+box-shadow: inset 0 0 0 1px rgba(38, 50, 56, 0.12);
+display: inline-flex;
+height: 20px;
+padding: 2px;
+transition: background 0.15s ease;
+width: 38px;
+}
+#lineage-decay-widget-part2 .ldw-switch-thumb {
+background: #ffffff;
+border-radius: 999px;
+box-shadow: 0 1px 2px rgba(38, 50, 56, 0.22);
+display: block;
+height: 16px;
+transform: translateX(0);
+transition: transform 0.15s ease;
+width: 16px;
+}
+#lineage-decay-widget-part2 .ldw-switch-control input[type="checkbox"]:checked + .ldw-switch-track {
+background: #4f5963;
+}
+#lineage-decay-widget-part2 .ldw-switch-control input[type="checkbox"]:checked + .ldw-switch-track .ldw-switch-thumb {
+transform: translateX(18px);
+}
+#lineage-decay-widget-part2 .ldw-switch-control input[type="checkbox"]:focus-visible + .ldw-switch-track {
+outline: 2px solid rgba(79, 89, 99, 0.28);
+outline-offset: 2px;
+}
+#lineage-decay-widget-part2 .ldw-status-row {
+align-items: center;
+display: flex;
+flex-wrap: wrap;
+gap: 0.42rem 0.85rem;
+justify-content: space-between;
+margin: 0 auto;
+max-width: 720px;
+width: min(720px, 100%);
+}
+#lineage-decay-widget-part2 .ldw-readout {
+display: flex;
+flex: 1 1 520px;
+flex-wrap: wrap;
+gap: 0.32rem;
+justify-content: flex-start;
+margin: 0;
+}
+#lineage-decay-widget-part2 .ldw-badge {
+background: #f6f8f7;
+border-radius: 2px;
+color: #5b646b;
+font-size: 11px;
+line-height: 1.2;
+padding: 0.2rem 0.4rem;
+}
+#lineage-decay-widget-part2 .ldw-badge strong {
+color: #3d464d;
+font-variant-numeric: tabular-nums;
+font-weight: 700;
+}
+#lineage-decay-widget-part2 .ldw-sr-only {
+border: 0;
+clip: rect(0 0 0 0);
+height: 1px;
+margin: -1px;
+overflow: hidden;
+padding: 0;
+position: absolute;
+white-space: nowrap;
+width: 1px;
+}
+#lineage-decay-widget-part2 svg {
+display: block;
+height: auto;
+max-width: 100%;
+width: 100%;
+}
+#lineage-decay-widget-part2 .axis,
+#lineage-decay-widget-part2 .tick {
+stroke: #263238;
+stroke-width: 1;
+}
+#lineage-decay-widget-part2 .grid {
+stroke: #d8dde3;
+stroke-dasharray: 4 4;
+stroke-width: 1;
+}
+#lineage-decay-widget-part2 .label {
+fill: #263238;
+font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+font-size: 13px;
+}
+#lineage-decay-widget-part2 .small-label {
+fill: #5b646b;
+font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+font-size: 12px;
+}
+#lineage-decay-widget-part2 .panel-title {
+fill: #263238;
+font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+font-size: 15px;
+font-weight: 700;
+}
+#lineage-decay-widget-part2 .legend-label {
+fill: #263238;
+font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+font-size: 11.5px;
+}
+#lineage-decay-widget-part2 .ldw-tree-shell {
+border-top: 1px solid #edf1ef;
+margin: 0.45rem 0 0 0;
+padding-top: 0.65rem;
+}
+#lineage-decay-widget-part2 .ldw-panel-controls-row {
+display: grid;
+grid-template-columns: 6.3% 39.8% 14.1% 34.7% 5.1%;
+margin: -0.18rem 0 0.18rem 0;
+}
+#lineage-decay-widget-part2 .ldw-rate-controls {
+display: grid;
+gap: 0.42rem;
+grid-column: 2;
+grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+#lineage-decay-widget-part2 .ldw-panel-d-controls {
+align-items: flex-end;
+display: flex;
+grid-column: 4;
+justify-content: flex-end;
+padding-bottom: 0.04rem;
+}
+#lineage-decay-widget-part2 .ldw-rate-control {
+display: flex;
+flex-direction: column;
+gap: 0.18rem;
+min-width: 0;
+}
+#lineage-decay-widget-part2 .ldw-rate-control span {
+color: var(--rate-color);
+font-size: 11px;
+font-weight: 700;
+line-height: 1.1;
+}
+#lineage-decay-widget-part2 .ldw-rate-control input {
+border: 1px solid #ccd4d9;
+border-radius: 4px;
+color: #263238;
+font-size: 11.5px;
+font-variant-numeric: tabular-nums;
+line-height: 1.1;
+min-width: 0;
+padding: 0.22rem 0.28rem;
+width: 100%;
+}
+#lineage-decay-widget-part2 .ldw-rate-control input:focus {
+border-color: var(--rate-color);
+outline: 2px solid rgba(79, 89, 99, 0.20);
+outline-offset: 1px;
+}
+#lineage-decay-widget-part2 .ldw-drawer-control summary {
+align-items: flex-start;
+color: #263238;
+cursor: pointer;
+display: flex;
+font-size: 13.5px;
+font-weight: 700;
+gap: 0.42rem;
+list-style: none;
+margin-bottom: 0.28rem;
+}
+#lineage-decay-widget-part2 .ldw-drawer-control summary::-webkit-details-marker {
+display: none;
+}
+#lineage-decay-widget-part2 .ldw-drawer-control summary::before {
+border-bottom: 4px solid transparent;
+border-left: 6px solid #4f5963;
+border-top: 4px solid transparent;
+content: "";
+flex: 0 0 auto;
+margin-top: 0.23rem;
+transition: transform 0.15s ease;
+}
+#lineage-decay-widget-part2 .ldw-drawer-control[open] summary::before {
+transform: rotate(90deg);
+}
+#lineage-decay-widget-part2 .ldw-drawer-control input[type="range"] {
+margin-top: 0.16rem;
+}
+#lineage-decay-widget-part2 .ltw-panel-title {
+fill: #263238;
+font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+font-size: 15px;
+font-weight: 700;
+}
+#lineage-decay-widget-part2 .ltw-label {
+fill: #263238;
+font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+font-size: 12px;
+}
+#lineage-decay-widget-part2 .ltw-small-label {
+fill: #5b646b;
+font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+font-size: 11px;
+}
+#lineage-decay-widget-part2 .ltw-axis-detail {
+fill: #5b646b;
+font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+font-size: 9.8px;
+}
+#lineage-decay-widget-part2 .ltw-legend-label {
+fill: #3d464d;
+font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+font-size: 12.2px;
+}
+#lineage-decay-widget-part2 .ltw-tip-label {
+fill: #8a949b;
+font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+font-size: 11px;
+}
+#lineage-decay-widget-part2 .ltw-focal-tip {
+fill: #263238;
+font-weight: 700;
+}
+#lineage-decay-widget-part2 .ltw-axis,
+#lineage-decay-widget-part2 .ltw-tick {
+stroke: #263238;
+stroke-width: 1;
+}
+#lineage-decay-widget-part2 .ltw-tree-background {
+stroke: #d2d9df;
+stroke-linecap: round;
+stroke-width: 1.45;
+}
+#lineage-decay-widget-part2 .ltw-summary-note {
+fill: #4c78a8;
+font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+font-size: 23.25px;
+font-weight: 700;
+}
+@media (max-width: 720px) {
+#lineage-decay-widget-part2 .ldw-control-panel,
+#lineage-decay-widget-part2 .ldw-controls,
+#lineage-decay-widget-part2 .ldw-status-row {
+grid-template-columns: 1fr;
+width: 100%;
+}
+#lineage-decay-widget-part2 .ldw-readout {
+justify-content: center;
+}
+#lineage-decay-widget-part2 .ldw-panel-controls-row {
+display: block;
+}
+#lineage-decay-widget-part2 .ldw-panel-d-controls {
+margin-top: 0.45rem;
+}
+#lineage-decay-widget-part2 .ldw-axis-slider {
+bottom: 4.65rem;
+left: 7%;
+width: 36%;
+}
+}
+</style>
+<div class="ldw-shell">
+<div class="ldw-plot-shell">
+<svg id="ldw-svg-part2" viewBox="0 0 980 465" role="img" aria-label="Interactive age-decay kernel plot with raw weights and normalized shares"></svg>
+<div class="ldw-axis-slider" aria-label="Maximum age for the raw kernel panel">
+<label for="ldw-max-age-part2">
+<span>Maximum age</span>
+<span><output id="ldw-max-age-value-part2" for="ldw-max-age-part2">25</output> Myr</span>
+</label>
+<input id="ldw-max-age-part2" type="range" min="10" max="50" step="5" value="25" />
+</div>
+</div>
+<div class="ldw-tree-shell">
+<svg id="ltw-svg-part2" viewBox="0 0 980 430" role="img" aria-label="Interactive simmap lineage path and normalized weights"></svg>
+<div class="ldw-panel-controls-row">
+<div class="ldw-rate-controls" aria-label="Mapped regime rates for the traced lineage">
+<label class="ldw-rate-control" style="--rate-color: #4c78a8;" for="ldw-rate-slow-part2">
+<span>slow rate</span>
+<input id="ldw-rate-slow-part2" type="number" min="0" step="0.0001" value="0.0011" />
+</label>
+<label class="ldw-rate-control" style="--rate-color: #f58518;" for="ldw-rate-intermediate-part2">
+<span>intermediate</span>
+<input id="ldw-rate-intermediate-part2" type="number" min="0" step="0.0001" value="0.0024" />
+</label>
+<label class="ldw-rate-control" style="--rate-color: #b279a2;" for="ldw-rate-fast-part2">
+<span>fast rate</span>
+<input id="ldw-rate-fast-part2" type="number" min="0" step="0.0001" value="0.0034" />
+</label>
+</div>
+<div class="ldw-panel-d-controls">
+<label class="ldw-switch-control" for="ldw-normalize-part2">
+<input id="ldw-normalize-part2" type="checkbox" checked />
+<span class="ldw-switch-track" aria-hidden="true"><span class="ldw-switch-thumb"></span></span>
+<span>Normalize weights</span>
+</label>
+</div>
+</div>
+</div>
+<div class="ldw-control-panel" aria-label="Interactive lineage-rate weighting settings">
+<div class="ldw-controls">
+<details class="ldw-control ldw-drawer-control">
+<summary>
+<span class="ldw-control-label">
+<span class="ldw-control-title">Decay base b = <output id="ldw-decay-base-value-part2" for="ldw-decay-base-part2">2.00</output></span>
+<span class="ldw-control-note">larger values concentrate weight near the present; b = 2 gives the usual half-life interpretation</span>
+</span>
+</summary>
+<input id="ldw-decay-base-part2" type="range" min="1" max="5" step="0.05" value="2" />
+</details>
+<div class="ldw-control">
+<label for="ldw-half-life-part2">
+<span class="ldw-control-label">
+<span class="ldw-control-title">Decay scale T = <output id="ldw-half-life-value-part2" for="ldw-half-life-part2">5.00</output> Myr</span>
+<span class="ldw-control-note">literal half-life only when b = 2; otherwise one T older gets 1/b weight</span>
+</span>
+</label>
+<input id="ldw-half-life-part2" type="range" min="0.25" max="20" step="0.25" value="5" />
+</div>
+</div>
+<div class="ldw-status-row">
+<div class="ldw-readout" id="ldw-readout-part2" aria-live="polite"></div>
+<button id="ldw-reset-part2" class="ldw-reset-button" type="button">Reset</button>
+</div>
+</div>
+<div id="ldw-kernel-status-part2" class="ldw-sr-only" aria-live="polite" aria-atomic="true"></div>
+<div id="ldw-lineage-status-part2" class="ldw-sr-only" aria-live="polite" aria-atomic="true"></div>
+<br />
+<p class="caption"><strong>Figure 1. Interactive age-decay kernels and mapped-lineage weighting.</strong> Panel A shows the selected raw age-decay kernel, with the maximum-age slider changing only that panel. Panel B converts the same kernel into normalized shares for example path elements. Panel C traces one mapped lineage through a miniature <code>simmap</code> tree, and the rate boxes set the regime values used by the traced lineage. Panel D applies the same decay, normalization, and rate settings; the switch toggles the <code>1 / Z</code> normalization and the labels report each displayed weight, fitted rate, and collapsed estimate. The decay scale is a literal half-life only when <code>decay_base = 2</code>.</p>
+</div>
+<script>
+(function() {
+const root = document.getElementById('lineage-decay-widget-part2');
+if (!root) return;
+
+function readWidgetSettings(rootNode) {
+const node = rootNode.querySelector('#ldw-settings-part2');
+if (!node) return {};
+try {
+return JSON.parse(node.textContent);
+} catch (error) {
+return {};
+}
+}
+
+const settings = readWidgetSettings(root);
+root._lineageDecaySettings = settings;
+const defaults = settings.defaults || {};
+
+const svg = root.querySelector('#ldw-svg-part2');
+const baseInput = root.querySelector('#ldw-decay-base-part2');
+const halfInput = root.querySelector('#ldw-half-life-part2');
+const maxAgeInput = root.querySelector('#ldw-max-age-part2');
+const baseOutput = root.querySelector('#ldw-decay-base-value-part2');
+const halfOutput = root.querySelector('#ldw-half-life-value-part2');
+const maxAgeOutput = root.querySelector('#ldw-max-age-value-part2');
+const resetButton = root.querySelector('#ldw-reset-part2');
+const readout = root.querySelector('#ldw-readout-part2');
+const kernelStatus = root.querySelector('#ldw-kernel-status-part2');
+const ns = 'http://www.w3.org/2000/svg';
+
+baseInput.value = Number.isFinite(Number(defaults.decayBase)) ? defaults.decayBase : 2;
+halfInput.value = Number.isFinite(Number(defaults.halfLife)) ? defaults.halfLife : 5;
+maxAgeInput.value = Number.isFinite(Number(defaults.maxAge)) ? defaults.maxAge : 25;
+
+const colors = {
+selected: '#1b7c54',
+short: '#8f3d46',
+medium: '#d98c00',
+berv: '#2f7f5f',
+long: '#2f6f9f',
+equal: '#5f6368',
+grid: '#d8dde3',
+text: '#263238'
+};
+const panelA = { x: 62, y: 58, width: 390, height: 250 };
+const panelB = { x: 568, y: 58, width: 340, height: 250 };
+const exampleAges = Array.isArray(settings.exampleAges) ? settings.exampleAges : [0, 5, 10, 15, 20];
+const references = [
+{ label: '0.5', base: 2, half: 0.5, color: colors.short },
+{ label: '2', base: 2, half: 2, color: colors.medium },
+{ label: '5', base: 2, half: 5, color: colors.berv },
+{ label: '10', base: 2, half: 10, color: colors.long }
+];
+const barSeries = [
+{ key: 'equal', label: 'Equal weights', color: colors.equal },
+{ key: 'berv', label: 'b = 2', color: colors.berv },
+{ key: 'selected', label: 'Selected', color: colors.selected }
+];
+
+function el(name, attrs, parent) {
+const node = document.createElementNS(ns, name);
+Object.keys(attrs || {}).forEach(function(key) {
+node.setAttribute(key, attrs[key]);
+});
+if (parent) parent.appendChild(node);
+return node;
+}
+
+function textNode(parent, x, y, text, attrs) {
+const node = el('text', Object.assign({ x: x, y: y }, attrs || {}), parent);
+node.textContent = text;
+return node;
+}
+
+function halfLifeLegendLabel(parent, x, y, value) {
+const node = el('text', { x: x, y: y, class: 'legend-label' }, parent);
+const symbol = el('tspan', {}, node);
+symbol.textContent = 't';
+const subscript = el('tspan', { 'baseline-shift': 'sub', 'font-size': '75%' }, node);
+subscript.textContent = '1/2';
+const suffix = el('tspan', {}, node);
+suffix.textContent = ' = ' + value;
+return node;
+}
+
+function defaultWeightLegendLabel(parent, x, y) {
+const node = el('text', { x: x, y: y, class: 'legend-label' }, parent);
+const prefix = el('tspan', {}, node);
+prefix.textContent = 'b = 2, t';
+const subscript = el('tspan', { 'baseline-shift': 'sub', 'font-size': '75%' }, node);
+subscript.textContent = '1/2';
+const suffix = el('tspan', {}, node);
+suffix.textContent = ' = 5';
+return node;
+}
+
+function weight(age, base, halfLife) {
+if (base <= 1) return 1;
+return Math.pow(base, -age / halfLife);
+}
+
+function sxA(age, maxAge) {
+return panelA.x + (age / maxAge) * panelA.width;
+}
+
+function syA(value) {
+return panelA.y + panelA.height - value * panelA.height;
+}
+
+function sxB(index, seriesIndex) {
+const groupWidth = panelB.width / exampleAges.length;
+const barWidth = 13;
+const start = panelB.x + index * groupWidth + groupWidth / 2 - (barSeries.length * barWidth + (barSeries.length - 1) * 4) / 2;
+return start + seriesIndex * (barWidth + 4);
+}
+
+function syB(value) {
+return panelB.y + panelB.height - value * panelB.height;
+}
+
+function xTicksFor(maxAge) {
+const interval = maxAge <= 30 ? 5 : 10;
+const ticks = [];
+for (let tick = 0; tick <= maxAge; tick += interval) {
+ticks.push(tick);
+}
+if (ticks[ticks.length - 1] !== maxAge) ticks.push(maxAge);
+return ticks;
+}
+
+function pathFor(base, halfLife, maxAge) {
+const ages = Array.from({ length: 251 }, function(_, i) { return i * maxAge / 250; });
+return ages.map(function(age, i) {
+const cmd = i === 0 ? 'M' : 'L';
+return cmd + sxA(age, maxAge).toFixed(2) + ',' + syA(weight(age, base, halfLife)).toFixed(2);
+}).join(' ');
+}
+
+function sharesFor(base, halfLife) {
+const raw = exampleAges.map(function(age) { return weight(age, base, halfLife); });
+const sum = raw.reduce(function(a, b) { return a + b; }, 0);
+return raw.map(function(value) { return value / sum; });
+}
+
+function drawStaticFrame(maxAge) {
+svg.innerHTML = '';
+
+textNode(svg, panelA.x, 43, 'A. Raw age-decay kernel', { class: 'panel-title' });
+textNode(svg, panelB.x, 43, 'B. Normalized shares for one lineage', { class: 'panel-title' });
+
+[0, 0.25, 0.5, 0.75, 1].forEach(function(tick) {
+const yA = syA(tick);
+el('line', { x1: panelA.x, y1: yA, x2: panelA.x + panelA.width, y2: yA, class: tick === 0 ? 'axis' : 'grid' }, svg);
+textNode(svg, panelA.x - 10, yA + 4, tick.toFixed(2).replace(/0$/, ''), {
+class: 'small-label',
+'text-anchor': 'end'
+});
+
+const yB = syB(tick);
+el('line', { x1: panelB.x, y1: yB, x2: panelB.x + panelB.width, y2: yB, class: tick === 0 ? 'axis' : 'grid' }, svg);
+textNode(svg, panelB.x - 10, yB + 4, tick.toFixed(2).replace(/0$/, ''), {
+class: 'small-label',
+'text-anchor': 'end'
+});
+});
+
+xTicksFor(maxAge).forEach(function(tick) {
+const x = sxA(tick, maxAge);
+el('line', { x1: x, y1: panelA.y + panelA.height, x2: x, y2: panelA.y + panelA.height + 5, class: 'tick' }, svg);
+textNode(svg, x, panelA.y + panelA.height + 22, String(tick), {
+class: 'small-label',
+'text-anchor': 'middle'
+});
+});
+
+exampleAges.forEach(function(age, i) {
+const groupWidth = panelB.width / exampleAges.length;
+const x = panelB.x + i * groupWidth + groupWidth / 2;
+el('line', { x1: x, y1: panelB.y + panelB.height, x2: x, y2: panelB.y + panelB.height + 5, class: 'tick' }, svg);
+textNode(svg, x, panelB.y + panelB.height + 22, age + ' Myr', {
+class: 'small-label',
+'text-anchor': 'middle'
+});
+});
+
+el('line', { x1: panelA.x, y1: panelA.y, x2: panelA.x, y2: panelA.y + panelA.height, class: 'axis' }, svg);
+el('line', { x1: panelB.x, y1: panelB.y, x2: panelB.x, y2: panelB.y + panelB.height, class: 'axis' }, svg);
+textNode(svg, panelA.x + panelA.width / 2, panelA.y + panelA.height + 48, 'Age before present (Myr)', {
+class: 'label',
+'text-anchor': 'middle'
+});
+textNode(svg, panelB.x + panelB.width / 2, panelB.y + panelB.height + 48, 'Element age before present', {
+class: 'label',
+'text-anchor': 'middle'
+});
+textNode(svg, 18, panelA.y + panelA.height / 2, 'Raw weight', {
+class: 'label',
+transform: 'rotate(-90 18 ' + (panelA.y + panelA.height / 2) + ')',
+'text-anchor': 'middle'
+});
+textNode(svg, panelB.x - 44, panelB.y + panelB.height / 2, 'Normalized share', {
+class: 'label',
+transform: 'rotate(-90 ' + (panelB.x - 44) + ' ' + (panelB.y + panelB.height / 2) + ')',
+'text-anchor': 'middle'
+});
+
+references.forEach(function(ref, i) {
+el('path', {
+d: pathFor(ref.base, ref.half, maxAge),
+fill: 'none',
+stroke: ref.color,
+'stroke-width': 1.65,
+'stroke-opacity': 0.70
+}, svg);
+const lx = panelA.x + 8 + i * 88;
+const ly = panelA.y + panelA.height + 118;
+el('line', { x1: lx, y1: ly, x2: lx + 24, y2: ly, stroke: ref.color, 'stroke-width': 3 }, svg);
+halfLifeLegendLabel(svg, lx + 30, ly + 4, ref.label);
+});
+
+barSeries.forEach(function(series, i) {
+const lx = panelB.x + 8 + i * 110;
+const ly = panelB.y + panelB.height + 118;
+el('rect', {
+x: lx,
+y: ly - 9,
+width: 14,
+height: 14,
+fill: series.color,
+stroke: series.key === 'selected' ? '#0f4f36' : 'none',
+'stroke-width': series.key === 'selected' ? 1 : 0
+}, svg);
+if (series.key === 'berv') {
+defaultWeightLegendLabel(svg, lx + 20, ly + 3);
+} else {
+textNode(svg, lx + 20, ly + 3, series.label, { class: 'legend-label' });
+}
+});
+}
+
+function update() {
+const base = Number(baseInput.value);
+const halfLife = Number(halfInput.value);
+const maxAge = Number(maxAgeInput.value);
+const equalShares = sharesFor(1, halfLife);
+const bervShares = sharesFor(2, 5);
+const selectedShares = sharesFor(base, halfLife);
+const shareSets = [equalShares, bervShares, selectedShares];
+
+baseOutput.textContent = base.toFixed(2);
+halfOutput.textContent = halfLife.toFixed(2);
+maxAgeOutput.textContent = maxAge.toFixed(0);
+
+drawStaticFrame(maxAge);
+el('path', {
+d: pathFor(base, halfLife, maxAge),
+fill: 'none',
+stroke: colors.selected,
+'stroke-linecap': 'round',
+'stroke-width': 3.2
+}, svg);
+
+exampleAges.forEach(function(_, ageIndex) {
+barSeries.forEach(function(series, seriesIndex) {
+const value = shareSets[seriesIndex][ageIndex];
+el('rect', {
+x: sxB(ageIndex, seriesIndex),
+y: syB(value),
+width: 13,
+height: panelB.y + panelB.height - syB(value),
+fill: series.color,
+'fill-opacity': series.key === 'selected' ? 0.88 : 0.66,
+stroke: series.key === 'selected' ? '#0f4f36' : 'none',
+'stroke-width': series.key === 'selected' ? 1 : 0
+}, svg);
+});
+});
+
+const fiveMyrWeight = weight(5, base, halfLife);
+readout.innerHTML =
+'<span class="ldw-badge">5 Myr raw weight <strong>' + fiveMyrWeight.toFixed(3) + '</strong></span>' +
+'<span class="ldw-badge">0 Myr normalized share <strong>' + selectedShares[0].toFixed(3) + '</strong></span>' +
+'<span class="ldw-badge">20 Myr normalized share <strong>' + selectedShares[4].toFixed(3) + '</strong></span>';
+if (kernelStatus) {
+kernelStatus.textContent = 'Decay base ' + base.toFixed(2) +
+', decay scale ' + halfLife.toFixed(2) + ' Myr, maximum age ' +
+maxAge.toFixed(0) + ' Myr. Five Myr raw weight ' +
+fiveMyrWeight.toFixed(3) + '.';
+}
+}
+
+baseInput.addEventListener('input', update);
+halfInput.addEventListener('input', update);
+maxAgeInput.addEventListener('input', update);
+resetButton.addEventListener('click', function() {
+baseInput.value = Number.isFinite(Number(defaults.decayBase)) ? defaults.decayBase : 2;
+halfInput.value = Number.isFinite(Number(defaults.halfLife)) ? defaults.halfLife : 5;
+maxAgeInput.value = Number.isFinite(Number(defaults.maxAge)) ? defaults.maxAge : 25;
+update();
+});
+update();
+}());
+</script>
+<script>
+(function() {
+const root = document.getElementById('lineage-decay-widget-part2');
+if (!root) return;
+
+const settings = root._lineageDecaySettings || {};
+const defaults = settings.defaults || {};
+
+const svg = root.querySelector('#ltw-svg-part2');
+const baseInput = root.querySelector('#ldw-decay-base-part2');
+const halfInput = root.querySelector('#ldw-half-life-part2');
+const normalizeInput = root.querySelector('#ldw-normalize-part2');
+const rateInputs = {
+slow: root.querySelector('#ldw-rate-slow-part2'),
+intermediate: root.querySelector('#ldw-rate-intermediate-part2'),
+fast: root.querySelector('#ldw-rate-fast-part2')
+};
+const resetButton = root.querySelector('#ldw-reset-part2');
+const lineageStatus = root.querySelector('#ldw-lineage-status-part2');
+if (!svg || !baseInput || !halfInput || !normalizeInput ||
+!rateInputs.slow || !rateInputs.intermediate || !rateInputs.fast) return;
+
+const ns = 'http://www.w3.org/2000/svg';
+const treePanel = { x: 62, y: 64, width: 390, height: 265 };
+const weightPanel = { x: 590, y: 64, width: 340, height: 265 };
+const treeHeight = Number.isFinite(Number(settings.treeHeight)) ? Number(settings.treeHeight) : 20;
+const treeYOffset = 18;
+const colors = {
+slow: '#4c78a8',
+intermediate: '#f58518',
+fast: '#b279a2',
+background: '#d2d9df',
+text: '#263238',
+muted: '#5b646b'
+};
+const defaultRates = Object.assign({
+slow: 0.0011,
+intermediate: 0.0024,
+fast: 0.0034
+}, settings.rates || {});
+const pathNodes = Array.isArray(settings.pathNodes) ? settings.pathNodes : [
+{ element: 1, age: 20, youngerAge: 8, y: 205, state: 'slow' },
+{ element: 2, age: 8, youngerAge: 4, y: 205, state: 'intermediate' },
+{ element: 3, age: 4, youngerAge: 2, y: 245, state: 'fast' },
+{ element: 4, age: 2, youngerAge: 0, y: 273, state: 'fast' }
+];
+const backgroundSegments = [
+{ age1: 20, age2: 12, y1: 82, y2: 82 },
+{ age1: 12, age2: 12, y1: 58, y2: 106 },
+{ age1: 12, age2: 0, y1: 58, y2: 58 },
+{ age1: 12, age2: 0, y1: 106, y2: 106 },
+{ age1: 20, age2: 20, y1: 82, y2: 205 },
+{ age1: 8, age2: 8, y1: 145, y2: 245 },
+{ age1: 8, age2: 0, y1: 145, y2: 145 },
+{ age1: 4, age2: 4, y1: 190, y2: 273 },
+{ age1: 4, age2: 0, y1: 190, y2: 190 },
+{ age1: 2, age2: 2, y1: 237, y2: 310 },
+{ age1: 2, age2: 0, y1: 310, y2: 310 }
+];
+const focalSegments = [
+{ age1: 20, age2: 8, y: 205, state: 'slow' },
+{ age1: 8, age2: 4, y: 245, state: 'intermediate' },
+{ age1: 4, age2: 2, y: 273, state: 'fast' },
+{ age1: 2, age2: 0, y: 237, state: 'fast' }
+];
+const tipLabels = [
+{ label: 'alpha', age: 0, y: 58 },
+{ label: 'beta', age: 0, y: 106 },
+{ label: 'gamma', age: 0, y: 145 },
+{ label: 'delta', age: 0, y: 190 },
+{ label: 'epsilon', age: 0, y: 237, focal: true },
+{ label: 'zeta', age: 0, y: 310 }
+];
+
+normalizeInput.checked = defaults.normalizeWeights !== false;
+Object.keys(rateInputs).forEach(function(key) {
+rateInputs[key].value = Number(defaultRates[key]).toFixed(4);
+});
+
+function el(name, attrs, parent) {
+const node = document.createElementNS(ns, name);
+Object.keys(attrs || {}).forEach(function(key) {
+node.setAttribute(key, attrs[key]);
+});
+if (parent) parent.appendChild(node);
+return node;
+}
+
+function textNode(parent, x, y, text, attrs) {
+const node = el('text', Object.assign({ x: x, y: y }, attrs || {}), parent);
+node.textContent = text;
+return node;
+}
+
+function mathNode(parent, x, y, pieces, attrs) {
+const node = el('text', Object.assign({ x: x, y: y }, attrs || {}), parent);
+pieces.forEach(function(piece) {
+const span = el('tspan', piece.attrs || {}, node);
+span.textContent = piece.text;
+});
+return node;
+}
+
+function xAge(age) {
+return treePanel.x + ((treeHeight - age) / treeHeight) * treePanel.width;
+}
+
+function treeY(y) {
+return y + treeYOffset;
+}
+
+function weightAgeX(age) {
+return weightPanel.x + ((treeHeight - age) / treeHeight) * weightPanel.width;
+}
+
+function weightY(value) {
+return weightPanel.y + weightPanel.height - value * weightPanel.height;
+}
+
+function kernelWeight(age, base, halfLife) {
+if (base <= 1) return 1;
+return Math.pow(base, -age / halfLife);
+}
+
+function parseRate(input, fallback) {
+const value = Number(input.value);
+return Number.isFinite(value) && value >= 0 ? value : fallback;
+}
+
+function currentRates() {
+return {
+slow: parseRate(rateInputs.slow, defaultRates.slow),
+intermediate: parseRate(rateInputs.intermediate, defaultRates.intermediate),
+fast: parseRate(rateInputs.fast, defaultRates.fast)
+};
+}
+
+function weightedPath(base, halfLife, normalizeWeights, rates) {
+const raw = pathNodes.map(function(node) {
+return kernelWeight(node.age, base, halfLife);
+});
+const rawSum = raw.reduce(function(a, b) { return a + b; }, 0);
+return pathNodes.map(function(node, i) {
+const displayedWeight = normalizeWeights ? raw[i] / rawSum : raw[i];
+const rate = rates[node.state];
+return Object.assign({}, node, {
+weight: displayedWeight,
+rawWeight: raw[i],
+rate: rate,
+duration: node.age - node.youngerAge,
+contribution: displayedWeight * rate
+});
+});
+}
+
+function drawTree() {
+textNode(svg, treePanel.x, 32, 'C. Trace a lineage through a simmap tree', {
+class: 'ltw-panel-title'
+});
+
+const legendX = treePanel.x;
+const legendY = 56;
+textNode(svg, legendX, legendY, 'Mapped regime', { class: 'ltw-legend-label' });
+[
+{ state: 'slow', x: legendX + 118 },
+{ state: 'intermediate', x: legendX + 210 },
+{ state: 'fast', x: legendX + 340 }
+].forEach(function(item) {
+const x = item.x;
+const state = item.state;
+el('line', { x1: x, y1: legendY - 4, x2: x + 26, y2: legendY - 4, stroke: colors[state], 'stroke-width': 3 }, svg);
+textNode(svg, x + 34, legendY, state, { class: 'ltw-legend-label' });
+});
+
+backgroundSegments.forEach(function(segment) {
+el('line', {
+x1: xAge(segment.age1),
+y1: treeY(segment.y1),
+x2: xAge(segment.age2),
+y2: treeY(segment.y2),
+class: 'ltw-tree-background'
+}, svg);
+});
+
+focalSegments.forEach(function(segment) {
+el('line', {
+x1: xAge(segment.age1),
+y1: treeY(segment.y),
+x2: xAge(segment.age2),
+y2: treeY(segment.y),
+stroke: colors[segment.state],
+'stroke-linecap': 'round',
+'stroke-width': 5
+}, svg);
+});
+
+pathNodes.forEach(function(node) {
+el('circle', {
+cx: xAge(node.age),
+cy: treeY(node.y),
+r: 3.8,
+fill: colors[node.state],
+stroke: 'white',
+'stroke-width': 1
+}, svg);
+});
+
+tipLabels.forEach(function(tip) {
+const attrs = {
+class: tip.focal ? 'ltw-tip-label ltw-focal-tip' : 'ltw-tip-label',
+x: xAge(tip.age) + 8,
+y: treeY(tip.y) + 4
+};
+textNode(svg, attrs.x, attrs.y, tip.label, attrs);
+if (tip.focal) {
+el('circle', {
+cx: xAge(tip.age),
+cy: treeY(tip.y),
+r: 3.4,
+fill: 'white',
+stroke: colors.fast,
+'stroke-width': 1.4
+}, svg);
+}
+});
+
+const axisY = treePanel.y + treePanel.height + 24;
+el('line', { x1: xAge(20), y1: axisY, x2: xAge(0), y2: axisY, class: 'ltw-axis' }, svg);
+[20, 15, 10, 5, 0].forEach(function(tick) {
+const x = xAge(tick);
+el('line', { x1: x, y1: axisY, x2: x, y2: axisY + 5, class: 'ltw-tick' }, svg);
+textNode(svg, x, axisY + 21, String(tick), {
+class: 'ltw-small-label',
+'text-anchor': 'middle'
+});
+});
+textNode(svg, treePanel.x + treePanel.width / 2, axisY + 41, 'Age before present (Myr)', {
+class: 'ltw-label',
+'text-anchor': 'middle'
+});
+}
+
+function drawWeightPanel(base, halfLife, normalizeWeights, rates) {
+const data = weightedPath(base, halfLife, normalizeWeights, rates);
+const collapsed = data.reduce(function(total, node) {
+return total + node.contribution;
+}, 0);
+const weightAxisY = weightPanel.y + weightPanel.height;
+const weightSymbol = normalizeWeights ? 'w' : 'u';
+
+textNode(svg, weightPanel.x, 32, 'D. Weight calculation', {
+class: 'ltw-panel-title'
+});
+textNode(svg, weightPanel.x, 51, 'b = ' + base.toFixed(2) + ', T = ' + halfLife.toFixed(2) + ' Myr; T is a half-life only when b = 2', {
+class: 'ltw-small-label'
+});
+
+[0, 0.25, 0.5, 0.75, 1].forEach(function(tick) {
+const y = weightY(tick);
+el('line', {
+x1: weightPanel.x,
+y1: y,
+x2: weightPanel.x + weightPanel.width,
+y2: y,
+stroke: tick === 0 ? '#263238' : '#e2e6ea',
+'stroke-width': 1
+}, svg);
+textNode(svg, weightPanel.x - 10, y + 4, tick.toFixed(2).replace(/0$/, ''), {
+class: 'ltw-small-label',
+'text-anchor': 'end'
+});
+});
+
+mathNode(svg, weightPanel.x + 12, weightPanel.y + 32, [
+{ text: normalizeWeights ? 'r' : '' },
+{ text: normalizeWeights ? 'WLR' : '', attrs: { 'baseline-shift': 'sub', 'font-size': '75%' } },
+{ text: normalizeWeights ? ' = ' + String.fromCharCode(931) + ' ' : String.fromCharCode(931) + ' ' },
+{ text: weightSymbol },
+{ text: 'i', attrs: { 'baseline-shift': 'sub', 'font-size': '75%' } },
+{ text: 'r' },
+{ text: 'i', attrs: { 'baseline-shift': 'sub', 'font-size': '75%' } },
+{ text: ' = ' + collapsed.toFixed(4) }
+], { id: 'ltw-collapse-value-part2', class: 'ltw-summary-note' });
+
+data.forEach(function(node, i) {
+const x1 = weightAgeX(node.age) + 1.5;
+const x2 = weightAgeX(node.youngerAge) - 1.5;
+const x = (x1 + x2) / 2;
+const barWidth = Math.max(4, x2 - x1);
+const detailX = weightPanel.x + (i + 0.5) * weightPanel.width / data.length;
+const y = weightY(node.weight);
+el('rect', {
+x: x1,
+y: y,
+width: barWidth,
+height: weightAxisY - y,
+fill: colors[node.state],
+'fill-opacity': 0.92
+}, svg);
+mathNode(svg, detailX, weightAxisY + 63, [
+{ text: weightSymbol },
+{ text: String(node.element), attrs: { 'baseline-shift': 'sub', 'font-size': '75%' } },
+{ text: '=' + node.weight.toFixed(2) }
+], { class: 'ltw-axis-detail', 'text-anchor': 'middle' });
+mathNode(svg, detailX, weightAxisY + 78, [
+{ text: 'r' },
+{ text: String(node.element), attrs: { 'baseline-shift': 'sub', 'font-size': '75%' } },
+{ text: '=' + node.rate.toFixed(4) }
+], { class: 'ltw-axis-detail', 'text-anchor': 'middle' });
+});
+
+el('line', { x1: weightPanel.x, y1: weightPanel.y, x2: weightPanel.x, y2: weightAxisY, class: 'ltw-axis' }, svg);
+[20, 15, 10, 5, 0].forEach(function(tick) {
+const x = weightAgeX(tick);
+el('line', { x1: x, y1: weightAxisY, x2: x, y2: weightAxisY + 5, class: 'ltw-tick' }, svg);
+textNode(svg, x, weightAxisY + 21, String(tick), {
+class: 'ltw-small-label',
+'text-anchor': 'middle'
+});
+});
+textNode(svg, weightPanel.x + weightPanel.width / 2, weightAxisY + 43, 'Age before present (Myr)', {
+class: 'ltw-label',
+'text-anchor': 'middle'
+});
+if (lineageStatus) {
+lineageStatus.textContent = (normalizeWeights ? 'Normalized' : 'Raw') +
+' weighted lineage-rate estimate ' + collapsed.toFixed(4) +
+' using slow rate ' + rates.slow.toFixed(4) +
+', intermediate rate ' + rates.intermediate.toFixed(4) +
+', and fast rate ' + rates.fast.toFixed(4) + '.';
+}
+}
+
+function draw() {
+const base = Number(baseInput.value);
+const halfLife = Number(halfInput.value);
+const normalizeWeights = normalizeInput.checked;
+const rates = currentRates();
+svg.innerHTML = '';
+drawTree();
+drawWeightPanel(base, halfLife, normalizeWeights, rates);
+}
+
+baseInput.addEventListener('input', draw);
+halfInput.addEventListener('input', draw);
+normalizeInput.addEventListener('change', draw);
+Object.keys(rateInputs).forEach(function(key) {
+rateInputs[key].addEventListener('input', draw);
+});
+if (resetButton) {
+resetButton.addEventListener('click', function() {
+normalizeInput.checked = defaults.normalizeWeights !== false;
+Object.keys(rateInputs).forEach(function(key) {
+rateInputs[key].value = defaultRates[key].toFixed(4);
+});
+window.setTimeout(draw, 0);
+});
+}
+draw();
+}());
+</script>
+</figure>
+)")
+```
+
+```{r focal_lineage_decay_kernel_part2_static, echo=FALSE, message=FALSE, eval=!is_part2_html_output(), fig.align="center", fig.width=9.6, fig.height=8.2, dpi=220, fig.retina=1, out.width="100%", fig.cap=vignette_figure_caption("**Figure 1. Static age-decay kernels and mapped-lineage weighting.** Panel A shows raw age-decay kernels, and Panel B converts them into normalized shares for example path elements. Panel C traces one mapped lineage through a miniature `simmap` tree. Panel D applies the default `decay_base = 2`, `half_life = 5`, normalized weights, and regime rates to the traced lineage.", "Static age-decay kernels and mapped-lineage weighting. Panel A shows raw age-decay kernels, and Panel B converts them into normalized shares for example path elements. Panel C traces one mapped lineage through a miniature simmap tree. Panel D applies the default decay\\_base = 2, half\\_life = 5, normalized weights, and regime rates to the traced lineage.")}
+decay_kernel_ages <- seq(0, lineage_decay_widget$defaults$max_age, length.out = 300)
+
+decay_kernel_curve <- function(label, decay_base, half_life, ages = decay_kernel_ages) {
+  weight <- if (decay_base == 1) {
+    rep(1, length(ages))
+  } else if (is.null(half_life) || is.na(half_life)) {
+    decay_base^(-ages)
+  } else {
+    decay_base^(-ages / half_life)
+  }
+  data.frame(
+    age = ages,
+    weight = weight,
+    label = label,
+    stringsAsFactors = FALSE
+  )
+}
+
+decay_kernel_theme <- ggplot2::theme_classic(base_size = 8.5) +
+  ggplot2::theme(
+    legend.position = "top",
+    legend.title = ggplot2::element_blank(),
+    legend.margin = ggplot2::margin(0, 0, 0, 0),
+    plot.title = ggplot2::element_text(face = "bold", color = "#263238", size = 9),
+    plot.subtitle = ggplot2::element_text(color = "#5b646b", size = 8),
+    plot.margin = ggplot2::margin(4, 4, 4, 4),
+    axis.title = ggplot2::element_text(color = "#263238"),
+    axis.text = ggplot2::element_text(color = "#263238")
+  )
+
+half_life_levels <- c(
+  "0.5",
+  "2",
+  "5_default",
+  "10"
+)
+half_life_data <- do.call(rbind, list(
+  decay_kernel_curve("0.5", 2, 0.5),
+  decay_kernel_curve("2", 2, 2),
+  decay_kernel_curve("5_default", 2, 5),
+  decay_kernel_curve("10", 2, 10)
+))
+half_life_data$label <- factor(half_life_data$label, levels = half_life_levels)
+
+example_age_values <- lineage_decay_widget$example_ages
+example_weight_specs <- data.frame(
+  label = c("Equal weights", "5_default", "0.5"),
+  half_life = c(Inf, 5, 0.5),
+  stringsAsFactors = FALSE
+)
+example_weight_data <- do.call(rbind, lapply(seq_len(nrow(example_weight_specs)), function(i) {
+  spec <- example_weight_specs[i, ]
+  raw <- if (is.infinite(spec$half_life)) {
+    rep(1, length(example_age_values))
+  } else {
+    2^(-example_age_values / spec$half_life)
+  }
+  data.frame(
+    age = factor(paste0(example_age_values, " Myr"), levels = paste0(example_age_values, " Myr")),
+    share = raw / sum(raw),
+    label = spec$label,
+    stringsAsFactors = FALSE
+  )
+}))
+example_weight_data$label <- factor(example_weight_data$label, levels = example_weight_specs$label)
+
+half_life_colors <- c("#8f3d46", "#d98c00", "#2f7f5f", "#2f6f9f")
+example_weight_colors <- c("#5f6368", "#2f7f5f", "#8f3d46")
+
+decay_panel_a <- ggplot2::ggplot(half_life_data, ggplot2::aes(x = age, y = weight, color = label)) +
+  ggplot2::geom_hline(yintercept = 0.5, color = "#c7cdd4", linewidth = 0.30, linetype = "dashed") +
+  ggplot2::geom_line(linewidth = 0.85) +
+  ggplot2::scale_color_manual(
+    values = half_life_colors,
+    labels = c(
+      expression(t[1/2] == 0.5),
+      expression(t[1/2] == 2),
+      expression(t[1/2] == 5~"(default)"),
+      expression(t[1/2] == 10)
+    )
+  ) +
+  ggplot2::scale_y_continuous(limits = c(0, 1.02), expand = ggplot2::expansion(mult = c(0, 0.02))) +
+  ggplot2::labs(
+    title = "A. Raw age-decay kernel",
+    subtitle = "decay_base fixed at b = 2",
+    x = "Age before present (Myr)",
+    y = "Raw weight"
+  ) +
+  decay_kernel_theme
+
+decay_panel_b <- ggplot2::ggplot(example_weight_data, ggplot2::aes(x = age, y = share, fill = label)) +
+  ggplot2::geom_col(position = ggplot2::position_dodge(width = 0.76), width = 0.68) +
+  ggplot2::scale_fill_manual(
+    values = example_weight_colors,
+    labels = c(
+      "Equal weights",
+      expression(t[1/2] == 5~"(default)"),
+      expression(t[1/2] == 0.5)
+    )
+  ) +
+  ggplot2::scale_y_continuous(limits = c(0, 1), expand = ggplot2::expansion(mult = c(0, 0.02))) +
+  ggplot2::labs(
+    title = "B. Normalized shares for one lineage",
+    subtitle = "example path elements at 0, 5, 10, 15, and 20 Myr",
+    x = "Element age before present",
+    y = "Normalized share of total weight"
+  ) +
+  decay_kernel_theme +
+  ggplot2::theme(legend.position = "right")
+
+static_kernel_row <- patchwork::wrap_plots(
+  decay_panel_a,
+  decay_panel_b,
+  ncol = 2,
+  widths = c(1.05, 1)
+)
+
+schematic_base <- lineage_decay_widget$defaults$decay_base
+schematic_half_life <- lineage_decay_widget$defaults$half_life
+
+simmap_tree <- ape::read.tree(
+  text = "((alpha:12,beta:12):8,(gamma:8,(delta:4,(epsilon:2,zeta:2):2):4):12);"
+)
+
+state_levels <- c("slow", "intermediate", "fast")
+state_colors <- c(
+  slow = "#4c78a8",
+  intermediate = "#f58518",
+  fast = "#b279a2",
+  background = "#c8d0d6"
+)
+summary_color <- "#4c78a8"
+state_rates <- lineage_decay_widget$state_rates
+
+root_node <- length(simmap_tree$tip.label) + 1
+focal_tip <- which(simmap_tree$tip.label == "epsilon")
+focal_path <- ape::nodepath(simmap_tree, from = root_node, to = focal_tip)
+focal_edges <- integer(length(focal_path) - 1)
+for (i in seq_along(focal_edges)) {
+  focal_edges[i] <- which(
+    simmap_tree$edge[, 1] == focal_path[i] &
+      simmap_tree$edge[, 2] == focal_path[i + 1]
+  )
+}
+
+simmap_maps <- vector("list", length(simmap_tree$edge.length))
+for (i in seq_along(simmap_maps)) {
+  simmap_maps[[i]] <- stats::setNames(simmap_tree$edge.length[i], "slow")
+}
+focal_edge_states <- lineage_decay_widget$path_nodes$state
+for (i in seq_along(focal_edges)) {
+  simmap_maps[[focal_edges[i]]] <- stats::setNames(
+    simmap_tree$edge.length[focal_edges[i]],
+    focal_edge_states[i]
+  )
+}
+
+simmap_tree$maps <- simmap_maps
+simmap_tree$mapped.edge <- matrix(
+  0,
+  nrow = length(simmap_tree$edge.length),
+  ncol = length(state_levels),
+  dimnames = list(NULL, state_levels)
+)
+for (i in seq_along(simmap_tree$maps)) {
+  for (state in names(simmap_tree$maps[[i]])) {
+    simmap_tree$mapped.edge[i, state] <- simmap_tree$mapped.edge[i, state] +
+      simmap_tree$maps[[i]][[state]]
+  }
+}
+class(simmap_tree) <- c("simmap", class(simmap_tree))
+stopifnot(inherits(simmap_tree, "simmap"))
+
+node_x <- ape::node.depth.edgelength(simmap_tree)
+tree_height <- max(node_x[seq_along(simmap_tree$tip.label)])
+stopifnot(isTRUE(all.equal(tree_height, lineage_decay_widget$tree_height)))
+node_y <- numeric(length(node_x))
+node_y[seq_along(simmap_tree$tip.label)] <- rev(seq_along(simmap_tree$tip.label))
+for (node in rev(seq.int(root_node, length(node_x)))) {
+  children <- simmap_tree$edge[simmap_tree$edge[, 1] == node, 2]
+  if (length(children) > 0) {
+    node_y[node] <- mean(node_y[children])
+  }
+}
+
+vertical_segments <- data.frame()
+for (node in seq.int(root_node, length(node_x))) {
+  children <- simmap_tree$edge[simmap_tree$edge[, 1] == node, 2]
+  if (length(children) > 0) {
+    vertical_segments <- rbind(
+      vertical_segments,
+      data.frame(
+        x = node_x[node],
+        xend = node_x[node],
+        y = min(node_y[children]),
+        yend = max(node_y[children])
+      )
+    )
+  }
+}
+
+horizontal_segments <- data.frame()
+for (edge_index in seq_len(nrow(simmap_tree$edge))) {
+  parent <- simmap_tree$edge[edge_index, 1]
+  child <- simmap_tree$edge[edge_index, 2]
+  is_focal <- edge_index %in% focal_edges
+
+  if (is_focal) {
+    segment_start <- node_x[parent]
+    for (map_index in seq_along(simmap_tree$maps[[edge_index]])) {
+      segment_length <- simmap_tree$maps[[edge_index]][[map_index]]
+      segment_end <- segment_start + segment_length
+      horizontal_segments <- rbind(
+        horizontal_segments,
+        data.frame(
+          x = segment_start,
+          xend = segment_end,
+          y = node_y[child],
+          yend = node_y[child],
+          state = names(simmap_tree$maps[[edge_index]])[map_index],
+          focal = TRUE
+        )
+      )
+      segment_start <- segment_end
+    }
+  } else {
+    horizontal_segments <- rbind(
+      horizontal_segments,
+      data.frame(
+        x = node_x[parent],
+        xend = node_x[child],
+        y = node_y[child],
+        yend = node_y[child],
+        state = "background",
+        focal = FALSE
+      )
+    )
+  }
+}
+
+included_nodes <- focal_path[-length(focal_path)]
+path_node_data <- data.frame(
+  node = included_nodes,
+  edge = focal_edges,
+  element = seq_along(included_nodes),
+  x = node_x[included_nodes],
+  y = node_y[included_nodes],
+  age = tree_height - node_x[included_nodes],
+  younger_age = tree_height - node_x[focal_path[-1]],
+  stringsAsFactors = FALSE
+)
+path_node_data$state <- vapply(
+  path_node_data$edge,
+  function(edge_index) names(simmap_tree$maps[[edge_index]])[1],
+  character(1)
+)
+stopifnot(
+  identical(path_node_data$element, lineage_decay_widget$path_nodes$element),
+  isTRUE(all.equal(path_node_data$age, lineage_decay_widget$path_nodes$age)),
+  isTRUE(all.equal(path_node_data$younger_age, lineage_decay_widget$path_nodes$younger_age)),
+  identical(path_node_data$state, lineage_decay_widget$path_nodes$state)
+)
+path_node_data$rate <- unname(state_rates[path_node_data$state])
+path_node_data$raw_weight <- schematic_base^(-path_node_data$age / schematic_half_life)
+path_node_data$weight <- path_node_data$raw_weight / sum(path_node_data$raw_weight)
+path_node_data$contribution <- path_node_data$weight * path_node_data$rate
+path_node_data$age_label <- paste0(path_node_data$age, " Myr")
+path_node_data$age_factor <- factor(path_node_data$age_label, levels = path_node_data$age_label)
+path_node_data$label_x <- path_node_data$x
+path_node_data$label_y <- path_node_data$y + 0.48
+path_node_data$label_hjust <- 0.5
+last_path_element <- path_node_data$element == max(path_node_data$element)
+path_node_data$label_x[last_path_element] <- path_node_data$x[last_path_element] - 0.65
+path_node_data$label_y[last_path_element] <- path_node_data$y[last_path_element] + 0.62
+path_node_data$label_hjust[last_path_element] <- 1
+path_node_data$weight_label <- sprintf(
+  "w[%s] == %.2f",
+  path_node_data$element,
+  path_node_data$weight
+)
+path_node_data$rate_label <- sprintf(
+  "r[%s] == %.4f",
+  path_node_data$element,
+  path_node_data$rate
+)
+path_node_data$interval_min <- pmin(path_node_data$age, path_node_data$younger_age)
+path_node_data$interval_max <- pmax(path_node_data$age, path_node_data$younger_age)
+path_node_data$interval_mid <- (path_node_data$age + path_node_data$younger_age) / 2
+path_node_data$detail_x <- path_node_data$interval_mid
+path_node_data$detail_x[path_node_data$element == 3] <- path_node_data$detail_x[path_node_data$element == 3] + 0.55
+path_node_data$detail_x[path_node_data$element == 4] <- path_node_data$detail_x[path_node_data$element == 4] - 0.35
+
+tip_data <- data.frame(
+  label = simmap_tree$tip.label,
+  x = node_x[seq_along(simmap_tree$tip.label)],
+  y = node_y[seq_along(simmap_tree$tip.label)]
+)
+tip_data$focal <- tip_data$label == "epsilon"
+
+vertical_segments$x <- tree_height - vertical_segments$x
+vertical_segments$xend <- tree_height - vertical_segments$xend
+horizontal_segments$x <- tree_height - horizontal_segments$x
+horizontal_segments$xend <- tree_height - horizontal_segments$xend
+path_node_data$x <- tree_height - path_node_data$x
+path_node_data$label_x <- tree_height - path_node_data$label_x
+tip_data$x <- tree_height - tip_data$x
+
+schematic_tree_panel <- ggplot2::ggplot() +
+  ggplot2::geom_segment(
+    data = vertical_segments,
+    ggplot2::aes(
+      x = x,
+      y = y,
+      xend = xend,
+      yend = yend
+    ),
+    color = "#d5dbe0",
+    linewidth = 0.45,
+    lineend = "round"
+  ) +
+  ggplot2::geom_segment(
+    data = horizontal_segments,
+    ggplot2::aes(
+      x = x,
+      y = y,
+      xend = xend,
+      yend = yend,
+      color = state,
+      linewidth = focal
+    ),
+    lineend = "round"
+  ) +
+  ggplot2::scale_color_manual(
+    values = state_colors,
+    breaks = state_levels,
+    labels = c("slow", "intermediate", "fast"),
+    name = "Mapped regime"
+  ) +
+  ggplot2::scale_linewidth_manual(
+    values = c("TRUE" = 1.35, "FALSE" = 0.55),
+    guide = "none"
+  ) +
+  ggplot2::geom_point(
+    data = path_node_data,
+    ggplot2::aes(x = x, y = y, fill = state),
+    shape = 21,
+    color = "white",
+    stroke = 0.35,
+    size = 2.4
+  ) +
+  ggplot2::scale_fill_manual(values = state_colors[state_levels], guide = "none") +
+  ggplot2::geom_point(
+    data = tip_data[tip_data$focal, ],
+    ggplot2::aes(x = x, y = y),
+    shape = 21,
+    fill = "white",
+    color = "#263238",
+    size = 2.4,
+    stroke = 0.55
+  ) +
+  ggplot2::geom_text(
+    data = tip_data[!tip_data$focal, ],
+    ggplot2::aes(x = x - 0.5, y = y, label = label),
+    color = "#8a949b",
+    hjust = 0,
+    size = 2.35
+  ) +
+  ggplot2::geom_text(
+    data = tip_data[tip_data$focal, ],
+    ggplot2::aes(x = x - 0.5, y = y, label = label),
+    color = "#263238",
+    hjust = 0,
+    fontface = "bold",
+    size = 2.45
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = 10,
+    y = 6.55,
+    label = "trace one extant lineage through mapped regimes",
+    color = "#263238",
+    fontface = "bold",
+    size = 3.05
+  ) +
+  ggplot2::scale_x_reverse(
+    limits = c(tree_height + 0.7, -3.2),
+    breaks = seq(tree_height, 0, by = -5),
+    expand = c(0, 0)
+  ) +
+  ggplot2::coord_cartesian(ylim = c(0.45, 6.85), clip = "off") +
+  ggplot2::labs(
+    title = "C. Trace a lineage through a simmap tree",
+    x = "Age before present (Myr)",
+    y = NULL
+  ) +
+  ggplot2::theme_classic(base_size = 8.5) +
+  ggplot2::theme(
+    plot.title = ggplot2::element_text(face = "bold", color = "#263238", size = 9),
+    plot.margin = ggplot2::margin(4, 8, 4, 4),
+    axis.text.y = ggplot2::element_blank(),
+    axis.ticks.y = ggplot2::element_blank(),
+    axis.line.y = ggplot2::element_blank(),
+    axis.title.x = ggplot2::element_text(color = "#263238"),
+    axis.text.x = ggplot2::element_text(color = "#263238"),
+    legend.position = "top",
+    legend.justification = "left",
+    legend.title = ggplot2::element_text(color = "#263238", size = 7.5),
+    legend.text = ggplot2::element_text(color = "#263238", size = 7.5),
+    legend.key.width = grid::unit(0.55, "lines"),
+    legend.margin = ggplot2::margin(0, 0, 0, 0)
+  )
+
+schematic_weight_panel <- ggplot2::ggplot(path_node_data) +
+  ggplot2::geom_rect(
+    ggplot2::aes(
+      xmin = interval_min,
+      xmax = interval_max,
+      ymin = 0,
+      ymax = weight,
+      fill = state
+    ),
+    alpha = 0.92
+  ) +
+  ggplot2::scale_fill_manual(values = state_colors[state_levels], guide = "none") +
+  ggplot2::geom_text(
+    ggplot2::aes(x = detail_x, y = -0.070, label = weight_label),
+    color = "#263238",
+    size = 1.85,
+    parse = TRUE
+  ) +
+  ggplot2::geom_text(
+    ggplot2::aes(x = detail_x, y = -0.125, label = rate_label),
+    color = "#263238",
+    size = 1.75,
+    parse = TRUE
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = tree_height - 0.6,
+    y = 0.94,
+    label = sprintf("rWLR = sum(w_i * r_i) = %.4f", sum(path_node_data$contribution)),
+    hjust = 0,
+    color = summary_color,
+    fontface = "bold",
+    size = 4.5
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = tree_height / 2,
+    y = -0.025,
+    label = "Age before present (Myr)",
+    color = "#263238",
+    fontface = "bold",
+    size = 2.4
+  ) +
+  ggplot2::scale_x_reverse(
+    limits = c(tree_height, 0),
+    breaks = seq(tree_height, 0, by = -5),
+    expand = c(0, 0)
+  ) +
+  ggplot2::scale_y_continuous(
+    breaks = seq(0, 1, by = 0.25),
+    expand = ggplot2::expansion(mult = c(0, 0.02))
+  ) +
+  ggplot2::coord_cartesian(ylim = c(-0.16, 1), clip = "off") +
+  ggplot2::labs(
+    title = "D. Weight calculation",
+    subtitle = sprintf("b = %s, T = %s Myr; T is a half-life only when b = 2", schematic_base, schematic_half_life),
+    x = NULL,
+    y = expression("Normalized weight " * w[i])
+  ) +
+  ggplot2::theme_classic(base_size = 8.5) +
+  ggplot2::theme(
+    plot.title = ggplot2::element_text(face = "bold", color = "#263238", size = 9),
+    plot.subtitle = ggplot2::element_text(color = "#5b646b", size = 8),
+    axis.title = ggplot2::element_text(color = "#263238"),
+    axis.text = ggplot2::element_text(color = "#263238"),
+    plot.margin = ggplot2::margin(4, 4, 4, 8)
+  )
+
+static_lineage_row <- patchwork::wrap_plots(
+  schematic_tree_panel,
+  schematic_weight_panel,
+  ncol = 2,
+  widths = c(1.25, 1)
+)
+
+patchwork::wrap_plots(
+  static_kernel_row,
+  static_lineage_row,
+  ncol = 1,
+  heights = c(1, 1.12)
+)
+```
+
+### Loading the focal search
+
+```{r load_compact_bodyplan_search_part2}
+# Load the same compact focal result inspected in Part 1.
+search_path <- system.file(
+  "extdata",
+  "avian-skeleton",
+  "passerine_bodyplan_search_compact.RDS",
+  package = "bifrost"
+)
+stopifnot(nzchar(search_path))
+
+bodyplan_search <- readRDS(search_path)
+
+# Preserve the S3 class if an older serialized copy lacks it.
+if (!inherits(bodyplan_search, "bifrost_search")) {
+  class(bodyplan_search) <- c("bifrost_search", class(bodyplan_search))
+}
+
+# Confirm that the object is a fitted BMM search with inferred shifts.
+data.frame(
+  inherits_bifrost_search = inherits(bodyplan_search, "bifrost_search"),
+  model = bodyplan_search$model_no_uncertainty$model,
+  fitted_regimes = length(bodyplan_search$model_no_uncertainty$param),
+  accepted_shifts = length(bodyplan_search$shift_nodes_no_uncertainty)
+)
+```
+
+This check confirms that the compact object is a multi-regime BMM search, which `lineage_rates()` requires before computing rate summaries from a mapped heterogeneous-rate history.
+
+### Running `lineage_rates()`
+
+With the weighting scheme established and the focal search loaded, the next step is to run the Berv et al. (2026) lineage-rate calculation. This call uses the parameter choices described above: `decay_base = 2`, `half_life = 5`, normalized weights, and log-scale rates. The progress bar is suppressed so the vignette output stays quiet.
+
+Because each tip defines one extant lineage, the returned table has one row per species. The preview below sorts lineages by the inherited-history summary, `log_lineage_rate`, while keeping `log_tip_rate` beside it. That pairing is useful because both columns are on the log scale: the lineage summary reflects weighted ancestral history, whereas `log_tip_rate` records only the terminal fitted state.
+
+```{r focal_lineage_rates_part2}
+# Run the Berv et al. (2026) lineage-rate summary.
+bodyplan_lineage_rates <- lineage_rates(
+  bodyplan_search,
+  progress = FALSE
+)
+
+# Show the fastest lineages first and keep the most useful columns.
+lineage_preview <- bodyplan_lineage_rates[
+  order(bodyplan_lineage_rates$log_lineage_rate, decreasing = TRUE),
+  c("tip.label", "shift_count", "log_lineage_rate", "log_tip_rate")
+]
+head(lineage_preview)
+```
+
+To see how the temporal weighting changes this comparison, recompute the lineage summary with a much shorter half-life:
+
+```{r focal_lineage_rates_short_decay_part2}
+bodyplan_lineage_rates_short_decay <- lineage_rates(
+  bodyplan_search,
+  half_life = 0.5,
+  progress = FALSE
+)
+```
+
+```{r focal_lineage_tip_rate_scatter_part2, echo=FALSE, message=FALSE, fig.align="center", fig.width=9.4, fig.height=4.8, dpi=220, fig.retina=1, out.width="100%", fig.cap=vignette_figure_caption("**Figure 2. Decay strength controls how closely weighted lineage rates track terminal fitted log tip rates.** Left: the 5 Myr half-life used by Berv et al. (2026) retains more root-to-tip history. Right: a short 0.5 Myr half-life heavily emphasizes recent branches, so the weighted lineage summary nearly collapses onto the terminal log tip-rate summary.", "Decay strength controls how closely weighted lineage rates track terminal fitted log tip rates. Left: the 5 Myr half-life used by Berv et al. (2026) retains more root-to-tip history. Right: a short 0.5 Myr half-life heavily emphasizes recent branches, so the weighted lineage summary nearly collapses onto the terminal log tip-rate summary.")}
+lineage_tip_rate_theme <- ggplot2::theme_classic(base_size = 8.5) +
+  ggplot2::theme(
+    plot.margin = ggplot2::margin(2, 2, 2, 2),
+    axis.title = ggplot2::element_text(color = "#263238", size = 11.05),
+    axis.text = ggplot2::element_text(color = "#263238"),
+    plot.title = ggplot2::element_text(color = "#263238", face = "bold", size = 9)
+  )
+
+lineage_tip_rate_panel <- function(rates, title, color) {
+  plot_data <- data.frame(
+    log_tip_rate = rates$log_tip_rate,
+    log_lineage_rate = rates$log_lineage_rate
+  )
+  model <- lm(log_lineage_rate ~ log_tip_rate, data = plot_data)
+  label <- sprintf(
+    "y = %.2f + %.2fx\nR^2 = %.2f, r = %.2f",
+    coef(model)[1],
+    coef(model)[2],
+    summary(model)$r.squared,
+    cor(plot_data$log_tip_rate, plot_data$log_lineage_rate)
+  )
+
+  scatter <- ggplot2::ggplot(plot_data, ggplot2::aes(x = log_tip_rate, y = log_lineage_rate)) +
+    ggplot2::geom_point(color = color, alpha = 0.22, size = 0.55) +
+    ggplot2::geom_smooth(method = "lm", se = FALSE, color = "#9b2f2f", linewidth = 0.50) +
+    ggplot2::annotate(
+      "label",
+      x = min(plot_data$log_tip_rate),
+      y = max(plot_data$log_lineage_rate),
+      label = label,
+      hjust = 0,
+      vjust = 1,
+      size = 3.225,
+      linewidth = 0,
+      fill = "white",
+      alpha = 0.82,
+      color = "#263238"
+    ) +
+    ggplot2::coord_fixed() +
+    ggplot2::labs(
+      title = title,
+      x = "Terminal fitted log tip rate",
+      y = "Weighted log lineage rate"
+    ) +
+    lineage_tip_rate_theme
+
+  x_density <- ggplot2::ggplot(plot_data, ggplot2::aes(x = log_tip_rate)) +
+    ggplot2::geom_density(fill = color, color = color, alpha = 0.28, linewidth = 0.30) +
+    ggplot2::theme_void() +
+    ggplot2::theme(plot.margin = ggplot2::margin(0, 2, 0, 30))
+
+  y_density <- ggplot2::ggplot(plot_data, ggplot2::aes(x = log_lineage_rate)) +
+    ggplot2::geom_density(fill = color, color = color, alpha = 0.28, linewidth = 0.30) +
+    ggplot2::coord_flip() +
+    ggplot2::theme_void() +
+    ggplot2::theme(plot.margin = ggplot2::margin(2, 0, 25, 0))
+
+  patchwork::wrap_plots(
+    x_density,
+    patchwork::plot_spacer(),
+    scatter,
+    y_density,
+    ncol = 2,
+    widths = c(4, 0.72),
+    heights = c(0.72, 4)
+  )
+}
+
+lineage_tip_rate_default_panel <- lineage_tip_rate_panel(
+  bodyplan_lineage_rates,
+  "Default half-life: 5 Myr",
+  "#386f8f"
+)
+
+lineage_tip_rate_extreme_panel <- lineage_tip_rate_panel(
+  bodyplan_lineage_rates_short_decay,
+  "Short half-life: 0.5 Myr",
+  "#6f7f3b"
+)
+
+patchwork::wrap_plots(
+  lineage_tip_rate_default_panel,
+  lineage_tip_rate_extreme_panel,
+  ncol = 2
+)
+```
+
+You can merge the resulting species-level table with ecological, geographic, or climatic metadata when asking how lineage-level inferred rates relate to external predictors. Because these summaries are still estimated for species that share ancestry, phylogenetic methods such as PGLS may remain appropriate even though the estimator concentrates signal toward the present.
+
+## Practical Takeaways
+
+- `lineage_rates()` returns one inherited BMM rate-history summary per extant root-to-tip lineage.
+- The Berv et al. (2026) lineage-rate statistic uses `decay_base = 2`, `half_life = 5`, normalized weights, and log-scale fitted rates.
+- The age-decay kernel controls how strongly deeper ancestral history contributes to each lineage summary; shorter half-lives make the summary converge toward the terminal fitted rate.
+- `log_tip_rate` is intentionally separate from `log_lineage_rate`: it records only the terminal fitted state on the same log scale.
+- The lineage-rate table can be joined to species-level ecological, geographic, climatic, or trait metadata for downstream predictor analyses.
+- Present-biased lineage-rate summaries do not remove phylogenetic non-independence; downstream models should still account for shared ancestry when the question calls for species-level inference.
+- Continue to Part 3 for shift-transition tables, branch-rate annotations, fitted rate distributions, and waiting-time distributions.
+
+## References
+
+If you use these data or reproduce this workflow, the most relevant citations are:
+
+- Berv, Jacob S., Charlotte M. Probst, Santiago Claramunt, J. Ryan Shipley, Matt Friedman, Stephen A. Smith, David F. Fouhey, and Brian C. Weeks. 2026. "Rates of passerine body plan evolution in time and space." *Nature Ecology & Evolution*. <https://doi.org/10.1038/s41559-026-03110-5>
+- Berv, Jacob S., Charlotte M. Probst, Santiago Claramunt, J. Ryan Shipley, Matt Friedman, Stephen A. Smith, David F. Fouhey, and Brian C. Weeks. 2026. "Supplementary data archive for Rates of passerine body plan evolution in time and space" (v1.0.0) [Data set]. Zenodo. <https://doi.org/10.5281/zenodo.19198393>
+- Claramunt, Santiago, Christopher Sheard, Joseph W. Brown, Guillermo Cortes-Ramirez, Joel Cracraft, Mason M. Su, Brian C. Weeks, and Joseph A. Tobias. 2025. "A new time tree of birds reveals the interplay between dispersal, geographic range size, and diversification." *Current Biology*. Advance online publication. <https://doi.org/10.1016/j.cub.2025.07.004>
+
+## Software Used in This Vignette
+
+- `bifrost` for weighted lineage-rate summaries from fitted BMM searches.
+- `ape` and `phytools` underlie the mapped-tree calculations used by `lineage_rates()`.
+- `ggplot2` and `patchwork` draw the age-decay and lineage-rate comparison figures.

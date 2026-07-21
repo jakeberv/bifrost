@@ -30,7 +30,6 @@ RUNTIME_NOTE = (
     "uses the runtime's host CPUs, not the TPU itself. Otherwise, choose the "
     "available runtime with the most CPUs."
 )
-
 def find_repo_root(start: Path) -> Path:
     path = start.resolve()
     for candidate in [path, *path.parents]:
@@ -44,7 +43,25 @@ def discover_slugs(repo_root: Path) -> list[str]:
     return [path.stem for path in rmds]
 
 
-def colab_packages(repo_root: Path, cells: list[dict]) -> tuple[str, ...]:
+def declared_colab_packages(value: str) -> set[str]:
+    packages = {package.strip() for package in value.split(",") if package.strip()}
+    invalid = sorted(
+        package
+        for package in packages
+        if re.fullmatch(r"[A-Za-z][A-Za-z0-9.]*", package) is None
+    )
+    if invalid:
+        raise SystemExit(
+            "Invalid package name in colab-packages: " + ", ".join(invalid)
+        )
+    return packages
+
+
+def colab_packages(
+    repo_root: Path,
+    cells: list[dict],
+    declared: set[str] | None = None,
+) -> tuple[str, ...]:
     code = "\n".join(
         cell["source"] for cell in cells if cell["cell_type"] == "code"
     )
@@ -55,7 +72,7 @@ def colab_packages(repo_root: Path, cells: list[dict]) -> tuple[str, ...]:
         | set(COMMON_COLAB_PACKAGES)
         | {"bifrost"}
     )
-    optional = sorted(referenced - available)
+    optional = sorted((referenced | (declared or set())) - available)
     return COMMON_COLAB_PACKAGES + tuple(optional)
 
 
@@ -139,8 +156,12 @@ def is_eval_false(header: str) -> bool:
     return header_has(header, "eval", "FALSE")
 
 
+def is_include_false(header: str) -> bool:
+    return header_has(header, "include", "FALSE")
+
+
 def is_hidden_unevaluated(header: str) -> bool:
-    return header_has(header, "include", "FALSE") and is_eval_false(header)
+    return is_include_false(header) and is_eval_false(header)
 
 
 def is_html_or_pkgdown(header: str, code: str) -> bool:
@@ -243,19 +264,28 @@ def convert(slug: str, repo_root: Path) -> dict:
         if is_hidden_unevaluated(header):
             continue
 
-        image_paths = image_paths_from_code(content)
-        if image_paths:
-            cells.append(markdown_cell(raw_image_markdown(image_paths) + "\n"))
-            continue
+        # Evaluated include=FALSE chunks often define setup objects used by
+        # later visible cells. Preserve their code even when they also contain
+        # output-format helpers; only genuinely unevaluated maintenance chunks
+        # are omitted above.
+        if not is_include_false(header):
+            image_paths = image_paths_from_code(content)
+            if image_paths:
+                cells.append(markdown_cell(raw_image_markdown(image_paths) + "\n"))
+                continue
 
-        if is_html_or_pkgdown(header, content):
-            cells.append(markdown_cell("_This pkgdown-only HTML chunk was omitted from the Colab notebook._\n"))
-            continue
+            if is_html_or_pkgdown(header, content):
+                cells.append(markdown_cell("_This pkgdown-only HTML chunk was omitted from the Colab notebook._\n"))
+                continue
 
         if content.strip():
             cells.append(code_cell(content.strip() + "\n"))
 
-    cells.insert(1, code_cell(setup_source(colab_packages(repo_root, cells))))
+    declared = declared_colab_packages(meta.get("colab-packages", ""))
+    cells.insert(
+        1,
+        code_cell(setup_source(colab_packages(repo_root, cells, declared))),
+    )
 
     return {
         "cells": cells,

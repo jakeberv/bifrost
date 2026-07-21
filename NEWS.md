@@ -16,9 +16,17 @@
   - Added the `rateMap()` workflow and supporting view, control, flagging, print, and plot methods for summarizing branch-rate patterns across completed searches.
   - Improved category legends for uneven rate breaks and strengthened validation of category colors.
 
+* Dataset-matched simulations:
+  - Added empirical null, proportional-shift, and integration-rate robustness workflows centered on the fitted residual covariance.
+  - Added `simulation_generator = c("original", "empirical")` for explicit generator selection.
+  - Simulation generators now default to `"original"` for exact reproduction of the published operations; the full-covariance Wishart/spectral generator remains available explicitly as `simulation_generator = "empirical"`.
+  - Reduced multisession transfer size by using compact namespace-level workers and by avoiding a complete calibration template inside every replicate's call record.
+
 * Documentation / vignettes:
   - Added two rate-map jaw-shape workflows and refreshed the existing jaw-shape vignette.
+  - Added a two-part dataset-matched simulation calibration guide covering performance assessment, search tuning, and empirical application.
   - Added tooling and CI workflows for generated vignette PDFs and executable Colab notebooks.
+  - Updated Berv et al. (2026) citation metadata and avian skeleton references for the published *Nature Ecology & Evolution* article DOI.
 
 * Maintenance:
   - Added an automated CRAN downloads tracker and generated chart for the README and development website.
@@ -33,7 +41,7 @@
 
 * Citation / metadata:
   - Updated package authorship metadata to reflect the current author list.
-  - Updated `citation("bifrost")` for the live bioRxiv preprint and the in-press application paper.
+  - Updated `citation("bifrost")` for the live bioRxiv preprint and the application paper.
   - Added the foundational `mvMORPH` citations to the package citation metadata.
   - Added a formatted citation section and dynamic bioRxiv badge to the README.
 

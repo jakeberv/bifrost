@@ -6,7 +6,7 @@ citHeader(
   )
 )
 
-## 1. Methods / application manuscript (in press)
+## 1. Methods / application paper
 bibentry(
   bibtype = "Article",
   title   = "Rates of passerine body plan evolution in time and space",
@@ -22,7 +22,8 @@ bibentry(
   ),
   year    = "2026",
   journal = "Nature Ecology & Evolution",
-  note    = "In press."
+  doi     = "10.1038/s41559-026-03110-5",
+  url     = "https://www.nature.com/articles/s41559-026-03110-5"
 )
 
 ## 2. bifrost methods / package preprint
