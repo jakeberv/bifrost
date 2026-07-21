@@ -19,20 +19,51 @@ resolveSimulationColumns <- function(columns, data_names, what) {
   if (length(columns) == 0L) {
     return(integer(0))
   }
+  validateSimulationIdentifiers(data_names, "trait_data column names")
   if (is.numeric(columns)) {
-    idx <- unique(as.integer(columns))
-    if (anyNA(idx) || any(idx < 1L) || any(idx > length(data_names))) {
+    if (any(!is.finite(columns)) || any(columns != floor(columns))) {
+      stop(sprintf("%s must contain whole-number column positions.", what))
+    }
+    if (any(columns < 1) || any(columns > length(data_names))) {
       stop(sprintf("%s contains invalid column positions.", what))
     }
-    return(idx)
+    return(unique(as.integer(columns)))
   }
   if (is.character(columns)) {
-    if (!all(columns %in% data_names)) {
+    resolve_one <- function(column) {
+      by_name <- match(column, data_names)
+      if (!is.na(by_name)) {
+        return(as.integer(by_name))
+      }
+      if (!is.na(column) && grepl("^[+]?[0-9]+$", column)) {
+        by_position <- suppressWarnings(as.numeric(column))
+        if (is.finite(by_position) &&
+            by_position >= 1 &&
+            by_position <= length(data_names)) {
+          return(as.integer(by_position))
+        }
+      }
+      NA_integer_
+    }
+    idx <- vapply(columns, resolve_one, integer(1))
+    if (anyNA(idx)) {
       stop(sprintf("%s contains names not found in trait_data.", what))
     }
-    return(match(unique(columns), data_names))
+    return(unique(idx))
   }
   stop(sprintf("%s must be NULL, numeric positions, or character column names.", what))
+}
+
+validateSimulationIdentifiers <- function(identifiers, what) {
+  if (is.null(identifiers) ||
+      anyNA(identifiers) ||
+      any(!nzchar(trimws(as.character(identifiers))))) {
+    stop(sprintf("%s must be non-empty and unique.", what))
+  }
+  if (anyDuplicated(as.character(identifiers))) {
+    stop(sprintf("%s must be unique.", what))
+  }
+  invisible(identifiers)
 }
 
 isSimulationInterceptOnly <- function(formula_obj) {

@@ -8,120 +8,194 @@ test_that("simulation formula helpers validate and normalize direct inputs", {
   )
 
   testthat::expect_error(
-    bifrost:::simulationFormulaToString(NA_character_),
+    simulationFormulaToString(NA_character_),
     "single character string or a formula object"
   )
   testthat::expect_error(
-    bifrost:::resolveSimulationColumns(0, dat_names, "response_columns"),
+    resolveSimulationColumns(0, dat_names, "response_columns"),
     "invalid column positions"
   )
   testthat::expect_error(
-    bifrost:::resolveSimulationColumns("missing", dat_names, "response_columns"),
+    resolveSimulationColumns("missing", dat_names, "response_columns"),
     "names not found"
   )
   testthat::expect_error(
-    bifrost:::resolveSimulationColumns(list("y1"), dat_names, "response_columns"),
+    resolveSimulationColumns(list("y1"), dat_names, "response_columns"),
     "must be NULL, numeric positions, or character column names"
   )
+  testthat::expect_error(
+    validateSimulationIdentifiers(c("y1", NA_character_), "response names"),
+    "response names must be non-empty and unique"
+  )
   testthat::expect_identical(
-    bifrost:::validateSimulationStudyFormula(stats::as.formula("trait_data ~ 1")),
+    resolveSimulationColumns(c(1, "mass"), dat_names, "response_columns"),
+    c(1L, 3L)
+  )
+  testthat::expect_error(
+    resolveSimulationColumns(1.9, dat_names, "response_columns"),
+    "whole-number column positions"
+  )
+  testthat::expect_identical(
+    validateSimulationStudyFormula(stats::as.formula("trait_data ~ 1")),
     stats::as.formula("trait_data ~ 1")
   )
   testthat::expect_error(
-    bifrost:::validateSimulationStudyFormula("cbind(y1, y2) ~ mass"),
+    validateSimulationStudyFormula("cbind(y1, y2) ~ mass"),
     "intercept-only search formulas only"
   )
 
-  testthat::expect_true(bifrost:::isSupportedNamedResponse(quote(y1)))
-  testthat::expect_true(bifrost:::isSupportedNamedResponse(quote(cbind(y1, y2))))
-  testthat::expect_false(bifrost:::isSupportedNamedResponse(quote(trait_data)))
-  testthat::expect_false(bifrost:::isSupportedNamedResponse(quote(log(y1))))
+  testthat::expect_true(isSupportedNamedResponse(quote(y1)))
+  testthat::expect_true(isSupportedNamedResponse(quote(cbind(y1, y2))))
+  testthat::expect_false(isSupportedNamedResponse(quote(trait_data)))
+  testthat::expect_false(isSupportedNamedResponse(quote(log(y1))))
 
   testthat::expect_error(
-    bifrost:::extractNamedResponseNames(quote(y3), dat_names),
+    extractNamedResponseNames(quote(y3), dat_names),
     "was not found in trait_data"
   )
   testthat::expect_error(
-    bifrost:::extractNamedResponseNames(quote(cbind(y1, y3)), dat_names),
+    extractNamedResponseNames(quote(cbind(y1, y3)), dat_names),
     "were not found in trait_data"
   )
   testthat::expect_error(
-    bifrost:::extractNamedResponseNames(quote(cbind(y1, y1)), dat_names),
+    extractNamedResponseNames(quote(cbind(y1, y1)), dat_names),
     "must be unique"
   )
   testthat::expect_error(
-    bifrost:::extractNamedResponseNames(quote(log(y1)), dat_names),
+    extractNamedResponseNames(quote(log(y1)), dat_names),
     "Unsupported response form"
   )
 
   testthat::expect_error(
-    bifrost:::resolveLegacyTraitDataColumns(quote(trait_data[, missing_col]), dat_names),
+    resolveLegacyTraitDataColumns(quote(trait_data[, missing_col]), dat_names),
     "could not be resolved from the supplied formula"
   )
   testthat::expect_error(
-    bifrost:::resolveLegacyTraitDataColumns(quote(data.frame(other = 1)), dat_names),
+    resolveLegacyTraitDataColumns(quote(data.frame(other = 1)), dat_names),
     "could not be resolved to named columns"
   )
   testthat::expect_error(
-    bifrost:::resolveLegacyTraitDataColumns(quote(c(99, 100)), dat_names),
+    resolveLegacyTraitDataColumns(quote(c(99, 100)), dat_names),
     "could not be resolved to valid columns"
   )
 
   testthat::expect_identical(
-    bifrost:::collectLegacyTraitDataColumns(quote(mass), dat_names),
+    collectLegacyTraitDataColumns(quote(mass), dat_names),
     integer(0)
   )
   testthat::expect_identical(
-    bifrost:::collectLegacyTraitDataColumns(
+    collectLegacyTraitDataColumns(
       quote(log(trait_data[, 3]) + trait_data[, 4]),
       dat_names
     ),
     c(3L, 4L)
   )
-  testthat::expect_true(bifrost:::containsSimulationDot(quote(.)))
+  testthat::expect_true(containsSimulationDot(quote(.)))
 
   testthat::expect_identical(
-    as.character(bifrost:::rewriteLegacyTraitDataExpr(quote(trait_data), dat_names, side = "lhs"))[1],
+    as.character(rewriteLegacyTraitDataExpr(quote(trait_data), dat_names, side = "lhs"))[1],
     "cbind"
   )
   testthat::expect_identical(
-    bifrost:::rewriteLegacyTraitDataExpr(quote(trait_data), "y1", side = "lhs"),
+    rewriteLegacyTraitDataExpr(quote(trait_data), "y1", side = "lhs"),
     quote(y1)
   )
   testthat::expect_identical(
-    bifrost:::rewriteLegacyTraitDataExpr(quote(trait_data), dat_names, side = "rhs"),
+    rewriteLegacyTraitDataExpr(quote(trait_data), dat_names, side = "rhs"),
     quote(trait_data)
   )
   testthat::expect_identical(
-    as.character(bifrost:::rewriteLegacyTraitDataExpr(quote(trait_data[, 1:2]), dat_names, side = "lhs"))[1],
+    as.character(rewriteLegacyTraitDataExpr(quote(trait_data[, 1:2]), dat_names, side = "lhs"))[1],
     "cbind"
   )
   testthat::expect_identical(
-    bifrost:::rewriteLegacyTraitDataExpr(quote(log(trait_data[, 3])), dat_names, side = "rhs"),
+    rewriteLegacyTraitDataExpr(quote(log(trait_data[, 3])), dat_names, side = "rhs"),
     quote(log(mass))
   )
   testthat::expect_error(
-    bifrost:::rewriteLegacyTraitDataExpr(quote(trait_data[, 1:2]), dat_names, side = "rhs"),
+    rewriteLegacyTraitDataExpr(quote(trait_data[, 1:2]), dat_names, side = "rhs"),
     "must resolve to single raw columns"
   )
 
   dat$flag <- c(TRUE, FALSE, TRUE, FALSE)
-  schema <- bifrost:::predictorSchemaForData(dat, c("mass", "grp", "flag"))
+  schema <- predictorSchemaForData(dat, c("mass", "grp", "flag"))
   testthat::expect_identical(schema$mass$type, "numeric")
   testthat::expect_identical(schema$grp$type, "factor")
   testthat::expect_identical(schema$flag$type, "logical")
-  testthat::expect_identical(bifrost:::predictorSchemaForData(dat, character(0)), list())
+  testthat::expect_identical(predictorSchemaForData(dat, character(0)), list())
   testthat::expect_error(
-    bifrost:::predictorSchemaForData(data.frame(chr = c("a", "b")), "chr"),
+    predictorSchemaForData(data.frame(chr = c("a", "b")), "chr"),
     "Character predictors are not supported"
   )
   testthat::expect_error(
-    bifrost:::predictorSchemaForData(
+    predictorSchemaForData(
       data.frame(y1 = I(list(1:2, 1:2)), row.names = c("a", "b")),
       "y1"
     ),
     "must be numeric, logical, factor, or ordered factor"
   )
+})
+
+test_that("runSearchTuningGrid preserves simulation-study formula values and validation errors", {
+  template <- structure(
+    list(search_formula = "trait_data ~ 1"),
+    class = c("bifrost_simulation_template", "list")
+  )
+  null_study <- list(
+    per_replicate = data.frame(
+      status = "ok",
+      n_inferred_shifts = 0L,
+      false_positive_rate = 0,
+      stringsAsFactors = FALSE
+    ),
+    study_summary = list(mean_false_positive_rate = 0)
+  )
+  recovery_study <- list(
+    per_replicate = data.frame(
+      status = "ok",
+      n_candidates = 1L,
+      n_inferred_shifts = 0L,
+      stringsAsFactors = FALSE
+    ),
+    evaluation = list(
+      strict = list(f1 = 1),
+      fuzzy = list(f1 = 1, recall = 1)
+    )
+  )
+  testthat::local_mocked_bindings(
+    runFalsePositiveSimulationStudy = function(...) null_study,
+    runShiftRecoverySimulationStudy = function(...) recovery_study,
+    .package = "bifrost"
+  )
+
+  tuning_call <- function(formula) {
+    runSearchTuningGrid(
+      template = template,
+      shift_acceptance_thresholds = 5,
+      min_descendant_tips_values = 2,
+      null_replicates = 1,
+      recovery_replicates = 1,
+      proportional_simulation_options = list(
+        num_shifts = 1,
+        min_shift_tips = 2,
+        max_shift_tips = 3
+      ),
+      base_search_options = list(formula = formula),
+      weighted = FALSE
+    )
+  }
+
+  for (case in simulationStudyFormulaCases) {
+    testthat::expect_identical(tuning_call(case)$base_search_options$formula, case)
+  }
+
+  for (case in names(simulationStudyFormulaErrors)) {
+    value <- if (identical(case, "non_intercept")) "trait_data ~ mass" else 1
+    testthat::expect_error(
+      tuning_call(value),
+      simulationStudyFormulaErrors[[case]]
+    )
+  }
 })
 
 test_that("normalizeSimulationFormulaSpec covers legacy, named, and validation branches", {
@@ -133,14 +207,14 @@ test_that("normalizeSimulationFormulaSpec covers legacy, named, and validation b
     row.names = paste0("sp", 1:4)
   )
 
-  spec_single <- bifrost:::normalizeSimulationFormulaSpec(
+  spec_single <- normalizeSimulationFormulaSpec(
     formula = y1 ~ 1,
     trait_data = dat
   )
   testthat::expect_true(spec_single$intercept_only)
   testthat::expect_identical(spec_single$response_column_names, "y1")
 
-  spec_trait_data_intercept <- bifrost:::normalizeSimulationFormulaSpec(
+  spec_trait_data_intercept <- normalizeSimulationFormulaSpec(
     formula = trait_data ~ 1,
     trait_data = dat
   )
@@ -150,7 +224,7 @@ test_that("normalizeSimulationFormulaSpec covers legacy, named, and validation b
     names(dat)
   )
 
-  spec_trait_data <- bifrost:::normalizeSimulationFormulaSpec(
+  spec_trait_data <- normalizeSimulationFormulaSpec(
     formula = trait_data ~ mass,
     trait_data = dat,
     response_columns = c("y1", "y2")
@@ -158,14 +232,14 @@ test_that("normalizeSimulationFormulaSpec covers legacy, named, and validation b
   testthat::expect_identical(spec_trait_data$formula_mode, "legacy_indexed")
   testthat::expect_identical(spec_trait_data$predictor_column_names, c("mass", "grp"))
 
-  spec_named_single <- bifrost:::normalizeSimulationFormulaSpec(
+  spec_named_single <- normalizeSimulationFormulaSpec(
     formula = y1 ~ mass,
     trait_data = dat
   )
   testthat::expect_identical(spec_named_single$formula_normalized_chr, "y1 ~ mass")
 
   testthat::expect_error(
-    bifrost:::normalizeSimulationFormulaSpec(
+    normalizeSimulationFormulaSpec(
       formula = y1 ~ 1,
       trait_data = dat,
       response_columns = integer(0)
@@ -173,7 +247,7 @@ test_that("normalizeSimulationFormulaSpec covers legacy, named, and validation b
     "at least one response column"
   )
   testthat::expect_error(
-    bifrost:::normalizeSimulationFormulaSpec(
+    normalizeSimulationFormulaSpec(
       formula = y1 ~ 1,
       trait_data = dat,
       predictor_columns = integer(0)
@@ -181,35 +255,35 @@ test_that("normalizeSimulationFormulaSpec covers legacy, named, and validation b
     "at least one predictor column when supplied"
   )
   testthat::expect_error(
-    bifrost:::normalizeSimulationFormulaSpec(
+    normalizeSimulationFormulaSpec(
       formula = y1 ~ .,
       trait_data = dat
     ),
     "shorthand is not supported"
   )
   testthat::expect_error(
-    bifrost:::normalizeSimulationFormulaSpec(
+    normalizeSimulationFormulaSpec(
       formula = stats::as.formula("trait_data[, 0] ~ 1"),
       trait_data = dat
     ),
     "response_columns must identify at least one response column"
   )
   testthat::expect_error(
-    bifrost:::normalizeSimulationFormulaSpec(
+    normalizeSimulationFormulaSpec(
       formula = log(y1) ~ mass,
       trait_data = dat
     ),
     "Transformed responses are not supported"
   )
   testthat::expect_error(
-    bifrost:::normalizeSimulationFormulaSpec(
+    normalizeSimulationFormulaSpec(
       formula = I(y1) ~ 1,
       trait_data = dat
     ),
     "Unsupported response form in intercept-only simulation formula"
   )
   testthat::expect_error(
-    bifrost:::normalizeSimulationFormulaSpec(
+    normalizeSimulationFormulaSpec(
       formula = y1 ~ 1,
       trait_data = dat,
       predictor_columns = "mass"
@@ -217,14 +291,14 @@ test_that("normalizeSimulationFormulaSpec covers legacy, named, and validation b
     "should not be supplied for intercept-only formulas"
   )
   testthat::expect_error(
-    bifrost:::normalizeSimulationFormulaSpec(
+    normalizeSimulationFormulaSpec(
       formula = trait_data ~ mass,
       trait_data = dat
     ),
     "response_columns must be supplied"
   )
   testthat::expect_error(
-    bifrost:::normalizeSimulationFormulaSpec(
+    normalizeSimulationFormulaSpec(
       formula = trait_data[, 1:2] ~ mass,
       trait_data = dat,
       response_columns = 1L
@@ -232,14 +306,14 @@ test_that("normalizeSimulationFormulaSpec covers legacy, named, and validation b
     "response_columns conflict"
   )
   testthat::expect_error(
-    bifrost:::normalizeSimulationFormulaSpec(
+    normalizeSimulationFormulaSpec(
       formula = cbind(y1, y2) ~ missing_mass,
       trait_data = dat
     ),
     "may only reference raw columns present in trait_data"
   )
   testthat::expect_error(
-    bifrost:::normalizeSimulationFormulaSpec(
+    normalizeSimulationFormulaSpec(
       formula = cbind(y1, y2) ~ mass,
       trait_data = dat,
       response_columns = "y1"
@@ -247,7 +321,7 @@ test_that("normalizeSimulationFormulaSpec covers legacy, named, and validation b
     "response_columns conflict"
   )
   testthat::expect_error(
-    bifrost:::normalizeSimulationFormulaSpec(
+    normalizeSimulationFormulaSpec(
       formula = cbind(y1, y2) ~ mass,
       trait_data = dat,
       predictor_columns = "grp"
@@ -255,7 +329,7 @@ test_that("normalizeSimulationFormulaSpec covers legacy, named, and validation b
     "predictor_columns conflict"
   )
   testthat::expect_error(
-    bifrost:::normalizeSimulationFormulaSpec(
+    normalizeSimulationFormulaSpec(
       formula = stats::as.formula("trait_data[, 0] ~ mass"),
       trait_data = dat,
       predictor_columns = "mass"
@@ -263,14 +337,14 @@ test_that("normalizeSimulationFormulaSpec covers legacy, named, and validation b
     "must identify at least one response column"
   )
   testthat::expect_error(
-    bifrost:::normalizeSimulationFormulaSpec(
+    normalizeSimulationFormulaSpec(
       formula = trait_data[, 1:2] ~ trait_data[, 1],
       trait_data = dat
     ),
     "must identify at least one predictor column"
   )
   testthat::expect_error(
-    bifrost:::normalizeSimulationFormulaSpec(
+    normalizeSimulationFormulaSpec(
       formula = trait_data ~ mass,
       trait_data = dat,
       response_columns = "mass",
@@ -279,7 +353,7 @@ test_that("normalizeSimulationFormulaSpec covers legacy, named, and validation b
     "must not overlap"
   )
   testthat::expect_error(
-    bifrost:::normalizeSimulationFormulaSpec(
+    normalizeSimulationFormulaSpec(
       formula = 1 ~ mass,
       trait_data = dat
     ),

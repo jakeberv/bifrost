@@ -18,7 +18,7 @@ Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 URL: https://jakeberv.com/bifrost/, https://github.com/jakeberv/bifrost
 BugReports: https://github.com/jakeberv/bifrost/issues
-Depends: R (>= 4.1)
+Depends: R (>= 4.2)
 Imports:
     ape,
     cli (>= 3.6.0),
@@ -27,6 +27,7 @@ Imports:
     parallel,
     progressr,
     phytools,
+    RRphylo,
     grDevices,
     stats,
     mvMORPH,
@@ -41,6 +42,7 @@ Suggests:
     evd,
     fitdistrplus,
     geomorph,
+    ggplot2,
     knitr,
     palaeoverse,
     patchwork,
@@ -48,12 +50,15 @@ Suggests:
     phylolm,
     plotly,
     png,
+    pkgload,
     readxl,
+    reshape2,
     rmarkdown,
     scales,
     scatterplot3d,
     testthat (>= 3.0.0),
     univariateML,
+    withr,
     spelling,
     htmltools
 Config/testthat/edition: 3
