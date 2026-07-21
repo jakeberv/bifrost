@@ -466,29 +466,13 @@ testthat::test_that("plot.icTrajectory parses grouped display controls", {
   )
 })
 
-testthat::test_that("icTrajectory helpers handle validation and fallback branches", {
-  testthat::expect_equal(
-    list(
-      missing_scalar = .icTrajectory_scalar_numeric(NULL, "x"),
-      numeric_factor = .icTrajectory_numeric_vector(factor(c("1", "2")), "x"),
-      logical_values = .icTrajectory_logical_vector(c(TRUE, FALSE, NA), "x"),
-      no_delta_limits = .icTrajectory_delta_limits(c(NA_real_, NA_real_), NULL),
-      zero_delta_limits = .icTrajectory_delta_limits(c(0, 0), NULL),
-      reversed_delta_limits = .icTrajectory_delta_limits(c(-2, 4), c(4, -2)),
-      fallback_y_label = .icTrajectory_y_label(NULL, NA_character_),
-      zero_axis_limits = .icTrajectory_axis_limits(c(0, 0))
-    ),
-    list(
-      missing_scalar = NA_real_,
-      numeric_factor = c(1, 2),
-      logical_values = c(TRUE, FALSE, NA),
-      no_delta_limits = c(-1, 1),
-      zero_delta_limits = c(-1, 1),
-      reversed_delta_limits = c(4, -2),
-      fallback_y_label = "IC score",
-      zero_axis_limits = c(-1, 1)
-    )
-  )
+testthat::test_that("icTrajectory scalar and vector validators coerce valid inputs", {
+  testthat::expect_equal(.icTrajectory_scalar_numeric(NULL, "x"), NA_real_)
+  testthat::expect_equal(.icTrajectory_numeric_vector(factor(c("1", "2")), "x"), c(1, 2))
+  testthat::expect_equal(.icTrajectory_logical_vector(c(TRUE, FALSE, NA), "x"), c(TRUE, FALSE, NA))
+})
+
+testthat::test_that("icTrajectory scalar and vector validators reject invalid inputs", {
   testthat::expect_error(.icTrajectory_scalar_numeric("x", "x"), "`x` must be numeric")
   testthat::expect_error(.icTrajectory_numeric_vector("x", "x"), "`x` must be numeric")
   testthat::expect_error(
@@ -503,6 +487,17 @@ testthat::test_that("icTrajectory helpers handle validation and fallback branche
     .icTrajectory_logical_vector(c("1", "0"), "x"),
     "`x` must contain logical values"
   )
+})
+
+testthat::test_that("icTrajectory axis and label helpers apply documented fallbacks", {
+  testthat::expect_equal(.icTrajectory_delta_limits(c(NA_real_, NA_real_), NULL), c(-1, 1))
+  testthat::expect_equal(.icTrajectory_delta_limits(c(0, 0), NULL), c(-1, 1))
+  testthat::expect_equal(.icTrajectory_delta_limits(c(-2, 4), c(4, -2)), c(4, -2))
+  testthat::expect_equal(.icTrajectory_y_label(NULL, NA_character_), "IC score")
+  testthat::expect_equal(.icTrajectory_axis_limits(c(0, 0)), c(-1, 1))
+})
+
+testthat::test_that("icTrajectory legend helpers validate grouped controls", {
   testthat::expect_error(
     .icTrajectory_named_group(environment(), "a", "group"),
     "`group` must be a named vector or list"

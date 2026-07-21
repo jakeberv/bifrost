@@ -3,13 +3,11 @@ name: Build and deploy pkgdown site
 on:
   push:
     branches: [ main, master ]
+  pull_request:
   workflow_dispatch:
 
-# Required for GitHub Pages
 permissions:
-  contents: write
-  pages: write
-  id-token: write
+  contents: read
 
 concurrency:
   group: "pages"
@@ -92,11 +90,17 @@ jobs:
           key: ${{ steps.vignette-pdf-cache.outputs.cache-primary-key }}
 
       - name: Upload site artifact for Pages
+        if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v3
         with:
           path: docs
 
   deploy:
+    if: github.event_name != 'pull_request'
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

@@ -14,6 +14,8 @@ on:
       - tools/build-colab-notebook.py
       - tools/colab_dependencies.py
       - tools/test-vignette-artifacts.py
+      - tools/validate-empirical-artifacts.py
+      - tools/avian-skeleton/**
       - vignettes/**
 
 permissions:
@@ -101,12 +103,23 @@ jobs:
           echo "::error::Forked PRs cannot be auto-updated. Run python3 tools/build-colab-notebook.py for the stale vignette slug(s), commit vignettes/colab/*.ipynb, and push the update."
           exit 1
 
-      - name: Smoke-render changed vignette PDFs
-        if: steps.changed.outputs.pdf_slugs != ''
+      - name: Smoke-render all manuscript vignette PDFs
         shell: bash
+        env:
+          CHANGED_PDF_SLUGS: ${{ steps.changed.outputs.pdf_slugs }}
+          REQUIRED_PDF_SLUGS: >-
+            avian-skeleton-part-1 avian-skeleton-part-2
+            avian-skeleton-part-3 avian-skeleton-part-4
+            avian-skeleton-part-5 simulation-study-part-1
+            simulation-study-part-2
         run: |
           mkdir -p /tmp/vignette-pdfs
-          for slug in ${{ steps.changed.outputs.pdf_slugs }}; do
+          declare -A rendered=()
+          for slug in $REQUIRED_PDF_SLUGS $CHANGED_PDF_SLUGS; do
+            if [ -n "${rendered[$slug]:-}" ]; then
+              continue
+            fi
+            rendered[$slug]=1
             Rscript tools/render-vignette-pdf.R "$slug" --output-dir /tmp/vignette-pdfs
             test -s "/tmp/vignette-pdfs/${slug}.pdf"
           done
