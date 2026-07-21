@@ -12,6 +12,13 @@ articles:
     contents:
       - quick-start-vignette
       - jaw-shape-vignette
+      - simulation-study-part-1
+      - simulation-study-part-2
+      - avian-skeleton-part-1
+      - avian-skeleton-part-2
+      - avian-skeleton-part-3
+      - avian-skeleton-part-4
+      - avian-skeleton-part-5
       - rate-map-jaw-shape-vignette
       - rate-map-jaw-shape-part-2-comparisons
 template:

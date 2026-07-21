@@ -1,0 +1,145 @@
+{
+  "schema_version": 1,
+  "description": "Provenance and integrity records for the Berv et al. (2026) empirical artifacts added with the avian-skeleton and simulation-study vignettes.",
+  "scope": {
+    "directories": [
+      "inst/extdata/avian-skeleton",
+      "inst/extdata/simulation-study-cache",
+      "vignettes/avian-skeleton"
+    ],
+    "extensions": [
+      ".rds",
+      ".tre",
+      ".png"
+    ]
+  },
+  "sources": {
+    "berv_archive_v1": {
+      "title": "Supplementary data archive for Rates of passerine body plan evolution in time and space",
+      "doi": "10.5281/zenodo.19198393",
+      "url": "https://doi.org/10.5281/zenodo.19198393",
+      "version": "1.0.0"
+    },
+    "berv_article_2026": {
+      "title": "Rates of passerine body plan evolution in time and space",
+      "doi": "10.1038/s41559-026-03110-5",
+      "url": "https://www.nature.com/articles/s41559-026-03110-5",
+      "version": "Version of Record, 2026"
+    }
+  },
+  "license_records": {
+    "zenodo_cc_by_4_0": {
+      "repository_license": "GPL (>= 2), as declared by DESCRIPTION",
+      "upstream_status": "CC-BY-4.0, from metadata.license.id in the Zenodo v1.0.0 record.",
+      "evidence_url": "https://zenodo.org/api/records/19198393",
+      "reuse_action": "Reuse is permitted under CC BY 4.0 with attribution and the other license conditions."
+    },
+    "nature_rights_not_established": {
+      "repository_license": "GPL (>= 2), as declared by DESCRIPTION",
+      "upstream_status": "No figure-specific license or reuse permission is established by the repository metadata or the cited article metadata recorded here.",
+      "evidence_url": "https://www.nature.com/articles/s41559-026-03110-5",
+      "reuse_action": "Consult the article rights statement and rights holder before redistributing the published figure outside the bifrost package."
+    }
+  },
+  "artifacts": [
+    {
+      "path": "inst/extdata/avian-skeleton/passerine_bodyplan_data.RDS",
+      "sha256": "5ebb1a9ca2646f99855c17f0defcb20d8a71197f2dfbb2bfb2a454c419e8cde2",
+      "source_id": "berv_archive_v1",
+      "source_location": "data/temporal/01_core_inputs/external_skelevision/dat.mvgls.RDS",
+      "transformation": {
+        "method": "Package-local copy of the assembled 2057-species comparative matrix described in avian-skeleton-part-1.Rmd.",
+        "script": "No copy or transformation script is recorded in this repository."
+      },
+      "license_id": "zenodo_cc_by_4_0"
+    },
+    {
+      "path": "inst/extdata/avian-skeleton/passerine_bodyplan_tree.tre",
+      "sha256": "4201e5cd533a2b23cf19cc07b457e5ef370a35e9e28ab2f657d4eeb300b6cb25",
+      "source_id": "berv_archive_v1",
+      "source_location": "data/temporal/01_core_inputs/external_skelevision/ythlida_supertree.rescale.tre",
+      "transformation": {
+        "method": "Package-local copy of the time-scaled passerine tree described in avian-skeleton-part-1.Rmd.",
+        "script": "No copy or transformation script is recorded in this repository."
+      },
+      "license_id": "zenodo_cc_by_4_0"
+    },
+    {
+      "path": "inst/extdata/avian-skeleton/passerine_bodyplan_search_compact.RDS",
+      "sha256": "0cdecdce279c4cc38997dbd4a6442a4a6ec1a20b399077c1634095bb53f57959",
+      "source_id": "berv_archive_v1",
+      "source_location": "data/temporal/02_shift_search/new_bifrost/min10.ic20.gic.RDS",
+      "transformation": {
+        "method": "Compact focal search retaining the final mapped tree, fitted BMM rates, shifts, IC summaries, VCVs, and IC weights while omitting full candidate fits and proposal history.",
+        "script": "tools/avian-skeleton/make-compact-sensitivity-searches.R"
+      },
+      "license_id": "zenodo_cc_by_4_0"
+    },
+    {
+      "path": "inst/extdata/avian-skeleton/passerine_bodyplan_search_sensitivity_compact.RDS",
+      "sha256": "fb39fd5dc42bca202535840511a0dea2b6843453070f7d3bb082606044bb9641",
+      "source_id": "berv_archive_v1",
+      "source_location": "data/temporal/02_shift_search/new_bifrost (12 named sensitivity-run RDS files)",
+      "transformation": {
+        "method": "Compact bundle retaining mapped trees, fitted BMM rates, shifts, IC summaries, VCVs, and IC weights for 12 sensitivity runs.",
+        "script": "tools/avian-skeleton/make-compact-sensitivity-searches.R"
+      },
+      "license_id": "zenodo_cc_by_4_0"
+    },
+    {
+      "path": "inst/extdata/avian-skeleton/passerine_bodyplan_posthoc_integration_compact.RDS",
+      "sha256": "87c988e5a368523d8fc8a5d1240d7c3daed5d5a0c32707cc140dd0b050243f38",
+      "source_id": "berv_archive_v1",
+      "source_location": "runs_with_posthoc, all_vars_cors, and posthoc_integration_pgls objects produced by TemporalAnalyses.R",
+      "transformation": {
+        "method": "Compact post-hoc covariance, pGLS, PCA, module, settings, and provenance bundle.",
+        "script": "tools/avian-skeleton/make-compact-posthoc-integration.R"
+      },
+      "license_id": "zenodo_cc_by_4_0"
+    },
+    {
+      "path": "inst/extdata/simulation-study-cache/passerine_preview_tables.rds",
+      "sha256": "14c12f4a91f469c5a76f11615a796e83e89a66a3b769be14364394400ef8e526",
+      "source_id": "berv_archive_v1",
+      "source_location": "Schema-2 cache constructed directly by data-raw/build_simulation_study_vignette_cache.R from validated empirical GIC and BIC grid RDS inputs.",
+      "transformation": {
+        "method": "Construct the schema-2 preview-table cache directly from validated empirical GIC and BIC grid RDS inputs.",
+        "script": "data-raw/build_simulation_study_vignette_cache.R"
+      },
+      "license_id": "zenodo_cc_by_4_0"
+    },
+    {
+      "path": "vignettes/avian-skeleton/bodyplan_figure1.png",
+      "sha256": "554909f157933b658e92a760d7b0ffcfa4389973ef479aa1e903b21baffbd860",
+      "source_id": "berv_article_2026",
+      "source_location": "Published Figure 1, as identified by the caption in vignettes/avian-skeleton-part-1.Rmd.",
+      "transformation": {
+        "method": "Precomputed publication figure included by the vignette.",
+        "script": "No export or image-transformation script is recorded in this repository."
+      },
+      "license_id": "nature_rights_not_established"
+    },
+    {
+      "path": "vignettes/avian-skeleton/ic_trajectory.png",
+      "sha256": "49f785212a9d66eb47ca308415bfdb8f160860291937d24fd4745375297c6142",
+      "source_id": "berv_archive_v1",
+      "source_location": "Compact focal min10.ic20.gic search trajectory.",
+      "transformation": {
+        "method": "Precomputed plot produced from icTrajectory() with the documented display settings.",
+        "script": "Documented plotting recipe: vignettes/avian-skeleton-part-1.Rmd#focal_ic_trajectory_code; no automated image-export script is recorded."
+      },
+      "license_id": "zenodo_cc_by_4_0"
+    },
+    {
+      "path": "vignettes/avian-skeleton/bodyplan_rate_map_arc_tree.png",
+      "sha256": "34c5bdd5a03b53698e3091ede6d557df76c0f42558bd616c83901bd89e1da2dd",
+      "source_id": "berv_archive_v1",
+      "source_location": "Compact focal min10.ic20.gic mapped tree and fitted BMM regime rates.",
+      "transformation": {
+        "method": "Precomputed arc tree using Fisher breaks and the reversed RdYlBu palette.",
+        "script": "Documented plotting recipe: vignettes/avian-skeleton-part-1.Rmd#bodyplan_rate_map_code; no automated image-export script is recorded."
+      },
+      "license_id": "zenodo_cc_by_4_0"
+    }
+  ]
+}

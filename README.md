@@ -70,6 +70,8 @@ CRAN currently provides `bifrost` 0.1.4. The GitHub development version includes
 
 Some repository workflows are still being actively developed, especially methodological guidance for pGLS-style uses of `bifrost` with hidden branch-specific rate variation. Repository tooling and generated site assets, such as the CRAN downloads tracker, support development and documentation rather than the core CRAN API.
 
+Long empirical article sequences, including the avian skeleton workflow on the pkgdown site, are intentionally excluded from the CRAN package tarball to avoid rebuilding large manuscript-scale demonstrations during CRAN checks.
+
 ## Overview
 
 - **Primary goal.** Infer *where*, *when*, and *how* patterns of phenotypic evolution change across a tree using many traits simultaneously.
@@ -120,7 +122,7 @@ citation("bifrost")
 ### Recommended citations
 
 1. `bifrost` methods / application paper  
-   Berv JS, Probst CM, Claramunt S, Shipley JR, Friedman M, Smith SA, Fouhey DF, Weeks BC (2026). *Rates of passerine body plan evolution in time and space*. *Nature Ecology & Evolution*. In press.
+   Berv JS, Probst CM, Claramunt S, Shipley JR, Friedman M, Smith SA, Fouhey DF, Weeks BC (2026). *Rates of passerine body plan evolution in time and space*. *Nature Ecology & Evolution*. [https://doi.org/10.1038/s41559-026-03110-5](https://doi.org/10.1038/s41559-026-03110-5)
 
 2. `bifrost` preprint  
    Berv JS, Fox N, Thorstensen MJ, Lloyd-Laney H, Troyer EM, Rivero-Vega RA, Smith SA, Friedman M, Fouhey DF, Weeks BC (2026). *bifrost: an R package for scalable inference of phylogenetic shifts in multivariate evolutionary dynamics*. *bioRxiv*. [https://doi.org/10.64898/2026.04.12.718036](https://doi.org/10.64898/2026.04.12.718036)
@@ -148,7 +150,7 @@ This project is released under the GPL (>= 2) License. See the `LICENSE` file fo
 
 The name of our R package is inspired by the Bifröst, the rainbow bridge of Norse mythology that connects Earth (Midgard) and Asgard within the cosmic structure of Yggdrasil, the Tree of Life, echoing how this framework links observable data to hidden evolutionary shifts across the history of life.
 
-Development of the `bifrost` R package was supported by the [Oxford Research Software Engineering Group](https://www.rse.ox.ac.uk/schmidt-ai-science), with support from [Schmidt Sciences, LLC.](https://www.schmidtsciences.org/ai-in-science/) and the [Michigan Institute for Data Science and AI in Society](https://midas.umich.edu/).
+Development of the `bifrost` R package was supported by the [Oxford Research Software Engineering Group](https://www.rse.ox.ac.uk/schmidt-ai-science), with support from [Schmidt Sciences, LLC.](https://www.schmidtsciences.org/ai-in-science/) and the Michigan Institute for Data Science and AI in Society.
 
 <p align="center" style="display:flex; justify-content:center; align-items:center; gap:50px; padding:30px 0;">
   <img src="https://jakeberv.com/images/SchmidtSciencesLogo.png"
