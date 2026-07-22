@@ -388,3 +388,7 @@ If you use these data or reproduce this workflow, the most relevant citations ar
 
 - `bifrost` for transition extraction and shift-magnitude comparisons.
 - `ape` and `phytools` underlie the mapped-tree calculations in these summaries.
+
+## AI Assistance
+
+This vignette was developed with assistance from OpenAI tools for drafting, editing, and figure refinement; all scientific content, interpretation, and final decisions were reviewed by the authors.

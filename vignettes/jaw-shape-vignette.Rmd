@@ -419,3 +419,7 @@ This vignette demonstrates how to use the *`bifrost`* package to analyze a compl
 - Adams, D. C., Collyer, M. L., Kaliontzopoulou, A., and Baken, E. K. (2025). *Geomorph: Software for geometric morphometric analyses*. R package version 4.0.10. [https://CRAN.R-project.org/package=geomorph](https://CRAN.R-project.org/package=geomorph)
 - Paradis, E., and Schliep, K. (2019). *ape 5.0: an environment for modern phylogenetics and evolutionary analyses in R*. *Bioinformatics*, 35(3), 526-528. [https://doi.org/10.1093/bioinformatics/bty633](https://doi.org/10.1093/bioinformatics/bty633)
 - Revell, L. J. (2024). *phytools 2.0: an updated R ecosystem for phylogenetic comparative methods (and other things)*. *PeerJ*, 12, e16505. [https://doi.org/10.7717/peerj.16505](https://doi.org/10.7717/peerj.16505)
+
+## AI Assistance
+
+This vignette was developed with assistance from OpenAI tools for drafting, editing, and figure refinement; all scientific content, interpretation, and final decisions were reviewed by the authors.

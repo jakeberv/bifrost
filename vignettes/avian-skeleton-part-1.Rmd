@@ -507,3 +507,7 @@ If you use these data or reproduce this workflow, the most relevant citations ar
 - `ape` for phylogenetic tree loading and reordering.
 - `classInt` and `RColorBrewer` for Fisher-break bins and the Berv et al. (2026) branch-rate palette.
 - `mvMORPH`/`mvgls` machinery underlies the fitted multivariate comparative models stored in the compact search object.
+
+## AI Assistance
+
+This vignette was developed with assistance from OpenAI tools for drafting, editing, and figure refinement; all scientific content, interpretation, and final decisions were reviewed by the authors.

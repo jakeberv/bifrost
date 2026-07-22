@@ -415,3 +415,7 @@ If you use these data or reproduce this workflow, the most relevant citations ar
 - `RColorBrewer` supplies the Berv et al. (2026) branch-rate palette.
 - `univariateML` fits candidate distributions when these examples run.
 - `evd` evaluates the fitted Gumbel density for the rate-distribution overlay.
+
+## AI Assistance
+
+This vignette was developed with assistance from OpenAI tools for drafting, editing, and figure refinement; all scientific content, interpretation, and final decisions were reviewed by the authors.
