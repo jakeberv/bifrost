@@ -549,10 +549,6 @@ such as `type`, `fsize`, `ftype`, `lwd`, `mar`, `direction`, `offset`, `xlim`,
 `color_mode`, `n_categories`, `category_breaks`, `legend_title`, and near-zero
 diagnostics are handled by `rateMap()` before the colored tree is drawn.
 
-This vignette was developed with assistance from OpenAI tools for drafting and
-editing; all scientific content, interpretation, and final decisions were
-reviewed by the authors.
-
 ## References
 
 - Clavel, J., Aristide, L., and Morlon, H. (2019). *A Penalized Likelihood Framework for High-Dimensional Phylogenetic Comparative Methods and an Application to New-World Monkeys Brain Evolution*. [https://doi.org/10.1093/sysbio/syy045](https://doi.org/10.1093/sysbio/syy045)
@@ -568,3 +564,7 @@ reviewed by the authors.
 - `bifrost` for shift searches and `rateMap()` summaries.
 - `geomorph` for converting landmark arrays to species-by-trait matrices.
 - `ape` and `phytools` for phylogenetic data structures, SIMMAP trees, and plotting.
+
+## AI Assistance
+
+This vignette was developed with assistance from OpenAI tools for drafting, editing, and figure refinement; all scientific content, interpretation, and final decisions were reviewed by the authors.

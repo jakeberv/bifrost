@@ -875,3 +875,7 @@ If you use these data or reproduce this workflow, the most relevant citations ar
 - `ape` and `phytools` underlie the phylogenetic tree, SIMMAP, and subtree operations used by the simulation helpers.
 - `ggplot2`, `patchwork`, `viridis`, and `reshape2` draw the schematic simulation-scenario figure.
 - `knitr` and `rmarkdown` render the vignette and preview tables.
+
+## AI Assistance
+
+This vignette was developed with assistance from OpenAI tools for drafting, editing, and figure refinement; all scientific content, interpretation, and final decisions were reviewed by the authors.

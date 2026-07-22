@@ -491,3 +491,7 @@ If you use these data or reproduce this workflow, the most relevant citations ar
 - `phylolm` for the collapsed-regime pGLS.
 - `ape` and `phytools` for mapped-tree and subtree operations.
 - `future` and `future.apply` for optional parallel regime refits.
+
+## AI Assistance
+
+This vignette was developed with assistance from OpenAI tools for drafting, editing, and figure refinement; all scientific content, interpretation, and final decisions were reviewed by the authors.
