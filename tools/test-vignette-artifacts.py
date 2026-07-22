@@ -207,6 +207,7 @@ def make_fixture(source: Path, destination: Path) -> None:
         "colab_dependencies.py",
         "render-vignette-pdf.R",
         "test-vignette-artifacts.py",
+        "validate-empirical-artifacts.py",
         "vignette_artifacts.R",
     ]:
         shutil.copy2(source / "tools" / filename, tools / filename)
@@ -669,6 +670,38 @@ def main() -> None:
     with tempfile.TemporaryDirectory(prefix="bifrost-artifact-tests-") as temp:
         repo = Path(temp) / "repo"
         make_fixture(source, repo)
+
+        fixture_manifest_path = repo / "inst/extdata/empirical-artifacts.json"
+        fixture_manifest = json.loads(fixture_manifest_path.read_text())
+        simulation_record = next(
+            artifact
+            for artifact in fixture_manifest["artifacts"]
+            if artifact["path"]
+            == "inst/extdata/simulation-study-cache/passerine_preview_tables.rds"
+        )
+        simulation_record["source_location"] = (
+            "Schema-2 cache constructed from validated empirical grids."
+        )
+        simulation_record["transformation"]["method"] = (
+            "Construct the schema-2 simulation vignette cache."
+        )
+        fixture_manifest_path.write_text(
+            json.dumps(fixture_manifest, indent=2, ensure_ascii=False) + "\n"
+        )
+        stale_schema = run(
+            repo,
+            "python3",
+            "tools/validate-empirical-artifacts.py",
+            check=False,
+        )
+        if stale_schema.returncode == 0:
+            raise AssertionError(
+                "empirical artifact validator must reject stale schema-2 cache metadata"
+            )
+        shutil.copy2(
+            source / "inst/extdata/empirical-artifacts.json",
+            fixture_manifest_path,
+        )
 
         base = run(repo, "git", "rev-parse", "HEAD").stdout.strip()
         fake_bin = Path(temp) / "fake-bin"
