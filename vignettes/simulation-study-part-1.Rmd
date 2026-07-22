@@ -53,6 +53,7 @@ if (!exists("createSimulationTemplate", mode = "function")) {
 
 render_preview_table <- function(x, caption, col_names = colnames(x), digits = 3) {
   x <- as.data.frame(x, stringsAsFactors = FALSE, check.names = FALSE)
+  rownames(x) <- NULL
   is_html <- knitr::is_html_output()
   is_latex <- knitr::is_latex_output()
 
@@ -1045,8 +1046,8 @@ render_preview_table(
   fixed_recovery_display,
   caption = "Table 2. Shift recovery for the same fixed settings and repeated subsamples. Fuzzy scoring credits near misses within two nodes of a true shift. Balanced accuracy is the mean of fuzzy recall and fuzzy specificity; F1 is retained as the complementary precision-recall summary.",
   col_names = c(
-    "IC", "Scenario", "Fuzzy recall", "Fuzzy specificity", "Fuzzy F1",
-    "Fuzzy balanced accuracy", "Mean shifts", "Evaluable"
+    "IC", "Scenario", "Fuzzy rec.", "Fuzzy spec.", "Fuzzy F1",
+    "Fuzzy BA", "Mean shifts", "Evaluable"
   ),
   digits = c(0, 0, 3, 3, 3, 3, 2, 3)
 )

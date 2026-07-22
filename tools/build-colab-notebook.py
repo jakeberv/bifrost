@@ -30,6 +30,9 @@ RUNTIME_NOTE = (
     "uses the runtime's host CPUs, not the TPU itself. Otherwise, choose the "
     "available runtime with the most CPUs."
 )
+INLINE_R = re.compile(r"`r\s+(.+?)`")
+
+
 def find_repo_root(start: Path) -> Path:
     path = start.resolve()
     for candidate in [path, *path.parents]:
@@ -82,6 +85,36 @@ def markdown_cell(source: str) -> dict:
 
 def code_cell(source: str) -> dict:
     return {"cell_type": "code", "execution_count": None, "metadata": {}, "outputs": [], "source": source}
+
+
+def inline_r_code(markdown: str) -> str:
+    arguments: list[str] = []
+    cursor = 0
+    for match in INLINE_R.finditer(markdown):
+        if match.start() > cursor:
+            arguments.append(json.dumps(markdown[cursor : match.start()]))
+        arguments.append(f"as.character({match.group(1).strip()})")
+        cursor = match.end()
+    if cursor < len(markdown):
+        arguments.append(json.dumps(markdown[cursor:]))
+    return "cat(paste0(\n  " + ",\n  ".join(arguments) + "\n))\n"
+
+
+def append_markdown_cells(cells: list[dict], source: str) -> None:
+    markdown: list[str] = []
+
+    def flush_markdown() -> None:
+        if markdown and "".join(markdown).strip():
+            cells.append(markdown_cell("".join(markdown)))
+        markdown.clear()
+
+    for line in source.splitlines(keepends=True):
+        if INLINE_R.search(line):
+            flush_markdown()
+            cells.append(code_cell(inline_r_code(line)))
+        else:
+            markdown.append(line)
+    flush_markdown()
 
 
 def colab_url(slug: str) -> str:
@@ -166,14 +199,11 @@ def is_hidden_unevaluated(header: str) -> bool:
 
 def is_html_or_pkgdown(header: str, code: str) -> bool:
     lowered = code.lower()
-    if re.search(r"\bresults\s*=\s*['\"]asis['\"]", header, re.IGNORECASE):
-        return True
     return any(
         marker in lowered
         for marker in [
             "<style",
             "<script",
-            "knitr::asis_output",
             "knitr::is_html_output",
             "sys.getenv(\"in_pkgdown\")",
             "sys.getenv('in_pkgdown')",
@@ -258,7 +288,10 @@ def convert(slug: str, repo_root: Path) -> dict:
     for block_type, header, content in parse_chunks(body):
         if block_type == "markdown":
             if content:
-                cells.append(markdown_cell(rewrite_markdown_links(content) + "\n"))
+                append_markdown_cells(
+                    cells,
+                    rewrite_markdown_links(content) + "\n",
+                )
             continue
 
         if is_hidden_unevaluated(header):
