@@ -98,6 +98,7 @@ converts the packaged landmark array into a two-dimensional species-by-trait
 matrix, matching the setup in the main jaw-shape vignette.
 
 ```{r load_packages}
+# Load the search, phylogenetic, and landmark-shape dependencies.
 library(bifrost)
 library(ape)
 library(phytools)
@@ -107,6 +108,7 @@ library(geomorph)
 Load and align the same data used in the jaw-shape vignette.
 
 ```{r load_jaw_shape_data}
+# Locate and read the packaged jaw-shape tree and landmark coordinates.
 tree_path <- system.file(
   "extdata", "jaw-shape", "mrbayes_prune_tree.RDS",
   package = "bifrost"
@@ -119,6 +121,7 @@ landmark_path <- system.file(
 fish.tree <- readRDS(tree_path)
 landmarks <- readRDS(landmark_path)
 
+# Standardize the tree and align the trait rows to its tip order.
 fish.tree <- ladderize(untangle(as.phylo(fish.tree)))
 fish.data <- two.d.array(landmarks)
 fish.data <- fish.data[match(fish.tree$tip.label, rownames(fish.data)), ]
@@ -133,6 +136,7 @@ that value and several neighboring choices. Lower thresholds accept smaller IC
 improvements; higher thresholds usually accept fewer shifts.
 
 ```{r define_threshold_grid}
+# Define the acceptance thresholds and minimum candidate-clade size.
 threshold_grid <- c(10, 15, 20, 25, 30, 40)
 min_tips <- 10
 ```
@@ -162,6 +166,7 @@ summaries. Run the sweep chunk once, then reuse the saved results while
 exploring display, weighting, and uncertainty options.
 
 ```{r run_threshold_sweep}
+# Wrap the search so threshold is the only setting that changes across runs.
 run_jaw_threshold <- function(threshold) {
   searchOptimalConfiguration(
     baseline_tree              = fish.tree,
@@ -180,10 +185,12 @@ run_jaw_threshold <- function(threshold) {
   )
 }
 
+# Run the reproducible threshold sweep and label each retained fit.
 set.seed(1)
 jaw_threshold_runs <- lapply(threshold_grid, run_jaw_threshold)
 names(jaw_threshold_runs) <- paste0("GIC_threshold_", threshold_grid)
 
+# Cache the expensive searches for the lighter mapping examples that follow.
 cache_path <- rate_map_cache_path()
 dir.create(dirname(cache_path), recursive = TRUE, showWarnings = FALSE)
 saveRDS(jaw_threshold_runs, cache_path)
@@ -192,6 +199,7 @@ saveRDS(jaw_threshold_runs, cache_path)
 If the searches have already been run, load the saved results instead.
 
 ```{r load_threshold_sweep}
+# Restore the cached searches and recover their numeric threshold values.
 cache_path <- rate_map_cache_path()
 if (!file.exists(cache_path)) {
   stop("No jaw-shape threshold cache found; run the sweep chunk first.")
@@ -203,6 +211,7 @@ threshold_grid <- as.numeric(sub("GIC_threshold_", "", names(jaw_threshold_runs)
 Before mapping rates, inspect how the selected model changes across the sweep.
 
 ```{r summarize_threshold_sweep}
+# Compare selected-model complexity and IC improvement across thresholds.
 sweep_summary <- data.frame(
   threshold = threshold_grid,
   n_shifts = vapply(
@@ -277,18 +286,22 @@ Start with the default map and inspect its range before deciding how to display
 it.
 
 ```{r equal_weight_first_pass}
+# Compute the unflagged equal-weight map as an initial diagnostic.
 jaw_rate_map_equal_first <- rateMap(
   jaw_threshold_runs,
   weights = "equal",
   uncertainty = TRUE,
   progress = TRUE
 )
+
+# Freeze a common categorical display before inspecting its fitted-rate range.
 jaw_rate_map_equal_first <- rateMapView(
   jaw_rate_map_equal_first,
   palette = "Viridis",
   legend_title = "Mean log fitted rate"
 )
 
+# Inspect both the map summary and its rate diagnostics.
 jaw_rate_map_equal_first
 jaw_rate_map_equal_first$rate_diagnostics
 ```
@@ -322,6 +335,7 @@ category boundaries, here `-26` to `-10`, so its lower limit is a bin edge rathe
 than the observed minimum branch summary.
 
 ```{r plot_equal_weight_first_pass_ratemap, fig.width = 8, fig.height = 6, fig.cap = "**Figure 2. Default equal-weight branch-category rate map.** This first-pass arc tree shows the unmodified default display: all branches are binned into the ordinary ordered log-rate categories, with no manual near-zero flagging.", fig.alt = "Arc-style phylogenetic tree colored by the default equal-weight branch log-rate categories across the jaw-shape threshold sweep."}
+# Draw the default map before applying a near-zero diagnostic.
 plot(
   jaw_rate_map_equal_first,
   type = "arc",
@@ -354,6 +368,7 @@ is separated from the regular branches and greatly reduces the regular fold
 range.
 
 ```{r equal_weight_branch_category_ratemap}
+# Recompute the equal-weight map with separated lower-tail branches flagged.
 jaw_rate_map_equal <- rateMap(
   jaw_threshold_runs,
   weights = "equal",
@@ -363,12 +378,15 @@ jaw_rate_map_equal <- rateMap(
     rate_flags = rateMapRateFlags(method = "tail_cluster")
   )
 )
+
+# Apply a categorical Viridis view to the regular-rate branches.
 jaw_rate_map_equal <- rateMapView(
   jaw_rate_map_equal,
   palette = "Viridis",
   legend_title = "Mean log fitted rate"
 )
 
+# Inspect the adjusted map and the resulting display categories.
 jaw_rate_map_equal
 jaw_rate_map_equal$rate_categories
 ```
@@ -449,6 +467,7 @@ rate bins and the visual color scale now describe the remaining regular
 branches rather than stretching across a numerical floor.
 
 ```{r plot_equal_weight_branch_category_ratemap, fig.width = 8, fig.height = 6, fig.cap = "**Figure 3. Equal-weight branch-category rate map after near-zero flagging.** This arc tree summarizes the six GIC-threshold searches by giving each completed search the same weight. Branches in the separated lower log-rate cluster are shown as a separate grey category; remaining regular branches are colored by ordered categories of their mean fitted branch log-rate.", fig.alt = "Arc-style phylogenetic tree with grey near-zero branches and colored equal-weight branch log-rate categories across the jaw-shape threshold sweep."}
+# Draw the adjusted map with near-zero branches outside the ordered palette.
 plot(
   jaw_rate_map_equal,
   type = "arc",
@@ -477,6 +496,7 @@ If you want tighter control over the display categories after this diagnostic
 step, adjust the plotting bins directly.
 
 ```{r category_controls_example, eval = FALSE}
+# Compare automatic, equal-width, and explicit numeric category controls.
 plot(jaw_rate_map_equal, n_categories = 5)
 plot(jaw_rate_map_equal, n_categories = 5, category_bin_method = "equal")
 plot(jaw_rate_map_equal, category_breaks = c(-17, -15, -13, -11))

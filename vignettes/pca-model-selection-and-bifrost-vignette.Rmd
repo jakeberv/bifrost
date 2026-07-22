@@ -921,6 +921,7 @@ With that in mind, the main package interface becomes easier to read. `bifrost` 
 | Search dynamics | `model_fit_history` | Sequence of accepted and rejected candidates |
 
 ```{r theory_to_api, eval = FALSE}
+# Run a representative multivariate regime-shift search from the public API.
 library(bifrost)
 
 fit <- searchOptimalConfiguration(
@@ -937,6 +938,7 @@ fit <- searchOptimalConfiguration(
   plot                       = FALSE
 )
 
+# Inspect the inferred shifts, regime covariances, and shift support.
 fit$shift_nodes_no_uncertainty
 fit$VCVs
 fit$ic_weights

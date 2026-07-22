@@ -1196,6 +1196,7 @@ par(op)
 The shared-history matrix for this toy tree is:
 
 ```{r phylo_covariance_matrix}
+# Display the toy tree's shared-history covariance matrix.
 round(shared_history, 2)
 ```
 
@@ -1280,6 +1281,7 @@ Figure 3 isolates covariance structure: both panels use the same diagonal rates,
 The matrices used in Figure 3 are:
 
 ```{r mvbm_sigma_matrices}
+# Compare zero-covariance and positive-covariance trait matrices.
 sigma_zero_cov
 sigma_pos_cov
 round(cov2cor(sigma_pos_cov), 2)

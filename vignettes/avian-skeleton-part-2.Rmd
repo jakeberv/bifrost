@@ -1894,6 +1894,7 @@ head(lineage_preview)
 To see how the temporal weighting changes this comparison, recompute the lineage summary with a much shorter half-life:
 
 ```{r focal_lineage_rates_short_decay_part2}
+# Emphasize recent branches by recomputing lineage rates with a shorter half-life.
 bodyplan_lineage_rates_short_decay <- lineage_rates(
   bodyplan_search,
   half_life = 0.5,

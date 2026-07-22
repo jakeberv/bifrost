@@ -267,6 +267,7 @@ bodyplan_frequency_plot_results[["BIC"]] <- plot(
 The numerical test rows returned by `plot()` reproduce the paired Wilcoxon signed-rank tests shown in the Supplementary Figure 5 frequency panels. `mean_difference` is the paired mean of `increase_frequency - decrease_frequency`, so negative values indicate that decreases are more frequent.
 
 ```{r sensitivity_shift_frequency_tests_part4}
+# Combine the three paired-frequency test tables into one report.
 bodyplan_frequency_tests <- do.call(
   rbind,
   list(
@@ -276,6 +277,7 @@ bodyplan_frequency_tests <- do.call(
   )
 )
 
+# Retain the sample sizes, test statistics, and directional effect summary.
 bodyplan_frequency_tests <- bodyplan_frequency_tests[
   ,
   c(
@@ -288,6 +290,7 @@ bodyplan_frequency_tests <- bodyplan_frequency_tests[
 ]
 rownames(bodyplan_frequency_tests) <- NULL
 
+# Format inferential results for compact display.
 bodyplan_frequency_tests$wilcox_p_value <- signif(
   bodyplan_frequency_tests$wilcox_p_value,
   4
