@@ -785,7 +785,7 @@ preview_tables_path <- pkg_file(
 )
 preview_tables <- readRDS(preview_tables_path)
 stopifnot(
-  identical(preview_tables$schema_version, 2L),
+  identical(preview_tables$schema_version, 3L),
   identical(preview_tables$provenance$simulation_generator, "empirical"),
   identical(preview_tables$provenance$integration_power_range, c(0.5, 1.25)),
   identical(preview_tables$provenance$integration_exclude_range, c(0.8, 1.1))
@@ -802,7 +802,7 @@ Before launching a large study, keep four details in mind.
 
 - The wrappers inherit template fit settings such as `method` and `error`, so `search_options` only needs to include deliberate overrides. Parallelize either the study wrapper or each embedded search, not both; the examples parallelize replicates and keep each search serial.
 
-- Check `per_replicate$n_candidates`. If `min_descendant_tips` leaves no candidate shifts, that replicate is treated as unevaluable, and recovery specificity, false-positive rate, and balanced accuracy are reported as `NA`. Lower `min_descendant_tips` if too many replicates are unevaluable.
+- Check `per_replicate$n_candidates`. The value of `min_descendant_tips` changes the candidate-node universe rather than merely applying a different decision threshold to a fixed set of nodes. If it leaves no candidate shifts, that replicate is treated as unevaluable, and recovery specificity, false-positive rate, and balanced accuracy are reported as `NA`. Lower `min_descendant_tips` if too many replicates are unevaluable.
 
 The next three sections show the individual study calls. The fixed-settings comparison then uses bundled preview results to show the same logic side by side.
 
@@ -1004,27 +1004,57 @@ bic_fixed <- do.call(
 
 ```{r medium_case_study_cached, echo = FALSE, message = FALSE, warning = FALSE}
 fixed_settings_table <- preview_tables$fixed_settings
-fixed_settings_display <- fixed_settings_table[, c(
-  "IC", "Scenario", "Mean FP", "Strict F1", "Fuzzy F1", "Fuzzy recall",
-  "Mean shifts"
-)]
+fixed_null_display <- fixed_settings_table[
+  fixed_settings_table$Scenario == "Null",
+  c("IC", "Mean FP", "Any FP", "Mean shifts", "Evaluable"),
+  drop = FALSE
+]
+fixed_recovery_display <- fixed_settings_table[
+  fixed_settings_table$Scenario != "Null",
+  c(
+    "IC", "Scenario", "Fuzzy recall", "Fuzzy specificity", "Fuzzy F1",
+    "Fuzzy balanced accuracy", "Mean shifts", "Evaluable"
+  ),
+  drop = FALSE
+]
+
+fixed_metric <- function(ic, scenario, metric) {
+  value <- fixed_settings_table[
+    fixed_settings_table$IC == ic & fixed_settings_table$Scenario == scenario,
+    metric,
+    drop = TRUE
+  ]
+  stopifnot(length(value) == 1L, is.finite(value))
+  formatC(value, digits = 3, format = "f")
+}
 ```
 
-Blank cells are expected where a metric does not apply: false-positive summaries describe null simulations, whereas recovery summaries require known shifts.
+Null and shifted simulations answer different questions, so they are reported separately. The first table shows null false-positive behavior; the second shows recovery only where true shifts are known. This avoids treating an inapplicable recovery metric in a null simulation as a missing result.
 
-```{r medium_case_study_table, echo = FALSE, results = "asis"}
+```{r medium_case_null_table, echo = FALSE, results = "asis"}
 render_preview_table(
-  fixed_settings_display,
-  caption = "Table 1. Dataset-matched fixed-setting comparison with 100 repeated 250-tip subsamples per scenario. Null false positives remain low, proportional recovery is strongest under the fitted generating model, and recovery remains informative but lower under the non-proportional integration-rate trade-off.",
-  col_names = c(
-    "IC", "Scenario", "Mean FP", "Strict F1", "Fuzzy F1", "Fuzzy recall",
-    "Mean shifts"
-  ),
-  digits = c(0, 0, 4, 3, 3, 3, 2)
+  fixed_null_display,
+  caption = "Table 1. Null behavior for the fixed GIC and BIC settings across 100 repeated 250-tip subsamples. Mean FP and Any FP directly summarize false-positive control; Evaluable reports the fraction of replicates with a usable candidate-node universe.",
+  col_names = c("IC", "Mean FP", "Any FP", "Mean shifts", "Evaluable"),
+  digits = c(0, 4, 3, 2, 3)
 )
 ```
 
-With GIC, fuzzy F1 declines from `0.878` under proportional shifts to `0.733` under the integration-rate trade-off; with BIC it declines from `0.835` to `0.711`. The corresponding integration-rate fuzzy recalls are `0.685` and `0.592`, while the mean inferred shift counts are `4.30` and `3.29` for five true shifts. This is the expected pattern for deliberate model misspecification: proportional recovery remains strong under the fitted generating model, and the integration-rate robustness scenario is still informative but loses sensitivity when covariance shape changes.
+```{r medium_case_recovery_table, echo = FALSE, results = "asis"}
+render_preview_table(
+  fixed_recovery_display,
+  caption = "Table 2. Shift recovery for the same fixed settings and repeated subsamples. Fuzzy scoring credits near misses within two nodes of a true shift. Balanced accuracy is the mean of fuzzy recall and fuzzy specificity; F1 is retained as the complementary precision-recall summary.",
+  col_names = c(
+    "IC", "Scenario", "Fuzzy recall", "Fuzzy specificity", "Fuzzy F1",
+    "Fuzzy balanced accuracy", "Mean shifts", "Evaluable"
+  ),
+  digits = c(0, 0, 3, 3, 3, 3, 2, 3)
+)
+```
+
+Candidate nodes without a true shift generally outnumber true-shift nodes, creating class imbalance. Raw accuracy can therefore look strong even when sensitivity is poor. Fuzzy balanced accuracy gives recall and specificity equal influence, while fuzzy matching credits biologically close near misses instead of counting every small node displacement as a complete failure. Balanced accuracy complements rather than replaces F1: balanced accuracy exposes the sensitivity-specificity trade-off, whereas F1 focuses on precision and recall and remains useful when false discoveries among inferred shifts are the main concern.
+
+For GIC, the cache reports fuzzy balanced accuracy of `r fixed_metric("GIC", "Proportional", "Fuzzy balanced accuracy")` under proportional shifts and `r fixed_metric("GIC", "Integration-rate", "Fuzzy balanced accuracy")` under the integration-rate trade-off. The corresponding BIC values are `r fixed_metric("BIC", "Proportional", "Fuzzy balanced accuracy")` and `r fixed_metric("BIC", "Integration-rate", "Fuzzy balanced accuracy")`. These cache-derived comparisons describe performance under the fitted generating model and under deliberate covariance-shape misspecification without hard-coding a particular cache result into the narrative.
 
 ## Performance Summary
 

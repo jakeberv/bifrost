@@ -78,6 +78,75 @@ test_that("empirical benchmark code pins every scenario explicitly", {
   testthat::expect_gte(sum(occurrences > 0L), 8L)
 })
 
+test_that("simulation vignette sources use manuscript-aligned reporting", {
+  part1_path <- testthat::test_path("../../vignettes/simulation-study-part-1.Rmd")
+  part2_path <- testthat::test_path("../../vignettes/simulation-study-part-2.Rmd")
+  testthat::skip_if_not(
+    all(file.exists(c(part1_path, part2_path))),
+    "Simulation vignettes not present"
+  )
+
+  part1 <- paste(readLines(part1_path, warn = FALSE), collapse = "\n")
+  part2 <- paste(readLines(part2_path, warn = FALSE), collapse = "\n")
+
+  for (source in list(part1, part2)) {
+    testthat::expect_match(
+      source,
+      "identical(preview_tables$schema_version, 3L)",
+      fixed = TRUE
+    )
+  }
+  testthat::expect_false(grepl(
+    'primary_metric = "weighted_fuzzy_f1"',
+    part2,
+    fixed = TRUE
+  ))
+  testthat::expect_gte(
+    lengths(regmatches(
+      part2,
+      gregexpr(
+        'primary_metric = "fuzzy_balanced_accuracy"',
+        part2,
+        fixed = TRUE
+      )
+    )),
+    4L
+  )
+
+  testthat::expect_match(part1, "fixed_null_display", fixed = TRUE)
+  testthat::expect_match(part1, "fixed_recovery_display", fixed = TRUE)
+  for (label in c(
+    "Fuzzy recall", "Fuzzy specificity", "Fuzzy F1",
+    "Fuzzy balanced accuracy"
+  )) {
+    testthat::expect_match(part1, label, fixed = TRUE)
+  }
+  testthat::expect_match(part1, "class imbalance", ignore.case = TRUE)
+  testthat::expect_match(part1, "near misses", ignore.case = TRUE)
+  testthat::expect_match(part1, "complements", ignore.case = TRUE)
+
+  testthat::expect_match(part2, "add_combined_score", fixed = TRUE)
+  testthat::expect_match(part2, "rowMeans", fixed = TRUE)
+  testthat::expect_match(
+    part2,
+    "Prop. Fuzzy balanced accuracy",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    part2,
+    "Integration Fuzzy balanced accuracy",
+    fixed = TRUE
+  )
+  testthat::expect_match(part2, "Score", fixed = TRUE)
+  testthat::expect_match(part2, "candidate-node universe", fixed = TRUE)
+  for (safeguard in c(
+    "max_false_positive_rate", "max_any_false_positive",
+    "min_evaluable_fraction"
+  )) {
+    testthat::expect_match(part2, safeguard, fixed = TRUE)
+  }
+})
+
 test_that("Part 1 preserves the original correlation color scale", {
   vignette_path <- testthat::test_path(
     "../../vignettes/simulation-study-part-1.Rmd"
