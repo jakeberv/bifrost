@@ -207,6 +207,7 @@ The name `half_life` is literal only when `decay_base = 2`: a path element \(T\)
 ### How decay base and decay scale shape lineage-rate memory
 
 ```{r focal_lineage_decay_kernel_part2_interactive, echo=FALSE, results='asis', eval=is_part2_html_output()}
+cat("```{=html}\n")
 cat(r"(
 <figure id="lineage-decay-widget-part2" class="lineage-decay-widget" data-integrated-lineage-widget>
 )")
@@ -1342,6 +1343,7 @@ draw();
 </script>
 </figure>
 )")
+cat("\n```\n")
 ```
 
 ```{r focal_lineage_decay_kernel_part2_static, echo=FALSE, message=FALSE, eval=!is_part2_html_output(), fig.align="center", fig.width=9.6, fig.height=8.2, dpi=220, fig.retina=1, out.width="100%", fig.cap=vignette_figure_caption("**Figure 1. Static age-decay kernels and mapped-lineage weighting.** Panel A shows raw age-decay kernels, and Panel B converts them into normalized shares for example path elements. Panel C traces one mapped lineage through a miniature `simmap` tree. Panel D applies the default `decay_base = 2`, `half_life = 5`, normalized weights, and regime rates to the traced lineage.", "Static age-decay kernels and mapped-lineage weighting. Panel A shows raw age-decay kernels, and Panel B converts them into normalized shares for example path elements. Panel C traces one mapped lineage through a miniature simmap tree. Panel D applies the default decay\\_base = 2, half\\_life = 5, normalized weights, and regime rates to the traced lineage.")}
