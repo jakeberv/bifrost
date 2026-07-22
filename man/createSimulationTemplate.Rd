@@ -2,7 +2,7 @@
 % Please edit documentation in R/simulation-template.R
 \name{createSimulationTemplate}
 \alias{createSimulationTemplate}
-\title{Create a Dataset-Matched Simulation Template for \code{bifrost}}
+\title{Create an Empirically Calibrated Simulation Template for \code{bifrost}}
 \usage{
 createSimulationTemplate(
   baseline_tree,

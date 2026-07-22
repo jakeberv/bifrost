@@ -2,7 +2,7 @@
 % Please edit documentation in R/simulation-generators.R
 \name{simulateShiftedDataset}
 \alias{simulateShiftedDataset}
-\title{Simulate a Dataset-Matched Shifted Replicate}
+\title{Simulate an Empirically Calibrated Shifted Replicate}
 \usage{
 simulateShiftedDataset(
   template,
@@ -88,8 +88,8 @@ powers under the empirical correlation generator; the explicit
 be preferred for interpretation.
 }
 \description{
-Generate a single known-shift simulation replicate using the dataset-matched
-multi-shift framework. The function supports both the proportional
+Generate a single known-shift simulation replicate using the empirically
+calibrated multi-shift framework. The function supports both the proportional
 generating-model scenario and a generator-specific non-proportional robustness
 scenario.
 }

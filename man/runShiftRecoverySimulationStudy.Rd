@@ -38,7 +38,7 @@ argument instead.}
 \code{\link[=searchOptimalConfiguration]{searchOptimalConfiguration()}}. These override the default response-only
 intercept-only search settings assembled from \code{template}. If \code{formula} is
 omitted, the wrapper inherits \code{template$search_formula}, which is
-intercept-only in the dataset-matched simulation workflow.}
+intercept-only in the empirically calibrated simulation workflow.}
 
 \item{fuzzy_distance}{Integer node distance used for fuzzy matching in
 \code{\link[=evaluateShiftRecovery]{evaluateShiftRecovery()}}.}
