@@ -41,6 +41,13 @@ test_that("evaluateShiftRecovery returns perfect strict metrics for exact matche
     print.bifrost_shift_recovery_evaluation(out),
     "Bifrost Shift-Recovery Evaluation"
   )
+  for (metric in c("Specificity", "FPR", "Balanced accuracy")) {
+    testthat::expect_output(
+      print.bifrost_shift_recovery_evaluation(out),
+      metric,
+      fixed = TRUE
+    )
+  }
 
   out_with_missing_metric <- out
   out_with_missing_metric$strict$precision <- NA_real_
