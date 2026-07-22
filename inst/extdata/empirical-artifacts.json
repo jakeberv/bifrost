@@ -99,11 +99,11 @@
     },
     {
       "path": "inst/extdata/simulation-study-cache/passerine_preview_tables.rds",
-      "sha256": "14c12f4a91f469c5a76f11615a796e83e89a66a3b769be14364394400ef8e526",
+      "sha256": "a18dc153778cca1e786557ed0e11cf593a207df4700c76b34db87dfc2254d492",
       "source_id": "berv_archive_v1",
-      "source_location": "Schema-2 cache constructed directly by data-raw/build_simulation_study_vignette_cache.R from validated empirical GIC and BIC grid RDS inputs.",
+      "source_location": "Schema-3 cache constructed directly by data-raw/build_simulation_study_vignette_cache.R from validated empirical GIC and BIC grid RDS inputs.",
       "transformation": {
-        "method": "Construct the schema-2 preview-table cache directly from validated empirical GIC and BIC grid RDS inputs.",
+        "method": "Construct the schema-3 simulation vignette cache directly from validated empirical GIC and BIC grid RDS inputs, including full recovery metrics and fuzzy-balanced-accuracy tuning summaries.",
         "script": "data-raw/build_simulation_study_vignette_cache.R"
       },
       "license_id": "zenodo_cc_by_4_0"
