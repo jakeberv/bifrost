@@ -78,6 +78,7 @@ We will use the primary function `searchOptimalConfiguration()` to perform a gre
 First, we load the *`bifrost`* package and other necessary libraries for data manipulation and visualization.
 
 ```{r load_packages, eval=FALSE}
+# Load the search, phylogenetic, and landmark-shape dependencies.
 library(bifrost)
 library(ape)
 library(phytools)

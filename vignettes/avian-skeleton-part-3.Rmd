@@ -150,8 +150,10 @@ The `rate_change` column bridges the fitted BMM object and the shift-magnitude s
 The transition table also lets you annotate the branch-rate arc tree from Part 1. Berv et al. (2026) used this layer to flag rate-change nodes on the branch-rate map. The branch-rate view uses `rateMap()` and `rateMapView()` directly; the public annotation workflow here is `shift_node_marks()` followed by its S3 `plot()` method. The first step prepares the node marks, letter key, and low-support flags without touching the active plot.
 
 ```{r focal_shift_annotation_tree_view_part3, message=FALSE}
+# Build the branch-rate map used beneath the shift-node annotations.
 bodyplan_rate_map <- rateMap(bodyplan_search, progress = FALSE)
 
+# Recreate the manuscript's Fisher-binned log-rate scale and color palette.
 bodyplan_rate_breaks <- classInt::classIntervals(
   log(bodyplan_search$model_no_uncertainty$param),
   n = 10,
@@ -165,6 +167,7 @@ bodyplan_rate_palette <- grDevices::colorRampPalette(
   rev(RColorBrewer::brewer.pal(11, "RdYlBu"))
 )(length(bodyplan_rate_breaks) - 1L)
 
+# Apply those fixed categories to a reusable tree view.
 bodyplan_shift_tree <- rateMapView(
   bodyplan_rate_map,
   color_mode = "category",
@@ -196,6 +199,7 @@ bodyplan_shift_marks$increase_key
 ```
 
 ```{r focal_shift_annotation_tree_part3, message=FALSE, fig.align="center", fig.width=8.4, fig.height=5.2, dpi=220, fig.retina=1, out.width="100%", fig.cap=vignette_figure_caption("**Figure 1. Focal rate-increase nodes overlaid on the Berv et al. branch-rate tree.** Branch colors use the same Fisher-binned reversed RdYlBu log-rate palette as Berv et al. (2026). White lettered circles mark inferred shifts to faster fitted BMM regimes, with marker size following the square-root scaling of percent rate change used in that figure.", "Focal rate-increase nodes overlaid on the Berv et al. branch-rate tree. Branch colors use the same Fisher-binned reversed RdYlBu log-rate palette as Berv et al. (2026). White lettered circles mark inferred shifts to faster fitted BMM regimes, with marker size following the square-root scaling of percent rate change used in that figure.")}
+# Draw the rate tree first so the shift markers can be overlaid in tree coordinates.
 plot(
   bodyplan_shift_tree,
   type = "arc",
@@ -208,6 +212,7 @@ plot(
   mar = c(0.2, 0.2, 0.2, 0.2)
 )
 
+# Add only supported rate-increase markers to the active tree plot.
 plot(
   bodyplan_shift_marks,
   rate_changes = "increase",
@@ -261,10 +266,10 @@ The preview keeps the top candidate distributions, parameter estimates for the s
 The histogram below reuses the Fisher breaks and branch-rate palette from Figure 1. `fit_rate_distribution()` stores the fitted candidates and rankings; `bootstrap_rate_distribution()` adds the reproducible Gumbel bootstrap draws that `plot()` displays.
 
 ```{r focal_gumbel_distribution_plot_part3, message=FALSE, fig.align="center", fig.width=7.2, fig.height=4.6, dpi=220, fig.retina=1, out.width="100%", fig.cap=vignette_figure_caption("**Figure 2. Fitted Gumbel distribution for the focal BMM regime rates.** Histogram bars use Fisher breaks and the reversed RdYlBu palette used for branch-rate bins in Berv et al. (2026). The red line is the maximum-likelihood Gumbel density, the gray dashed curve is the empirical density, tick marks show fitted regime rates, the pale band is the pointwise 95% bootstrap interval, and thin red curves show bootstrap density draws.", "Fitted Gumbel distribution for the focal BMM regime rates. Histogram bars use Fisher breaks and the reversed RdYlBu palette used for branch-rate bins in Berv et al. (2026). The red line is the maximum-likelihood Gumbel density, the gray dashed curve is the empirical density, tick marks show fitted regime rates, the pale band is the pointwise 95\\% bootstrap interval, and thin red curves show bootstrap density draws.")}
+# Plot the fitted Gumbel density with its stored bootstrap uncertainty.
 plot(
   bodyplan_rate_fit,
   model = "gumbel",
-  # Use the precomputed bootstrap draws stored on bodyplan_rate_fit.
   bootstrap = TRUE,
   bootstrap_curves = 120,
   breaks = bodyplan_rate_breaks,
