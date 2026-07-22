@@ -88,8 +88,9 @@
 #'
 #' The returned `summary_table` contains one row per grid combination. Null
 #' summaries emphasize false-positive behavior, while proportional and
-#' correlation-scenario summaries emphasize recovery. The corresponding output
-#' columns retain their `correlation_` prefixes for backward compatibility.
+#' correlation-scenario summaries emphasize recovery, including fuzzy balanced
+#' accuracy. The corresponding output columns retain their `correlation_`
+#' prefixes for backward compatibility.
 #' When `seed` is supplied, the
 #' `null_seed`, `proportional_seed`, and `correlation_seed` columns record the
 #' deterministic per-study seeds used for each setting; otherwise those columns
@@ -537,8 +538,9 @@ runSearchTuningGrid <- function(template,
 #'   at least one candidate shift. This filter is applied to the null,
 #'   proportional, and integration-rate summaries.
 #' @param primary_metric Character scalar indicating the recovery metric used to
-#'   rank feasible settings. Supported values are `"fuzzy_f1"`,
-#'   `"fuzzy_recall"`, `"strict_f1"`, and `"weighted_fuzzy_f1"`.
+#'   rank feasible settings. Defaults to `"fuzzy_balanced_accuracy"`.
+#'   Supported legacy values are `"fuzzy_f1"`, `"fuzzy_recall"`, `"strict_f1"`,
+#'   and `"weighted_fuzzy_f1"`.
 #' @param scenario_weights Numeric length-2 vector giving the weights applied to
 #'   the proportional and integration-rate scenarios when forming the ranking
 #'   score. The internal weight name `correlation` is retained for compatibility.
@@ -552,7 +554,8 @@ runSearchTuningGrid <- function(template,
 #' The selector uses a two-step decision rule. First, it filters out settings
 #' that violate the null false-positive or evaluability constraints. Second, it
 #' ranks the remaining settings using a weighted average of the chosen recovery
-#' metric across the proportional and integration-rate scenarios.
+#' metric across the proportional and integration-rate scenarios. By default,
+#' this ranking metric is fuzzy balanced accuracy.
 #'
 #' Only settings with finite recovery metrics for every scenario having positive
 #' weight are rankable. If no rankable settings pass the filters, the function
@@ -592,6 +595,7 @@ selectTunedSearchParameters <- function(tuning_grid,
                                         max_any_false_positive = 0.2,
                                         min_evaluable_fraction = 0.9,
                                         primary_metric = c(
+                                          "fuzzy_balanced_accuracy",
                                           "fuzzy_f1",
                                           "fuzzy_recall",
                                           "strict_f1",

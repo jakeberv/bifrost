@@ -13,6 +13,53 @@ make_tuning_grid_stub <- function(summary_table, IC = "GIC") {
   )
 }
 
+test_that("selectTunedSearchParameters defaults to fuzzy balanced accuracy", {
+  summary_table <- data.frame(
+    setting_id = 1:2,
+    IC = rep("GIC", 2),
+    shift_acceptance_threshold = c(5, 10),
+    min_descendant_tips = c(5, 10),
+    null_mean_false_positive_rate = c(0.02, 0.02),
+    null_fraction_any_false_positive = c(0.1, 0.1),
+    null_evaluable_fraction = c(1, 1),
+    proportional_evaluable_fraction = c(1, 1),
+    correlation_evaluable_fraction = c(1, 1),
+    proportional_fuzzy_f1 = c(0.90, 0.60),
+    correlation_fuzzy_f1 = c(0.90, 0.60),
+    proportional_fuzzy_recall = c(0.80, 0.70),
+    correlation_fuzzy_recall = c(0.80, 0.70),
+    proportional_strict_f1 = c(0.70, 0.60),
+    correlation_strict_f1 = c(0.70, 0.60),
+    proportional_fuzzy_balanced_accuracy = c(0.60, 0.85),
+    correlation_fuzzy_balanced_accuracy = c(0.60, 0.85),
+    proportional_weighted_fuzzy_f1 = c(0.90, 0.60),
+    correlation_weighted_fuzzy_f1 = c(0.90, 0.60),
+    stringsAsFactors = FALSE
+  )
+  tuning_grid <- make_tuning_grid_stub(summary_table)
+
+  selected <- selectTunedSearchParameters(tuning_grid)
+  testthat::expect_identical(selected$primary_metric, "fuzzy_balanced_accuracy")
+  testthat::expect_identical(selected$selected_row$setting_id, 2L)
+
+  testthat::expect_identical(
+    selectTunedSearchParameters(tuning_grid, primary_metric = "fuzzy_f1")$selected_row$setting_id,
+    1L
+  )
+  testthat::expect_identical(
+    selectTunedSearchParameters(tuning_grid, primary_metric = "fuzzy_recall")$selected_row$setting_id,
+    1L
+  )
+  testthat::expect_identical(
+    selectTunedSearchParameters(tuning_grid, primary_metric = "strict_f1")$selected_row$setting_id,
+    1L
+  )
+  testthat::expect_identical(
+    selectTunedSearchParameters(tuning_grid, primary_metric = "weighted_fuzzy_f1")$selected_row$setting_id,
+    1L
+  )
+})
+
 test_that("selectTunedSearchParameters picks a conservative winner within one IC family", {
   summary_table <- data.frame(
     setting_id = 1:3,
@@ -30,6 +77,8 @@ test_that("selectTunedSearchParameters picks a conservative winner within one IC
     correlation_fuzzy_recall = c(0.80, 0.75, 0.98),
     proportional_strict_f1 = c(0.80, 0.60, 0.80),
     correlation_strict_f1 = c(0.70, 0.50, 0.78),
+    proportional_fuzzy_balanced_accuracy = c(0.80, 0.80, 0.95),
+    correlation_fuzzy_balanced_accuracy = c(0.70, 0.70, 0.95),
     stringsAsFactors = FALSE
   )
   tuning_grid <- make_tuning_grid_stub(summary_table)
@@ -86,6 +135,8 @@ test_that("selectTunedSearchParameters can rank weighted metrics and fall back t
     correlation_fuzzy_recall = c(0.65, 0.74),
     proportional_strict_f1 = c(0.50, 0.60),
     correlation_strict_f1 = c(0.45, 0.55),
+    proportional_fuzzy_balanced_accuracy = c(0.65, 0.75),
+    correlation_fuzzy_balanced_accuracy = c(0.55, 0.65),
     proportional_weighted_fuzzy_f1 = c(0.72, 0.90),
     correlation_weighted_fuzzy_f1 = c(0.62, 0.88),
     stringsAsFactors = FALSE
@@ -126,6 +177,8 @@ test_that("selectTunedSearchParameters requires finite evidence for weighted sce
     correlation_fuzzy_recall = c(NA_real_, NA_real_),
     proportional_strict_f1 = c(NA_real_, NA_real_),
     correlation_strict_f1 = c(NA_real_, NA_real_),
+    proportional_fuzzy_balanced_accuracy = c(NA_real_, NA_real_),
+    correlation_fuzzy_balanced_accuracy = c(NA_real_, NA_real_),
     stringsAsFactors = FALSE
   )
 
@@ -152,6 +205,8 @@ test_that("selectTunedSearchParameters ignores metrics for zero-weight scenarios
     correlation_fuzzy_recall = NA_real_,
     proportional_strict_f1 = 0.6,
     correlation_strict_f1 = NA_real_,
+    proportional_fuzzy_balanced_accuracy = 0.8,
+    correlation_fuzzy_balanced_accuracy = NA_real_,
     stringsAsFactors = FALSE
   )
 
@@ -181,6 +236,8 @@ test_that("selectTunedSearchParameters validates scenario weight names and suppo
     correlation_fuzzy_recall = c(0.75, 0.75),
     proportional_strict_f1 = c(0.60, 0.60),
     correlation_strict_f1 = c(0.50, 0.50),
+    proportional_fuzzy_balanced_accuracy = c(0.70, 0.70),
+    correlation_fuzzy_balanced_accuracy = c(0.60, 0.60),
     stringsAsFactors = FALSE
   )
   tuning_grid <- make_tuning_grid_stub(summary_table)
@@ -218,6 +275,8 @@ test_that("selectTunedSearchParameters validates its inputs", {
     correlation_fuzzy_recall = 0.75,
     proportional_strict_f1 = 0.6,
     correlation_strict_f1 = 0.5,
+    proportional_fuzzy_balanced_accuracy = 0.7,
+    correlation_fuzzy_balanced_accuracy = 0.6,
     stringsAsFactors = FALSE
   )
   tuning_grid <- make_tuning_grid_stub(summary_table)

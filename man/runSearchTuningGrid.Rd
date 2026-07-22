@@ -144,8 +144,9 @@ re-fit inside each grid replicate.
 
 The returned \code{summary_table} contains one row per grid combination. Null
 summaries emphasize false-positive behavior, while proportional and
-correlation-scenario summaries emphasize recovery. The corresponding output
-columns retain their \code{correlation_} prefixes for backward compatibility.
+correlation-scenario summaries emphasize recovery, including fuzzy balanced
+accuracy. The corresponding output columns retain their \code{correlation_}
+prefixes for backward compatibility.
 When \code{seed} is supplied, the
 \code{null_seed}, \code{proportional_seed}, and \code{correlation_seed} columns record the
 deterministic per-study seeds used for each setting; otherwise those columns

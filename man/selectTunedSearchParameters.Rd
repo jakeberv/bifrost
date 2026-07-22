@@ -9,7 +9,8 @@ selectTunedSearchParameters(
   max_false_positive_rate = 0.05,
   max_any_false_positive = 0.2,
   min_evaluable_fraction = 0.9,
-  primary_metric = c("fuzzy_f1", "fuzzy_recall", "strict_f1", "weighted_fuzzy_f1"),
+  primary_metric = c("fuzzy_balanced_accuracy", "fuzzy_f1", "fuzzy_recall", "strict_f1",
+    "weighted_fuzzy_f1"),
   scenario_weights = c(proportional = 0.5, correlation = 0.5),
   tie_break = c("conservative", "liberal")
 )
@@ -29,8 +30,9 @@ at least one candidate shift. This filter is applied to the null,
 proportional, and integration-rate summaries.}
 
 \item{primary_metric}{Character scalar indicating the recovery metric used to
-rank feasible settings. Supported values are \code{"fuzzy_f1"},
-\code{"fuzzy_recall"}, \code{"strict_f1"}, and \code{"weighted_fuzzy_f1"}.}
+rank feasible settings. Defaults to \code{"fuzzy_balanced_accuracy"}.
+Supported legacy values are \code{"fuzzy_f1"}, \code{"fuzzy_recall"}, \code{"strict_f1"},
+and \code{"weighted_fuzzy_f1"}.}
 
 \item{scenario_weights}{Numeric length-2 vector giving the weights applied to
 the proportional and integration-rate scenarios when forming the ranking
@@ -69,7 +71,8 @@ it easy to report one tuned workflow for GIC and another for BIC.
 The selector uses a two-step decision rule. First, it filters out settings
 that violate the null false-positive or evaluability constraints. Second, it
 ranks the remaining settings using a weighted average of the chosen recovery
-metric across the proportional and integration-rate scenarios.
+metric across the proportional and integration-rate scenarios. By default,
+this ranking metric is fuzzy balanced accuracy.
 
 Only settings with finite recovery metrics for every scenario having positive
 weight are rankable. If no rankable settings pass the filters, the function

@@ -108,6 +108,16 @@ render_preview_table <- function(x, caption, col_names = colnames(x), digits = 3
   knitr::asis_output(out)
 }
 
+add_combined_score <- function(x) {
+  metric_columns <- c(
+    "Prop. Fuzzy balanced accuracy",
+    "Integration Fuzzy balanced accuracy"
+  )
+  stopifnot(all(metric_columns %in% names(x)))
+  x$Score <- rowMeans(x[, metric_columns, drop = FALSE])
+  x
+}
+
 pkg_file <- function(...) {
   candidates <- c(
     file.path("inst", ...),
@@ -264,7 +274,7 @@ preview_tables_path <- pkg_file(
 )
 preview_tables <- readRDS(preview_tables_path)
 stopifnot(
-  identical(preview_tables$schema_version, 2L),
+  identical(preview_tables$schema_version, 3L),
   identical(preview_tables$provenance$simulation_generator, "empirical"),
   identical(preview_tables$provenance$integration_power_range, c(0.5, 1.25)),
   identical(preview_tables$provenance$integration_exclude_range, c(0.8, 1.1))
@@ -273,7 +283,7 @@ stopifnot(
 
 ## 1. Choose Settings from a Search Grid
 
-The fixed-settings comparison describes how one search configuration behaves. Choosing settings is a different task. A small simulation grid is usually more informative because it makes the tradeoff between `shift_acceptance_threshold` and `min_descendant_tips` visible instead of relying on a single fixed choice.
+The fixed-settings comparison describes how one search configuration behaves. Choosing settings is a different task. A small simulation grid is usually more informative because it makes the tradeoff between `shift_acceptance_threshold` and `min_descendant_tips` visible instead of relying on a single fixed choice. Importantly, `min_descendant_tips` changes the candidate-node universe: rows with different minimum clade sizes do not evaluate an identical set of possible shift locations. Their performance therefore reflects both the search control and the opportunity set it creates.
 
 In practice, this usually means running one grid for GIC and a second grid for BIC. If the empirical analysis will be fitted with GIC, it makes the most sense to choose the best threshold and clade-size settings within the GIC results. The same logic applies to BIC. Pooling them into a single ranking is less useful because the two criteria penalize model complexity differently.
 
@@ -322,15 +332,17 @@ preview_cols <- c(
   "shift_acceptance_threshold",
   "min_descendant_tips",
   "null_mean_false_positive_rate",
-  "proportional_fuzzy_f1",
-  "correlation_fuzzy_f1"
+  "proportional_fuzzy_balanced_accuracy",
+  "correlation_fuzzy_balanced_accuracy",
+  "score"
 )
 preview_labels <- c(
   "Threshold",
   "Min clade",
   "Null FP",
-  "Prop. Fuzzy F1",
-  "Integration Fuzzy F1"
+  "Prop. Fuzzy balanced accuracy",
+  "Integration Fuzzy balanced accuracy",
+  "Score"
 )
 
 gic_preview_grid <- do.call(
@@ -347,7 +359,8 @@ gic_preview_tuned <- selectTunedSearchParameters(
   max_false_positive_rate = 0.10,
   max_any_false_positive = 0.50,
   min_evaluable_fraction = 0.50,
-  primary_metric = "weighted_fuzzy_f1",
+  primary_metric = "fuzzy_balanced_accuracy",
+  scenario_weights = c(proportional = 0.50, correlation = 0.50),
   tie_break = "conservative"
 )
 bic_preview_tuned <- selectTunedSearchParameters(
@@ -355,8 +368,14 @@ bic_preview_tuned <- selectTunedSearchParameters(
   max_false_positive_rate = 0.10,
   max_any_false_positive = 0.50,
   min_evaluable_fraction = 0.50,
-  primary_metric = "weighted_fuzzy_f1",
+  primary_metric = "fuzzy_balanced_accuracy",
+  scenario_weights = c(proportional = 0.50, correlation = 0.50),
   tie_break = "conservative"
+)
+
+stopifnot(
+  !gic_preview_tuned$used_all_settings,
+  !bic_preview_tuned$used_all_settings
 )
 
 preview_recommendations <- rbind(
@@ -367,8 +386,8 @@ names(preview_recommendations) <- c("IC", preview_labels)
 ```
 
 ```{r preview_tuning_cached, echo = FALSE, message = FALSE, warning = FALSE}
-gic_preview_table <- preview_tables$tuning$gic
-bic_preview_table <- preview_tables$tuning$bic
+gic_preview_table <- add_combined_score(preview_tables$tuning$gic)
+bic_preview_table <- add_combined_score(preview_tables$tuning$bic)
 preview_recommendations <- preview_tables$tuning$selected
 ```
 
@@ -379,9 +398,9 @@ Each row represents one threshold/clade-size combination evaluated under repeate
 ```{r preview_tuning_gic_table, echo = FALSE, results = "asis"}
 render_preview_table(
   gic_preview_table,
-  caption = "Table 1. Empirical-generator GIC tuning grid with 100 repeated 250-tip subsamples per scenario and setting. False positives remain low, and the strongest joint proportional and integration-rate recovery occurs at threshold 10 with a minimum clade size of 10.",
-  col_names = c("Threshold", "Min clade", "Null FP", "Prop. F1", "Int.-rate F1"),
-  digits = c(0, 0, 3, 3, 3)
+  caption = "Table 1. Empirical-generator GIC tuning grid with 100 repeated 250-tip subsamples per scenario and setting. The two scenario columns report fuzzy balanced accuracy; Score is their equally weighted mean used to rank settings that pass the null and evaluability safeguards.",
+  col_names = c("Threshold", "Min clade", "Null FP", "Prop. BA", "Int.-rate BA", "Score"),
+  digits = c(0, 0, 3, 3, 3, 3)
 )
 ```
 
@@ -390,9 +409,9 @@ render_preview_table(
 ```{r preview_tuning_bic_table, echo = FALSE, results = "asis"}
 render_preview_table(
   bic_preview_table,
-  caption = "Table 2. Empirical-generator BIC tuning grid with 100 repeated 250-tip subsamples per scenario and setting. BIC is more conservative than GIC, and the strongest joint recovery occurs at threshold 10 with a minimum clade size of 10.",
-  col_names = c("Threshold", "Min clade", "Null FP", "Prop. F1", "Int.-rate F1"),
-  digits = c(0, 0, 3, 3, 3)
+  caption = "Table 2. Empirical-generator BIC tuning grid with 100 repeated 250-tip subsamples per scenario and setting. Scenario balanced accuracies and their combined Score use the same reporting and ranking rule as the GIC grid.",
+  col_names = c("Threshold", "Min clade", "Null FP", "Prop. BA", "Int.-rate BA", "Score"),
+  digits = c(0, 0, 3, 3, 3, 3)
 )
 ```
 
@@ -401,13 +420,15 @@ render_preview_table(
 ```{r preview_tuning_selected_table, echo = FALSE, results = "asis"}
 render_preview_table(
   preview_recommendations,
-  caption = "Table 3. Selected settings from the empirical-generator 100-replicate GIC and BIC grids. Both IC families choose threshold 10 and a minimum clade size of 10 because that combination keeps false positives low while maximizing weighted fuzzy recovery across the proportional and integration-rate scenarios.",
-  col_names = c("IC", "Threshold", "Min clade", "Null FP", "Prop. F1", "Int.-rate F1"),
-  digits = c(0, 0, 0, 3, 3, 3)
+  caption = "Table 3. Selected settings from the empirical-generator 100-replicate GIC and BIC grids. The table reports each selected row's proportional and integration-rate fuzzy balanced accuracy and the combined ranking Score, alongside its null false-positive rate.",
+  col_names = c("IC", "Threshold", "Min clade", "Null FP", "Prop. BA", "Int.-rate BA", "Score"),
+  digits = c(0, 0, 0, 3, 3, 3, 3)
 )
 ```
 
-The selected rows follow a simple rule. First, discard settings with too many false positives or too few evaluable replicates. Among the settings that remain, prefer the one with the strongest weighted fuzzy recovery, and break close ties conservatively in favor of larger thresholds or clade sizes.
+The selector is intentionally explicit. It first requires finite evidence and filters settings using `max_false_positive_rate`, `max_any_false_positive`, and `min_evaluable_fraction`; these null false-positive and evaluability filters remain mandatory safeguards, not optional ranking preferences. If the selector reports `used_all_settings = TRUE`, no setting passed them and the fallback ranking should be treated as a diagnostic rather than an empirical recommendation. Among settings that pass, Score is the equal-weight mean of proportional and integration-rate fuzzy balanced accuracy. Exact score ties are resolved first by lower null false-positive summaries and then conservatively in favor of larger thresholds and larger `min_descendant_tips`.
+
+Because `min_descendant_tips` changes the candidate-node universe, a higher Score at one clade-size setting should not be read as a controlled comparison over identical candidate nodes. Report the chosen minimum clade size with the scenario balanced accuracies and safeguards, as in the tables above, so that this change in the search opportunity set remains visible.
 
 The same code scales directly to larger runs, first for GIC and then for BIC.
 
@@ -458,9 +479,12 @@ gic_tuned <- selectTunedSearchParameters(
   max_false_positive_rate = 0.10,
   max_any_false_positive = 0.50,
   min_evaluable_fraction = 0.50,
-  primary_metric = "weighted_fuzzy_f1",
+  primary_metric = "fuzzy_balanced_accuracy",
+  scenario_weights = c(proportional = 0.50, correlation = 0.50),
   tie_break = "conservative"
 )
+
+stopifnot(!gic_tuned$used_all_settings)
 
 gic_tuned$selected_row
 gic_tuned$recommended_search_options
@@ -515,9 +539,12 @@ bic_tuned <- selectTunedSearchParameters(
   max_false_positive_rate = 0.10,
   max_any_false_positive = 0.50,
   min_evaluable_fraction = 0.50,
-  primary_metric = "weighted_fuzzy_f1",
+  primary_metric = "fuzzy_balanced_accuracy",
+  scenario_weights = c(proportional = 0.50, correlation = 0.50),
   tie_break = "conservative"
 )
+
+stopifnot(!bic_tuned$used_all_settings)
 
 bic_tuned$selected_row
 bic_tuned$recommended_search_options
