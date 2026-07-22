@@ -33,9 +33,11 @@ Imports:
     viridis,
     txtplot
 Suggests:
+    ComplexHeatmap,
     RColorBrewer,
     boot,
     classInt,
+    circlize,
     evd,
     fitdistrplus,
     geomorph,
