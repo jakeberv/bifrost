@@ -834,6 +834,7 @@ test_that("simulation vignette sources use manuscript-aligned reporting", {
       "identical(preview_tables$schema_version, 3L)",
       fixed = TRUE
     )
+    testthat::expect_match(source, "rownames(x) <- NULL", fixed = TRUE)
   }
   testthat::expect_false(grepl(
     'primary_metric = "weighted_fuzzy_f1"',
@@ -851,6 +852,25 @@ test_that("simulation vignette sources use manuscript-aligned reporting", {
     )),
     4L
   )
+  testthat::expect_gte(
+    lengths(regmatches(
+      part2,
+      gregexpr(
+        "scenario_weights = c(proportional = 0.50, correlation = 0.50)",
+        part2,
+        fixed = TRUE
+      )
+    )),
+    4L
+  )
+  for (hard_stop in c(
+    "!gic_preview_tuned$used_all_settings",
+    "!bic_preview_tuned$used_all_settings",
+    "stopifnot(!gic_tuned$used_all_settings)",
+    "stopifnot(!bic_tuned$used_all_settings)"
+  )) {
+    testthat::expect_match(part2, hard_stop, fixed = TRUE)
+  }
 
   testthat::expect_match(part1, "fixed_null_display", fixed = TRUE)
   testthat::expect_match(part1, "fixed_recovery_display", fixed = TRUE)
@@ -859,6 +879,9 @@ test_that("simulation vignette sources use manuscript-aligned reporting", {
     "Fuzzy balanced accuracy"
   )) {
     testthat::expect_match(part1, label, fixed = TRUE)
+  }
+  for (compact_label in c("Fuzzy rec.", "Fuzzy spec.", "Fuzzy BA")) {
+    testthat::expect_match(part1, compact_label, fixed = TRUE)
   }
   testthat::expect_match(part1, "class imbalance", ignore.case = TRUE)
   testthat::expect_match(part1, "near misses", ignore.case = TRUE)

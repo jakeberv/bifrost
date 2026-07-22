@@ -93,6 +93,66 @@ def run_clean_notebook_setup_probe(
         run(repo, "Rscript", "--vanilla", str(probe))
 
 
+def run_notebook_reporting_probe(
+    repo: Path,
+    notebook: dict,
+    *,
+    fixture: str,
+    reporting_tokens: tuple[str, ...],
+    expected_output: tuple[str, ...],
+    label: str,
+) -> None:
+    setup_cells = [
+        cell["source"]
+        for cell in notebook["cells"]
+        if cell["cell_type"] == "code"
+        and "render_preview_table <- function" in cell["source"]
+    ]
+    if len(setup_cells) != 1:
+        raise AssertionError(f"{label} expected one reporting helper cell")
+
+    reporting_cells = []
+    for token in reporting_tokens:
+        matches = [
+            cell["source"]
+            for cell in notebook["cells"]
+            if cell["cell_type"] == "code" and token in cell["source"]
+        ]
+        if len(matches) != 1:
+            raise AssertionError(
+                f"{label} expected one reporting cell containing {token!r}"
+            )
+        reporting_cells.append(matches[0])
+
+    assignments = []
+    for index, source in enumerate(reporting_cells, start=1):
+        assignments.append(f"reported_{index} <- local({{\n{source}\n}})")
+    reported_names = ", ".join(
+        f"reported_{index}" for index in range(1, len(reporting_cells) + 1)
+    )
+    expected_vector = ", ".join(json.dumps(value) for value in expected_output)
+    assertions = (
+        f"rendered <- paste(capture.output(print(list({reported_names}))), "
+        'collapse = "\\n")\n'
+        f"expected <- c({expected_vector})\n"
+        "stopifnot(all(vapply(expected, grepl, logical(1L), "
+        "x = rendered, fixed = TRUE)))\n"
+    )
+
+    with tempfile.TemporaryDirectory(prefix="bifrost-colab-reporting-") as temp:
+        probe = Path(temp) / "probe.R"
+        probe.write_text(
+            setup_cells[0]
+            + "\n"
+            + fixture
+            + "\n"
+            + "\n".join(assignments)
+            + "\n"
+            + assertions
+        )
+        run(repo, "Rscript", "--vanilla", str(probe))
+
+
 def commit(repo: Path, message: str) -> str:
     run(repo, "git", "add", "-A")
     run(repo, "git", "commit", "-qm", message)
@@ -249,6 +309,11 @@ def main() -> None:
             "evaluated_setup_result <- evaluated_setup_value + evaluated_setup_helper()\n"
             "stopifnot(identical(evaluated_setup_result, 42L))\n"
             "```\n\n"
+            "Inline result: `r evaluated_setup_value + 1L`.\n\n"
+            "```{r visible-asis, results='asis'}\n"
+            "visible_asis_probe <- data.frame(metric = 'BA', score = 0.75)\n"
+            "visible_asis_probe\n"
+            "```\n\n"
             "```{r hidden, include=FALSE, eval=FALSE}\n"
             "hidden_probe <- TRUE\n"
             "hiddenPackage::run()\n"
@@ -277,6 +342,23 @@ def main() -> None:
             )
         if "hidden_probe <- TRUE" in policy_code:
             raise AssertionError("hidden unevaluated chunks must be omitted from Colab")
+        if "visible_asis_probe <-" not in policy_code:
+            raise AssertionError(
+                "visible results='asis' chunks must remain executable in Colab"
+            )
+        policy_markdown = "\n".join(
+            cell["source"]
+            for cell in policy_notebook["cells"]
+            if cell["cell_type"] == "markdown"
+        )
+        if re.search(r"`r\s+.+?`", policy_markdown):
+            raise AssertionError(
+                "inline R expressions must not remain literal notebook Markdown"
+            )
+        if "evaluated_setup_value + 1L" not in policy_code:
+            raise AssertionError(
+                "inline R expressions must become executable notebook code"
+            )
         execution_cells = [
             cell["source"]
             for cell in policy_notebook["cells"]
@@ -389,6 +471,11 @@ def main() -> None:
             for cell in notebook["cells"][2:]
             if cell["cell_type"] == "code"
         )
+        body_markdown = "\n".join(
+            cell["source"]
+            for cell in notebook["cells"][2:]
+            if cell["cell_type"] == "markdown"
+        )
         required_code = {
             "avian-skeleton-part-2": (
                 "library(bifrost)",
@@ -402,6 +489,111 @@ def main() -> None:
                 raise AssertionError(
                     f"{notebook_path.name} is missing required setup code: {required}"
                 )
+        simulation_notebook_code = {
+            "simulation-study-part-1": (
+                "render_preview_table(\n  fixed_null_display",
+                "render_preview_table(\n  fixed_recovery_display",
+                '"Fuzzy recall"',
+                '"Fuzzy specificity"',
+                '"Fuzzy F1"',
+                '"Fuzzy balanced accuracy"',
+            ),
+            "simulation-study-part-2": (
+                "render_preview_table(\n  gic_preview_table",
+                "render_preview_table(\n  bic_preview_table",
+                "render_preview_table(\n  preview_recommendations",
+                '"Prop. BA"',
+                '"Int.-rate BA"',
+                '"Score"',
+            ),
+        }
+        for required in simulation_notebook_code.get(notebook_path.stem, ()):
+            if required not in body_code:
+                raise AssertionError(
+                    f"{notebook_path.name} omits executable reporting code: {required}"
+                )
+        if notebook_path.stem in required_simulation_slugs:
+            if re.search(r"`r\s+.+?`", body_markdown):
+                raise AssertionError(
+                    f"{notebook_path.name} contains literal inline R Markdown"
+                )
+        if notebook_path.stem == "simulation-study-part-2":
+            if body_code.count(
+                "scenario_weights = c(proportional = 0.50, correlation = 0.50)"
+            ) < 4:
+                raise AssertionError(
+                    "Part 2 notebook must execute explicit equal scenario weights"
+                )
+            required_hard_stops = (
+                "!gic_preview_tuned$used_all_settings",
+                "!bic_preview_tuned$used_all_settings",
+                "stopifnot(!gic_tuned$used_all_settings)",
+                "stopifnot(!bic_tuned$used_all_settings)",
+            )
+            for required in required_hard_stops:
+                if required not in body_code:
+                    raise AssertionError(
+                        "Part 2 notebook is missing mandatory selector hard-stop: "
+                        + required
+                    )
+        reporting_probes = {
+            "simulation-study-part-1": {
+                "fixture": (
+                    "fixed_null_display <- data.frame(\n"
+                    "  IC = 'GIC', `Mean FP` = 0.0123, `Any FP` = 0.04,\n"
+                    "  `Mean shifts` = 0.02, Evaluable = 0.99, check.names = FALSE\n"
+                    ")\n"
+                    "fixed_recovery_display <- data.frame(\n"
+                    "  IC = 'GIC', Scenario = 'Proportional',\n"
+                    "  `Fuzzy recall` = 0.731, `Fuzzy specificity` = 0.887,\n"
+                    "  `Fuzzy F1` = 0.809, `Fuzzy balanced accuracy` = 0.809,\n"
+                    "  `Mean shifts` = 4.1, Evaluable = 0.98, check.names = FALSE\n"
+                    ")"
+                ),
+                "reporting_tokens": (
+                    "render_preview_table(\n  fixed_null_display",
+                    "render_preview_table(\n  fixed_recovery_display",
+                ),
+                "expected_output": (
+                    "Mean FP", "Fuzzy rec.", "Fuzzy spec.", "Fuzzy F1",
+                    "Fuzzy BA", "0.731", "0.887", "0.809",
+                ),
+            },
+            "simulation-study-part-2": {
+                "fixture": (
+                    "gic_preview_table <- data.frame(\n"
+                    "  Threshold = 10, `Min clade` = 10, `Null FP` = 0.01,\n"
+                    "  `Prop. BA` = 0.811, `Int.-rate BA` = 0.722, Score = 0.765,\n"
+                    "  check.names = FALSE\n"
+                    ")\n"
+                    "bic_preview_table <- gic_preview_table\n"
+                    "preview_recommendations <- data.frame(\n"
+                    "  IC = 'GIC', Threshold = 10, `Min clade` = 10,\n"
+                    "  `Null FP` = 0.01, `Prop. BA` = 0.811,\n"
+                    "  `Int.-rate BA` = 0.722, Score = 0.765, check.names = FALSE\n"
+                    ")"
+                ),
+                "reporting_tokens": (
+                    "render_preview_table(\n  gic_preview_table",
+                    "render_preview_table(\n  bic_preview_table",
+                    "render_preview_table(\n  preview_recommendations",
+                ),
+                "expected_output": (
+                    "Prop. BA", "Int.-rate BA", "Score",
+                    "0.811", "0.722", "0.765",
+                ),
+            },
+        }
+        if notebook_path.stem in reporting_probes:
+            probe = reporting_probes[notebook_path.stem]
+            run_notebook_reporting_probe(
+                source,
+                notebook,
+                fixture=probe["fixture"],
+                reporting_tokens=probe["reporting_tokens"],
+                expected_output=probe["expected_output"],
+                label=notebook_path.name,
+            )
         clean_setup_probes = {
             "avian-skeleton-part-2": (
                 "lineage_decay_widget <- list(",

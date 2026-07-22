@@ -48,6 +48,7 @@ if (!exists("createSimulationTemplate", mode = "function")) {
 
 render_preview_table <- function(x, caption, col_names = colnames(x), digits = 3) {
   x <- as.data.frame(x, stringsAsFactors = FALSE, check.names = FALSE)
+  rownames(x) <- NULL
   is_html <- knitr::is_html_output()
   is_latex <- knitr::is_latex_output()
 
