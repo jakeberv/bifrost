@@ -10,8 +10,9 @@ regime_module_diagnostics(pca, modules, comparisons = NULL, pcs = NULL)
 \item{pca}{A \code{regime_correlation_pca} object from
 \code{\link[=regime_correlation_pca]{regime_correlation_pca()}} computed with \code{use_correlation = TRUE}.}
 
-\item{modules}{Named list of character vectors. Each element names the trait
-labels belonging to one anatomical, developmental, or functional module.}
+\item{modules}{Named list of character vectors. Each element names the unique
+trait labels belonging to one anatomical, developmental, or functional
+module.}
 
 \item{comparisons}{Optional named list defining module comparisons to score.
 Each element must be a length-two character vector naming entries in

@@ -564,6 +564,26 @@ test_that("summarize_regime_covariances computes hand variance and correlation s
   testthat::expect_false(any(is.na(out$status)))
 })
 
+test_that("summarize_regime_covariances marks single-trait correlations undefined", {
+  single_trait <- list(
+    alpha = matrix(
+      4,
+      nrow = 1L,
+      dimnames = list("trait", "trait")
+    )
+  )
+
+  out <- summarize_regime_covariances(
+    single_trait,
+    rates = c(alpha = 2)
+  )
+
+  testthat::expect_equal(out$mean_variance, 4)
+  testthat::expect_identical(out$mean_abs_correlation, NA_real_)
+  testthat::expect_identical(out$fisher_z_mean_abs_correlation, NA_real_)
+  testthat::expect_equal(out$status, "ok")
+})
+
 test_that("regime covariance consumers reject invalid raw matrices by regime", {
   invalid <- matrix(c(0, 0, 0, 1), nrow = 2)
 
@@ -1310,6 +1330,13 @@ test_that("regime_module_diagnostics validates modules, comparisons, and plot se
   testthat::expect_error(regime_module_diagnostics(pca, modules = list()), "non-empty named list")
   testthat::expect_error(regime_module_diagnostics(pca, modules = list(c("a", "b"))), "must be named")
   testthat::expect_error(regime_module_diagnostics(pca, modules = list(a = character())), "Empty module")
+  testthat::expect_error(
+    regime_module_diagnostics(
+      pca,
+      modules = list(anterior = c("a", "a", "b"), posterior = "c")
+    ),
+    "Module `anterior`.*duplicated trait label.*a"
+  )
   testthat::expect_error(regime_module_diagnostics(pca, modules = list(a = "missing")), "not present")
   testthat::expect_error(
     regime_module_diagnostics(pca, modules = modules, comparisons = list()),

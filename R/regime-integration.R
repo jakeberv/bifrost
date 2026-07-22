@@ -357,6 +357,8 @@ fit_regime_covariance_runs <- function(x,
 #' error. Invalid matrices
 #' encountered in a `regime_covariances` fit object are instead represented as
 #' failed rows with missing summaries and a diagnostic message.
+#' A one-trait matrix has no pairwise correlations, so its mean absolute
+#' correlation and Fisher-Z summary are returned as `NA`.
 #'
 #' @export
 summarize_regime_covariances <- function(x,
@@ -446,8 +448,12 @@ summarize_regime_covariances <- function(x,
     .regime_validate_covariance_matrix(mat, regime)
     mean_variance <- mean(diag(mat), na.rm = TRUE)
     cor_mat <- stats::cov2cor(mat)
-    mean_abs_correlation <- mean(abs(cor_mat[upper.tri(cor_mat, diag = FALSE)]),
-                                 na.rm = TRUE)
+    pairwise_correlations <- cor_mat[upper.tri(cor_mat, diag = FALSE)]
+    mean_abs_correlation <- if (length(pairwise_correlations) == 0L) {
+      NA_real_
+    } else {
+      mean(abs(pairwise_correlations), na.rm = TRUE)
+    }
     fisher_value <- .regime_fisher_z(mean_abs_correlation, fisher_boundary)
 
     data.frame(
@@ -701,8 +707,9 @@ regime_correlation_pca <- function(x,
 #'
 #' @param pca A `regime_correlation_pca` object from
 #'   [regime_correlation_pca()] computed with `use_correlation = TRUE`.
-#' @param modules Named list of character vectors. Each element names the trait
-#'   labels belonging to one anatomical, developmental, or functional module.
+#' @param modules Named list of character vectors. Each element names the unique
+#'   trait labels belonging to one anatomical, developmental, or functional
+#'   module.
 #' @param comparisons Optional named list defining module comparisons to score.
 #'   Each element must be a length-two character vector naming entries in
 #'   `modules`. When both names are the same, the score is the mean
@@ -2613,6 +2620,19 @@ as.data.frame.regime_integration_relationships <- function(x,
   empty <- names(modules)[vapply(modules, length, integer(1)) == 0L]
   if (length(empty) > 0L) {
     stop("Empty module definition(s): ", paste(empty, collapse = ", "), call. = FALSE)
+  }
+  for (module_name in names(modules)) {
+    duplicated_traits <- unique(
+      modules[[module_name]][duplicated(modules[[module_name]])]
+    )
+    if (length(duplicated_traits) > 0L) {
+      stop(
+        "Module `", module_name, "` contains duplicated trait label(s): ",
+        paste(duplicated_traits, collapse = ", "),
+        ".",
+        call. = FALSE
+      )
+    }
   }
   module_traits <- unique(unlist(modules, use.names = FALSE))
   missing_traits <- setdiff(module_traits, trait_labels)
