@@ -16,7 +16,7 @@
   - Added the `rateMap()` workflow and supporting view, control, flagging, print, and plot methods for summarizing branch-rate patterns across completed searches.
   - Improved category legends for uneven rate breaks and strengthened validation of category colors.
 
-* Dataset-matched simulations:
+* Empirically calibrated simulations:
   - Added empirical null, proportional-shift, and integration-rate robustness workflows centered on the fitted residual covariance.
   - Added `simulation_generator = c("original", "empirical")` for explicit generator selection.
   - Simulation generators now default to `"original"` for exact reproduction of the published operations; the full-covariance Wishart/spectral generator remains available explicitly as `simulation_generator = "empirical"`.
@@ -24,7 +24,7 @@
 
 * Documentation / vignettes:
   - Added two rate-map jaw-shape workflows and refreshed the existing jaw-shape vignette.
-  - Added a two-part dataset-matched simulation calibration guide covering performance assessment, search tuning, and empirical application.
+  - Added a two-part empirically calibrated simulation guide covering performance assessment, search tuning, and empirical application.
   - Added tooling and CI workflows for generated vignette PDFs and executable Colab notebooks.
   - Updated Berv et al. (2026) citation metadata and avian skeleton references for the published *Nature Ecology & Evolution* article DOI.
 

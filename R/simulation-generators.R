@@ -1,8 +1,9 @@
-#' Simulate a Dataset-Matched Null Replicate
+#' Simulate an Empirically Calibrated Null Replicate
 #'
 #' @description
 #' Generate a single no-shift simulation replicate under a uniform Brownian
-#' motion process using the dataset-matched covariance-generation framework.
+#' motion process using the empirically calibrated covariance-generation
+#' framework.
 #' By default, each replicate uses the element-sampling operations from the
 #' published simulation code. The empirical generator is available explicitly
 #' for full-covariance draws centered on a [`createSimulationTemplate()`] object.
@@ -179,11 +180,11 @@ simulateNullDataset <- function(template,
   result
 }
 
-#' Simulate a Dataset-Matched Shifted Replicate
+#' Simulate an Empirically Calibrated Shifted Replicate
 #'
 #' @description
-#' Generate a single known-shift simulation replicate using the dataset-matched
-#' multi-shift framework. The function supports both the proportional
+#' Generate a single known-shift simulation replicate using the empirically
+#' calibrated multi-shift framework. The function supports both the proportional
 #' generating-model scenario and a generator-specific non-proportional robustness
 #' scenario.
 #'

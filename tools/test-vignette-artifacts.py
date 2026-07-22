@@ -542,13 +542,13 @@ def main() -> None:
                 "fixture": (
                     "fixed_null_display <- data.frame(\n"
                     "  IC = 'GIC', `Mean FP` = 0.0123, `Any FP` = 0.04,\n"
-                    "  `Mean shifts` = 0.02, Evaluable = 0.99, check.names = FALSE\n"
+                    "  `Mean shifts` = 0.02, check.names = FALSE\n"
                     ")\n"
                     "fixed_recovery_display <- data.frame(\n"
                     "  IC = 'GIC', Scenario = 'Proportional',\n"
                     "  `Fuzzy recall` = 0.731, `Fuzzy specificity` = 0.887,\n"
                     "  `Fuzzy F1` = 0.809, `Fuzzy balanced accuracy` = 0.809,\n"
-                    "  `Mean shifts` = 4.1, Evaluable = 0.98, check.names = FALSE\n"
+                    "  `Mean shifts` = 4.1, check.names = FALSE\n"
                     ")"
                 ),
                 "reporting_tokens": (

@@ -1,0 +1,355 @@
+---
+title: "Draft: Calibrating the Original Manuscript Generator"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: show
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.align = "center"
+)
+
+Sys.setenv(
+  OMP_NUM_THREADS = "1",
+  OPENBLAS_NUM_THREADS = "1",
+  MKL_NUM_THREADS = "1",
+  VECLIB_MAXIMUM_THREADS = "1",
+  BLIS_NUM_THREADS = "1",
+  NUMEXPR_NUM_THREADS = "1"
+)
+
+pkg_root <- if (file.exists("DESCRIPTION")) {
+  "."
+} else if (file.exists(file.path("..", "DESCRIPTION"))) {
+  ".."
+} else {
+  stop("Render this draft from the bifrost repository.")
+}
+
+if (!exists("createSimulationTemplate", mode = "function")) {
+  if (requireNamespace("pkgload", quietly = TRUE)) {
+    pkgload::load_all(pkg_root, quiet = TRUE, export_all = FALSE, helpers = FALSE)
+  } else {
+    library(bifrost)
+  }
+}
+
+pkg_file <- function(...) {
+  source_path <- file.path(pkg_root, "inst", ...)
+  if (file.exists(source_path)) {
+    return(source_path)
+  }
+
+  installed_path <- system.file(..., package = "bifrost")
+  if (nzchar(installed_path)) {
+    return(installed_path)
+  }
+
+  stop("Could not locate: ", file.path(...))
+}
+
+compute_effective_dimensionality <- function(sigma) {
+  eigenvalues <- eigen(
+    stats::cov2cor(sigma),
+    symmetric = TRUE,
+    only.values = TRUE
+  )$values
+  weights <- eigenvalues / sum(eigenvalues)
+  weights <- weights[weights > 0]
+  exp(-sum(weights * log(weights)))
+}
+```
+
+## Status and scope
+
+This experimental draft preserves the simulation-based calibration used to connect `bifrost`'s original manuscript generator to aggregate properties of the passerine body-plan covariance matrix. It is intentionally excluded from package builds, pkgdown navigation, Colab artifacts, and the public simulation workflow while its long-term role is evaluated.
+
+The public simulation vignettes use `simulation_generator = "empirical"`, which is the recommended generator for new studies. Nothing in this draft produces or alters their cached performance and tuning results.
+
+## Prepare the passerine calibration template
+
+The original-generator exercise depends on the same single-regime passerine fit used by the public simulation examples.
+
+```{r prepare_template}
+# Load and align the packaged passerine tree and body-plan measurements.
+tree_path <- pkg_file("extdata", "avian-skeleton", "passerine_bodyplan_tree.tre")
+trait_path <- pkg_file("extdata", "avian-skeleton", "passerine_bodyplan_data.RDS")
+bird_tree <- ape::read.tree(tree_path)
+bodyplan_data <- readRDS(trait_path)
+bodyplan_data <- as.matrix(bodyplan_data[bird_tree$tip.label, , drop = FALSE])
+
+# Keep body mass as the predictor and the skeletal variables as responses.
+skeletal_cols <- setdiff(colnames(bodyplan_data), "vertnet_mass")
+bodyplan_data <- bodyplan_data[, c(skeletal_cols, "vertnet_mass"), drop = FALSE]
+formula_str <- sprintf(
+  "trait_data[, 1:%d] ~ trait_data[, %d]",
+  length(skeletal_cols),
+  ncol(bodyplan_data)
+)
+
+# Fit the empirical reference model used to define calibration targets.
+bodyplan_template_live <- createSimulationTemplate(
+  baseline_tree = bird_tree,
+  trait_data = bodyplan_data,
+  formula = formula_str,
+  response_columns = seq_along(skeletal_cols),
+  predictor_columns = ncol(bodyplan_data),
+  method = "LL",
+  error = TRUE
+)
+bodyplan_template_live
+```
+
+## Why the original generator needs separate calibration
+
+The original generator does not draw a covariance matrix directly from the fitted empirical matrix. Instead, it samples entries for a lower-triangular factor and cross-multiplies that factor to obtain a positive-definite covariance matrix. Consequently, its input means and standard deviations are not the expected means and standard deviations of the resulting covariance entries. The calibration below bridges that difference in five steps: summarize the empirical covariance, evaluate a small grid of factor inputs, average diagnostics over repeated null draws, select the candidate closest to the empirical summaries, and confirm that a reduced-integration shift behaves in the intended direction.
+
+## Calibrate aggregate covariance summaries
+
+The calibration targets three interpretable aggregate properties: mean marginal variance, mean absolute correlation, and effective dimensionality. These targets describe overall scale and integration, not the identities or signs of individual trait correlations.
+
+```{r original_generator_calibration_target}
+# Define the three aggregate covariance diagnostics used for calibration.
+covariance_summary <- function(sigma) {
+  correlation <- stats::cov2cor(sigma)
+
+  c(
+    mean_variance = mean(diag(sigma)),
+    mean_absolute_correlation = mean(abs(correlation[lower.tri(correlation)])),
+    effective_dimensionality = compute_effective_dimensionality(sigma)
+  )
+}
+
+# Convert the fitted residual covariance into targets for the original generator.
+empirical_target <- covariance_summary(
+  bodyplan_template_live$residual_covariance
+)
+loading_unit <- sqrt(
+  empirical_target[["mean_variance"]] /
+    bodyplan_template_live$n_response_traits
+)
+```
+
+A 48-candidate grid varies the factor diagonal, loading mean, and loading spread. Each candidate is evaluated across 12 null simulations on 20-tip trees. The score is the sum of absolute log-ratio discrepancies between the simulated and empirical values of the three diagnostics, so smaller values indicate closer aggregate agreement.
+
+```{r original_generator_calibration_grid}
+# Enumerate candidate scales for the sampled lower-triangular factor.
+original_calibration_grid <- expand.grid(
+  diagonal_fraction = c(0.02, 0.05, 0.10, 0.20),
+  loading_mean_fraction = c(0.75, 1.00, 1.25, 1.50),
+  loading_sd_fraction = c(0.25, 0.50, 0.75),
+  KEEP.OUT.ATTRS = FALSE
+)
+
+# Average each candidate's realized covariance diagnostics over repeated draws.
+original_calibration_results <- withr::with_seed(2026, {
+  do.call(rbind, lapply(seq_len(nrow(original_calibration_grid)), function(i) {
+    candidate <- original_calibration_grid[i, , drop = FALSE]
+    candidate_template <- bodyplan_template_live
+    candidate_template$variance_mean <-
+      empirical_target[["mean_variance"]] * candidate$diagonal_fraction
+    candidate_template$variance_sd <-
+      candidate_template$variance_mean * 0.25
+    candidate_template$covariance_mean <-
+      loading_unit * candidate$loading_mean_fraction
+    candidate_template$covariance_sd <-
+      loading_unit * candidate$loading_sd_fraction
+
+    draws <- replicate(12L, {
+      simulated <- simulateNullDataset(
+        candidate_template,
+        tree_tip_count = 20,
+        simulation_generator = "original"
+      )
+      covariance_summary(simulated$covariance_matrix)
+    })
+
+    data.frame(
+      candidate,
+      as.list(rowMeans(draws)),
+      variance_mean = candidate_template$variance_mean,
+      variance_sd = candidate_template$variance_sd,
+      covariance_mean = candidate_template$covariance_mean,
+      covariance_sd = candidate_template$covariance_sd,
+      check.names = FALSE
+    )
+  }))
+})
+
+# Rank candidates by their aggregate log-ratio discrepancy from the targets.
+original_calibration_results$score <- with(
+  original_calibration_results,
+  abs(log(mean_variance / empirical_target[["mean_variance"]])) +
+    abs(log(mean_absolute_correlation /
+      empirical_target[["mean_absolute_correlation"]])) +
+    abs(log(effective_dimensionality /
+      empirical_target[["effective_dimensionality"]]))
+)
+original_calibration_results <- original_calibration_results[
+  order(original_calibration_results$score),
+]
+selected_original_calibration <- original_calibration_results[1L, , drop = FALSE]
+
+# Transfer the best candidate's generator inputs into a reusable template.
+calibrated_original_template <- bodyplan_template_live
+for (field in c("variance_mean", "variance_sd", "covariance_mean", "covariance_sd")) {
+  calibrated_original_template[[field]] <- selected_original_calibration[[field]]
+}
+
+# Fail early if calibration did not produce a finite, nontrivial solution.
+stopifnot(
+  is.finite(selected_original_calibration$score),
+  selected_original_calibration$mean_absolute_correlation > 0.05
+)
+```
+
+The selected candidate approximates the three empirical targets as follows:
+
+```{r original_generator_calibration_diagnostics, echo = FALSE}
+calibration_diagnostics_display <- data.frame(
+  metric = c(
+    "Mean variance",
+    "Mean absolute correlation",
+    "Effective dimensionality"
+  ),
+  empirical_target = formatC(
+    unname(empirical_target),
+    digits = 3,
+    format = "fg",
+    flag = "#"
+  ),
+  selected_candidate = formatC(unlist(selected_original_calibration[
+    c(
+      "mean_variance",
+      "mean_absolute_correlation",
+      "effective_dimensionality"
+    )
+  ], use.names = FALSE), digits = 3, format = "fg", flag = "#"),
+  check.names = FALSE
+)
+knitr::kable(
+  calibration_diagnostics_display,
+  col.names = c("Diagnostic", "Empirical target", "Selected candidate"),
+  align = c("l", "r", "r")
+)
+```
+
+For reproducibility, the selected grid location and its aggregate discrepancy score are:
+
+```{r original_generator_calibration_inputs, echo = FALSE}
+selected_inputs_display <- data.frame(
+  `Diagonal fraction` = formatC(
+    selected_original_calibration$diagonal_fraction,
+    digits = 3,
+    format = "fg",
+    flag = "#"
+  ),
+  `Loading mean fraction` = formatC(
+    selected_original_calibration$loading_mean_fraction,
+    digits = 3,
+    format = "fg",
+    flag = "#"
+  ),
+  `Loading SD fraction` = formatC(
+    selected_original_calibration$loading_sd_fraction,
+    digits = 3,
+    format = "fg",
+    flag = "#"
+  ),
+  `Discrepancy score` = formatC(
+    selected_original_calibration$score,
+    digits = 3,
+    format = "fg",
+    flag = "#"
+  ),
+  check.names = FALSE
+)
+knitr::kable(
+  selected_inputs_display,
+  align = rep("r", ncol(selected_inputs_display))
+)
+```
+
+This inexpensive grid is illustrative rather than an optimization guarantee. If the selected candidate lies on a grid boundary, widen the corresponding range before using the calibration for a larger study.
+
+## Behavioral check: a reduced-integration shift
+
+The calibrated template can drive the manuscript's original correlation-scaling operation directly. Here the sampled factor is restricted below one, producing reduced integration while the reciprocal variance adjustment increases marginal evolutionary variance. This is a directional behavior check for the generator, not evidence about search performance.
+
+```{r original_generator_reduced_example}
+# Simulate one reduced-integration shift with the calibrated original generator.
+original_reduced_example <- withr::with_seed(2027, {
+  simulateShiftedDataset(
+    calibrated_original_template,
+    tree_tip_count = 80,
+    num_shifts = 1,
+    min_shift_tips = 5,
+    max_shift_tips = 30,
+    scale_mode = "correlation",
+    scale_factor_range = c(0.35, 0.75),
+    exclude_range = c(0.50, 0.60),
+    simulation_generator = "original",
+    buffer = 3
+  )
+})
+
+# Summarize the ancestral and shifted covariance matrices on the target metrics.
+original_reduced_diagnostics <- do.call(rbind, lapply(
+  names(original_reduced_example$VCVs),
+  function(regime) {
+    data.frame(
+      regime = regime,
+      as.list(covariance_summary(original_reduced_example$VCVs[[regime]])),
+      check.names = FALSE
+    )
+  }
+))
+
+# Verify that the sampled shift changes integration and variance as intended.
+ancestral_row <- original_reduced_diagnostics$regime == "ancestral"
+derived_row <- !ancestral_row
+stopifnot(
+  original_reduced_example$sampledScaleFactors[[1L]] < 1,
+  original_reduced_diagnostics$mean_absolute_correlation[derived_row] <
+    original_reduced_diagnostics$mean_absolute_correlation[ancestral_row],
+  original_reduced_diagnostics$effective_dimensionality[derived_row] >
+    original_reduced_diagnostics$effective_dimensionality[ancestral_row],
+  original_reduced_diagnostics$mean_variance[derived_row] >
+    original_reduced_diagnostics$mean_variance[ancestral_row]
+)
+```
+
+The sampled correlation factor was `r formatC(original_reduced_example$sampledScaleFactors[[1L]], digits = 3, format = "f")`. Its ancestral and derived covariance diagnostics are:
+
+```{r original_generator_reduced_diagnostics, echo = FALSE}
+original_reduced_diagnostics_display <- original_reduced_diagnostics
+for (field in setdiff(names(original_reduced_diagnostics_display), "regime")) {
+  original_reduced_diagnostics_display[[field]] <- formatC(
+    original_reduced_diagnostics_display[[field]],
+    digits = 3,
+    format = "fg",
+    flag = "#"
+  )
+}
+knitr::kable(
+  original_reduced_diagnostics_display,
+  col.names = c(
+    "Regime",
+    "Mean variance",
+    "Mean absolute correlation",
+    "Effective dimensionality"
+  ),
+  align = c("l", "r", "r", "r")
+)
+```
+
+The example confirms weaker average correlation and higher effective dimensionality together with higher marginal variance. This calibration remains deliberately coarse: it does not preserve the empirical pairwise correlation signs, modules, or eigenvectors. Analyses that require those full covariance features, or that need increased-integration shifts as well as reduced-integration shifts, should use `simulation_generator = "empirical"`.
+
+## Reference
+
+- Berv, Jacob S., Charlotte M. Probst, Santiago Claramunt, J. Ryan Shipley, Matt Friedman, Stephen A. Smith, David F. Fouhey, and Brian C. Weeks. 2026. "Rates of passerine body plan evolution in time and space." *Nature Ecology & Evolution*. <https://doi.org/10.1038/s41559-026-03110-5>

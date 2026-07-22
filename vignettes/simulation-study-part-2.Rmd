@@ -1,11 +1,11 @@
 ---
-title: "Calibrating bifrost with Dataset-Matched Simulations, Part 2: Tuning and Application"
+title: "Empirically Calibrated Simulations for bifrost, Part 2: Tuning and Application"
 output:
   rmarkdown::html_vignette: default
   rmarkdown::pdf_document:
     latex_engine: xelatex
 vignette: >
-  %\VignetteIndexEntry{Calibrating bifrost with Dataset-Matched Simulations, Part 2: Tuning and Application}
+  %\VignetteIndexEntry{Empirically Calibrated Simulations for bifrost, Part 2: Tuning and Application}
   %\VignetteEncoding{UTF-8}
   %\VignetteEngine{knitr::rmarkdown}
 ---
@@ -209,37 +209,43 @@ table code {
 ")
 ```
 
-This is Part 2 of the dataset-matched simulation workflow. It is independently runnable, but [Part 1](simulation-study-part-1.html) introduces the null, proportional, and integration-rate scenarios and interprets their performance.
+This is Part 2 of the empirically calibrated simulation workflow. It is independently runnable, but [Part 1](simulation-study-part-1.html) introduces the null, proportional, and integration-rate scenarios and interprets their performance.
 
 Here we use those scenarios to compare search settings, select tuned GIC and BIC configurations, and carry the selected controls into an empirical search. The bundled tables summarize the same passerine calibration runs shown by the executable code, so rendering the article does not rerun the full simulation grid.
 
 Start by loading `bifrost`.
 
 ```{r load_packages, eval = FALSE}
+# Load bifrost before constructing templates or tuning search settings.
 library(bifrost)
 ```
 
-## Build a dataset-matched template
+## Build an empirically calibrated template
 
 Here we use the empirical calibration structure from Berv et al. (2026), which models 12 skeletal traits jointly while keeping log body mass as a phylogenetic covariate.
 
 ```{r load_bodyplan_example}
+# Locate the packaged passerine tree and calibrated skeletal measurements.
 tree_path <- pkg_file("extdata", "avian-skeleton", "passerine_bodyplan_tree.tre")
 trait_path <- pkg_file("extdata", "avian-skeleton", "passerine_bodyplan_data.RDS")
 
+# Align the trait rows to the tree's tip order.
 bird_tree <- ape::read.tree(tree_path)
 bodyplan_data <- readRDS(trait_path)
 bodyplan_data <- as.matrix(bodyplan_data[bird_tree$tip.label, , drop = FALSE])
 
+# Keep body mass as the predictor and the skeletal variables as responses.
 skeletal_cols <- setdiff(colnames(bodyplan_data), "vertnet_mass")
 bodyplan_data <- bodyplan_data[, c(skeletal_cols, "vertnet_mass"), drop = FALSE]
 
+# Express the multivariate response and body-mass covariate by column index.
 formula_str <- sprintf(
   "trait_data[, 1:%d] ~ trait_data[, %d]",
   length(skeletal_cols),
   ncol(bodyplan_data)
 )
 
+# Confirm the aligned sample size and response dimensionality.
 c(
   species = nrow(bodyplan_data),
   skeletal_traits = length(skeletal_cols),
@@ -250,6 +256,7 @@ c(
 The template comes from a single-regime global fit. That fit provides the empirical variance and covariance scale used to generate a fresh ancestral covariance matrix for each simulation replicate. Here the calibration model is a single-regime multivariate BM fit with `mvMORPH::mvgls()` using `method = "LL"`, following the multivariate phylogenetic GLS framework described by [Clavel, Aristide, and Morlon (2019)](https://doi.org/10.1093/sysbio/syy045) and [Clavel and Morlon (2020)](https://doi.org/10.1093/sysbio/syaa010).
 
 ```{r create_template_code, eval = FALSE}
+# Fit the single-regime model that calibrates means and residual covariance.
 bodyplan_template <- createSimulationTemplate(
   baseline_tree = bird_tree,
   trait_data = bodyplan_data,
@@ -264,6 +271,7 @@ bodyplan_template <- createSimulationTemplate(
 The template call is shown rather than evaluated during package rendering because the tuning tables use the bundled cache. In an interactive or Colab run, execute it before running a new tuning grid.
 
 ```{r preview_template_setup, eval = FALSE}
+# Reuse the empirical template as the input to each tuning grid.
 preview_template <- bodyplan_template
 ```
 
@@ -291,6 +299,7 @@ In practice, this usually means running one grid for GIC and a second grid for B
 The grid varies three acceptance thresholds (`10`, `20`, `30`) and two minimum clade sizes (`10`, `20`). The bundled results use 100 null and 100 recovery replicates per scenario and setting on 250-tip subtrees. Smaller pilot runs can check code and runtime, but tuning decisions should use enough replicates to stabilize the false-positive and recovery summaries.
 
 ```{r preview_tuning_setup, eval = FALSE}
+# Define the shared grid, simulation scenarios, and embedded search controls.
 preview_grid_args <- list(
   shift_acceptance_thresholds = c(10, 20, 30),
   min_descendant_tips_values = c(10, 20),
@@ -329,6 +338,7 @@ preview_grid_args <- list(
   store_studies = FALSE
 )
 
+# Select the columns and reader-facing labels used in tuning summaries.
 preview_cols <- c(
   "shift_acceptance_threshold",
   "min_descendant_tips",
@@ -346,6 +356,7 @@ preview_labels <- c(
   "Score"
 )
 
+# Evaluate the same threshold/clade-size grid separately for GIC and BIC.
 gic_preview_grid <- do.call(
   runSearchTuningGrid,
   c(list(template = preview_template, IC = "GIC"), preview_grid_args)
@@ -355,6 +366,7 @@ bic_preview_grid <- do.call(
   c(list(template = preview_template, IC = "BIC"), preview_grid_args)
 )
 
+# Filter unsafe settings, then rank survivors by fuzzy balanced accuracy.
 gic_preview_tuned <- selectTunedSearchParameters(
   gic_preview_grid,
   max_false_positive_rate = 0.10,
@@ -374,11 +386,13 @@ bic_preview_tuned <- selectTunedSearchParameters(
   tie_break = "conservative"
 )
 
+# Require at least one setting to pass every false-positive/evaluability guardrail.
 stopifnot(
   !gic_preview_tuned$used_all_settings,
   !bic_preview_tuned$used_all_settings
 )
 
+# Combine the selected GIC and BIC rows for side-by-side reporting.
 preview_recommendations <- rbind(
   data.frame(IC = "GIC", gic_preview_tuned$selected_row[, preview_cols], row.names = NULL),
   data.frame(IC = "BIC", bic_preview_tuned$selected_row[, preview_cols], row.names = NULL)
@@ -434,6 +448,7 @@ Because `min_descendant_tips` changes the candidate-node universe, a higher Scor
 The same code scales directly to larger runs, first for GIC and then for BIC.
 
 ```{r tune_gic_grid, eval = FALSE}
+# Run the full empirical-generator tuning grid under GIC.
 gic_grid <- runSearchTuningGrid(
   template = bodyplan_template,
   IC = "GIC",
@@ -475,6 +490,7 @@ gic_grid <- runSearchTuningGrid(
 ```
 
 ```{r select_gic_grid, eval = FALSE}
+# Apply safety filters and rank the remaining GIC settings.
 gic_tuned <- selectTunedSearchParameters(
   gic_grid,
   max_false_positive_rate = 0.10,
@@ -485,8 +501,10 @@ gic_tuned <- selectTunedSearchParameters(
   tie_break = "conservative"
 )
 
+# Stop if selection had to fall back to settings that failed the safeguards.
 stopifnot(!gic_tuned$used_all_settings)
 
+# Inspect the selected evidence row and API-ready search options.
 gic_tuned$selected_row
 gic_tuned$recommended_search_options
 ```
@@ -494,6 +512,7 @@ gic_tuned$recommended_search_options
 BIC follows the same pattern:
 
 ```{r tune_bic_grid, eval = FALSE}
+# Run the same empirical-generator tuning grid under BIC.
 bic_grid <- runSearchTuningGrid(
   template = bodyplan_template,
   IC = "BIC",
@@ -535,6 +554,7 @@ bic_grid <- runSearchTuningGrid(
 ```
 
 ```{r select_bic_grid, eval = FALSE}
+# Apply the identical safety filters and ranking rule to BIC.
 bic_tuned <- selectTunedSearchParameters(
   bic_grid,
   max_false_positive_rate = 0.10,
@@ -545,8 +565,10 @@ bic_tuned <- selectTunedSearchParameters(
   tie_break = "conservative"
 )
 
+# Stop if selection had to fall back to settings that failed the safeguards.
 stopifnot(!bic_tuned$used_all_settings)
 
+# Inspect the selected evidence row and API-ready search options.
 bic_tuned$selected_row
 bic_tuned$recommended_search_options
 ```
@@ -558,6 +580,7 @@ This yields one tuned configuration within GIC and one within BIC. That is usual
 The selected search options are ready to pass directly into `searchOptimalConfiguration()`. The simulation grid tunes the search controls, but the empirical search should still use the empirical model formula. For this example, the indexed formula keeps body mass as the covariate rather than treating it as a response:
 
 ```{r empirical_search_after_simulations, eval = FALSE}
+# Merge the tuned controls with the empirical model inputs and run the search.
 empirical_result <- do.call(
   searchOptimalConfiguration,
   utils::modifyList(
@@ -579,6 +602,7 @@ empirical_result <- do.call(
 The same calibration workflow also applies to intercept-only datasets such as GPA-aligned landmark matrices. Here `fish_tree` and `fish_data` stand in for any aligned intercept-only dataset, including the jaw-shape example used in the companion vignette. In that case the global calibration fit is already response-only, so the template call is simpler because the multivariate response is just the full trait matrix:
 
 ```{r intercept_only_template, eval = FALSE}
+# Calibrate directly from all response columns when no covariate is required.
 jaw_template <- createSimulationTemplate(
   baseline_tree = fish_tree,
   trait_data = fish_data,
@@ -592,7 +616,7 @@ The downstream null, proportional, and integration-rate studies are then identic
 
 ## Calibration Summary
 
-The new simulation API makes this dataset-matched assessment strategy reusable:
+The new simulation API makes this empirically calibrated assessment strategy reusable:
 
 1. fit a global empirical template,
 2. estimate false positives under the null model,
