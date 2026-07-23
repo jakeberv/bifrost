@@ -38,7 +38,8 @@ vector in matrix order. Resolved labels must be unique and not blank.}
 
 \item{min_tips}{Optional positive whole-number minimum tip count for
 inclusion when \code{tip_counts} are available. Matching the manuscript \code{min_n}
-convention, regimes are retained only when \code{tip_count > min_tips}.}
+convention, regimes are retained only when \code{tip_count > min_tips}. At
+least one non-missing tip count must be available when this filter is used.}
 
 \item{...}{Reserved for future extensions.}
 }

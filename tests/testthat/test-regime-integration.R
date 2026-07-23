@@ -1283,6 +1283,10 @@ test_that("regime_correlation_pca uses manuscript-style strict min_tips filterin
     regime_correlation_pca(mats, min_tips = 1.5),
     "min_tips.*whole number"
   )
+  testthat::expect_error(
+    regime_correlation_pca(mats, min_tips = 10),
+    "min_tips.*tip_counts"
+  )
 })
 
 test_that("regime_correlation_pca aligns matrices by trait names", {
@@ -1325,7 +1329,7 @@ test_that("regime_correlation_pca validates inputs and supports plotting modes",
     ),
     "Unused argument\\(s\\): \\.\\.1"
   )
-  testthat::expect_error(regime_correlation_pca(mats[1], min_tips = 10), "At least two")
+  testthat::expect_error(regime_correlation_pca(mats[1]), "At least two")
   testthat::expect_error(
     regime_correlation_pca(list(r1 = base, r2 = base[1:2, 1:2], r3 = base)),
     "same dimensions"

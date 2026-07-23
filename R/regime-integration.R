@@ -588,7 +588,8 @@ summarize_regime_covariance_runs <- function(x,
 #'   vector in matrix order. Resolved labels must be unique and not blank.
 #' @param min_tips Optional positive whole-number minimum tip count for
 #'   inclusion when `tip_counts` are available. Matching the manuscript `min_n`
-#'   convention, regimes are retained only when `tip_count > min_tips`.
+#'   convention, regimes are retained only when `tip_count > min_tips`. At
+#'   least one non-missing tip count must be available when this filter is used.
 #' @param ... Reserved for future extensions.
 #'
 #' @return An object of class `regime_correlation_pca` containing the `prcomp`
@@ -625,6 +626,13 @@ regime_correlation_pca <- function(x,
   regimes <- names(matrices)
   tip_counts <- .regime_match_optional(tip_counts, regimes)
   regime_ages <- .regime_match_optional(regime_ages, regimes)
+  if (!is.null(min_tips) && all(is.na(tip_counts))) {
+    stop(
+      "`min_tips` requires available `tip_counts`; supply at least one ",
+      "non-missing tip count.",
+      call. = FALSE
+    )
+  }
 
   keep <- vapply(matrices, is.matrix, logical(1))
   if (!is.null(min_tips)) {
