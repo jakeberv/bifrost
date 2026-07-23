@@ -104,13 +104,17 @@ test_that("searchOptimalConfiguration runs end-to-end on simulated data (GIC)", 
     "optimal_ic",
     "baseline_ic",
     "IC_used",
-    "num_candidates"
+    "num_candidates",
+    "candidate_nodes"
   ) %in% names(res)))
 
   # Types/values
   expect_numeric_scalar(res$baseline_ic)
   expect_numeric_scalar(res$optimal_ic)
   testthat::expect_true(res$IC_used %in% c("GIC", "BIC"))
+  testthat::expect_type(res$candidate_nodes, "integer")
+  testthat::expect_length(res$candidate_nodes, res$num_candidates)
+  testthat::expect_length(unique(res$candidate_nodes), res$num_candidates)
   # These may be NULL if no shifts are accepted; otherwise phylo
   expect_phylo_or_null(res$tree_no_uncertainty_untransformed)
   expect_phylo_or_null(res$tree_no_uncertainty_transformed)
@@ -159,13 +163,17 @@ test_that("searchOptimalConfiguration runs end-to-end on simulated data (BIC)", 
     "optimal_ic",
     "baseline_ic",
     "IC_used",
-    "num_candidates"
+    "num_candidates",
+    "candidate_nodes"
   ) %in% names(res)))
 
   # Types/values
   expect_numeric_scalar(res$baseline_ic)
   expect_numeric_scalar(res$optimal_ic)
   testthat::expect_true(res$IC_used %in% c("GIC", "BIC"))
+  testthat::expect_type(res$candidate_nodes, "integer")
+  testthat::expect_length(res$candidate_nodes, res$num_candidates)
+  testthat::expect_length(unique(res$candidate_nodes), res$num_candidates)
   # These may be NULL if no shifts are accepted; otherwise phylo
   expect_phylo_or_null(res$tree_no_uncertainty_untransformed)
   expect_phylo_or_null(res$tree_no_uncertainty_transformed)
@@ -1008,7 +1016,7 @@ test_that("no-shifts path yields a usable model_no_uncertainty", {
 test_that("searchOptimalConfiguration captures warnings from shift evaluation", {
   skip_if_missing_deps()
 
-  fit_env <- environment(.bifrost_search_model_fun)
+  fit_env <- environment(bifrost:::.bifrost_search_model_fun)
   orig_fit <- get("fitMvglsAndExtractGIC.formula", envir = fit_env)
 
   local_search_rebind(
@@ -1048,7 +1056,7 @@ test_that("searchOptimalConfiguration captures warnings from shift evaluation", 
 test_that("searchOptimalConfiguration records error entries in history and yields NA_real_ row", {
   skip_if_missing_deps()
 
-  forward_env <- environment(.bifrost_search_forward)
+  forward_env <- environment(bifrost:::.bifrost_search_forward)
 
   local_search_rebind(
     "addShiftToModel",
@@ -1214,7 +1222,7 @@ test_that("search helper uses future path only when requested", {
   Sys.setenv(OMP_NUM_THREADS = "7")
   Sys.unsetenv("NUMEXPR_NUM_THREADS")
 
-  serial <- .bifrost_search_lapply(
+  serial <- bifrost:::.bifrost_search_lapply(
     1:3,
     function(x) x + 1L,
     num_cores = 1,
@@ -1223,7 +1231,7 @@ test_that("search helper uses future path only when requested", {
   testthat::expect_identical(serial, list(2L, 3L, 4L))
   testthat::expect_identical(Sys.getenv("OMP_NUM_THREADS"), "7")
 
-  multisession <- .bifrost_run_future_lapply_safe(
+  multisession <- bifrost:::.bifrost_run_future_lapply_safe(
     1:2,
     function(x) x * 2L,
     workers = 2,
@@ -1232,7 +1240,7 @@ test_that("search helper uses future path only when requested", {
   testthat::expect_identical(multisession, list(2L, 4L))
   testthat::expect_identical(Sys.getenv("OMP_NUM_THREADS"), "7")
 
-  parallel_wrapper <- .bifrost_search_lapply(
+  parallel_wrapper <- bifrost:::.bifrost_search_lapply(
     1:2,
     function(x) x * 4L,
     num_cores = 2,
@@ -1243,7 +1251,7 @@ test_that("search helper uses future path only when requested", {
 
   if (.Platform$OS.type == "unix" &&
       !identical(Sys.info()[["sysname"]], "SunOS")) {
-    multicore <- .bifrost_run_future_lapply_safe(
+    multicore <- bifrost:::.bifrost_run_future_lapply_safe(
       1:2,
       function(x) x * 3L,
       workers = 2,
@@ -1274,7 +1282,7 @@ test_that("search history loader derives missing IC values from stored models", 
     file.path(sub_dir, "iteration_10.rds")
   )
 
-  history <- .bifrost_search_load_history(sub_dir, IC = "GIC")
+  history <- bifrost:::.bifrost_search_load_history(sub_dir, IC = "GIC")
 
   testthat::expect_equal(history$ic_acceptance_matrix[, 1], c(12.5, NA_real_))
   testthat::expect_equal(history$ic_acceptance_matrix[, 2], c(1, 0))
@@ -1284,8 +1292,8 @@ test_that("search history loader derives missing IC values from stored models", 
 test_that("searchOptimalConfiguration serial ic_weights executes BIC branch", {
   skip_if_missing_deps()
 
-  fit_env <- environment(.bifrost_search_model_fun)
-  weights_env <- environment(.bifrost_search_calculate_ic_weights)
+  fit_env <- environment(bifrost:::.bifrost_search_model_fun)
+  weights_env <- environment(bifrost:::.bifrost_search_calculate_ic_weights)
 
   # Deterministic decreasing BIC so shifts are accepted and weights run
   k <- 0L
@@ -1335,7 +1343,7 @@ test_that("searchOptimalConfiguration serial ic_weights executes BIC branch", {
 
 test_that("IC-weight characterization rejects simultaneous serial and parallel modes", {
   testthat::expect_error(
-    .bifrost_search_calculate_ic_weights(
+    bifrost:::.bifrost_search_calculate_ic_weights(
       uncertaintyweights = TRUE,
       uncertaintyweights_par = TRUE,
       shift_vec = list(),
@@ -1357,7 +1365,7 @@ test_that("IC-weight characterization rejects simultaneous serial and parallel m
 test_that("searchOptimalConfiguration captures warnings from shift evaluation (BIC)", {
   skip_if_missing_deps()
 
-  fit_env <- environment(.bifrost_search_model_fun)
+  fit_env <- environment(bifrost:::.bifrost_search_model_fun)
   orig_fit <- get("fitMvglsAndExtractBIC.formula", envir = fit_env)
 
   local_search_rebind(

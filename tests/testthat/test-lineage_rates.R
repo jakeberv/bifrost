@@ -600,6 +600,40 @@ test_that("lineage_rates can use tip-relative ages for non-ultrametric trees", {
   )
 })
 
+test_that("lineage_rates reuses linear-time node depths", {
+  .lineage_rates_skip_deps()
+  fit <- .lineage_rates_fit(.lineage_rates_hetero_fixture())
+  tree <- fit$tree_no_uncertainty_untransformed
+
+  expected_tip_depths <- unname(diag(ape::vcv.phylo(tree)))
+  expected <- lineage_rates(
+    fit,
+    log = FALSE,
+    progress = FALSE
+  )
+
+  testthat::local_mocked_bindings(
+    vcv.phylo = function(...) stop("quadratic covariance path used"),
+    .package = "ape"
+  )
+  testthat::local_mocked_bindings(
+    nodeheight = function(...) stop("repeated node-height path used"),
+    .package = "phytools"
+  )
+
+  out <- lineage_rates(
+    fit,
+    log = FALSE,
+    progress = FALSE
+  )
+
+  testthat::expect_equal(out, expected)
+  testthat::expect_equal(
+    attr(out, "branch_metrics")$Total_Time,
+    expected_tip_depths
+  )
+})
+
 test_that("lineage_rates validates generic input mode inputs", {
   .lineage_rates_skip_deps()
   tree <- .lineage_rates_fixture()

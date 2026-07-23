@@ -20,8 +20,11 @@ contain at least \code{paintedTree} and \code{shiftNodes}.}
 \item{simresults}{A list of search results corresponding to \code{simdata}, usually
 the \code{results} component returned by \code{\link[=runShiftRecoverySimulationStudy]{runShiftRecoverySimulationStudy()}}.
 Each element should contain \code{shift_nodes_no_uncertainty} and
-\code{num_candidates}; if \code{weighted = TRUE}, \code{ic_weights} is also used when
-available.}
+\code{num_candidates}. Results from \code{\link[=searchOptimalConfiguration]{searchOptimalConfiguration()}} also carry
+\code{candidate_nodes}, which allows candidate-aware specificity calculations;
+legacy result objects without that component retain the historical
+count-only calculation. If \code{weighted = TRUE}, \code{ic_weights} is also used
+when available.}
 
 \item{fuzzy_distance}{Integer node distance threshold used for fuzzy matching.}
 
@@ -65,6 +68,16 @@ the simulation-study implementation.
 
 Search results carrying a non-empty \code{error} field are retained by the study
 wrappers for diagnosis but excluded from recovery counts and metrics.
+
+For current search results, true-negative counts are calculated over the
+explicit \code{candidate_nodes} universe. True shifts excluded by the search's
+candidate filter still contribute false negatives, but are not subtracted
+from the number of candidate negatives. This prevents specificity and
+balanced accuracy from being distorted when a simulated shift is not an
+eligible search candidate. Supplied candidate-node vectors must contain
+unique, valid whole-number node IDs and agree with \code{num_candidates}. For
+compatibility, result objects that provide only \code{num_candidates} use the
+historical count-only formula.
 
 When a replicate has no evaluable candidate shifts (\code{num_candidates == 0}),
 recall-style quantities can still be computed from the true and inferred

@@ -735,7 +735,8 @@ lineage_rates <- function(
     unname(node_states[[as.character(node)]])
   }
 
-  root_to_tip_distances <- diag(ape::vcv.phylo(mapped_tree))
+  node_depths <- ape::node.depth.edgelength(mapped_tree)
+  root_to_tip_distances <- node_depths[seq_len(n_tip)]
   tree_height <- max(phytools::nodeHeights(mapped_tree))
   parent_by_child <- stats::setNames(mapped_tree$edge[, 1], mapped_tree$edge[, 2])
 
@@ -839,11 +840,7 @@ lineage_rates <- function(
     if (identical(mode, "branches")) {
       path_nodes <- .ancestor_path(k)
       rate_states <- vapply(path_nodes, .state_for_node, FUN.VALUE = character(1))
-      rate_ages <- vapply(
-        path_nodes,
-        function(n) reference_height - phytools::nodeheight(mapped_tree, node = n),
-        FUN.VALUE = numeric(1)
-      )
+      rate_ages <- reference_height - unname(node_depths[path_nodes])
       weighted_lineage_value <- .calc_weighted_lineage_value(rate_states, rate_ages)
     }
     rate_summaries <- .calculate_rates(

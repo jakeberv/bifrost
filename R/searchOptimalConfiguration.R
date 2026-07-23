@@ -172,7 +172,8 @@
 #'   \item \code{model_no_uncertainty}: the final \code{mvgls} model object.
 #'   \item \code{shift_nodes_no_uncertainty}: integer vector of accepted shift nodes.
 #'   \item \code{optimal_ic}: final IC value; \code{baseline_ic}: baseline IC.
-#'   \item \code{IC_used}: \code{"GIC"} or \code{"BIC"}; \code{num_candidates}: count of candidate one-shift models evaluated.
+#'   \item \code{IC_used}: \code{"GIC"} or \code{"BIC"}; \code{num_candidates}: count of candidate one-shift models evaluated;
+#'     \code{candidate_nodes}: integer node identifiers for those candidates.
 #'   \item \code{model_fit_history}: if \code{store_model_fit_history = TRUE}, a list of per-iteration fits
 #'         (loaded from temporary files written during the run) and an \code{ic_acceptance_matrix}
 #'         (IC value and acceptance flag per step).
@@ -395,6 +396,7 @@ searchOptimalConfiguration <-
     .progress("%s", "Generating candidate shift models...")
     candidate_trees <- generatePaintedTrees(baseline_tree, min_descendant_tips)
     candidate_trees_shifts <- candidate_trees[-1]
+    candidate_nodes <- as.integer(sub("^Node ", "", names(candidate_trees_shifts)))
 
     #fit the initial baseline model to the baseline tree with a global regime (state=0)
     .progress("%s", "Fitting baseline model...")
@@ -626,6 +628,7 @@ searchOptimalConfiguration <-
         baseline_ic = baseline_ic,
         IC_used = IC,
         num_candidates = length(sorted_candidates),
+        candidate_nodes = candidate_nodes,
         model_fit_history = model_fit_history
       )
 

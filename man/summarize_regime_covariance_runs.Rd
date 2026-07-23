@@ -18,8 +18,8 @@ summarize_regime_covariance_runs(
 }
 \arguments{
 \item{x}{Named list of \code{regime_covariances} objects, usually from
-\code{\link[=fit_regime_covariance_runs]{fit_regime_covariance_runs()}}. Blank names are generated and names must
-be unique after normalization.}
+\code{\link[=fit_regime_covariance_runs]{fit_regime_covariance_runs()}}. Missing or blank names are generated and
+names must be unique after normalization.}
 
 \item{searches}{Optional named list of corresponding \code{bifrost_search}
 objects. Run names are matched to \code{x}.}

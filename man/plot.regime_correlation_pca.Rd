@@ -26,9 +26,13 @@
 \item{type}{Plot type: \code{"loadings"}, \code{"scores"}, or \code{"variance"}.}
 
 \item{components}{Principal components to draw for loading or variance
-plots. Supply numeric indices or names such as \code{"PC1"}.}
+plots. Supply numeric indices or names such as \code{"PC1"}. By default, the
+first four available components, or all components when fewer exist, are
+drawn.}
 
-\item{pc_x, pc_y}{Components for the score scatter plot.}
+\item{pc_x, pc_y}{Components for the score scatter plot. The default uses
+PC1 and PC2 when available, or PC1 for both axes when only one component
+exists.}
 
 \item{palette}{Optional color vector for loading heatmaps.}
 

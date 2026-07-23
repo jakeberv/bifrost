@@ -10,15 +10,20 @@ regime_module_diagnostics(pca, modules, comparisons = NULL, pcs = NULL)
 \item{pca}{A \code{regime_correlation_pca} object from
 \code{\link[=regime_correlation_pca]{regime_correlation_pca()}} computed with \code{use_correlation = TRUE}.}
 
-\item{modules}{Named list of character vectors. Each element names the trait
-labels belonging to one anatomical, developmental, or functional module.}
+\item{modules}{Named list of character vectors. Module names must be unique
+and not blank. Each element names the unique trait labels belonging to one
+anatomical, developmental, or functional module. Singleton modules are
+allowed; their within-module scores and PC correlations are \code{NA} because
+no pairwise correlation is defined.}
 
 \item{comparisons}{Optional named list defining module comparisons to score.
 Each element must be a length-two character vector naming entries in
 \code{modules}. When both names are the same, the score is the mean
 upper-triangle within-module correlation; otherwise it is the mean
 between-module correlation. If \code{NULL}, all within-module and pairwise
-between-module comparisons are generated.}
+between-module comparisons are generated. Missing or blank comparison
+names are generated from their module pairs; the resulting names must be
+unique and not blank.}
 
 \item{pcs}{Principal components to correlate with module summaries. Supply
 numeric indices or names such as \code{"PC1"}. Defaults to all PCA score
