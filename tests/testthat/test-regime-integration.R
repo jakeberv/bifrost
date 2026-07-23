@@ -388,6 +388,15 @@ test_that("regime covariance run wrappers validate run-shaped inputs", {
   )
   testthat::expect_named(mixed_fit, c("run1", "named"))
 
+  missing_names <- list(named = search_like, search_like)
+  names(missing_names)[[2L]] <- NA_character_
+  missing_name_fit <- fit_regime_covariance_runs(
+    missing_names,
+    trait_data = dat,
+    min_tips = 99
+  )
+  testthat::expect_named(missing_name_fit, c("named", "run2"))
+
   skipped <- fit_regime_covariance_runs(
     list(first = search_like, second = search_like),
     trait_data = dat,

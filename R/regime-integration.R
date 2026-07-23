@@ -246,8 +246,8 @@ fit_regime_covariances <- function(x = NULL,
 #' regime subtrees in parallel through `cores`.
 #'
 #' @param x Named list of `bifrost_search` objects, compatible search-like
-#'   lists, or SIMMAP-style `phylo` trees. Blank names are generated and names
-#'   must be unique after normalization.
+#'   lists, or SIMMAP-style `phylo` trees. Missing or blank names are generated
+#'   and names must be unique after normalization.
 #' @inheritParams fit_regime_covariances
 #' @param tree_element For search-like list inputs, the element containing the
 #'   mapped tree to use for post-hoc refits. Set to `NULL` to let
@@ -492,8 +492,8 @@ summarize_regime_covariances <- function(x,
 #' high-correlation filtering explicit and reusable.
 #'
 #' @param x Named list of `regime_covariances` objects, usually from
-#'   [fit_regime_covariance_runs()]. Blank names are generated and names must
-#'   be unique after normalization.
+#'   [fit_regime_covariance_runs()]. Missing or blank names are generated and
+#'   names must be unique after normalization.
 #' @param searches Optional named list of corresponding `bifrost_search`
 #'   objects. Run names are matched to `x`.
 #' @param rates Optional named list of regime-rate vectors, or one named rate
@@ -1758,7 +1758,7 @@ as.data.frame.regime_integration_relationships <- function(x,
   if (is.null(run_names)) {
     run_names <- paste0("run", seq_along(x))
   }
-  missing_names <- !nzchar(run_names)
+  missing_names <- is.na(run_names) | !nzchar(run_names)
   if (any(missing_names)) {
     run_names[missing_names] <- paste0("run", which(missing_names))
   }
