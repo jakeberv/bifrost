@@ -388,6 +388,15 @@ test_that("regime covariance run wrappers validate run-shaped inputs", {
   )
   testthat::expect_named(mixed_fit, c("run1", "named"))
 
+  whitespace_names <- list(search_like, named = search_like)
+  names(whitespace_names)[[1L]] <- "   "
+  whitespace_fit <- fit_regime_covariance_runs(
+    whitespace_names,
+    trait_data = dat,
+    min_tips = 99
+  )
+  testthat::expect_named(whitespace_fit, c("run1", "named"))
+
   missing_names <- list(named = search_like, search_like)
   names(missing_names)[[2L]] <- NA_character_
   missing_name_fit <- fit_regime_covariance_runs(
@@ -917,6 +926,48 @@ test_that("regime integration summary helpers reject malformed inputs", {
   )
 })
 
+test_that("relationship models preserve rows with incomplete panel data", {
+  summary <- .regime_integration_relationship_summary()
+
+  missing_rate <- summary
+  missing_rate$rate[[1L]] <- NA_real_
+  rate_relationships <- regime_integration_relationships(
+    missing_rate,
+    resid_sd_threshold_vars = 1000,
+    resid_sd_threshold_corrs = 1000,
+    n_boot = 1
+  )
+  testthat::expect_equal(nrow(rate_relationships$combined), nrow(summary))
+  testthat::expect_true(is.na(rate_relationships$combined$vars_resid[[1L]]))
+  testthat::expect_true(is.na(rate_relationships$combined$corrs_resid[[1L]]))
+  testthat::expect_false("r1" %in% rate_relationships$variance_points$regime)
+  testthat::expect_false("r1" %in% rate_relationships$correlation_points$regime)
+
+  missing_variance <- summary
+  missing_variance$mean_variance[[1L]] <- NA_real_
+  variance_relationships <- regime_integration_relationships(
+    missing_variance,
+    resid_sd_threshold_vars = 1000,
+    resid_sd_threshold_corrs = 1000,
+    n_boot = 1
+  )
+  testthat::expect_true(is.na(variance_relationships$combined$vars_resid[[1L]]))
+  testthat::expect_false("r1" %in% variance_relationships$variance_points$regime)
+  testthat::expect_true("r1" %in% variance_relationships$correlation_points$regime)
+
+  missing_correlation <- summary
+  missing_correlation$mean_abs_correlation[[1L]] <- NA_real_
+  correlation_relationships <- regime_integration_relationships(
+    missing_correlation,
+    resid_sd_threshold_vars = 1000,
+    resid_sd_threshold_corrs = 1000,
+    n_boot = 1
+  )
+  testthat::expect_true(is.na(correlation_relationships$combined$corrs_resid[[1L]]))
+  testthat::expect_true("r1" %in% correlation_relationships$variance_points$regime)
+  testthat::expect_false("r1" %in% correlation_relationships$correlation_points$regime)
+})
+
 test_that("regime relationship bootstrap controls require usable R integers", {
   summary <- .regime_integration_relationship_summary()
   call_relationships <- function(n_boot = 1, seed = NULL) {
@@ -1165,6 +1216,22 @@ test_that("regime_correlation_pca uses manuscript-style strict min_tips filterin
   testthat::expect_equal(pca$regime_ids, c("r11", "r12"))
   testthat::expect_equal(pca$settings$min_tips, 10)
   testthat::expect_equal(pca$settings$tip_filter, "tip_count > min_tips")
+  testthat::expect_error(
+    regime_correlation_pca(
+      mats,
+      tip_counts = c(r10 = 10, r11 = 11, r12 = 12),
+      min_tips = c(5, 100)
+    ),
+    "min_tips.*whole number"
+  )
+  testthat::expect_error(
+    regime_correlation_pca(mats, min_tips = -1),
+    "min_tips.*positive integer"
+  )
+  testthat::expect_error(
+    regime_correlation_pca(mats, min_tips = 1.5),
+    "min_tips.*whole number"
+  )
 })
 
 test_that("regime_correlation_pca aligns matrices by trait names", {
@@ -1224,6 +1291,27 @@ test_that("regime_correlation_pca validates inputs and supports plotting modes",
   testthat::expect_error(
     regime_correlation_pca(mats, trait_labels = c("A", "B")),
     "match the matrix"
+  )
+  testthat::expect_error(
+    regime_correlation_pca(
+      mats,
+      trait_labels = c(a = "X", b = "X", c = "Y")
+    ),
+    "trait labels.*duplicated identifier.*X"
+  )
+  testthat::expect_error(
+    regime_correlation_pca(
+      mats,
+      trait_labels = c(a = "X", b = "   ", c = "Y")
+    ),
+    "trait labels.*non-empty"
+  )
+  testthat::expect_error(
+    regime_correlation_pca(
+      mats,
+      trait_labels = c(a = "X", b = NA_character_, c = "Y")
+    ),
+    "trait labels.*non-empty"
   )
 
   pdf_file <- tempfile(fileext = ".pdf")
@@ -1387,6 +1475,35 @@ test_that("regime_module_diagnostics summarizes named module comparisons", {
     "regime_module_diagnostics"
   )
   testthat::expect_equal(.Random.seed, seed_before)
+})
+
+test_that("regime_module_diagnostics handles one and singleton modules", {
+  pca <- regime_correlation_pca(.regime_integration_pca_mats())
+
+  one_module <- regime_module_diagnostics(
+    pca,
+    modules = list(all = c("a", "b")),
+    pcs = "PC1"
+  )
+  testthat::expect_named(one_module$comparisons, "within_all")
+  testthat::expect_true(all(is.finite(one_module$module_scores$within_all)))
+
+  singleton_modules <- regime_module_diagnostics(
+    pca,
+    modules = list(first = "a", second = "b"),
+    pcs = "PC1"
+  )
+  testthat::expect_named(
+    singleton_modules$comparisons,
+    c("within_first", "within_second", "first_vs_second")
+  )
+  testthat::expect_true(all(is.na(singleton_modules$module_scores$within_first)))
+  testthat::expect_true(all(is.na(singleton_modules$module_scores$within_second)))
+  within_correlations <- singleton_modules$correlations$module_comparison %in%
+    c("within_first", "within_second")
+  testthat::expect_true(all(is.na(
+    singleton_modules$correlations$correlation[within_correlations]
+  )))
 })
 
 test_that("regime_module_diagnostics validates modules, comparisons, and plot selections", {
@@ -1928,6 +2045,31 @@ test_that("relationship summaries accept manuscript-shaped tables and preserve b
   testthat::expect_equal(
     unique(missing_name_relationships$combined$run),
     c("empirical", "run2")
+  )
+
+  whitespace_name_runs <- list(vars_cors, empirical = vars_cors)
+  names(whitespace_name_runs)[[1L]] <- "   "
+  whitespace_name_relationships <- regime_integration_relationships(
+    whitespace_name_runs,
+    resid_sd_threshold_vars = 1000,
+    resid_sd_threshold_corrs = 1000,
+    n_boot = 1
+  )
+  testthat::expect_equal(
+    unique(whitespace_name_relationships$combined$run),
+    c("run1", "empirical")
+  )
+
+  generated_collision_runs <- list(run2 = vars_cors, vars_cors)
+  names(generated_collision_runs)[[2L]] <- ""
+  testthat::expect_error(
+    regime_integration_relationships(
+      generated_collision_runs,
+      resid_sd_threshold_vars = 1000,
+      resid_sd_threshold_corrs = 1000,
+      n_boot = 1
+    ),
+    "summaries.*duplicated run name.*run2"
   )
 
   old_seed <- if (exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)) {

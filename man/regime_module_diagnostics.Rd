@@ -12,7 +12,9 @@ regime_module_diagnostics(pca, modules, comparisons = NULL, pcs = NULL)
 
 \item{modules}{Named list of character vectors. Module names must be unique
 and not blank. Each element names the unique trait labels belonging to one
-anatomical, developmental, or functional module.}
+anatomical, developmental, or functional module. Singleton modules are
+allowed; their within-module scores and PC correlations are \code{NA} because
+no pairwise correlation is defined.}
 
 \item{comparisons}{Optional named list defining module comparisons to score.
 Each element must be a length-two character vector naming entries in

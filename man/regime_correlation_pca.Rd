@@ -34,11 +34,11 @@ manuscript workflow.}
 
 \item{trait_labels}{Optional labels for the matrix rows/columns. Supply a
 named vector to map internal trait names to display labels, or an unnamed
-vector in matrix order.}
+vector in matrix order. Resolved labels must be unique and not blank.}
 
-\item{min_tips}{Optional minimum tip count for inclusion when \code{tip_counts}
-are available. Matching the manuscript \code{min_n} convention, regimes are
-retained only when \code{tip_count > min_tips}.}
+\item{min_tips}{Optional positive whole-number minimum tip count for
+inclusion when \code{tip_counts} are available. Matching the manuscript \code{min_n}
+convention, regimes are retained only when \code{tip_count > min_tips}.}
 
 \item{...}{Reserved for future extensions.}
 }
