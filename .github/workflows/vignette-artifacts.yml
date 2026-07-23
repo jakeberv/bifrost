@@ -28,7 +28,7 @@ jobs:
       colab_slugs: ${{ steps.changed.outputs.colab_slugs }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
           repository: ${{ github.event.pull_request.head.repo.full_name }}
@@ -83,7 +83,7 @@ jobs:
 
       - name: Upload generated Colab notebooks
         if: steps.changed.outputs.colab_slugs != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: colab-notebooks-${{ github.event.pull_request.head.sha }}
           path: vignettes/colab/*.ipynb
@@ -134,14 +134,14 @@ jobs:
       contents: write
     steps:
       - name: Checkout PR head
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
           repository: ${{ github.event.pull_request.head.repo.full_name }}
           ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Download generated Colab notebooks
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: colab-notebooks-${{ github.event.pull_request.head.sha }}
           path: vignettes/colab
