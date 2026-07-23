@@ -1625,6 +1625,15 @@ test_that("regime_module_diagnostics validates modules, comparisons, and plot se
     ),
     "Module `anterior`.*duplicated trait label.*a"
   )
+  for (invalid_trait in list("", "   ", NA_character_)) {
+    testthat::expect_error(
+      regime_module_diagnostics(
+        pca,
+        modules = list(anterior = c("a", invalid_trait), posterior = "c")
+      ),
+      "trait labels in module `anterior`.*non-empty"
+    )
+  }
   testthat::expect_error(regime_module_diagnostics(pca, modules = list(a = "missing")), "not present")
   testthat::expect_error(
     regime_module_diagnostics(pca, modules = modules, comparisons = list()),

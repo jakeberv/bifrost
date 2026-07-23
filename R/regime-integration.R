@@ -2773,6 +2773,10 @@ as.data.frame.regime_integration_relationships <- function(x,
         call. = FALSE
       )
     }
+    .regime_validate_identifiers(
+      modules[[module_name]],
+      paste0("trait labels in module `", module_name, "`")
+    )
   }
   module_traits <- unique(unlist(modules, use.names = FALSE))
   missing_traits <- setdiff(module_traits, trait_labels)
