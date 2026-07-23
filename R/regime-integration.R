@@ -954,7 +954,10 @@ regime_integration_pgls <- function(summary_data,
 #' bootstrap settings, but it does not reapply matrix-level correlation filters.
 #' Rows with incomplete data for a panel remain in `combined` with an `NA`
 #' studentized residual and are omitted from that panel's point and removed-row
-#' data frames.
+#' data frames. Non-missing rates and variances must be finite and strictly
+#' positive, and non-missing correlations must be finite values in `[-1, 1]`.
+#' Boundary correlations at `-1` or `1` are retained in `combined`, but their
+#' undefined Fisher-Z transforms and correlation-panel residuals are `NA`.
 #' @export
 regime_integration_relationships <- function(summaries,
                                              resid_sd_threshold_vars = 2,
@@ -985,7 +988,13 @@ regime_integration_relationships <- function(summaries,
     min_tips = min_tips,
     caller = "regime_integration_relationships"
   )
-  combined$fisher_z_corr <- fisher_z_transform(combined$corrs)
+  .regime_validate_relationship_values(combined)
+  combined$fisher_z_corr <- vapply(
+    combined$corrs,
+    .regime_fisher_z,
+    numeric(1),
+    boundary = "NA"
+  )
   combined$log_rate <- log(combined$rate)
   combined$log_vars <- log(combined$vars)
 
@@ -2265,6 +2274,47 @@ as.data.frame.regime_integration_relationships <- function(x,
   )
   .regime_validate_identifiers(out$regime, "summary-data regime IDs")
   .regime_append_optional_summary_columns(out, summary_data)
+}
+
+.regime_validate_relationship_values <- function(data) {
+  validate_positive <- function(values, column) {
+    if (!is.numeric(values)) {
+      stop("`", column, "` must be numeric.", call. = FALSE)
+    }
+    invalid <- is.nan(values) |
+      (!is.na(values) & (!is.finite(values) | values <= 0))
+    if (any(invalid)) {
+      stop(
+        "`", column,
+        "` values must be finite and strictly positive when present; ",
+        "invalid regime(s): ",
+        paste(data$regime[invalid], collapse = ", "),
+        ".",
+        call. = FALSE
+      )
+    }
+  }
+
+  validate_positive(data$rate, "rate")
+  validate_positive(data$vars, "vars")
+
+  if (!is.numeric(data$corrs)) {
+    stop("`corrs` must be numeric.", call. = FALSE)
+  }
+  invalid_correlation <- is.nan(data$corrs) |
+    (!is.na(data$corrs) &
+      (!is.finite(data$corrs) | abs(data$corrs) > 1))
+  if (any(invalid_correlation)) {
+    stop(
+      "`corrs` values must be finite numbers between -1 and 1 when present; ",
+      "invalid regime(s): ",
+      paste(data$regime[invalid_correlation], collapse = ", "),
+      ".",
+      call. = FALSE
+    )
+  }
+
+  invisible(data)
 }
 
 .regime_append_optional_summary_columns <- function(out, summary_data) {

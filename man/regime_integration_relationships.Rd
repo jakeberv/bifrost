@@ -52,5 +52,8 @@ High-correlation filtering is applied before this step with
 bootstrap settings, but it does not reapply matrix-level correlation filters.
 Rows with incomplete data for a panel remain in \code{combined} with an \code{NA}
 studentized residual and are omitted from that panel's point and removed-row
-data frames.
+data frames. Non-missing rates and variances must be finite and strictly
+positive, and non-missing correlations must be finite values in \verb{[-1, 1]}.
+Boundary correlations at \code{-1} or \code{1} are retained in \code{combined}, but their
+undefined Fisher-Z transforms and correlation-panel residuals are \code{NA}.
 }

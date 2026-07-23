@@ -924,6 +924,27 @@ test_that("regime integration summary helpers reject malformed inputs", {
     regime_integration_relationships(manuscript_summary, n_boot = 1),
     "summary-data regime IDs.*duplicated identifier.*r1"
   )
+
+  invalid_rate <- relationship_summary
+  invalid_rate$rate[[1L]] <- 0
+  testthat::expect_error(
+    regime_integration_relationships(invalid_rate, n_boot = 1),
+    "rate.*finite and strictly positive.*r1"
+  )
+
+  invalid_variance <- relationship_summary
+  invalid_variance$mean_variance[[1L]] <- Inf
+  testthat::expect_error(
+    regime_integration_relationships(invalid_variance, n_boot = 1),
+    "vars.*finite and strictly positive.*r1"
+  )
+
+  invalid_correlation <- relationship_summary
+  invalid_correlation$mean_abs_correlation[[1L]] <- 1.01
+  testthat::expect_error(
+    regime_integration_relationships(invalid_correlation, n_boot = 1),
+    "corrs.*between -1 and 1.*r1"
+  )
 })
 
 test_that("relationship models preserve rows with incomplete panel data", {
@@ -966,6 +987,20 @@ test_that("relationship models preserve rows with incomplete panel data", {
   testthat::expect_true(is.na(correlation_relationships$combined$corrs_resid[[1L]]))
   testthat::expect_true("r1" %in% correlation_relationships$variance_points$regime)
   testthat::expect_false("r1" %in% correlation_relationships$correlation_points$regime)
+
+  boundary_correlation <- summary
+  boundary_correlation$mean_abs_correlation[[1L]] <- 1
+  boundary_relationships <- regime_integration_relationships(
+    boundary_correlation,
+    resid_sd_threshold_vars = 1000,
+    resid_sd_threshold_corrs = 1000,
+    n_boot = 1
+  )
+  testthat::expect_true(is.na(boundary_relationships$combined$fisher_z_corr[[1L]]))
+  testthat::expect_true(is.na(boundary_relationships$combined$corrs_resid[[1L]]))
+  testthat::expect_true("r1" %in% boundary_relationships$variance_points$regime)
+  testthat::expect_false("r1" %in% boundary_relationships$correlation_points$regime)
+  testthat::expect_false("r1" %in% boundary_relationships$correlation_removed$regime)
 })
 
 test_that("regime relationship bootstrap controls require usable R integers", {
