@@ -938,6 +938,10 @@ def main() -> None:
         raise AssertionError("unused pkgdown header include must not remain tracked")
     if "const encodedSlug = encodeURIComponent(slug);" not in pkgdown_config:
         raise AssertionError("pkgdown artifact links must URL-encode vignette slugs")
+    if "if (sourcePath.includes('/articles/')) return;" not in pkgdown_config:
+        raise AssertionError(
+            "pkgdown artifact links must skip website-only articles"
+        )
     if "pdf.href = './' + encodedSlug + '.pdf';" not in pkgdown_config:
         raise AssertionError("pkgdown PDF link must use the encoded vignette slug")
     if "encodedSlug + '.ipynb';" not in pkgdown_config:

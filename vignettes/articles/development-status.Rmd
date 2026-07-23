@@ -1,0 +1,74 @@
+---
+title: "Development Status"
+description: "How the GitHub development version differs from the current CRAN release."
+---
+
+`bifrost` is available as a stable CRAN package and as a GitHub development
+version. The development version is where completed features and documentation
+are assembled and tested before the next CRAN release.
+
+## At a glance
+
+| Distribution | Version | Installation | Best for |
+|---|---:|---|---|
+| [CRAN](https://CRAN.R-project.org/package=bifrost) | 0.1.4 | `install.packages("bifrost")` | Reproducible analyses using the current public release |
+| [GitHub](https://github.com/jakeberv/bifrost) | 0.1.4.9000 | `remotes::install_github("jakeberv/bifrost")` | Evaluating unreleased features and following the latest documentation |
+
+The GitHub development version requires R 4.2 or newer. Because it is
+unreleased, its interfaces and defaults may still change before the next CRAN
+release.
+
+## What the development version adds
+
+The development version currently extends the CRAN release in several related
+areas:
+
+- **Search inspection and diagnostics.** `icTrajectory()` and its `plot()`
+  method expose search histories, while richer stored candidate records retain
+  accepted, rejected, and errored fits.
+- **Branch-rate summaries.** `rateMap()` and its supporting view, control,
+  flagging, print, and plot methods summarize branch-rate patterns across
+  completed searches.
+- **Lineage rates and shift distributions.** `lineage_rates()` and related
+  tools summarize inherited lineage rates, shift timing and waiting times,
+  rate distributions, and shift magnitudes.
+- **Regime covariance and integration.** Post-hoc tools estimate and summarize
+  regime-specific covariance structure, diagnose modules and correlation-space
+  variation, compare integration relationships, and support pGLS analyses.
+- **Simulation and tuning.** Reproducible null and shifted simulations support
+  strict and fuzzy recovery assessment, fixed-IC tuning grids, null safeguards,
+  and tuning selection by fuzzy balanced accuracy.
+- **Formula-based searches.** Searches accept formula objects or character
+  strings, response-only numeric data frames for intercept-only analyses, and
+  named-column formulas such as `cbind(y1, y2) ~ size + grp`.
+- **Expanded worked documentation.** The website includes rate-mapping,
+  five-part avian skeleton, and two-part simulation and calibration workflows,
+  together with downloadable PDFs and executable Colab notebooks.
+
+The detailed, itemized record of these changes is maintained in
+[NEWS](../news/index.html).
+
+## Current caveats
+
+Some repository workflows and their methodological guidance remain under
+active development, especially pGLS-style uses of `bifrost` with hidden
+branch-specific rate variation. The simulation framework continues to use the
+original manuscript generator by default; the empirically calibrated
+full-covariance generator is available only when explicitly selected.
+
+Repository automation and generated site assets, including the CRAN downloads
+tracker, support package development and documentation but are not part of the
+core CRAN API.
+
+## Website articles and the package tarball
+
+The source files for the website articles are maintained in this repository but
+excluded from the CRAN source-package tarball. This keeps manuscript-scale
+demonstrations, including the five-part avian skeleton workflow, out of routine
+package installation and CRAN checks while preserving the complete rendered
+documentation on the pkgdown website.
+
+For stable release information, use the
+[CRAN package page](https://CRAN.R-project.org/package=bifrost). For unreleased
+changes, consult [NEWS](../news/index.html) and the
+[GitHub repository](https://github.com/jakeberv/bifrost).
