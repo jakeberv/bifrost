@@ -104,13 +104,17 @@ test_that("searchOptimalConfiguration runs end-to-end on simulated data (GIC)", 
     "optimal_ic",
     "baseline_ic",
     "IC_used",
-    "num_candidates"
+    "num_candidates",
+    "candidate_nodes"
   ) %in% names(res)))
 
   # Types/values
   expect_numeric_scalar(res$baseline_ic)
   expect_numeric_scalar(res$optimal_ic)
   testthat::expect_true(res$IC_used %in% c("GIC", "BIC"))
+  testthat::expect_type(res$candidate_nodes, "integer")
+  testthat::expect_length(res$candidate_nodes, res$num_candidates)
+  testthat::expect_length(unique(res$candidate_nodes), res$num_candidates)
   # These may be NULL if no shifts are accepted; otherwise phylo
   expect_phylo_or_null(res$tree_no_uncertainty_untransformed)
   expect_phylo_or_null(res$tree_no_uncertainty_transformed)
@@ -159,13 +163,17 @@ test_that("searchOptimalConfiguration runs end-to-end on simulated data (BIC)", 
     "optimal_ic",
     "baseline_ic",
     "IC_used",
-    "num_candidates"
+    "num_candidates",
+    "candidate_nodes"
   ) %in% names(res)))
 
   # Types/values
   expect_numeric_scalar(res$baseline_ic)
   expect_numeric_scalar(res$optimal_ic)
   testthat::expect_true(res$IC_used %in% c("GIC", "BIC"))
+  testthat::expect_type(res$candidate_nodes, "integer")
+  testthat::expect_length(res$candidate_nodes, res$num_candidates)
+  testthat::expect_length(unique(res$candidate_nodes), res$num_candidates)
   # These may be NULL if no shifts are accepted; otherwise phylo
   expect_phylo_or_null(res$tree_no_uncertainty_untransformed)
   expect_phylo_or_null(res$tree_no_uncertainty_transformed)

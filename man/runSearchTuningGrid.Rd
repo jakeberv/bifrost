@@ -30,8 +30,8 @@ runSearchTuningGrid(
 \item{IC}{Character scalar, either \code{"GIC"} or \code{"BIC"}. The tuning grid is
 run for this IC family only.}
 
-\item{shift_acceptance_thresholds}{Numeric vector of candidate
-\code{shift_acceptance_threshold} values to evaluate.}
+\item{shift_acceptance_thresholds}{Finite, non-negative numeric vector of
+candidate \code{shift_acceptance_threshold} values to evaluate.}
 
 \item{min_descendant_tips_values}{Integer vector of candidate
 \code{min_descendant_tips} values to evaluate.}
@@ -144,8 +144,9 @@ re-fit inside each grid replicate.
 
 The returned \code{summary_table} contains one row per grid combination. Null
 summaries emphasize false-positive behavior, while proportional and
-correlation-scenario summaries emphasize recovery. The corresponding output
-columns retain their \code{correlation_} prefixes for backward compatibility.
+correlation-scenario summaries emphasize recovery, including fuzzy balanced
+accuracy. The corresponding output columns retain their \code{correlation_}
+prefixes for backward compatibility.
 When \code{seed} is supplied, the
 \code{null_seed}, \code{proportional_seed}, and \code{correlation_seed} columns record the
 deterministic per-study seeds used for each setting; otherwise those columns

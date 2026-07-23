@@ -109,6 +109,55 @@ test_that("evaluateShiftRecovery validates inputs", {
     evaluateShiftRecovery(simdata = list(), simresults = list(), verbose = NA),
     "TRUE or FALSE"
   )
+
+  set.seed(511)
+  tr <- ape::rtree(8)
+  simdata <- list(list(paintedTree = tr, shiftNodes = integer(0)))
+  malformed_result <- function(candidate_nodes, num_candidates = length(candidate_nodes)) {
+    list(list(
+      shift_nodes_no_uncertainty = integer(0),
+      num_candidates = num_candidates,
+      candidate_nodes = candidate_nodes,
+      ic_weights = data.frame()
+    ))
+  }
+
+  testthat::expect_error(
+    evaluateShiftRecovery(
+      simdata,
+      malformed_result(ape::Ntip(tr) + 2.5),
+      weighted = FALSE,
+      verbose = FALSE
+    ),
+    "candidate_nodes"
+  )
+  testthat::expect_error(
+    evaluateShiftRecovery(
+      simdata,
+      malformed_result(rep(ape::Ntip(tr) + 2L, 2)),
+      weighted = FALSE,
+      verbose = FALSE
+    ),
+    "unique"
+  )
+  testthat::expect_error(
+    evaluateShiftRecovery(
+      simdata,
+      malformed_result(ape::Ntip(tr) + 2L, num_candidates = 2L),
+      weighted = FALSE,
+      verbose = FALSE
+    ),
+    "num_candidates"
+  )
+  testthat::expect_error(
+    evaluateShiftRecovery(
+      simdata,
+      malformed_result(ape::Ntip(tr) + ape::Nnode(tr) + 1L),
+      weighted = FALSE,
+      verbose = FALSE
+    ),
+    "valid node IDs"
+  )
 })
 
 test_that("evaluateShiftRecovery handles edge cases and verbose output", {
@@ -219,6 +268,71 @@ test_that("evaluateShiftRecovery treats zero-candidate replicates as unevaluable
   testthat::expect_true(is.na(out$strict$balanced_accuracy))
   testthat::expect_true(is.na(out$fuzzy$specificity))
   testthat::expect_true(is.na(out$fuzzy$balanced_accuracy))
+})
+
+test_that("evaluateShiftRecovery excludes ineligible true shifts from true-negative accounting", {
+  skip_if_eval_shift_deps()
+
+  set.seed(541)
+  tr0 <- ape::rtree(10)
+  tr <- phytools::paintSubTree(
+    tr0,
+    node = ape::Ntip(tr0) + 1L,
+    state = "ancestral",
+    anc.state = "ancestral"
+  )
+  internal_nodes <- setdiff(unique(tr$edge[, 1]), ape::Ntip(tr) + 1L)
+  candidate_nodes <- internal_nodes[1:4]
+  true_nodes <- c(candidate_nodes[1], internal_nodes[5])
+  inferred_nodes <- candidate_nodes[1:2]
+  simdata <- list(list(paintedTree = tr, shiftNodes = true_nodes))
+
+  candidate_aware <- evaluateShiftRecovery(
+    simdata,
+    list(list(
+      shift_nodes_no_uncertainty = inferred_nodes,
+      num_candidates = length(candidate_nodes),
+      candidate_nodes = candidate_nodes,
+      ic_weights = data.frame()
+    )),
+    fuzzy_distance = 0,
+    weighted = FALSE,
+    verbose = FALSE
+  )
+
+  testthat::expect_equal(
+    unname(candidate_aware$counts$strict),
+    c(1, 1, 1, 2)
+  )
+  testthat::expect_equal(
+    unname(candidate_aware$counts$fuzzy),
+    c(1, 1, 1, 2)
+  )
+  testthat::expect_equal(
+    candidate_aware$strict$balanced_accuracy,
+    mean(c(1 / 2, 2 / 3))
+  )
+  testthat::expect_equal(
+    candidate_aware$fuzzy$balanced_accuracy,
+    mean(c(1 / 2, 2 / 3))
+  )
+
+  legacy <- evaluateShiftRecovery(
+    simdata,
+    list(list(
+      shift_nodes_no_uncertainty = inferred_nodes,
+      num_candidates = length(candidate_nodes),
+      ic_weights = data.frame()
+    )),
+    fuzzy_distance = 0,
+    weighted = FALSE,
+    verbose = FALSE
+  )
+
+  testthat::expect_equal(unname(legacy$counts$strict), c(1, 1, 1, 1))
+  testthat::expect_equal(unname(legacy$counts$fuzzy), c(1, 1, 1, 1))
+  testthat::expect_equal(legacy$strict$balanced_accuracy, 0.5)
+  testthat::expect_equal(legacy$fuzzy$balanced_accuracy, 0.5)
 })
 
 test_that("evaluateShiftRecovery excludes failed search records", {

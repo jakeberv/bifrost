@@ -1063,9 +1063,17 @@ test_that("runShiftRecoverySimulationStudy records search fallback errors", {
   testthat::expect_equal(unname(study$evaluation$counts$fuzzy), rep(0, 4))
   testthat::expect_true(all(is.na(unlist(study$evaluation$strict))))
   testthat::expect_true(all(is.na(unlist(study$evaluation$fuzzy))))
+  expected_candidates <- generatePaintedTrees(
+    ape::as.phylo(study$simdata[[1]]$paintedTree),
+    min_tips = 2
+  )[-1]
   testthat::expect_equal(
     study$results[[1]]$num_candidates,
-    max(length(generatePaintedTrees(ape::as.phylo(study$simdata[[1]]$paintedTree), min_tips = 2)) - 1L, 0L)
+    length(expected_candidates)
+  )
+  testthat::expect_identical(
+    study$results[[1]]$candidate_nodes,
+    as.integer(sub("^Node ", "", names(expected_candidates)))
   )
 })
 

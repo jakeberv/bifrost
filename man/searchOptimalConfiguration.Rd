@@ -127,7 +127,8 @@ on the transformed scale used internally by \code{mvgls}.
 \item \code{model_no_uncertainty}: the final \code{mvgls} model object.
 \item \code{shift_nodes_no_uncertainty}: integer vector of accepted shift nodes.
 \item \code{optimal_ic}: final IC value; \code{baseline_ic}: baseline IC.
-\item \code{IC_used}: \code{"GIC"} or \code{"BIC"}; \code{num_candidates}: count of candidate one-shift models evaluated.
+\item \code{IC_used}: \code{"GIC"} or \code{"BIC"}; \code{num_candidates}: count of candidate one-shift models evaluated;
+\code{candidate_nodes}: integer node identifiers for those candidates.
 \item \code{model_fit_history}: if \code{store_model_fit_history = TRUE}, a list of per-iteration fits
 (loaded from temporary files written during the run) and an \code{ic_acceptance_matrix}
 (IC value and acceptance flag per step).
