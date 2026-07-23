@@ -1945,7 +1945,7 @@ as.data.frame.regime_integration_relationships <- function(x,
 
   col_names <- colnames(trait_data)
   if (!is.null(col_names)) {
-    for (name in col_names) {
+    for (name in setdiff(col_names, "trait_data")) {
       assign(name, trait_data[, name], envir = eval_env)
     }
   }

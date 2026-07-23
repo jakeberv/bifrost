@@ -1116,6 +1116,22 @@ test_that("regime integration summaries cover matrix-list and legacy status shap
     .regime_formula_with_data(null_env_formula, matrix(1, nrow = 1)),
     "formula"
   )
+  conflicting_data <- cbind(
+    trait_data = c(1, 2, 3),
+    predictor = c(4, 5, 6)
+  )
+  conflicting_formula <- .regime_formula_with_data(
+    trait_data ~ predictor,
+    conflicting_data
+  )
+  testthat::expect_identical(
+    get("trait_data", envir = environment(conflicting_formula)),
+    conflicting_data
+  )
+  testthat::expect_equal(
+    get("predictor", envir = environment(conflicting_formula)),
+    conflicting_data[, "predictor"]
+  )
   testthat::expect_equal(
     .regime_extract_covariance(list(sigma = diag(2))),
     diag(2)
