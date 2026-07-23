@@ -36,6 +36,7 @@ articles:
       - simulation-study-part-2
 template:
   bootstrap: 5
+  math-rendering: katex
   includes:
     in_header: |
       <script data-goatcounter="https://bifrost.goatcounter.com/count"

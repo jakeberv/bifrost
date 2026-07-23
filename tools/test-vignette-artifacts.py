@@ -41,6 +41,27 @@ def run(
     return result
 
 
+def pkgdown_template_value(config_text: str, key: str) -> str | None:
+    in_template = False
+    key_pattern = re.compile(
+        rf"^  {re.escape(key)}:\s*(?P<value>[^#]*?)(?:\s+#.*)?$"
+    )
+    for line in config_text.splitlines():
+        stripped = line.strip()
+        if not in_template:
+            if re.fullmatch(r"template:\s*(?:#.*)?", line):
+                in_template = True
+            continue
+        if not stripped or stripped.startswith("#"):
+            continue
+        if not line[0].isspace():
+            break
+        match = key_pattern.fullmatch(line)
+        if match:
+            return match.group("value").strip().strip("\"'")
+    return None
+
+
 def bootstrapped_packages(setup: str) -> set[str]:
     match = re.search(r"colab_packages\s*<-\s*c\((.*?)\)", setup, re.DOTALL)
     if not match:
@@ -932,6 +953,33 @@ def main() -> None:
         raise AssertionError("PDF renderer must resolve each vignette's YAML format")
 
     pkgdown_config = (source / "_pkgdown.yml").read_text()
+    pkgdown_math_parser_cases = (
+        ("template:\n  math-rendering: katex\n", "katex"),
+        ("template:\n  math-rendering: 'katex' # renderer\n", "katex"),
+        ("template:\n  # math-rendering: katex\n", None),
+        (
+            "template:\n"
+            "  includes:\n"
+            "    in_header: |\n"
+            "      math-rendering: katex\n"
+            "navbar:\n"
+            "  math-rendering: katex\n",
+            None,
+        ),
+    )
+    for config_text, expected in pkgdown_math_parser_cases:
+        actual = pkgdown_template_value(config_text, "math-rendering")
+        if actual != expected:
+            raise AssertionError(
+                "pkgdown template parser returned "
+                f"{actual!r}; expected {expected!r}"
+            )
+    math_renderer = pkgdown_template_value(pkgdown_config, "math-rendering")
+    if math_renderer != "katex":
+        raise AssertionError(
+            "pkgdown config must use KaTeX so equations render across reference "
+            "pages and articles"
+        )
     if "bifrost.goatcounter.com/count" not in pkgdown_config:
         raise AssertionError("pkgdown config must inline the GoatCounter header include")
     if (source / "pkgdown/extra-head.html").exists():
