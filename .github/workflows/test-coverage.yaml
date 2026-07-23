@@ -34,6 +34,7 @@ jobs:
 
       - name: Install package for multisession workers
         run: R CMD INSTALL .
+        shell: bash
 
       - name: Exercise real parallel workers
         run: |
