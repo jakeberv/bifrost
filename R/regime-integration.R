@@ -707,15 +707,17 @@ regime_correlation_pca <- function(x,
 #'
 #' @param pca A `regime_correlation_pca` object from
 #'   [regime_correlation_pca()] computed with `use_correlation = TRUE`.
-#' @param modules Named list of character vectors. Each element names the unique
-#'   trait labels belonging to one anatomical, developmental, or functional
-#'   module.
+#' @param modules Named list of character vectors. Module names must be unique
+#'   and not blank. Each element names the unique trait labels belonging to one
+#'   anatomical, developmental, or functional module.
 #' @param comparisons Optional named list defining module comparisons to score.
 #'   Each element must be a length-two character vector naming entries in
 #'   `modules`. When both names are the same, the score is the mean
 #'   upper-triangle within-module correlation; otherwise it is the mean
 #'   between-module correlation. If `NULL`, all within-module and pairwise
-#'   between-module comparisons are generated.
+#'   between-module comparisons are generated. Missing or blank comparison
+#'   names are generated from their module pairs; the resulting names must be
+#'   unique and not blank.
 #' @param pcs Principal components to correlate with module summaries. Supply
 #'   numeric indices or names such as `"PC1"`. Defaults to all PCA score
 #'   columns.
@@ -2637,9 +2639,10 @@ as.data.frame.regime_integration_relationships <- function(x,
   if (!is.list(modules) || length(modules) == 0L) {
     stop("`modules` must be a non-empty named list.", call. = FALSE)
   }
-  if (is.null(names(modules)) || any(!nzchar(names(modules)))) {
+  if (is.null(names(modules))) {
     stop("`modules` must be named.", call. = FALSE)
   }
+  .regime_validate_identifiers(names(modules), "module names")
   modules <- lapply(modules, as.character)
   empty <- names(modules)[vapply(modules, length, integer(1)) == 0L]
   if (length(empty) > 0L) {
@@ -2677,13 +2680,21 @@ as.data.frame.regime_integration_relationships <- function(x,
   if (!is.list(comparisons) || length(comparisons) == 0L) {
     stop("`comparisons` must be a non-empty named list.", call. = FALSE)
   }
-  if (is.null(names(comparisons)) || any(!nzchar(names(comparisons)))) {
-    names(comparisons) <- vapply(
-      comparisons,
-      function(x) paste(as.character(x), collapse = "_vs_"),
-      character(1)
-    )
+  comparison_names <- names(comparisons)
+  generated_names <- vapply(
+    comparisons,
+    function(x) paste(as.character(x), collapse = "_vs_"),
+    character(1)
+  )
+  if (is.null(comparison_names)) {
+    comparison_names <- generated_names
+  } else {
+    missing_names <- is.na(comparison_names) |
+      !nzchar(trimws(comparison_names))
+    comparison_names[missing_names] <- generated_names[missing_names]
   }
+  names(comparisons) <- comparison_names
+  .regime_validate_identifiers(names(comparisons), "comparison names")
   comparisons <- lapply(comparisons, as.character)
   invalid_length <- names(comparisons)[
     vapply(comparisons, length, integer(1)) != 2L

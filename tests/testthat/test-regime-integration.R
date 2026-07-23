@@ -1404,6 +1404,24 @@ test_that("regime_module_diagnostics validates modules, comparisons, and plot se
   testthat::expect_error(regime_module_diagnostics(list(), modules), "regime_correlation_pca")
   testthat::expect_error(regime_module_diagnostics(pca, modules = list()), "non-empty named list")
   testthat::expect_error(regime_module_diagnostics(pca, modules = list(c("a", "b"))), "must be named")
+  whitespace_module <- list(c("a", "b"))
+  names(whitespace_module) <- "   "
+  testthat::expect_error(
+    regime_module_diagnostics(pca, modules = whitespace_module),
+    "module names.*non-empty"
+  )
+  missing_module_name <- list(c("a", "b"))
+  names(missing_module_name) <- NA_character_
+  testthat::expect_error(
+    regime_module_diagnostics(pca, modules = missing_module_name),
+    "module names.*non-empty"
+  )
+  duplicated_module_names <- list(c("a", "b"), c("b", "c"))
+  names(duplicated_module_names) <- c("same", "same")
+  testthat::expect_error(
+    regime_module_diagnostics(pca, modules = duplicated_module_names),
+    "module names.*duplicated identifier.*same"
+  )
   testthat::expect_error(regime_module_diagnostics(pca, modules = list(a = character())), "Empty module")
   testthat::expect_error(
     regime_module_diagnostics(
@@ -1416,6 +1434,47 @@ test_that("regime_module_diagnostics validates modules, comparisons, and plot se
   testthat::expect_error(
     regime_module_diagnostics(pca, modules = modules, comparisons = list()),
     "non-empty"
+  )
+  mixed_comparison_names <- list(
+    custom = c("anterior", "posterior"),
+    c("posterior", "anterior")
+  )
+  names(mixed_comparison_names)[[2L]] <- "   "
+  mixed_diagnostics <- regime_module_diagnostics(
+    pca,
+    modules = modules,
+    comparisons = mixed_comparison_names,
+    pcs = "PC1"
+  )
+  testthat::expect_named(
+    mixed_diagnostics$comparisons,
+    c("custom", "posterior_vs_anterior")
+  )
+  duplicated_comparison_names <- list(
+    c("anterior", "posterior"),
+    c("posterior", "anterior")
+  )
+  names(duplicated_comparison_names) <- c("same", "same")
+  testthat::expect_error(
+    regime_module_diagnostics(
+      pca,
+      modules = modules,
+      comparisons = duplicated_comparison_names
+    ),
+    "comparison names.*duplicated identifier.*same"
+  )
+  generated_name_collision <- list(
+    c("anterior", "posterior"),
+    c("anterior", "posterior")
+  )
+  names(generated_name_collision) <- c("", NA_character_)
+  testthat::expect_error(
+    regime_module_diagnostics(
+      pca,
+      modules = modules,
+      comparisons = generated_name_collision
+    ),
+    "comparison names.*duplicated identifier.*anterior_vs_posterior"
   )
   testthat::expect_error(
     regime_module_diagnostics(pca, modules = modules, comparisons = list(bad = "anterior")),
