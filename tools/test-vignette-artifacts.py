@@ -932,6 +932,22 @@ def main() -> None:
         raise AssertionError("PDF renderer must resolve each vignette's YAML format")
 
     pkgdown_config = (source / "_pkgdown.yml").read_text()
+    math_renderer = run(
+        source,
+        "Rscript",
+        "--vanilla",
+        "-e",
+        (
+            'config <- yaml::read_yaml("_pkgdown.yml"); '
+            'value <- config$template[["math-rendering"]]; '
+            "if (!is.null(value)) cat(value)"
+        ),
+    ).stdout.strip()
+    if math_renderer != "katex":
+        raise AssertionError(
+            "pkgdown config must use KaTeX so equations render across reference "
+            "pages and articles"
+        )
     if "bifrost.goatcounter.com/count" not in pkgdown_config:
         raise AssertionError("pkgdown config must inline the GoatCounter header include")
     if (source / "pkgdown/extra-head.html").exists():
