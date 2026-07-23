@@ -1,0 +1,334 @@
+make_tuning_grid_stub <- function(summary_table, IC = "GIC") {
+  structure(
+    list(
+      IC = IC,
+      summary_table = summary_table,
+      base_search_options = list(
+        formula = "trait_data ~ 1",
+        method = "LL",
+        error = TRUE
+      )
+    ),
+    class = c("bifrost_search_tuning_grid", "list")
+  )
+}
+
+test_that("selectTunedSearchParameters defaults to fuzzy balanced accuracy", {
+  summary_table <- data.frame(
+    setting_id = 1:2,
+    IC = rep("GIC", 2),
+    shift_acceptance_threshold = c(5, 10),
+    min_descendant_tips = c(5, 10),
+    null_mean_false_positive_rate = c(0.02, 0.02),
+    null_fraction_any_false_positive = c(0.1, 0.1),
+    null_evaluable_fraction = c(1, 1),
+    proportional_evaluable_fraction = c(1, 1),
+    correlation_evaluable_fraction = c(1, 1),
+    proportional_fuzzy_f1 = c(0.90, 0.60),
+    correlation_fuzzy_f1 = c(0.90, 0.60),
+    proportional_fuzzy_recall = c(0.80, 0.70),
+    correlation_fuzzy_recall = c(0.80, 0.70),
+    proportional_strict_f1 = c(0.70, 0.60),
+    correlation_strict_f1 = c(0.70, 0.60),
+    proportional_fuzzy_balanced_accuracy = c(0.60, 0.85),
+    correlation_fuzzy_balanced_accuracy = c(0.60, 0.85),
+    proportional_weighted_fuzzy_f1 = c(0.90, 0.60),
+    correlation_weighted_fuzzy_f1 = c(0.90, 0.60),
+    stringsAsFactors = FALSE
+  )
+  tuning_grid <- make_tuning_grid_stub(summary_table)
+
+  selected <- selectTunedSearchParameters(tuning_grid)
+  testthat::expect_identical(selected$primary_metric, "fuzzy_balanced_accuracy")
+  testthat::expect_identical(selected$selected_row$setting_id, 2L)
+
+  testthat::expect_identical(
+    selectTunedSearchParameters(tuning_grid, primary_metric = "fuzzy_f1")$selected_row$setting_id,
+    1L
+  )
+  testthat::expect_identical(
+    selectTunedSearchParameters(tuning_grid, primary_metric = "fuzzy_recall")$selected_row$setting_id,
+    1L
+  )
+  testthat::expect_identical(
+    selectTunedSearchParameters(tuning_grid, primary_metric = "strict_f1")$selected_row$setting_id,
+    1L
+  )
+  testthat::expect_identical(
+    selectTunedSearchParameters(tuning_grid, primary_metric = "weighted_fuzzy_f1")$selected_row$setting_id,
+    1L
+  )
+})
+
+test_that("selectTunedSearchParameters picks a conservative winner within one IC family", {
+  summary_table <- data.frame(
+    setting_id = 1:3,
+    IC = rep("GIC", 3),
+    shift_acceptance_threshold = c(5, 10, 2),
+    min_descendant_tips = c(5, 10, 3),
+    null_mean_false_positive_rate = c(0.02, 0.02, 0.10),
+    null_fraction_any_false_positive = c(0.10, 0.10, 0.30),
+    null_evaluable_fraction = c(1, 1, 1),
+    proportional_evaluable_fraction = c(1, 1, 1),
+    correlation_evaluable_fraction = c(1, 1, 1),
+    proportional_fuzzy_f1 = c(0.80, 0.80, 0.95),
+    correlation_fuzzy_f1 = c(0.70, 0.70, 0.95),
+    proportional_fuzzy_recall = c(0.90, 0.85, 0.98),
+    correlation_fuzzy_recall = c(0.80, 0.75, 0.98),
+    proportional_strict_f1 = c(0.80, 0.60, 0.80),
+    correlation_strict_f1 = c(0.70, 0.50, 0.78),
+    proportional_fuzzy_balanced_accuracy = c(0.80, 0.80, 0.95),
+    correlation_fuzzy_balanced_accuracy = c(0.70, 0.70, 0.95),
+    stringsAsFactors = FALSE
+  )
+  tuning_grid <- make_tuning_grid_stub(summary_table)
+
+  selected <- selectTunedSearchParameters(
+    tuning_grid,
+    max_false_positive_rate = 0.05,
+    max_any_false_positive = 0.2,
+    min_evaluable_fraction = 0.9,
+    primary_metric = "fuzzy_f1",
+    tie_break = "conservative"
+  )
+
+  testthat::expect_s3_class(selected, "bifrost_search_tuning_selection")
+  testthat::expect_identical(selected$selected_row$setting_id, 2L)
+  testthat::expect_identical(selected$recommended_search_options$IC, "GIC")
+  testthat::expect_identical(selected$recommended_search_options$shift_acceptance_threshold, 10)
+  testthat::expect_equal(selected$recommended_search_options$min_descendant_tips, 10)
+  testthat::expect_identical(selected$n_feasible_settings, 2L)
+  testthat::expect_false(selected$used_all_settings)
+  testthat::expect_false(selected$filters$allow_infeasible)
+  testthat::expect_output(
+    print.bifrost_search_tuning_selection(selected),
+    "Bifrost Tuned Search Selection"
+  )
+  testthat::expect_identical(
+    as.data.frame.bifrost_search_tuning_selection(selected),
+    selected$selected_row
+  )
+  testthat::expect_identical(
+    as.data.frame.bifrost_search_tuning_selection(selected, component = "feasible"),
+    selected$feasible_table
+  )
+
+  for (metric in c("fuzzy_recall", "strict_f1")) {
+    selected <- selectTunedSearchParameters(tuning_grid, primary_metric = metric)
+    testthat::expect_identical(selected$selected_row$setting_id, 1L)
+  }
+})
+
+test_that("selectTunedSearchParameters requires opt-in before ranking infeasible settings", {
+  summary_table <- data.frame(
+    setting_id = 1:2,
+    IC = rep("BIC", 2),
+    shift_acceptance_threshold = c(2, 10),
+    min_descendant_tips = c(3, 8),
+    null_mean_false_positive_rate = c(0.20, 0.15),
+    null_fraction_any_false_positive = c(0.50, 0.40),
+    null_evaluable_fraction = c(1, 1),
+    proportional_evaluable_fraction = c(1, 1),
+    correlation_evaluable_fraction = c(1, 1),
+    proportional_fuzzy_f1 = c(0.70, 0.75),
+    correlation_fuzzy_f1 = c(0.60, 0.70),
+    proportional_fuzzy_recall = c(0.80, 0.82),
+    correlation_fuzzy_recall = c(0.65, 0.74),
+    proportional_strict_f1 = c(0.50, 0.60),
+    correlation_strict_f1 = c(0.45, 0.55),
+    proportional_fuzzy_balanced_accuracy = c(0.65, 0.75),
+    correlation_fuzzy_balanced_accuracy = c(0.55, 0.65),
+    proportional_weighted_fuzzy_f1 = c(0.72, 0.90),
+    correlation_weighted_fuzzy_f1 = c(0.62, 0.88),
+    stringsAsFactors = FALSE
+  )
+  tuning_grid <- make_tuning_grid_stub(summary_table, IC = "BIC")
+
+  testthat::expect_error(
+    selectTunedSearchParameters(
+      tuning_grid,
+      max_false_positive_rate = 0.01,
+      max_any_false_positive = 0.05,
+      primary_metric = "weighted_fuzzy_f1",
+      scenario_weights = c(0.25, 0.75)
+    ),
+    "No rankable tuning settings met"
+  )
+
+  testthat::expect_warning(
+    selected <- selectTunedSearchParameters(
+      tuning_grid,
+      max_false_positive_rate = 0.01,
+      max_any_false_positive = 0.05,
+      primary_metric = "weighted_fuzzy_f1",
+      scenario_weights = c(0.25, 0.75),
+      allow_infeasible = TRUE
+    ),
+    "allow_infeasible = TRUE"
+  )
+
+  testthat::expect_true(selected$used_all_settings)
+  testthat::expect_true(selected$filters$allow_infeasible)
+  testthat::expect_identical(selected$n_feasible_settings, 0L)
+  testthat::expect_identical(selected$selected_row$setting_id, 2L)
+  testthat::expect_identical(selected$recommended_search_options$IC, "BIC")
+})
+
+test_that("selectTunedSearchParameters requires finite evidence for weighted scenarios", {
+  summary_table <- data.frame(
+    setting_id = 1:2,
+    IC = rep("GIC", 2),
+    shift_acceptance_threshold = c(5, 10),
+    min_descendant_tips = c(5, 10),
+    null_mean_false_positive_rate = c(0.02, 0.03),
+    null_fraction_any_false_positive = c(0.1, 0.1),
+    null_evaluable_fraction = c(1, 1),
+    proportional_evaluable_fraction = c(1, 1),
+    correlation_evaluable_fraction = c(1, 1),
+    proportional_fuzzy_f1 = c(NA_real_, NA_real_),
+    correlation_fuzzy_f1 = c(NA_real_, NA_real_),
+    proportional_fuzzy_recall = c(NA_real_, NA_real_),
+    correlation_fuzzy_recall = c(NA_real_, NA_real_),
+    proportional_strict_f1 = c(NA_real_, NA_real_),
+    correlation_strict_f1 = c(NA_real_, NA_real_),
+    proportional_fuzzy_balanced_accuracy = c(NA_real_, NA_real_),
+    correlation_fuzzy_balanced_accuracy = c(NA_real_, NA_real_),
+    stringsAsFactors = FALSE
+  )
+
+  testthat::expect_error(
+    selectTunedSearchParameters(make_tuning_grid_stub(summary_table)),
+    "No tuning settings have finite recovery evidence"
+  )
+})
+
+test_that("selectTunedSearchParameters ignores metrics for zero-weight scenarios", {
+  summary_table <- data.frame(
+    setting_id = 1L,
+    IC = "GIC",
+    shift_acceptance_threshold = 5,
+    min_descendant_tips = 5,
+    null_mean_false_positive_rate = 0.02,
+    null_fraction_any_false_positive = 0.1,
+    null_evaluable_fraction = 1,
+    proportional_evaluable_fraction = 1,
+    correlation_evaluable_fraction = 1,
+    proportional_fuzzy_f1 = 0.8,
+    correlation_fuzzy_f1 = NA_real_,
+    proportional_fuzzy_recall = 0.85,
+    correlation_fuzzy_recall = NA_real_,
+    proportional_strict_f1 = 0.6,
+    correlation_strict_f1 = NA_real_,
+    proportional_fuzzy_balanced_accuracy = 0.8,
+    correlation_fuzzy_balanced_accuracy = NA_real_,
+    stringsAsFactors = FALSE
+  )
+
+  selected <- selectTunedSearchParameters(
+    make_tuning_grid_stub(summary_table),
+    scenario_weights = c(proportional = 1, correlation = 0)
+  )
+
+  testthat::expect_equal(selected$selected_row$score, 0.8)
+  testthat::expect_identical(selected$selected_row$setting_id, 1L)
+})
+
+test_that("selectTunedSearchParameters validates scenario weight names and supports liberal tie-breaking", {
+  summary_table <- data.frame(
+    setting_id = 1:2,
+    IC = rep("GIC", 2),
+    shift_acceptance_threshold = c(2, 10),
+    min_descendant_tips = c(3, 8),
+    null_mean_false_positive_rate = c(0.02, 0.02),
+    null_fraction_any_false_positive = c(0.10, 0.10),
+    null_evaluable_fraction = c(1, 1),
+    proportional_evaluable_fraction = c(1, 1),
+    correlation_evaluable_fraction = c(1, 1),
+    proportional_fuzzy_f1 = c(0.80, 0.80),
+    correlation_fuzzy_f1 = c(0.70, 0.70),
+    proportional_fuzzy_recall = c(0.85, 0.85),
+    correlation_fuzzy_recall = c(0.75, 0.75),
+    proportional_strict_f1 = c(0.60, 0.60),
+    correlation_strict_f1 = c(0.50, 0.50),
+    proportional_fuzzy_balanced_accuracy = c(0.70, 0.70),
+    correlation_fuzzy_balanced_accuracy = c(0.60, 0.60),
+    stringsAsFactors = FALSE
+  )
+  tuning_grid <- make_tuning_grid_stub(summary_table)
+
+  testthat::expect_error(
+    selectTunedSearchParameters(
+      tuning_grid,
+      scenario_weights = c(first = 0.5, second = 0.5)
+    ),
+    "named 'proportional' and 'correlation'"
+  )
+
+  selected <- selectTunedSearchParameters(
+    tuning_grid,
+    tie_break = "liberal"
+  )
+
+  testthat::expect_identical(selected$selected_row$setting_id, 1L)
+})
+
+test_that("selectTunedSearchParameters validates its inputs", {
+  summary_table <- data.frame(
+    setting_id = 1L,
+    IC = "GIC",
+    shift_acceptance_threshold = 5,
+    min_descendant_tips = 5L,
+    null_mean_false_positive_rate = 0.02,
+    null_fraction_any_false_positive = 0.10,
+    null_evaluable_fraction = 1,
+    proportional_evaluable_fraction = 1,
+    correlation_evaluable_fraction = 1,
+    proportional_fuzzy_f1 = 0.8,
+    correlation_fuzzy_f1 = 0.7,
+    proportional_fuzzy_recall = 0.85,
+    correlation_fuzzy_recall = 0.75,
+    proportional_strict_f1 = 0.6,
+    correlation_strict_f1 = 0.5,
+    proportional_fuzzy_balanced_accuracy = 0.7,
+    correlation_fuzzy_balanced_accuracy = 0.6,
+    stringsAsFactors = FALSE
+  )
+  tuning_grid <- make_tuning_grid_stub(summary_table)
+
+  testthat::expect_error(
+    selectTunedSearchParameters(list()),
+    "bifrost_search_tuning_grid"
+  )
+  testthat::expect_error(
+    selectTunedSearchParameters(tuning_grid, max_false_positive_rate = -1),
+    "max_false_positive_rate"
+  )
+  testthat::expect_error(
+    selectTunedSearchParameters(tuning_grid, max_false_positive_rate = 2),
+    "between 0 and 1"
+  )
+  testthat::expect_error(
+    selectTunedSearchParameters(tuning_grid, max_false_positive_rate = Inf),
+    "between 0 and 1"
+  )
+  testthat::expect_error(
+    selectTunedSearchParameters(tuning_grid, max_any_false_positive = 2),
+    "between 0 and 1"
+  )
+  testthat::expect_error(
+    selectTunedSearchParameters(tuning_grid, min_evaluable_fraction = 2),
+    "between 0 and 1"
+  )
+  testthat::expect_error(
+    selectTunedSearchParameters(tuning_grid, scenario_weights = c(1, -1)),
+    "scenario_weights"
+  )
+  testthat::expect_error(
+    selectTunedSearchParameters(tuning_grid, allow_infeasible = NA),
+    "allow_infeasible"
+  )
+  testthat::expect_error(
+    selectTunedSearchParameters(tuning_grid, primary_metric = "weighted_fuzzy_f1"),
+    "missing required columns"
+  )
+})

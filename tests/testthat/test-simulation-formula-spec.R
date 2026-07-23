@@ -23,6 +23,18 @@ test_that("simulation formula helpers validate and normalize direct inputs", {
     bifrost:::resolveSimulationColumns(list("y1"), dat_names, "response_columns"),
     "must be NULL, numeric positions, or character column names"
   )
+  testthat::expect_error(
+    bifrost:::validateSimulationIdentifiers(c("y1", NA_character_), "response names"),
+    "response names must be non-empty and unique"
+  )
+  testthat::expect_identical(
+    bifrost:::resolveSimulationColumns(c(1, "mass"), dat_names, "response_columns"),
+    c(1L, 3L)
+  )
+  testthat::expect_error(
+    bifrost:::resolveSimulationColumns(1.9, dat_names, "response_columns"),
+    "whole-number column positions"
+  )
   testthat::expect_identical(
     bifrost:::validateSimulationStudyFormula(stats::as.formula("trait_data ~ 1")),
     stats::as.formula("trait_data ~ 1")
@@ -122,6 +134,68 @@ test_that("simulation formula helpers validate and normalize direct inputs", {
     ),
     "must be numeric, logical, factor, or ordered factor"
   )
+})
+
+test_that("runSearchTuningGrid preserves simulation-study formula values and validation errors", {
+  template <- structure(
+    list(search_formula = "trait_data ~ 1"),
+    class = c("bifrost_simulation_template", "list")
+  )
+  null_study <- list(
+    per_replicate = data.frame(
+      status = "ok",
+      n_inferred_shifts = 0L,
+      false_positive_rate = 0,
+      stringsAsFactors = FALSE
+    ),
+    study_summary = list(mean_false_positive_rate = 0)
+  )
+  recovery_study <- list(
+    per_replicate = data.frame(
+      status = "ok",
+      n_candidates = 1L,
+      n_inferred_shifts = 0L,
+      stringsAsFactors = FALSE
+    ),
+    evaluation = list(
+      strict = list(f1 = 1),
+      fuzzy = list(f1 = 1, recall = 1)
+    )
+  )
+  testthat::local_mocked_bindings(
+    runFalsePositiveSimulationStudy = function(...) null_study,
+    runShiftRecoverySimulationStudy = function(...) recovery_study,
+    .package = "bifrost"
+  )
+
+  tuning_call <- function(formula) {
+    runSearchTuningGrid(
+      template = template,
+      shift_acceptance_thresholds = 5,
+      min_descendant_tips_values = 2,
+      null_replicates = 1,
+      recovery_replicates = 1,
+      proportional_simulation_options = list(
+        num_shifts = 1,
+        min_shift_tips = 2,
+        max_shift_tips = 3
+      ),
+      base_search_options = list(formula = formula),
+      weighted = FALSE
+    )
+  }
+
+  for (case in simulationStudyFormulaCases) {
+    testthat::expect_identical(tuning_call(case)$base_search_options$formula, case)
+  }
+
+  for (case in names(simulationStudyFormulaErrors)) {
+    value <- if (identical(case, "non_intercept")) "trait_data ~ mass" else 1
+    testthat::expect_error(
+      tuning_call(value),
+      simulationStudyFormulaErrors[[case]]
+    )
+  }
 })
 
 test_that("normalizeSimulationFormulaSpec covers legacy, named, and validation branches", {

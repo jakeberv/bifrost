@@ -1,231 +1,105 @@
-# Test file for addShiftToModel function
-# This file should be placed in the tests/testthat/ directory of your package
+# tests/testthat/test-addShiftToModel.R
 
-library(testthat)
-library(ape)
-library(phytools)
-
-# Helper function to create a basic SIMMAP tree for testing
-create_test_simmap_tree <- function(n_tips = 20) {
-  set.seed(123)
-  tree <- pbtree(n = n_tips, scale = 1)
-  simmap_tree <- paintSubTree(tree, node = Ntip(tree) + 1,
-                               state = "0", anc.state = "0")
-  return(simmap_tree)
+skip_if_tree_editing_deps <- function() {
+  testthat::skip_if_not_installed("ape")
+  testthat::skip_if_not_installed("phytools")
 }
 
-# Helper function to check if a tree is a valid SIMMAP tree
-is_valid_simmap <- function(tree) {
-  return(inherits(tree, "simmap") &&
-           !is.null(tree$maps) &&
-           !is.null(tree$mapped.edge))
+make_add_shift_tree <- function(n_tip = 8, seed = 123, baseline = "0") {
+  set.seed(seed)
+  tree <- phytools::pbtree(n = n_tip, scale = 1)
+  phytools::paintSubTree(
+    tree,
+    node = ape::Ntip(tree) + 1L,
+    state = baseline,
+    anc.state = baseline,
+    stem = FALSE
+  )
 }
 
-# Test: addShiftToModel returns correct structure (checks return value)
-test_that("addShiftToModel returns correct structure", {
-  tree <- create_test_simmap_tree()
-  shift_node <- Ntip(tree) + 2  # First internal node after root
+descendant_edges <- function(tree, node) {
+  descendants <- phytools::getDescendants(tree, node)
+  which(tree$edge[, 2] %in% descendants)
+}
 
-  result <- addShiftToModel(tree, shift_node = shift_node, current_shift_id = 0L)
+test_that("addShiftToModel increments the regime id and paints the target clade", {
+  skip_if_tree_editing_deps()
 
-  # Check return structure
-  expect_type(result, "list")
-  expect_named(result, c("tree", "shift_id"))
-  expect_s3_class(result$tree, "simmap")
-  expect_type(result$shift_id, "double")
+  tree <- make_add_shift_tree()
+  node <- ape::Ntip(tree) + 2L
+
+  result <- addShiftToModel(tree, shift_node = node, current_shift_id = 0L)
+
+  testthat::expect_named(result, c("tree", "shift_id"))
+  testthat::expect_equal(result$shift_id, 1L)
+  testthat::expect_s3_class(result$tree, "simmap")
+  testthat::expect_s3_class(result$tree, "phylo")
+  testthat::expect_equal(ape::Ntip(result$tree), ape::Ntip(tree))
+  testthat::expect_equal(ape::Nnode(result$tree), ape::Nnode(tree))
+  testthat::expect_equal(sum(result$tree$edge.length), sum(tree$edge.length))
+
+  target_edges <- descendant_edges(result$tree, node)
+  testthat::expect_gt(length(target_edges), 0L)
+  testthat::expect_true(all(vapply(
+    target_edges,
+    function(edge) identical(names(result$tree$maps[[edge]]), "1"),
+    logical(1)
+  )))
+  testthat::expect_equal(
+    as.vector(rowSums(result$tree$mapped.edge)),
+    result$tree$edge.length,
+    tolerance = 1e-10
+  )
 })
 
-# Test: addShiftToModel increments shift ID correctly
-test_that("addShiftToModel increments shift ID correctly", {
-  tree <- create_test_simmap_tree()
-  shift_node <- Ntip(tree) + 2
+test_that("addShiftToModel uses sequential ids without overwriting previous regimes", {
+  skip_if_tree_editing_deps()
 
-  # Test with different starting shift IDs
-  test_cases <- c(0L, 1L, 5L, 10L)
+  tree <- make_add_shift_tree(n_tip = 10, seed = 55)
+  first_node <- ape::Ntip(tree) + 2L
+  second_node <- ape::Ntip(tree) + 4L
 
-  for (start_id in test_cases) {
-    result <- addShiftToModel(tree, shift_node = shift_node, current_shift_id = start_id)
-    expect_equal(result$shift_id, start_id + 1,
-                 info = paste("Failed for start_id:", start_id))
-  }
+  first <- addShiftToModel(tree, shift_node = first_node, current_shift_id = 0L)
+  second <- addShiftToModel(first$tree, shift_node = second_node, current_shift_id = first$shift_id)
+
+  testthat::expect_equal(first$shift_id, 1L)
+  testthat::expect_equal(second$shift_id, 2L)
+  testthat::expect_true("1" %in% colnames(second$tree$mapped.edge))
+  testthat::expect_true("2" %in% colnames(second$tree$mapped.edge))
 })
 
-# Test: addShiftToModel preserves tree structure
-test_that("addShiftToModel preserves tree structure", {
-  tree <- create_test_simmap_tree()
-  shift_node <- Ntip(tree) + 2
-  original_ntip <- Ntip(tree)
-  original_nnode <- Nnode(tree)
+test_that("addShiftToModel rejects nodes that cannot define a new internal shift", {
+  skip_if_tree_editing_deps()
 
-  result <- addShiftToModel(tree, shift_node = shift_node, current_shift_id = 0L)
+  tree <- make_add_shift_tree()
+  root <- ape::Ntip(tree) + 1L
 
-  # Check that tree topology is preserved
-  expect_equal(Ntip(result$tree), original_ntip)
-  expect_equal(Nnode(result$tree), original_nnode)
-  expect_equal(nrow(result$tree$edge), nrow(tree$edge))
-})
-
-# Test: addShiftToModel creates valid SIMMAP tree
-test_that("addShiftToModel creates valid SIMMAP tree", {
-  tree <- create_test_simmap_tree()
-  shift_node <- Ntip(tree) + 2
-
-  result <- addShiftToModel(tree, shift_node = shift_node, current_shift_id = 0L)
-
-  expect_true(is_valid_simmap(result$tree))
-  expect_true(!is.null(result$tree$maps))
-  expect_true(!is.null(result$tree$mapped.edge))
-})
-
-# Test: addShiftToModel paints subtree with correct state
-test_that("addShiftToModel paints subtree with correct state", {
-  tree <- create_test_simmap_tree(n_tips = 8)
-  shift_node <- Ntip(tree) + 3  # Second internal node after root
-  current_shift_id <- 0L
-
-  result <- addShiftToModel(tree, shift_node = shift_node, current_shift_id = current_shift_id)
-
-  # Get descendants of the shift node
-  descendants <- getDescendants(tree, shift_node)
-
-  # Check that the new state appears in the mapped.edge matrix
-  expected_state <- as.character(current_shift_id + 1)
-  expect_true(expected_state %in% colnames(result$tree$mapped.edge))
-
-  # Verify that some edges have the new state
-  new_state_edges <- result$tree$mapped.edge[, expected_state] > 0
-  expect_true(any(new_state_edges))
-})
-
-# Test: addShiftToModel works with different node types (smoke test with valid inputs)
-test_that("addShiftToModel works with different node types", {
-  tree <- create_test_simmap_tree(n_tips = 10)
-
-  # Test with different internal nodes
-  internal_nodes <- (Ntip(tree) + 2):(Ntip(tree) + Nnode(tree))
-
-  for (node in internal_nodes[1:3]) {  # Test first 3 internal nodes
-    result <- addShiftToModel(tree, shift_node = node, current_shift_id = 0L)
-    expect_s3_class(result$tree, "simmap")
-    expect_equal(result$shift_id, 1L)
-  }
-})
-
-# Test: addShiftToModel handles sequential shifts (edge-case input)
-test_that("addShiftToModel handles sequential shifts", {
-  tree <- create_test_simmap_tree(n_tips = 8)
-
-  # Apply first shift
-  shift_node1 <- Ntip(tree) + 2
-  result1 <- addShiftToModel(tree, shift_node = shift_node1, current_shift_id = 0L)
-
-  # Apply second shift
-  shift_node2 <- Ntip(tree) + 4
-  result2 <- addShiftToModel(result1$tree, shift_node = shift_node2,
-                             current_shift_id = result1$shift_id)
-
-  expect_equal(result1$shift_id, 1L)
-  expect_equal(result2$shift_id, 2L)
-  expect_s3_class(result2$tree, "simmap")
-
-  # Check that both states exist in the final tree
-  expect_true("1" %in% colnames(result2$tree$mapped.edge))
-  expect_true("2" %in% colnames(result2$tree$mapped.edge))
-})
-
-# Test: addShiftToModel input validation
-test_that("addShiftToModel input validation", {
-  tree <- create_test_simmap_tree()
-
-  # Test with invalid node numbers
-  expect_error(addShiftToModel(tree, shift_node = 0, current_shift_id = 0L))
-  expect_error(addShiftToModel(tree, shift_node = Ntip(tree) + Nnode(tree) + 1,
-                               current_shift_id = 0L))
-
-  # Test with tip nodes (should work but might behave differently)
-  expect_error(result <- addShiftToModel(tree, shift_node = 1, current_shift_id = 0L))
-})
-
-# Test: addShiftToModel preserves edge lengths
-test_that("addShiftToModel preserves edge lengths", {
-  tree <- create_test_simmap_tree()
-  original_edge_lengths <- tree$edge.length
-  shift_node <- Ntip(tree) + 2
-
-  result <- addShiftToModel(tree, shift_node = shift_node, current_shift_id = 0L)
-
-  # Edge lengths should be preserved (approximately, due to floating point)
-  expect_equal(sum(result$tree$edge.length), sum(original_edge_lengths),
-               tolerance = 1e-10)
-})
-
-# Test: addShiftToModel works with different shift_id types (smoke test with valid inputs)
-test_that("addShiftToModel works with different shift_id types", {
-  tree <- create_test_simmap_tree()
-  shift_node <- Ntip(tree) + 2
-
-  # Test with integer
-  result_int <- addShiftToModel(tree, shift_node = shift_node, current_shift_id = 0L)
-  expect_equal(result_int$shift_id, 1)
-
-  # Test with numeric
-  result_num <- addShiftToModel(tree, shift_node = shift_node, current_shift_id = 0)
-  expect_equal(result_num$shift_id, 1)
-})
-
-# Test: addShiftToModel maintains tree attributes
-test_that("addShiftToModel maintains tree attributes", {
-  tree <- create_test_simmap_tree()
-  tree$custom_attribute <- "test_value"  # Add custom attribute
-  shift_node <- Ntip(tree) + 2
-
-  result <- addShiftToModel(tree, shift_node = shift_node, current_shift_id = 0L)
-
-  # Check that basic tree attributes are maintained
-  expect_equal(result$tree$tip.label, tree$tip.label)
-  expect_equal(result$tree$Nnode, tree$Nnode)
-})
-
-# Test: addShiftToModel error handling for missing paintSubTree_mod (expects error)
-test_that("addShiftToModel error handling for missing paintSubTree_mod", {
-  # This test assumes paintSubTree_mod might not be available
-  # Skip if the function is available, otherwise expect an error
-
-  tree <- create_test_simmap_tree()
-  shift_node <- Ntip(tree) + 2
-
-  # If paintSubTree_mod doesn't exist, this should fail
-  if (!exists("paintSubTree_mod")) {
-    expect_error(addShiftToModel(tree, shift_node = shift_node, current_shift_id = 0L))
-  } else {
-    # If it exists, the function should work
-    result <- addShiftToModel(tree, shift_node = shift_node, current_shift_id = 0L)
-    expect_s3_class(result$tree, "simmap")
-  }
-})
-
-# Test: addShiftToModel handles root node error correctly (expects error)
-test_that("addShiftToModel handles root node error correctly", {
-  tree <- create_test_simmap_tree()
-  root_node <- Ntip(tree) + 1
-
-  # Root node should cause an error in paintSubTree_mod due to the indexing issue
-  expect_error(addShiftToModel(tree, shift_node = root_node, current_shift_id = 0L),
-               "attempt to select less than one element")
-})
-
-# Test: addShiftToModel works with all valid internal nodes (smoke test with valid inputs)
-test_that("addShiftToModel works with all valid internal nodes", {
-  tree <- create_test_simmap_tree(n_tips = 6)
-  valid_nodes <- (Ntip(tree) + 2):(Ntip(tree) + Nnode(tree))
-
-  # Should have at least one valid internal node
-  expect_true(length(valid_nodes) >= 1)
-
-  # Test that all valid nodes work
-  for (node in valid_nodes) {
-    result <- addShiftToModel(tree, shift_node = node, current_shift_id = 0L)
-    expect_s3_class(result$tree, "simmap")
-    expect_equal(result$shift_id, 1L)
-  }
+  testthat::expect_error(
+    addShiftToModel(list(), shift_node = root, current_shift_id = 0L),
+    "`tree` must be a phylo object"
+  )
+  testthat::expect_error(
+    addShiftToModel(tree, shift_node = 1L, current_shift_id = 0L),
+    "`shift_node` must be an internal node"
+  )
+  testthat::expect_error(
+    addShiftToModel(tree, shift_node = NA_integer_, current_shift_id = 0L),
+    "`shift_node` must be a single finite integer node id"
+  )
+  testthat::expect_error(
+    addShiftToModel(tree, shift_node = c(root, root + 1L), current_shift_id = 0L),
+    "`shift_node` must be a single finite integer node id"
+  )
+  testthat::expect_error(
+    addShiftToModel(tree, shift_node = "node", current_shift_id = 0L),
+    "`shift_node` must be a single finite integer node id"
+  )
+  testthat::expect_error(
+    addShiftToModel(tree, shift_node = root, current_shift_id = 0L),
+    "`shift_node` cannot be the root node"
+  )
+  testthat::expect_error(
+    addShiftToModel(tree, shift_node = ape::Ntip(tree) + ape::Nnode(tree) + 1L, current_shift_id = 0L),
+    "`shift_node` must identify a node in `tree`"
+  )
 })

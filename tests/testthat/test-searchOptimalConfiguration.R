@@ -104,13 +104,17 @@ test_that("searchOptimalConfiguration runs end-to-end on simulated data (GIC)", 
     "optimal_ic",
     "baseline_ic",
     "IC_used",
-    "num_candidates"
+    "num_candidates",
+    "candidate_nodes"
   ) %in% names(res)))
 
   # Types/values
   expect_numeric_scalar(res$baseline_ic)
   expect_numeric_scalar(res$optimal_ic)
   testthat::expect_true(res$IC_used %in% c("GIC", "BIC"))
+  testthat::expect_type(res$candidate_nodes, "integer")
+  testthat::expect_length(res$candidate_nodes, res$num_candidates)
+  testthat::expect_length(unique(res$candidate_nodes), res$num_candidates)
   # These may be NULL if no shifts are accepted; otherwise phylo
   expect_phylo_or_null(res$tree_no_uncertainty_untransformed)
   expect_phylo_or_null(res$tree_no_uncertainty_transformed)
@@ -159,13 +163,17 @@ test_that("searchOptimalConfiguration runs end-to-end on simulated data (BIC)", 
     "optimal_ic",
     "baseline_ic",
     "IC_used",
-    "num_candidates"
+    "num_candidates",
+    "candidate_nodes"
   ) %in% names(res)))
 
   # Types/values
   expect_numeric_scalar(res$baseline_ic)
   expect_numeric_scalar(res$optimal_ic)
   testthat::expect_true(res$IC_used %in% c("GIC", "BIC"))
+  testthat::expect_type(res$candidate_nodes, "integer")
+  testthat::expect_length(res$candidate_nodes, res$num_candidates)
+  testthat::expect_length(unique(res$candidate_nodes), res$num_candidates)
   # These may be NULL if no shifts are accepted; otherwise phylo
   expect_phylo_or_null(res$tree_no_uncertainty_untransformed)
   expect_phylo_or_null(res$tree_no_uncertainty_transformed)
@@ -1008,20 +1016,16 @@ test_that("no-shifts path yields a usable model_no_uncertainty", {
 test_that("searchOptimalConfiguration captures warnings from shift evaluation", {
   skip_if_missing_deps()
 
-  ns <- asNamespace("bifrost")
-  orig_fit <- get("fitMvglsAndExtractGIC.formula", envir = ns)
+  fit_env <- environment(bifrost:::.bifrost_search_model_fun)
+  orig_fit <- get("fitMvglsAndExtractGIC.formula", envir = fit_env)
 
-  testthat::local_mocked_bindings(
-    fitMvglsAndExtractGIC.formula = function(formula, tree, trait_data, ...) {
-      in_withCallingHandlers <- any(vapply(sys.calls(), function(cl) {
-        is.call(cl) && is.name(cl[[1]]) && identical(as.character(cl[[1]]), "withCallingHandlers")
-      }, logical(1)))
-
-      if (in_withCallingHandlers) warning("forced warning from test")
-
+  local_search_rebind(
+    "fitMvglsAndExtractGIC.formula",
+    function(formula, tree, trait_data, ...) {
+      warning("forced warning from test")
       orig_fit(formula, tree, trait_data, ...)
     },
-    .env = ns
+    fit_env
   )
 
   set.seed(6)
@@ -1052,13 +1056,14 @@ test_that("searchOptimalConfiguration captures warnings from shift evaluation", 
 test_that("searchOptimalConfiguration records error entries in history and yields NA_real_ row", {
   skip_if_missing_deps()
 
-  ns <- asNamespace("bifrost")
+  forward_env <- environment(bifrost:::.bifrost_search_forward)
 
-  testthat::local_mocked_bindings(
-    addShiftToModel = function(tree, shift_node, shift_id) {
+  local_search_rebind(
+    "addShiftToModel",
+    function(tree, shift_node, shift_id) {
       list(tree = NULL, shift_id = shift_id + 1L)  # shifted_tree becomes NULL => fit errors
     },
-    .env = ns
+    forward_env
   )
 
   set.seed(7)
@@ -1215,6 +1220,7 @@ test_that("search helper uses future path only when requested", {
   on.exit(restore_threads(), add = TRUE)
 
   Sys.setenv(OMP_NUM_THREADS = "7")
+  Sys.unsetenv("NUMEXPR_NUM_THREADS")
 
   serial <- bifrost:::.bifrost_search_lapply(
     1:3,
@@ -1256,16 +1262,44 @@ test_that("search helper uses future path only when requested", {
   }
 })
 
+test_that("search history loader derives missing IC values from stored models", {
+  sub_dir <- tempfile("bifrost-history-")
+  dir.create(sub_dir)
+  saveRDS(
+    list(
+      ic = NULL,
+      model = list(GIC = list(GIC = 12.5)),
+      accepted = TRUE
+    ),
+    file.path(sub_dir, "iteration_2.rds")
+  )
+  saveRDS(
+    list(
+      ic = NA_real_,
+      model = NULL,
+      accepted = FALSE
+    ),
+    file.path(sub_dir, "iteration_10.rds")
+  )
+
+  history <- bifrost:::.bifrost_search_load_history(sub_dir, IC = "GIC")
+
+  testthat::expect_equal(history$ic_acceptance_matrix[, 1], c(12.5, NA_real_))
+  testthat::expect_equal(history$ic_acceptance_matrix[, 2], c(1, 0))
+})
+
 # Test: searchOptimalConfiguration serial ic_weights executes BIC branch (mocks fitMvglsAndExtractBIC.formula; uncertaintyweights=TRUE)
 test_that("searchOptimalConfiguration serial ic_weights executes BIC branch", {
   skip_if_missing_deps()
 
-  ns <- asNamespace("bifrost")
+  fit_env <- environment(bifrost:::.bifrost_search_model_fun)
+  weights_env <- environment(bifrost:::.bifrost_search_calculate_ic_weights)
 
   # Deterministic decreasing BIC so shifts are accepted and weights run
   k <- 0L
-  testthat::local_mocked_bindings(
-    fitMvglsAndExtractBIC.formula = function(formula, tree, trait_data, ...) {
+  local_search_rebind(
+    "fitMvglsAndExtractBIC.formula",
+    function(formula, tree, trait_data, ...) {
       k <<- k + 1L
       bic_val <- 1000 - 10 * k
       list(
@@ -1273,9 +1307,13 @@ test_that("searchOptimalConfiguration serial ic_weights executes BIC branch", {
         BIC = list(BIC = bic_val)
       )
     },
+    fit_env
+  )
+  local_search_rebind(
     # Make shift-removal safe & deterministic for weights loop
-    removeShiftFromTree = function(tree, shift_node, stem = FALSE) tree,
-    .env = ns
+    "removeShiftFromTree",
+    function(tree, shift_node, stem = FALSE) tree,
+    weights_env
   )
 
   set.seed(999)
@@ -1303,24 +1341,40 @@ test_that("searchOptimalConfiguration serial ic_weights executes BIC branch", {
   testthat::expect_true(nrow(res$ic_weights) >= 1L)
 })
 
+test_that("IC-weight characterization rejects simultaneous serial and parallel modes", {
+  testthat::expect_error(
+    bifrost:::.bifrost_search_calculate_ic_weights(
+      uncertaintyweights = TRUE,
+      uncertaintyweights_par = TRUE,
+      shift_vec = list(),
+      best_tree_no_uncertainty = NULL,
+      model_with_shift_no_uncertainty = NULL,
+      IC = "GIC",
+      formula = trait_data ~ 1,
+      trait_data = matrix(numeric(), nrow = 0L),
+      args_list = list(),
+      num_cores = 1L,
+      is_rstudio = FALSE,
+      verbose_log = function(...) invisible(NULL)
+    ),
+    "Exactly one of uncertaintyweights or uncertaintyweights_par must be TRUE"
+  )
+})
+
 # Test: searchOptimalConfiguration captures warnings from shift evaluation (BIC) (mocks fitMvglsAndExtractBIC.formula to warn)
 test_that("searchOptimalConfiguration captures warnings from shift evaluation (BIC)", {
   skip_if_missing_deps()
 
-  ns <- asNamespace("bifrost")
-  orig_fit <- get("fitMvglsAndExtractBIC.formula", envir = ns)
+  fit_env <- environment(bifrost:::.bifrost_search_model_fun)
+  orig_fit <- get("fitMvglsAndExtractBIC.formula", envir = fit_env)
 
-  testthat::local_mocked_bindings(
-    fitMvglsAndExtractBIC.formula = function(formula, tree, trait_data, ...) {
-      in_withCallingHandlers <- any(vapply(sys.calls(), function(cl) {
-        is.call(cl) && is.name(cl[[1]]) && identical(as.character(cl[[1]]), "withCallingHandlers")
-      }, logical(1)))
-
-      if (in_withCallingHandlers) warning("forced warning from test (BIC)")
-
+  local_search_rebind(
+    "fitMvglsAndExtractBIC.formula",
+    function(formula, tree, trait_data, ...) {
+      warning("forced warning from test (BIC)")
       orig_fit(formula, tree, trait_data, ...)
     },
-    .env = ns
+    fit_env
   )
 
   set.seed(456)
