@@ -3,6 +3,7 @@
 ^\.Rproj\.user$
 ^\.cache($|/)
 ^\.playwright-cli($|/)
+^\.superpowers($|/)
 (^|/)__pycache__($|/)
 ^LICENSE\.md$
 ^_pkgdown\.yml$
@@ -13,6 +14,11 @@
 ^cran-comments\.md$
 ^LICENSE$
 ^experimental$
+^data-raw($|/)
+^output($|/)
+^bifrost\.Rcheck($|/)
+^\.\.Rcheck($|/)
+^bifrost_.*\.tar\.gz$
 ^local-cache($|/)
 ^preview($|/)
 ^doc$

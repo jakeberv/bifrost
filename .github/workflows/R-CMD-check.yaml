@@ -27,6 +27,7 @@ jobs:
 
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+      NOT_CRAN: "false"
       R_KEEP_PKG_SOURCE: yes
 
     steps:

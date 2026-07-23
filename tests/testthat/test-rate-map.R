@@ -1350,7 +1350,7 @@ test_that("rateMap validates custom fit weights", {
   testthat::expect_equal(out_omit_used_weights$weights, c(0.25, 0.75))
 })
 
-test_that("rateMap palette resolution handles names, vectors, and reversal", {
+test_that("rateMap palette resolution handles named palettes, ramps, and functions", {
   .rate_map_skip_if_missing_deps()
 
   vir <- .rateMap_colors(5, "Viridis")
@@ -1370,6 +1370,11 @@ test_that("rateMap palette resolution handles names, vectors, and reversal", {
 
   testthat::expect_error(.rateMap_colors(3, 1:3), "palette")
   testthat::expect_error(.rateMap_colors(3, function(n) "black"), "at least two")
+})
+
+test_that("rateMap display option helpers validate labels, dots, and legends", {
+  .rate_map_skip_if_missing_deps()
+
   testthat::expect_error(
     .rateMap_validate_dots(list(TRUE), allowed = "x"),
     "must be named"
@@ -1387,6 +1392,15 @@ test_that("rateMap palette resolution handles names, vectors, and reversal", {
   testthat::expect_equal(.rateMap_format_rate(1e-9, c(1e-9, 1e-5)), "0.000000001")
   testthat::expect_error(.rateMap_validate_n_categories(NA_real_), "n_categories")
   testthat::expect_error(.rateMap_category_labels(c("a", NA), 2, TRUE), "non-missing")
+  testthat::expect_equal(
+    .rateMap_category_labels(c("a", "a"), 2, FALSE),
+    c("a", "a_1")
+  )
+})
+
+test_that("rateMap rate flag controls normalize defaults and reject invalid settings", {
+  .rate_map_skip_if_missing_deps()
+
   testthat::expect_equal(rateMapRateFlags()$method, "none")
   testthat::expect_false(rateMapRateFlags()$near_zero)
   testthat::expect_false(rateMapRateFlags()$high_outlier)
@@ -1439,10 +1453,11 @@ test_that("rateMap palette resolution handles names, vectors, and reversal", {
   testthat::expect_error(rateMapControl(rate_flags = TRUE), "rate_flags")
   testthat::expect_error(rateMapControl(rate_flags = list(TRUE)), "rate_flags")
   testthat::expect_error(rateMapControl(rate_flags = list(nope = TRUE)), "Unsupported")
-  testthat::expect_equal(
-    .rateMap_category_labels(c("a", "a"), 2, FALSE),
-    c("a", "a_1")
-  )
+})
+
+test_that("rateMap category limits and legend breaks handle edge cases", {
+  .rate_map_skip_if_missing_deps()
+
   testthat::expect_equal(
     .rateMap_category_lims(list(rate_categories = NULL, lims = c(0, 1))),
     c(0, 1)
@@ -1481,6 +1496,11 @@ test_that("rateMap palette resolution handles names, vectors, and reversal", {
   testthat::expect_null(.rateMap_category_legend_breaks(c(0, NA_real_, 1), 2L))
   testthat::expect_null(.rateMap_category_legend_breaks(c(0, 2, 2), 2L))
   testthat::expect_null(.rateMap_add_category_legend(list(rate_categories = NULL)))
+})
+
+test_that("rateMap branch-value and weighted summary helpers handle missing values", {
+  .rate_map_skip_if_missing_deps()
+
   testthat::expect_equal(
     .rateMap_map_value(c("0" = 1), c("0" = 7), start = 2, end = 3),
     7

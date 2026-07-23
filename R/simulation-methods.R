@@ -416,11 +416,27 @@ print.bifrost_shift_recovery_evaluation <- function(x, ...) {
   cat("Strict\n")
   cat("  Precision: ", fmt(x$strict$precision), "\n", sep = "")
   cat("  Recall:    ", fmt(x$strict$recall), "\n", sep = "")
-  cat("  F1:        ", fmt(x$strict$f1), "\n\n", sep = "")
+  cat("  F1:        ", fmt(x$strict$f1), "\n", sep = "")
+  cat("  Specificity: ", fmt(x$strict$specificity), "\n", sep = "")
+  cat("  FPR:         ", fmt(x$strict$fpr), "\n", sep = "")
+  cat(
+    "  Balanced accuracy: ",
+    fmt(x$strict$balanced_accuracy),
+    "\n\n",
+    sep = ""
+  )
   cat("Fuzzy\n")
   cat("  Precision: ", fmt(x$fuzzy$precision), "\n", sep = "")
   cat("  Recall:    ", fmt(x$fuzzy$recall), "\n", sep = "")
   cat("  F1:        ", fmt(x$fuzzy$f1), "\n", sep = "")
+  cat("  Specificity: ", fmt(x$fuzzy$specificity), "\n", sep = "")
+  cat("  FPR:         ", fmt(x$fuzzy$fpr), "\n", sep = "")
+  cat(
+    "  Balanced accuracy: ",
+    fmt(x$fuzzy$balanced_accuracy),
+    "\n",
+    sep = ""
+  )
 
   if (!is.null(x$weighted)) {
     cat("\nWeighted Fuzzy\n")

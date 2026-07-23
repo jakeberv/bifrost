@@ -69,6 +69,90 @@ def missing_notebook_dependencies(
     return referenced - available
 
 
+def run_clean_notebook_setup_probe(
+    repo: Path,
+    notebook: dict,
+    *,
+    setup_token: str,
+    assertions: str,
+    label: str,
+) -> None:
+    setup_cells = [
+        cell["source"]
+        for cell in notebook["cells"]
+        if cell["cell_type"] == "code" and setup_token in cell["source"]
+    ]
+    if len(setup_cells) != 1:
+        raise AssertionError(
+            f"{label} expected one setup cell containing {setup_token!r}, "
+            f"found {len(setup_cells)}"
+        )
+    with tempfile.TemporaryDirectory(prefix="bifrost-colab-clean-session-") as temp:
+        probe = Path(temp) / "probe.R"
+        probe.write_text(setup_cells[0] + "\n" + assertions + "\n")
+        run(repo, "Rscript", "--vanilla", str(probe))
+
+
+def run_notebook_reporting_probe(
+    repo: Path,
+    notebook: dict,
+    *,
+    fixture: str,
+    reporting_tokens: tuple[str, ...],
+    expected_output: tuple[str, ...],
+    label: str,
+) -> None:
+    setup_cells = [
+        cell["source"]
+        for cell in notebook["cells"]
+        if cell["cell_type"] == "code"
+        and "render_preview_table <- function" in cell["source"]
+    ]
+    if len(setup_cells) != 1:
+        raise AssertionError(f"{label} expected one reporting helper cell")
+
+    reporting_cells = []
+    for token in reporting_tokens:
+        matches = [
+            cell["source"]
+            for cell in notebook["cells"]
+            if cell["cell_type"] == "code" and token in cell["source"]
+        ]
+        if len(matches) != 1:
+            raise AssertionError(
+                f"{label} expected one reporting cell containing {token!r}"
+            )
+        reporting_cells.append(matches[0])
+
+    assignments = []
+    for index, source in enumerate(reporting_cells, start=1):
+        assignments.append(f"reported_{index} <- local({{\n{source}\n}})")
+    reported_names = ", ".join(
+        f"reported_{index}" for index in range(1, len(reporting_cells) + 1)
+    )
+    expected_vector = ", ".join(json.dumps(value) for value in expected_output)
+    assertions = (
+        f"rendered <- paste(capture.output(print(list({reported_names}))), "
+        'collapse = "\\n")\n'
+        f"expected <- c({expected_vector})\n"
+        "stopifnot(all(vapply(expected, grepl, logical(1L), "
+        "x = rendered, fixed = TRUE)))\n"
+    )
+
+    with tempfile.TemporaryDirectory(prefix="bifrost-colab-reporting-") as temp:
+        probe = Path(temp) / "probe.R"
+        probe.write_text(
+            setup_cells[0]
+            + "\n"
+            + fixture
+            + "\n"
+            + "\n".join(assignments)
+            + "\n"
+            + assertions
+        )
+        run(repo, "Rscript", "--vanilla", str(probe))
+
+
 def commit(repo: Path, message: str) -> str:
     run(repo, "git", "add", "-A")
     run(repo, "git", "commit", "-qm", message)
@@ -123,6 +207,7 @@ def make_fixture(source: Path, destination: Path) -> None:
         "colab_dependencies.py",
         "render-vignette-pdf.R",
         "test-vignette-artifacts.py",
+        "validate-empirical-artifacts.py",
         "vignette_artifacts.R",
     ]:
         shutil.copy2(source / "tools" / filename, tools / filename)
@@ -145,6 +230,18 @@ def main() -> None:
     all_slugs = run(
         source, "Rscript", "tools/vignette_artifacts.R", "slugs", "--sep", "space"
     ).stdout.split()
+    required_simulation_slugs = {
+        "simulation-study-part-1",
+        "simulation-study-part-2",
+    }
+    missing_simulation_slugs = required_simulation_slugs - set(all_slugs)
+    if missing_simulation_slugs:
+        raise AssertionError(
+            "missing split simulation vignettes: "
+            f"{sorted(missing_simulation_slugs)}"
+        )
+    if "simulation-study-vignette" in all_slugs:
+        raise AssertionError("superseded simulation-study-vignette slug remains")
 
     with tempfile.TemporaryDirectory(prefix="bifrost-r-profile-") as temp:
         profile = Path(temp) / "Rprofile"
@@ -191,9 +288,14 @@ def main() -> None:
         (repo / "vignettes/colab-policy-probe.Rmd").write_text(
             "---\n"
             'title: "Colab policy probe"\n'
+            'colab-packages: "manualPackage, manualPackageTwo"\n'
             "---\n\n"
             "```{r setup, include=FALSE}\n"
             "knitr::opts_chunk$set(eval = FALSE)\n"
+            "evaluated_setup_value <- 41L\n"
+            "evaluated_setup_helper <- function() {\n"
+            "  if (knitr::is_html_output()) 1L else 1L\n"
+            "}\n"
             "```\n\n"
             "```{r visible, eval=FALSE}\n"
             "visible_probe <- TRUE\n"
@@ -203,6 +305,15 @@ def main() -> None:
             "autoNamespace::run()\n"
             "ape::Ntip(NULL)\n"
             "stats::lm(visible_probe ~ 1)\n"
+            "```\n\n"
+            "```{r dependent}\n"
+            "evaluated_setup_result <- evaluated_setup_value + evaluated_setup_helper()\n"
+            "stopifnot(identical(evaluated_setup_result, 42L))\n"
+            "```\n\n"
+            "Inline result: `r evaluated_setup_value + 1L`.\n\n"
+            "```{r visible-asis, results='asis'}\n"
+            "visible_asis_probe <- data.frame(metric = 'BA', score = 0.75)\n"
+            "visible_asis_probe\n"
             "```\n\n"
             "```{r hidden, include=FALSE, eval=FALSE}\n"
             "hidden_probe <- TRUE\n"
@@ -226,8 +337,41 @@ def main() -> None:
         )
         if "visible_probe <- TRUE" not in policy_code:
             raise AssertionError("visible eval=FALSE chunks must be executable in Colab")
+        if "evaluated_setup_value <- 41L" not in policy_code:
+            raise AssertionError(
+                "evaluated include=FALSE setup chunks must remain executable in Colab"
+            )
         if "hidden_probe <- TRUE" in policy_code:
             raise AssertionError("hidden unevaluated chunks must be omitted from Colab")
+        if "visible_asis_probe <-" not in policy_code:
+            raise AssertionError(
+                "visible results='asis' chunks must remain executable in Colab"
+            )
+        policy_markdown = "\n".join(
+            cell["source"]
+            for cell in policy_notebook["cells"]
+            if cell["cell_type"] == "markdown"
+        )
+        if re.search(r"`r\s+.+?`", policy_markdown):
+            raise AssertionError(
+                "inline R expressions must not remain literal notebook Markdown"
+            )
+        if "evaluated_setup_value + 1L" not in policy_code:
+            raise AssertionError(
+                "inline R expressions must become executable notebook code"
+            )
+        execution_cells = [
+            cell["source"]
+            for cell in policy_notebook["cells"]
+            if cell["cell_type"] == "code"
+            and (
+                "evaluated_setup_value <- 41L" in cell["source"]
+                or "evaluated_setup_result <-" in cell["source"]
+            )
+        ]
+        execution_probe = Path(temp) / "colab-clean-session-probe.R"
+        execution_probe.write_text("\n".join(execution_cells))
+        run(repo, "Rscript", "--vanilla", str(execution_probe))
         policy_setup_packages = bootstrapped_packages(
             policy_notebook["cells"][1]["source"]
         )
@@ -238,6 +382,8 @@ def main() -> None:
             "autoLoaded",
             "autoNamespace",
             "autoRequired",
+            "manualPackage",
+            "manualPackageTwo",
         }
         if policy_setup_packages != expected_policy_packages:
             raise AssertionError(
@@ -256,6 +402,10 @@ def main() -> None:
         raise AssertionError("theoretical vignette must use an explicit integer seed")
 
     hard_dependencies = description_hard_dependencies(source / "DESCRIPTION")
+    required_colab_packages = {
+        "avian-skeleton-part-3": {"univariateML", "evd"},
+        "avian-skeleton-part-5": {"phylolm"},
+    }
     dependency_probe: dict | None = None
     for notebook_path in sorted((source / "vignettes/colab").glob("*.ipynb")):
         notebook = json.loads(notebook_path.read_text())
@@ -292,6 +442,14 @@ def main() -> None:
                 f"{notebook_path.name} contains hidden vignette maintenance code"
             )
         setup = notebook["cells"][1]["source"]
+        missing_required = required_colab_packages.get(
+            notebook_path.stem, set()
+        ) - bootstrapped_packages(setup)
+        if missing_required:
+            raise AssertionError(
+                f"{notebook_path.name} Colab setup is missing declared runtime "
+                f"packages: {', '.join(sorted(missing_required))}"
+            )
         if "parallel::detectCores(logical = TRUE)" not in setup:
             raise AssertionError(
                 f"{notebook_path.name} setup must report detected logical CPUs"
@@ -314,12 +472,164 @@ def main() -> None:
             for cell in notebook["cells"][2:]
             if cell["cell_type"] == "code"
         )
+        body_markdown = "\n".join(
+            cell["source"]
+            for cell in notebook["cells"][2:]
+            if cell["cell_type"] == "markdown"
+        )
+        required_code = {
+            "avian-skeleton-part-2": (
+                "library(bifrost)",
+                "lineage_decay_widget <- list(",
+            ),
+            "simulation-study-part-1": ("pkg_file <- function(...)",),
+            "simulation-study-part-2": ("pkg_file <- function(...)",),
+        }
+        for required in required_code.get(notebook_path.stem, ()):
+            if required not in body_code:
+                raise AssertionError(
+                    f"{notebook_path.name} is missing required setup code: {required}"
+                )
+        simulation_notebook_code = {
+            "simulation-study-part-1": (
+                "render_preview_table(\n  fixed_null_display",
+                "render_preview_table(\n  fixed_recovery_display",
+                '"Fuzzy recall"',
+                '"Fuzzy specificity"',
+                '"Fuzzy F1"',
+                '"Fuzzy balanced accuracy"',
+            ),
+            "simulation-study-part-2": (
+                "render_preview_table(\n  gic_preview_table",
+                "render_preview_table(\n  bic_preview_table",
+                "render_preview_table(\n  preview_recommendations",
+                '"Prop. BA"',
+                '"Int.-rate BA"',
+                '"Score"',
+            ),
+        }
+        for required in simulation_notebook_code.get(notebook_path.stem, ()):
+            if required not in body_code:
+                raise AssertionError(
+                    f"{notebook_path.name} omits executable reporting code: {required}"
+                )
+        if notebook_path.stem in required_simulation_slugs:
+            if re.search(r"`r\s+.+?`", body_markdown):
+                raise AssertionError(
+                    f"{notebook_path.name} contains literal inline R Markdown"
+                )
+        if notebook_path.stem == "simulation-study-part-2":
+            if body_code.count(
+                "scenario_weights = c(proportional = 0.50, correlation = 0.50)"
+            ) < 4:
+                raise AssertionError(
+                    "Part 2 notebook must execute explicit equal scenario weights"
+                )
+            required_hard_stops = (
+                "!gic_preview_tuned$used_all_settings",
+                "!bic_preview_tuned$used_all_settings",
+                "stopifnot(!gic_tuned$used_all_settings)",
+                "stopifnot(!bic_tuned$used_all_settings)",
+            )
+            for required in required_hard_stops:
+                if required not in body_code:
+                    raise AssertionError(
+                        "Part 2 notebook is missing mandatory selector hard-stop: "
+                        + required
+                    )
+        reporting_probes = {
+            "simulation-study-part-1": {
+                "fixture": (
+                    "fixed_null_display <- data.frame(\n"
+                    "  IC = 'GIC', `Mean FP` = 0.0123, `Any FP` = 0.04,\n"
+                    "  `Mean shifts` = 0.02, Evaluable = 0.99, check.names = FALSE\n"
+                    ")\n"
+                    "fixed_recovery_display <- data.frame(\n"
+                    "  IC = 'GIC', Scenario = 'Proportional',\n"
+                    "  `Fuzzy recall` = 0.731, `Fuzzy specificity` = 0.887,\n"
+                    "  `Fuzzy F1` = 0.809, `Fuzzy balanced accuracy` = 0.809,\n"
+                    "  `Mean shifts` = 4.1, Evaluable = 0.98, check.names = FALSE\n"
+                    ")"
+                ),
+                "reporting_tokens": (
+                    "render_preview_table(\n  fixed_null_display",
+                    "render_preview_table(\n  fixed_recovery_display",
+                ),
+                "expected_output": (
+                    "Mean FP", "Fuzzy rec.", "Fuzzy spec.", "Fuzzy F1",
+                    "Fuzzy BA", "0.731", "0.887", "0.809",
+                ),
+            },
+            "simulation-study-part-2": {
+                "fixture": (
+                    "gic_preview_table <- data.frame(\n"
+                    "  Threshold = 10, `Min clade` = 10, `Null FP` = 0.01,\n"
+                    "  `Prop. BA` = 0.811, `Int.-rate BA` = 0.722, Score = 0.765,\n"
+                    "  check.names = FALSE\n"
+                    ")\n"
+                    "bic_preview_table <- gic_preview_table\n"
+                    "preview_recommendations <- data.frame(\n"
+                    "  IC = 'GIC', Threshold = 10, `Min clade` = 10,\n"
+                    "  `Null FP` = 0.01, `Prop. BA` = 0.811,\n"
+                    "  `Int.-rate BA` = 0.722, Score = 0.765, check.names = FALSE\n"
+                    ")"
+                ),
+                "reporting_tokens": (
+                    "render_preview_table(\n  gic_preview_table",
+                    "render_preview_table(\n  bic_preview_table",
+                    "render_preview_table(\n  preview_recommendations",
+                ),
+                "expected_output": (
+                    "Prop. BA", "Int.-rate BA", "Score",
+                    "0.811", "0.722", "0.765",
+                ),
+            },
+        }
+        if notebook_path.stem in reporting_probes:
+            probe = reporting_probes[notebook_path.stem]
+            run_notebook_reporting_probe(
+                source,
+                notebook,
+                fixture=probe["fixture"],
+                reporting_tokens=probe["reporting_tokens"],
+                expected_output=probe["expected_output"],
+                label=notebook_path.name,
+            )
+        clean_setup_probes = {
+            "avian-skeleton-part-2": (
+                "lineage_decay_widget <- list(",
+                'stopifnot("package:bifrost" %in% search())\n'
+                "stopifnot(identical(lineage_decay_widget$defaults$half_life, 5))",
+            ),
+            "simulation-study-part-1": (
+                "pkg_file <- function(...)",
+                "stopifnot(file.exists(pkg_file(\n"
+                '  "extdata", "avian-skeleton", "passerine_bodyplan_tree.tre"\n'
+                ")))",
+            ),
+            "simulation-study-part-2": (
+                "pkg_file <- function(...)",
+                "stopifnot(file.exists(pkg_file(\n"
+                '  "extdata", "avian-skeleton", "passerine_bodyplan_tree.tre"\n'
+                ")))",
+            ),
+        }
+        if notebook_path.stem in clean_setup_probes:
+            setup_token, assertions = clean_setup_probes[notebook_path.stem]
+            run_clean_notebook_setup_probe(
+                source,
+                notebook,
+                setup_token=setup_token,
+                assertions=assertions,
+                label=notebook_path.name,
+            )
         expected_optional = referenced_r_packages(source, body_code) - (
             BASE_R_PACKAGES
             | hard_dependencies
             | set(COMMON_COLAB_PACKAGES)
             | {"bifrost"}
         )
+        expected_optional |= required_colab_packages.get(notebook_path.stem, set())
         actual_optional = bootstrapped_packages(setup) - set(COMMON_COLAB_PACKAGES)
         if actual_optional != expected_optional:
             raise AssertionError(
@@ -360,6 +670,38 @@ def main() -> None:
     with tempfile.TemporaryDirectory(prefix="bifrost-artifact-tests-") as temp:
         repo = Path(temp) / "repo"
         make_fixture(source, repo)
+
+        fixture_manifest_path = repo / "inst/extdata/empirical-artifacts.json"
+        fixture_manifest = json.loads(fixture_manifest_path.read_text())
+        simulation_record = next(
+            artifact
+            for artifact in fixture_manifest["artifacts"]
+            if artifact["path"]
+            == "inst/extdata/simulation-study-cache/passerine_preview_tables.rds"
+        )
+        simulation_record["source_location"] = (
+            "Schema-2 cache constructed from validated empirical grids."
+        )
+        simulation_record["transformation"]["method"] = (
+            "Construct the schema-2 simulation vignette cache."
+        )
+        fixture_manifest_path.write_text(
+            json.dumps(fixture_manifest, indent=2, ensure_ascii=False) + "\n"
+        )
+        stale_schema = run(
+            repo,
+            "python3",
+            "tools/validate-empirical-artifacts.py",
+            check=False,
+        )
+        if stale_schema.returncode == 0:
+            raise AssertionError(
+                "empirical artifact validator must reject stale schema-2 cache metadata"
+            )
+        shutil.copy2(
+            source / "inst/extdata/empirical-artifacts.json",
+            fixture_manifest_path,
+        )
 
         base = run(repo, "git", "rev-parse", "HEAD").stdout.strip()
         fake_bin = Path(temp) / "fake-bin"
@@ -523,6 +865,67 @@ def main() -> None:
         raise AssertionError("PDF cache key must include its production workflow")
     if "'tools/colab_dependencies.py'" not in workflow:
         raise AssertionError("PDF cache key must include Colab dependency detection")
+    if "  pull_request:\n" not in workflow:
+        raise AssertionError("pkgdown workflow must build pull requests")
+    upload_gate = (
+        "      - name: Upload site artifact for Pages\n"
+        "        if: github.event_name != 'pull_request'\n"
+    )
+    if upload_gate not in workflow:
+        raise AssertionError(
+            "pkgdown Pages artifact upload must be disabled for pull requests"
+        )
+
+    deploy_gate = (
+        "  deploy:\n"
+        "    if: github.event_name != 'pull_request'\n"
+    )
+    if deploy_gate not in workflow:
+        raise AssertionError(
+            "pkgdown deploy job must be disabled for pull requests"
+        )
+
+    check_workflow = (source / ".github/workflows/R-CMD-check.yaml").read_text()
+    if '      NOT_CRAN: "false"' not in check_workflow:
+        raise AssertionError("R CMD checks must exercise the CRAN-style cheap-test path")
+
+    coverage_workflow = (source / ".github/workflows/test-coverage.yaml").read_text()
+    coverage_gate = (
+        "          coverage <- covr::percent_coverage(cov)\n"
+        "          uncovered <- covr::zero_coverage(cov)\n"
+        "          if (coverage != 100 || nrow(uncovered) != 0L) {\n"
+        "            stop("
+    )
+    if coverage_gate not in coverage_workflow:
+        raise AssertionError("coverage workflow must enforce 100% coverage with no uncovered rows")
+    coverage_stop = (
+        '            stop("Coverage gate failed: require exactly 100% coverage '
+        'and zero uncovered rows.")'
+    )
+    coverage_stop_position = coverage_workflow.find(coverage_stop)
+    coverage_report_positions = {
+        "coverage summary": coverage_workflow.find("          print(cov)"),
+        "Cobertura report": coverage_workflow.find(
+            "          covr::to_cobertura(cov)"
+        ),
+    }
+    late_or_missing_reports = [
+        label
+        for label, position in coverage_report_positions.items()
+        if position == -1 or position > coverage_stop_position
+    ]
+    if coverage_stop_position == -1 or late_or_missing_reports:
+        raise AssertionError(
+            "coverage workflow must print coverage and write Cobertura before "
+            "the failure gate stops: "
+            + ", ".join(late_or_missing_reports)
+        )
+    codecov_step = (
+        "      - uses: codecov/codecov-action@v5\n"
+        "        if: always()\n"
+    )
+    if codecov_step not in coverage_workflow:
+        raise AssertionError("Codecov upload must run after a failed coverage gate")
 
     renderer = (source / "tools/render-vignette-pdf.R").read_text()
     if "rmarkdown::resolve_output_format(" not in renderer:
@@ -548,6 +951,26 @@ def main() -> None:
     if '"tools/colab_dependencies.py"' not in artifact_tool:
         raise AssertionError("artifact hashes must include Colab dependency detection")
 
+    part2_source = (source / "vignettes/avian-skeleton-part-2.Rmd").read_text()
+    part2_widget = part2_source[
+        part2_source.index("<figure id=\"lineage-decay-widget-part2\"") :
+        part2_source.index("</figure>")
+    ]
+    indented_block_tags = re.findall(
+        r"(?mi)^[ \t]+</?(?:div|figure|script|style|details|summary|svg|p|br)\b",
+        part2_widget,
+    )
+    if "~~~{=html}" in part2_source or indented_block_tags:
+        raise AssertionError(
+            "Part 2 must emit its HTML widget directly and omit leading "
+            "indentation so Pandoc can match the widget's block-level Div tags"
+        )
+
+    manifest_validator = source / "tools/validate-empirical-artifacts.py"
+    if not manifest_validator.exists():
+        raise AssertionError("empirical artifact checksum validator is missing")
+    run(source, "python3", str(manifest_validator))
+
     pr_workflow = (source / ".github/workflows/vignette-artifacts.yml").read_text()
     if "\npermissions:\n  contents: write\n" in pr_workflow:
         raise AssertionError("PR artifact workflow must not grant write access globally")
@@ -561,6 +984,10 @@ def main() -> None:
         raise AssertionError("PR artifact checks must not checkout a mutable branch ref")
     if "      - tools/colab_dependencies.py" not in pr_workflow:
         raise AssertionError("PR artifact workflow must watch Colab dependency detection")
+    if "      - tools/validate-empirical-artifacts.py" not in pr_workflow:
+        raise AssertionError("PR artifact workflow must watch the artifact validator")
+    if "      - tools/avian-skeleton/**" not in pr_workflow:
+        raise AssertionError("PR artifact workflow must watch artifact generators")
     generate_step_name = "      - name: Generate changed Colab notebooks"
     audit_step_name = "      - name: Test vignette artifacts"
     generate_step = pr_workflow.find(generate_step_name)
@@ -582,6 +1009,35 @@ def main() -> None:
         raise AssertionError(
             "PR artifact workflow must audit dependencies after notebook generation"
         )
+
+    required_pdf_step = "      - name: Smoke-render all manuscript vignette PDFs"
+    if required_pdf_step not in pr_workflow:
+        raise AssertionError(
+            "PR artifact workflow must smoke-render all seven manuscript vignettes"
+        )
+    required_pdf_slugs = {
+        "avian-skeleton-part-1",
+        "avian-skeleton-part-2",
+        "avian-skeleton-part-3",
+        "avian-skeleton-part-4",
+        "avian-skeleton-part-5",
+        "simulation-study-part-1",
+        "simulation-study-part-2",
+    }
+    missing_pdf_slugs = sorted(
+        slug for slug in required_pdf_slugs if slug not in pr_workflow
+    )
+    if missing_pdf_slugs:
+        raise AssertionError(
+            "PR artifact workflow is missing required PDF renders: "
+            + ", ".join(missing_pdf_slugs)
+        )
+    for slug in required_pdf_slugs:
+        rmd_text = (source / "vignettes" / f"{slug}.Rmd").read_text()
+        if re.search(r'fig\.cap\s*=\s*"\*\*Figure', rmd_text):
+            raise AssertionError(
+                f"{slug} duplicates the renderer's figure number in fig.cap"
+            )
 
     print("Vignette artifact integration checks passed.")
 

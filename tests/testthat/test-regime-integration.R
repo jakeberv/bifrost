@@ -945,6 +945,42 @@ test_that("regime integration summary helpers reject malformed inputs", {
     regime_integration_relationships(invalid_correlation, n_boot = 1),
     "corrs.*between -1 and 1.*r1"
   )
+
+  nonnumeric_rate <- relationship_summary
+  nonnumeric_rate$rate <- as.character(nonnumeric_rate$rate)
+  testthat::expect_error(
+    regime_integration_relationships(nonnumeric_rate, n_boot = 1),
+    "rate.*must be numeric"
+  )
+
+  nonnumeric_variance <- relationship_summary
+  nonnumeric_variance$mean_variance <- as.character(
+    nonnumeric_variance$mean_variance
+  )
+  testthat::expect_error(
+    regime_integration_relationships(nonnumeric_variance, n_boot = 1),
+    "vars.*must be numeric"
+  )
+
+  nonnumeric_correlation <- relationship_summary
+  nonnumeric_correlation$mean_abs_correlation <- as.character(
+    nonnumeric_correlation$mean_abs_correlation
+  )
+  testthat::expect_error(
+    regime_integration_relationships(nonnumeric_correlation, n_boot = 1),
+    "corrs.*must be numeric"
+  )
+})
+
+test_that("complete regime correlations reject constant inputs", {
+  testthat::expect_identical(
+    bifrost:::.regime_complete_correlation(c(1, 1, 1), c(1, 2, 3)),
+    NA_real_
+  )
+  testthat::expect_identical(
+    bifrost:::.regime_complete_correlation(c(1, 2, 3), c(1, 1, 1)),
+    NA_real_
+  )
 })
 
 test_that("relationship models preserve rows with incomplete panel data", {

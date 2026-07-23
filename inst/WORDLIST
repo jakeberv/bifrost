@@ -49,6 +49,7 @@ Interspecific
 Iteratively
 JS
 Jolliffe
+KDE
 Kozak
 LLC
 LOOCV
@@ -60,6 +61,7 @@ Ligges
 Limnomis
 Losos
 MCC
+Myr
 MIPoD
 MJ
 Mariadassou
@@ -118,10 +120,12 @@ Uyeda
 VCV
 VCVs
 Viridis
+Welch
 XQuartz
 Xie
 abline
 adjustcolor
+adh
 adp
 al
 amblyodus
@@ -247,6 +251,8 @@ trismodipterus
 ultrametric
 ultrametricity
 unevaluated
+unlogged
+unscaled
 untransformed
 vdots
 viridis

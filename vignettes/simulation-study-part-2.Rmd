@@ -1,0 +1,623 @@
+---
+title: "Calibrating bifrost with Dataset-Matched Simulations, Part 2: Tuning and Application"
+output:
+  rmarkdown::html_vignette: default
+  rmarkdown::pdf_document:
+    latex_engine: xelatex
+vignette: >
+  %\VignetteIndexEntry{Calibrating bifrost with Dataset-Matched Simulations, Part 2: Tuning and Application}
+  %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.align = "center",
+  out.width = "100%",
+  dpi = 170,
+  fig.retina = 2,
+  dev = "png"
+)
+
+Sys.setenv(
+  OMP_NUM_THREADS = "1",
+  OPENBLAS_NUM_THREADS = "1",
+  MKL_NUM_THREADS = "1",
+  VECLIB_MAXIMUM_THREADS = "1",
+  BLIS_NUM_THREADS = "1",
+  NUMEXPR_NUM_THREADS = "1"
+)
+
+if (!exists("createSimulationTemplate", mode = "function")) {
+  pkg_root <- if (file.exists("DESCRIPTION")) {
+    "."
+  } else if (file.exists(file.path("..", "DESCRIPTION"))) {
+    ".."
+  } else {
+    NULL
+  }
+
+  if (!is.null(pkg_root) && requireNamespace("pkgload", quietly = TRUE)) {
+    pkgload::load_all(pkg_root, quiet = TRUE, export_all = FALSE, helpers = FALSE)
+  } else {
+    library(bifrost)
+  }
+}
+
+render_preview_table <- function(x, caption, col_names = colnames(x), digits = 3) {
+  x <- as.data.frame(x, stringsAsFactors = FALSE, check.names = FALSE)
+  rownames(x) <- NULL
+  is_html <- knitr::is_html_output()
+  is_latex <- knitr::is_latex_output()
+
+  if (length(digits) == 1L) {
+    digits <- rep(digits, ncol(x))
+  } else {
+    digits <- rep_len(digits, ncol(x))
+  }
+
+  for (j in seq_along(x)) {
+    if (is.numeric(x[[j]])) {
+      x[[j]] <- ifelse(
+        is.na(x[[j]]),
+        "",
+        formatC(x[[j]], digits = digits[j], format = "f")
+      )
+    } else {
+      x[[j]] <- ifelse(is.na(x[[j]]), "", as.character(x[[j]]))
+    }
+  }
+
+  align <- c("l", rep("r", max(ncol(x) - 1L, 0L)))
+
+  out <- knitr::kable(
+    x,
+    caption = if (is_latex) NULL else caption,
+    col.names = col_names,
+    digits = digits,
+    align = align,
+    format = if (is_html) "html" else if (is_latex) "latex" else "pipe",
+    table.attr = if (is_html) {
+      'class="simulation-preview-table"'
+    } else {
+      NULL
+    }
+  )
+
+  if (is_html) {
+    out <- sub(
+      "(<caption>)(Table [0-9]+\\.)([[:space:]])",
+      "\\1<strong>\\2</strong>\\3",
+      out
+    )
+    out <- paste0(
+      "<div class=\"simulation-table-wrap\">",
+      out,
+      "</div>"
+    )
+  } else if (is_latex) {
+    caption_label <- sub("^(Table [0-9]+\\.).*", "\\1", caption)
+    caption_body <- sub("^Table [0-9]+\\.[[:space:]]*", "", caption)
+    out <- paste0(
+      "\\noindent\\textbf{", caption_label, "} ", caption_body,
+      "\n\n", out
+    )
+  }
+
+  knitr::asis_output(out)
+}
+
+add_combined_score <- function(x) {
+  metric_columns <- c(
+    "Prop. Fuzzy balanced accuracy",
+    "Integration Fuzzy balanced accuracy"
+  )
+  stopifnot(all(metric_columns %in% names(x)))
+  x$Score <- rowMeans(x[, metric_columns, drop = FALSE])
+  x
+}
+
+pkg_file <- function(...) {
+  candidates <- c(
+    file.path("inst", ...),
+    file.path("..", "inst", ...)
+  )
+
+  for (path in candidates) {
+    if (file.exists(path)) {
+      return(path)
+    }
+  }
+
+  installed_path <- system.file(..., package = "bifrost")
+  if (nzchar(installed_path)) {
+    return(installed_path)
+  }
+
+  stop("Could not locate: ", file.path(...))
+}
+```
+
+```{r, echo = FALSE, results = "asis"}
+if (knitr::is_html_output()) cat("
+<style>
+img, .figure img, .figure > p > img {
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: none !important;
+  background: transparent !important;
+}
+
+p.caption, .caption, table > caption {
+  border-left: 0.32rem solid #d8dde3;
+  color: #2f3439;
+  font-size: inherit;
+  line-height: inherit;
+  margin: 0 3.8% 1.05rem 3.8%;
+  padding: 0 0 0 1rem;
+  text-align: left !important;
+}
+
+p.caption strong, .caption strong {
+  font-weight: 700;
+}
+
+table.simulation-preview-table > caption {
+  caption-side: bottom !important;
+  margin: 0.65rem 3.8% 1.35rem 3.8%;
+}
+
+table.simulation-preview-table > caption strong {
+  font-weight: 700;
+}
+
+table {
+  width: 100%;
+}
+
+table th, table td {
+  vertical-align: top;
+}
+
+table code {
+  white-space: nowrap;
+}
+
+.simulation-table-wrap {
+  margin: 1em 0 1.15em 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.simulation-table-wrap table {
+  margin-bottom: 0;
+}
+
+.simulation-preview-table thead th {
+  white-space: nowrap;
+}
+
+@media (max-width: 600px) {
+  h1.title {
+    font-size: 2rem;
+    line-height: 1.1;
+  }
+}
+</style>
+")
+```
+
+This is Part 2 of the dataset-matched simulation workflow. It is independently runnable, but [Part 1](simulation-study-part-1.html) introduces the null, proportional, and integration-rate scenarios and interprets their performance.
+
+Here we use those scenarios to compare search settings, select tuned GIC and BIC configurations, and carry the selected controls into an empirical search. The bundled tables summarize the same passerine calibration runs shown by the executable code, so rendering the article does not rerun the full simulation grid.
+
+Start by loading `bifrost`.
+
+```{r load_packages, eval = FALSE}
+library(bifrost)
+```
+
+## Build a dataset-matched template
+
+Here we use the empirical calibration structure from Berv et al. (2026), which models 12 skeletal traits jointly while keeping log body mass as a phylogenetic covariate.
+
+```{r load_bodyplan_example}
+tree_path <- pkg_file("extdata", "avian-skeleton", "passerine_bodyplan_tree.tre")
+trait_path <- pkg_file("extdata", "avian-skeleton", "passerine_bodyplan_data.RDS")
+
+bird_tree <- ape::read.tree(tree_path)
+bodyplan_data <- readRDS(trait_path)
+bodyplan_data <- as.matrix(bodyplan_data[bird_tree$tip.label, , drop = FALSE])
+
+skeletal_cols <- setdiff(colnames(bodyplan_data), "vertnet_mass")
+bodyplan_data <- bodyplan_data[, c(skeletal_cols, "vertnet_mass"), drop = FALSE]
+
+formula_str <- sprintf(
+  "trait_data[, 1:%d] ~ trait_data[, %d]",
+  length(skeletal_cols),
+  ncol(bodyplan_data)
+)
+
+c(
+  species = nrow(bodyplan_data),
+  skeletal_traits = length(skeletal_cols),
+  total_columns = ncol(bodyplan_data)
+)
+```
+
+The template comes from a single-regime global fit. That fit provides the empirical variance and covariance scale used to generate a fresh ancestral covariance matrix for each simulation replicate. Here the calibration model is a single-regime multivariate BM fit with `mvMORPH::mvgls()` using `method = "LL"`, following the multivariate phylogenetic GLS framework described by [Clavel, Aristide, and Morlon (2019)](https://doi.org/10.1093/sysbio/syy045) and [Clavel and Morlon (2020)](https://doi.org/10.1093/sysbio/syaa010).
+
+```{r create_template_code, eval = FALSE}
+bodyplan_template <- createSimulationTemplate(
+  baseline_tree = bird_tree,
+  trait_data = bodyplan_data,
+  formula = formula_str,
+  response_columns = seq_along(skeletal_cols),
+  predictor_columns = ncol(bodyplan_data),
+  method = "LL",
+  error = TRUE
+)
+```
+
+The template call is shown rather than evaluated during package rendering because the tuning tables use the bundled cache. In an interactive or Colab run, execute it before running a new tuning grid.
+
+```{r preview_template_setup, eval = FALSE}
+preview_template <- bodyplan_template
+```
+
+```{r preview_results_setup, echo = FALSE, message = FALSE, warning = FALSE}
+preview_tables_path <- pkg_file(
+  "extdata",
+  "simulation-study-cache",
+  "passerine_preview_tables.rds"
+)
+preview_tables <- readRDS(preview_tables_path)
+stopifnot(
+  identical(preview_tables$schema_version, 3L),
+  identical(preview_tables$provenance$simulation_generator, "empirical"),
+  identical(preview_tables$provenance$integration_power_range, c(0.5, 1.25)),
+  identical(preview_tables$provenance$integration_exclude_range, c(0.8, 1.1))
+)
+```
+
+## 1. Choose Settings from a Search Grid
+
+The fixed-settings comparison describes how one search configuration behaves. Choosing settings is a different task. A small simulation grid is usually more informative because it makes the tradeoff between `shift_acceptance_threshold` and `min_descendant_tips` visible instead of relying on a single fixed choice. Importantly, `min_descendant_tips` changes the candidate-node universe: rows with different minimum clade sizes do not evaluate an identical set of possible shift locations. Their performance therefore reflects both the search control and the opportunity set it creates.
+
+In practice, this usually means running one grid for GIC and a second grid for BIC. If the empirical analysis will be fitted with GIC, it makes the most sense to choose the best threshold and clade-size settings within the GIC results. The same logic applies to BIC. Pooling them into a single ranking is less useful because the two criteria penalize model complexity differently.
+
+The grid varies three acceptance thresholds (`10`, `20`, `30`) and two minimum clade sizes (`10`, `20`). The bundled results use 100 null and 100 recovery replicates per scenario and setting on 250-tip subtrees. Smaller pilot runs can check code and runtime, but tuning decisions should use enough replicates to stabilize the false-positive and recovery summaries.
+
+```{r preview_tuning_setup, eval = FALSE}
+preview_grid_args <- list(
+  shift_acceptance_thresholds = c(10, 20, 30),
+  min_descendant_tips_values = c(10, 20),
+  tree_tip_count = 250,
+  null_replicates = 100,
+  recovery_replicates = 100,
+  null_simulation_options = list(
+    simulation_generator = "empirical"
+  ),
+  proportional_simulation_options = list(
+    simulation_generator = "empirical",
+    num_shifts = 5,
+    min_shift_tips = 10,
+    max_shift_tips = 20,
+    scale_factor_range = c(0.1, 2.0),
+    exclude_range = c(0.5, 1.5),
+    buffer = 3
+  ),
+  correlation_simulation_options = list(
+    simulation_generator = "empirical",
+    integration_power_range = c(0.5, 1.25),
+    integration_exclude_range = c(0.8, 1.1)
+  ),
+  base_search_options = list(
+    formula = "trait_data ~ 1",
+    method = "LL",
+    error = TRUE,
+    num_cores = 1,
+    uncertaintyweights_par = TRUE,
+    plot = FALSE,
+    store_model_fit_history = FALSE
+  ),
+  weighted = TRUE,
+  num_cores = 8,
+  seed = 5,
+  store_studies = FALSE
+)
+
+preview_cols <- c(
+  "shift_acceptance_threshold",
+  "min_descendant_tips",
+  "null_mean_false_positive_rate",
+  "proportional_fuzzy_balanced_accuracy",
+  "correlation_fuzzy_balanced_accuracy",
+  "score"
+)
+preview_labels <- c(
+  "Threshold",
+  "Min clade",
+  "Null FP",
+  "Prop. Fuzzy balanced accuracy",
+  "Integration Fuzzy balanced accuracy",
+  "Score"
+)
+
+gic_preview_grid <- do.call(
+  runSearchTuningGrid,
+  c(list(template = preview_template, IC = "GIC"), preview_grid_args)
+)
+bic_preview_grid <- do.call(
+  runSearchTuningGrid,
+  c(list(template = preview_template, IC = "BIC"), preview_grid_args)
+)
+
+gic_preview_tuned <- selectTunedSearchParameters(
+  gic_preview_grid,
+  max_false_positive_rate = 0.10,
+  max_any_false_positive = 0.50,
+  min_evaluable_fraction = 0.50,
+  primary_metric = "fuzzy_balanced_accuracy",
+  scenario_weights = c(proportional = 0.50, correlation = 0.50),
+  tie_break = "conservative"
+)
+bic_preview_tuned <- selectTunedSearchParameters(
+  bic_preview_grid,
+  max_false_positive_rate = 0.10,
+  max_any_false_positive = 0.50,
+  min_evaluable_fraction = 0.50,
+  primary_metric = "fuzzy_balanced_accuracy",
+  scenario_weights = c(proportional = 0.50, correlation = 0.50),
+  tie_break = "conservative"
+)
+
+stopifnot(
+  !gic_preview_tuned$used_all_settings,
+  !bic_preview_tuned$used_all_settings
+)
+
+preview_recommendations <- rbind(
+  data.frame(IC = "GIC", gic_preview_tuned$selected_row[, preview_cols], row.names = NULL),
+  data.frame(IC = "BIC", bic_preview_tuned$selected_row[, preview_cols], row.names = NULL)
+)
+names(preview_recommendations) <- c("IC", preview_labels)
+```
+
+```{r preview_tuning_cached, echo = FALSE, message = FALSE, warning = FALSE}
+gic_preview_table <- add_combined_score(preview_tables$tuning$gic)
+bic_preview_table <- add_combined_score(preview_tables$tuning$bic)
+preview_recommendations <- preview_tables$tuning$selected
+```
+
+Each row represents one threshold/clade-size combination evaluated under repeated subtree resampling.
+
+### GIC tuning grid
+
+```{r preview_tuning_gic_table, echo = FALSE, results = "asis"}
+render_preview_table(
+  gic_preview_table,
+  caption = "Table 1. Empirical-generator GIC tuning grid with 100 repeated 250-tip subsamples per scenario and setting. The two scenario columns report fuzzy balanced accuracy; Score is their equally weighted mean used to rank settings that pass the null and evaluability safeguards.",
+  col_names = c("Threshold", "Min clade", "Null FP", "Prop. BA", "Int.-rate BA", "Score"),
+  digits = c(0, 0, 3, 3, 3, 3)
+)
+```
+
+### BIC tuning grid
+
+```{r preview_tuning_bic_table, echo = FALSE, results = "asis"}
+render_preview_table(
+  bic_preview_table,
+  caption = "Table 2. Empirical-generator BIC tuning grid with 100 repeated 250-tip subsamples per scenario and setting. Scenario balanced accuracies and their combined Score use the same reporting and ranking rule as the GIC grid.",
+  col_names = c("Threshold", "Min clade", "Null FP", "Prop. BA", "Int.-rate BA", "Score"),
+  digits = c(0, 0, 3, 3, 3, 3)
+)
+```
+
+### Selected tuning settings
+
+```{r preview_tuning_selected_table, echo = FALSE, results = "asis"}
+render_preview_table(
+  preview_recommendations,
+  caption = "Table 3. Selected settings from the empirical-generator 100-replicate GIC and BIC grids. The table reports each selected row's proportional and integration-rate fuzzy balanced accuracy and the combined ranking Score, alongside its null false-positive rate.",
+  col_names = c("IC", "Threshold", "Min clade", "Null FP", "Prop. BA", "Int.-rate BA", "Score"),
+  digits = c(0, 0, 0, 3, 3, 3, 3)
+)
+```
+
+The selector is intentionally explicit. It first requires finite evidence and filters settings using `max_false_positive_rate`, `max_any_false_positive`, and `min_evaluable_fraction`; these null false-positive and evaluability filters remain mandatory safeguards, not optional ranking preferences. If the selector reports `used_all_settings = TRUE`, no setting passed them and the fallback ranking should be treated as a diagnostic rather than an empirical recommendation. Among settings that pass, Score is the equal-weight mean of proportional and integration-rate fuzzy balanced accuracy. Exact score ties are resolved first by lower null false-positive summaries and then conservatively in favor of larger thresholds and larger `min_descendant_tips`.
+
+Because `min_descendant_tips` changes the candidate-node universe, a higher Score at one clade-size setting should not be read as a controlled comparison over identical candidate nodes. Report the chosen minimum clade size with the scenario balanced accuracies and safeguards, as in the tables above, so that this change in the search opportunity set remains visible.
+
+The same code scales directly to larger runs, first for GIC and then for BIC.
+
+```{r tune_gic_grid, eval = FALSE}
+gic_grid <- runSearchTuningGrid(
+  template = bodyplan_template,
+  IC = "GIC",
+  shift_acceptance_thresholds = c(10, 20, 30),
+  min_descendant_tips_values = c(10, 20),
+  tree_tip_count = 250,
+  null_replicates = 100,
+  recovery_replicates = 100,
+  null_simulation_options = list(
+    simulation_generator = "empirical"
+  ),
+  proportional_simulation_options = list(
+    simulation_generator = "empirical",
+    num_shifts = 5,
+    min_shift_tips = 10,
+    max_shift_tips = 20,
+    scale_factor_range = c(0.1, 2.0),
+    exclude_range = c(0.5, 1.5),
+    buffer = 3
+  ),
+  correlation_simulation_options = list(
+    simulation_generator = "empirical",
+    integration_power_range = c(0.5, 1.25),
+    integration_exclude_range = c(0.8, 1.1)
+  ),
+  base_search_options = list(
+    formula = "trait_data ~ 1",
+    method = "LL",
+    error = TRUE,
+    num_cores = 1,
+    uncertaintyweights_par = TRUE,
+    plot = FALSE,
+    store_model_fit_history = FALSE
+  ),
+  weighted = TRUE,
+  num_cores = 8,
+  seed = 5
+)
+```
+
+```{r select_gic_grid, eval = FALSE}
+gic_tuned <- selectTunedSearchParameters(
+  gic_grid,
+  max_false_positive_rate = 0.10,
+  max_any_false_positive = 0.50,
+  min_evaluable_fraction = 0.50,
+  primary_metric = "fuzzy_balanced_accuracy",
+  scenario_weights = c(proportional = 0.50, correlation = 0.50),
+  tie_break = "conservative"
+)
+
+stopifnot(!gic_tuned$used_all_settings)
+
+gic_tuned$selected_row
+gic_tuned$recommended_search_options
+```
+
+BIC follows the same pattern:
+
+```{r tune_bic_grid, eval = FALSE}
+bic_grid <- runSearchTuningGrid(
+  template = bodyplan_template,
+  IC = "BIC",
+  shift_acceptance_thresholds = c(10, 20, 30),
+  min_descendant_tips_values = c(10, 20),
+  tree_tip_count = 250,
+  null_replicates = 100,
+  recovery_replicates = 100,
+  null_simulation_options = list(
+    simulation_generator = "empirical"
+  ),
+  proportional_simulation_options = list(
+    simulation_generator = "empirical",
+    num_shifts = 5,
+    min_shift_tips = 10,
+    max_shift_tips = 20,
+    scale_factor_range = c(0.1, 2.0),
+    exclude_range = c(0.5, 1.5),
+    buffer = 3
+  ),
+  correlation_simulation_options = list(
+    simulation_generator = "empirical",
+    integration_power_range = c(0.5, 1.25),
+    integration_exclude_range = c(0.8, 1.1)
+  ),
+  base_search_options = list(
+    formula = "trait_data ~ 1",
+    method = "LL",
+    error = TRUE,
+    num_cores = 1,
+    uncertaintyweights_par = TRUE,
+    plot = FALSE,
+    store_model_fit_history = FALSE
+  ),
+  weighted = TRUE,
+  num_cores = 8,
+  seed = 5
+)
+```
+
+```{r select_bic_grid, eval = FALSE}
+bic_tuned <- selectTunedSearchParameters(
+  bic_grid,
+  max_false_positive_rate = 0.10,
+  max_any_false_positive = 0.50,
+  min_evaluable_fraction = 0.50,
+  primary_metric = "fuzzy_balanced_accuracy",
+  scenario_weights = c(proportional = 0.50, correlation = 0.50),
+  tie_break = "conservative"
+)
+
+stopifnot(!bic_tuned$used_all_settings)
+
+bic_tuned$selected_row
+bic_tuned$recommended_search_options
+```
+
+This yields one tuned configuration within GIC and one within BIC. That is usually easier to interpret than one pooled ranking across both IC families.
+
+## 2. Use Tuned Settings in the Empirical Search
+
+The selected search options are ready to pass directly into `searchOptimalConfiguration()`. The simulation grid tunes the search controls, but the empirical search should still use the empirical model formula. For this example, the indexed formula keeps body mass as the covariate rather than treating it as a response:
+
+```{r empirical_search_after_simulations, eval = FALSE}
+empirical_result <- do.call(
+  searchOptimalConfiguration,
+  utils::modifyList(
+    gic_tuned$recommended_search_options,
+    list(
+      formula = formula_str,
+      baseline_tree = bird_tree,
+      trait_data = bodyplan_data,
+      num_cores = 20,
+      store_model_fit_history = TRUE,
+      verbose = TRUE
+    )
+  )
+)
+```
+
+## Intercept-Only Data
+
+The same calibration workflow also applies to intercept-only datasets such as GPA-aligned landmark matrices. Here `fish_tree` and `fish_data` stand in for any aligned intercept-only dataset, including the jaw-shape example used in the companion vignette. In that case the global calibration fit is already response-only, so the template call is simpler because the multivariate response is just the full trait matrix:
+
+```{r intercept_only_template, eval = FALSE}
+jaw_template <- createSimulationTemplate(
+  baseline_tree = fish_tree,
+  trait_data = fish_data,
+  formula = "trait_data ~ 1",
+  method = "H&L",
+  error = TRUE
+)
+```
+
+The downstream null, proportional, and integration-rate studies are then identical in structure; only the template and search options change.
+
+## Calibration Summary
+
+The new simulation API makes this dataset-matched assessment strategy reusable:
+
+1. fit a global empirical template,
+2. estimate false positives under the null model,
+3. measure recovery under the generating model,
+4. test robustness under the non-generating integration-rate trade-off, and
+5. choose empirical search settings from fixed-IC tuning grids.
+
+That is the recommended way to calibrate `bifrost` for a new dataset whose tree size, trait dimension, and predictor structure may differ substantially from the original passerine body-plan example.
+
+For the definitions and performance interpretation of the three simulation scenarios, return to [Part 1](simulation-study-part-1.html).
+
+## References
+
+If you use these data or reproduce this workflow, the most relevant citations are:
+
+- Berv, Jacob S., Charlotte M. Probst, Santiago Claramunt, J. Ryan Shipley, Matt Friedman, Stephen A. Smith, David F. Fouhey, and Brian C. Weeks. 2026. "Rates of passerine body plan evolution in time and space." *Nature Ecology & Evolution*. <https://doi.org/10.1038/s41559-026-03110-5>
+- Berv, Jacob S., Charlotte M. Probst, Santiago Claramunt, J. Ryan Shipley, Matt Friedman, Stephen A. Smith, David F. Fouhey, and Brian C. Weeks. 2026. "Supplementary data archive for Rates of passerine body plan evolution in time and space" (v1.0.0) [Data set]. Zenodo. <https://doi.org/10.5281/zenodo.19198393>
+- Clavel, Julien, Laurent Aristide, and Helene Morlon. 2019. "A penalized likelihood framework for high-dimensional phylogenetic comparative methods and an application to New-World monkeys brain evolution." *Systematic Biology* 68(1):93-116. <https://doi.org/10.1093/sysbio/syy045>
+- Clavel, Julien, and Helene Morlon. 2020. "Reliable phylogenetic regressions for multivariate comparative data: Illustration with the MANOVA and application to the effect of diet on mandible morphology in phyllostomid bats." *Systematic Biology* 69(5):927-943. <https://doi.org/10.1093/sysbio/syaa010>
+- Clavel, Julien, Gilles Escarguel, and Gildas Merceron. 2015. "mvMORPH: an R package for fitting multivariate evolutionary models to morphometric data." *Methods in Ecology and Evolution* 6(11):1311-1319. <https://doi.org/10.1111/2041-210X.12420>
+- Smith, Stephen A., Nicholas Walker-Hale, and Caroline T. Parins-Fukuchi. 2023. "Compositional shifts associated with major evolutionary transitions in plants." *New Phytologist* 239(6):2404-2415. <https://doi.org/10.1111/nph.19099>
+
+## Software Used in This Vignette
+
+- `bifrost` for empirical simulation templates, null and shifted datasets, repeated simulation studies, recovery evaluation, and tuning-grid summaries.
+- `mvMORPH`/`mvgls` machinery underlies the global calibration fit and empirical shift searches.
+- `ape` and `phytools` underlie the phylogenetic tree, SIMMAP, and subtree operations used by the simulation helpers.
+- `knitr` and `rmarkdown` render the vignette and preview tables.

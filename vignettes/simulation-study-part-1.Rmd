@@ -1,0 +1,1081 @@
+---
+title: "Calibrating bifrost with Dataset-Matched Simulations, Part 1: Performance"
+output:
+  rmarkdown::html_vignette: default
+  rmarkdown::pdf_document:
+    latex_engine: xelatex
+vignette: >
+  %\VignetteIndexEntry{Calibrating bifrost with Dataset-Matched Simulations, Part 1: Performance}
+  %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.align = "center",
+  out.width = "100%",
+  dpi = 170,
+  fig.retina = 2,
+  dev = "png"
+)
+
+vignette_figure_caption <- function(html, latex) {
+  pandoc_to <- knitr::opts_knit$get("rmarkdown.pandoc.to")
+  if (is.character(pandoc_to) && length(pandoc_to) == 1L && grepl("^html", pandoc_to)) html else latex
+}
+
+Sys.setenv(
+  OMP_NUM_THREADS = "1",
+  OPENBLAS_NUM_THREADS = "1",
+  MKL_NUM_THREADS = "1",
+  VECLIB_MAXIMUM_THREADS = "1",
+  BLIS_NUM_THREADS = "1",
+  NUMEXPR_NUM_THREADS = "1"
+)
+
+if (!exists("createSimulationTemplate", mode = "function")) {
+  pkg_root <- if (file.exists("DESCRIPTION")) {
+    "."
+  } else if (file.exists(file.path("..", "DESCRIPTION"))) {
+    ".."
+  } else {
+    NULL
+  }
+
+  if (!is.null(pkg_root) && requireNamespace("pkgload", quietly = TRUE)) {
+    pkgload::load_all(pkg_root, quiet = TRUE, export_all = FALSE, helpers = FALSE)
+  } else {
+    library(bifrost)
+  }
+}
+
+render_preview_table <- function(x, caption, col_names = colnames(x), digits = 3) {
+  x <- as.data.frame(x, stringsAsFactors = FALSE, check.names = FALSE)
+  rownames(x) <- NULL
+  is_html <- knitr::is_html_output()
+  is_latex <- knitr::is_latex_output()
+
+  if (length(digits) == 1L) {
+    digits <- rep(digits, ncol(x))
+  } else {
+    digits <- rep_len(digits, ncol(x))
+  }
+
+  for (j in seq_along(x)) {
+    if (is.numeric(x[[j]])) {
+      x[[j]] <- ifelse(
+        is.na(x[[j]]),
+        "",
+        formatC(x[[j]], digits = digits[j], format = "f")
+      )
+    } else {
+      x[[j]] <- ifelse(is.na(x[[j]]), "", as.character(x[[j]]))
+    }
+  }
+
+  align <- c("l", rep("r", max(ncol(x) - 1L, 0L)))
+
+  out <- knitr::kable(
+    x,
+    caption = if (is_latex) NULL else caption,
+    col.names = col_names,
+    digits = digits,
+    align = align,
+    format = if (is_html) "html" else if (is_latex) "latex" else "pipe",
+    table.attr = if (is_html) {
+      'class="simulation-preview-table"'
+    } else {
+      NULL
+    }
+  )
+
+  if (is_html) {
+    out <- sub(
+      "(<caption>)(Table [0-9]+\\.)([[:space:]])",
+      "\\1<strong>\\2</strong>\\3",
+      out
+    )
+    out <- paste0(
+      "<div class=\"simulation-table-wrap\">",
+      out,
+      "</div>"
+    )
+  } else if (is_latex) {
+    caption_label <- sub("^(Table [0-9]+\\.).*", "\\1", caption)
+    caption_body <- sub("^Table [0-9]+\\.[[:space:]]*", "", caption)
+    out <- paste0(
+      "\\noindent\\textbf{", caption_label, "} ", caption_body,
+      "\n\n", out
+    )
+  }
+
+  knitr::asis_output(out)
+}
+
+compute_effective_dimensionality <- function(sigma) {
+  eigenvalues <- eigen(
+    stats::cov2cor(sigma),
+    symmetric = TRUE,
+    only.values = TRUE
+  )$values
+  weights <- eigenvalues / sum(eigenvalues)
+  weights <- weights[weights > 0]
+  exp(-sum(weights * log(weights)))
+}
+
+simulate_demo_ancestral_vcv <- function(
+  n_traits = 10,
+  var_mean = 1,
+  var_sd = 0.1,
+  cov_mean = 0.5,
+  cov_sd = 0.25
+) {
+  variances <- abs(stats::rnorm(n_traits, var_mean, var_sd))
+  lower_tri <- matrix(stats::rnorm(n_traits^2, cov_mean, cov_sd), nrow = n_traits)
+  lower_tri[upper.tri(lower_tri)] <- 0
+  sigma <- t(lower_tri) %*% lower_tri
+  diag(sigma) <- diag(sigma) + variances
+  sigma
+}
+
+rescale_demo_integration_rate <- function(sigma, integration_power) {
+  cor_mat <- stats::cov2cor(sigma)
+  eig <- eigen(cor_mat, symmetric = TRUE)
+  powered_cor <- eig$vectors %*%
+    diag(pmax(eig$values, 1e-8)^integration_power, nrow = nrow(sigma)) %*%
+    t(eig$vectors)
+  powered_cor <- stats::cov2cor(powered_cor)
+  sd_vec <- sqrt(diag(sigma))
+  fixed_marginal_sigma <- diag(sd_vec) %*% powered_cor %*% diag(sd_vec)
+  variance_scale <- 1 / integration_power
+  rescaled_sigma <- variance_scale * fixed_marginal_sigma
+
+  list(
+    cor_mat = cor_mat,
+    powered_cor = powered_cor,
+    variance_scale = variance_scale,
+    rescaled_sigma = rescaled_sigma
+  )
+}
+
+build_simulation_scenario_figure <- function(
+  seed = 123,
+  n_traits = 10,
+  var_mean = 1,
+  var_sd = 0.1,
+  cov_mean = 0.5,
+  cov_sd = 0.25,
+  proportional_scale = 0.5,
+  integration_power = 0.65
+) {
+  if (!requireNamespace("ggplot2", quietly = TRUE) ||
+      !requireNamespace("reshape2", quietly = TRUE) ||
+      !requireNamespace("viridis", quietly = TRUE) ||
+      !requireNamespace("patchwork", quietly = TRUE)) {
+    stop("Rendering the simulation-scenarios figure requires ggplot2, reshape2, viridis, and patchwork.")
+  }
+
+  set.seed(seed)
+  ancestral_sigma <- simulate_demo_ancestral_vcv(
+    n_traits = n_traits,
+    var_mean = var_mean,
+    var_sd = var_sd,
+    cov_mean = cov_mean,
+    cov_sd = cov_sd
+  )
+  integration_rescaled <- rescale_demo_integration_rate(
+    ancestral_sigma,
+    integration_power
+  )
+  proportional_sigma <- proportional_scale * ancestral_sigma
+
+  vcv_list <- list(
+    "Ancestral VCV" = ancestral_sigma,
+    "Proportional VCV" = proportional_sigma,
+    "Reduced Integration / Faster Rate" = integration_rescaled$rescaled_sigma
+  )
+  cor_list <- list(
+    "Correlation Matrix (Anc)" = stats::cov2cor(ancestral_sigma),
+    "Correlation Matrix (Prop)" = stats::cov2cor(proportional_sigma),
+    "Correlation Matrix (Reduced Integration)" =
+      stats::cov2cor(integration_rescaled$rescaled_sigma)
+  )
+
+  all_vals <- unlist(lapply(vcv_list, function(mat) mat))
+  vcv_limits <- c(min(all_vals), max(all_vals))
+
+  melt_matrix <- function(mat) {
+    df <- reshape2::melt(mat)
+    colnames(df) <- c("Trait1", "Trait2", "Value")
+    df
+  }
+
+  clean_heatmap_theme <- ggplot2::theme(
+    panel.grid = ggplot2::element_blank(),
+    panel.background = ggplot2::element_blank(),
+    panel.border = ggplot2::element_blank(),
+    axis.text = ggplot2::element_blank(),
+    axis.ticks = ggplot2::element_blank(),
+    plot.title = ggplot2::element_text(size = 12, face = "bold"),
+    legend.title = ggplot2::element_text(size = 11),
+    legend.text = ggplot2::element_text(size = 10)
+  )
+
+  l_shaped_theme <- ggplot2::theme(
+    panel.grid = ggplot2::element_blank(),
+    panel.background = ggplot2::element_blank(),
+    panel.border = ggplot2::element_blank(),
+    axis.line = ggplot2::element_line(),
+    axis.ticks = ggplot2::element_line(),
+    axis.text.x = ggplot2::element_text(size = 10),
+    axis.text.y = ggplot2::element_text(size = 10),
+    axis.title = ggplot2::element_text(size = 11),
+    plot.title = ggplot2::element_text(size = 12, face = "bold"),
+    axis.ticks.length = grid::unit(0.25, "cm"),
+    legend.title = ggplot2::element_text(size = 11),
+    legend.text = ggplot2::element_text(size = 10)
+  )
+
+  vcv_plots <- lapply(names(vcv_list), function(name) {
+    ggplot2::ggplot(melt_matrix(vcv_list[[name]]), ggplot2::aes(Trait1, Trait2, fill = Value)) +
+      ggplot2::geom_tile() +
+      viridis::scale_fill_viridis(
+        name = "VCV Value",
+        option = "D",
+        limits = vcv_limits
+      ) +
+      ggplot2::labs(title = name, x = NULL, y = NULL) +
+      ggplot2::theme_minimal(base_size = 11) +
+      clean_heatmap_theme
+  })
+
+  cor_plots <- lapply(names(cor_list), function(name) {
+    ggplot2::ggplot(melt_matrix(cor_list[[name]]), ggplot2::aes(Trait1, Trait2, fill = Value)) +
+      ggplot2::geom_tile() +
+      viridis::scale_fill_viridis(
+        name = "Correlation",
+        option = "B",
+        limits = c(0, 0.75)
+      ) +
+      ggplot2::labs(title = name, x = NULL, y = NULL) +
+      ggplot2::theme_minimal(base_size = 11) +
+      clean_heatmap_theme
+  })
+
+  eigen_df <- do.call(rbind, list(
+    data.frame(
+      Eigenvalue = eigen(ancestral_sigma)$values,
+      Rank = seq_len(n_traits),
+      Scenario = "Ancestral"
+    ),
+    data.frame(
+      Eigenvalue = eigen(integration_rescaled$rescaled_sigma)$values,
+      Rank = seq_len(n_traits),
+      Scenario = "Integration-rate"
+    ),
+    data.frame(
+      Eigenvalue = eigen(proportional_sigma)$values,
+      Rank = seq_len(n_traits),
+      Scenario = "Proportional-scaled"
+    )
+  ))
+
+  eff_dim_df <- data.frame(
+    Scenario = c("Ancestral", "Integration-rate", "Proportional-scaled"),
+    EffDimensionality = c(
+      compute_effective_dimensionality(ancestral_sigma),
+      compute_effective_dimensionality(integration_rescaled$rescaled_sigma),
+      compute_effective_dimensionality(proportional_sigma)
+    )
+  )
+
+  mean_var_df <- data.frame(
+    Scenario = c("Ancestral", "Integration-rate", "Proportional-scaled"),
+    MeanVariance = c(
+      mean(diag(ancestral_sigma)),
+      mean(diag(integration_rescaled$rescaled_sigma)),
+      mean(diag(proportional_sigma))
+    )
+  )
+
+  p_effdim <- ggplot2::ggplot(eff_dim_df, ggplot2::aes(x = Scenario, y = EffDimensionality, fill = Scenario)) +
+    ggplot2::geom_bar(stat = "identity") +
+    ggplot2::labs(title = "Effective Dimensionality", y = "Effective Dimensionality", x = NULL) +
+    ggplot2::theme_minimal(base_size = 11) +
+    ggplot2::scale_fill_viridis_d() +
+    l_shaped_theme +
+    ggplot2::theme(
+      axis.title.x = ggplot2::element_blank(),
+      axis.text.x = ggplot2::element_blank(),
+      legend.position = "none"
+    )
+
+  p_eig <- ggplot2::ggplot(eigen_df, ggplot2::aes(x = Rank, y = Eigenvalue, color = Scenario)) +
+    ggplot2::geom_line(linewidth = 1.2) +
+    ggplot2::labs(title = "Eigenvalue Spectra", x = "Rank", y = "Eigenvalue") +
+    ggplot2::theme_minimal(base_size = 11) +
+    ggplot2::scale_color_viridis_d() +
+    l_shaped_theme +
+    ggplot2::theme(legend.position = "none")
+
+  p_trace <- ggplot2::ggplot(mean_var_df, ggplot2::aes(x = Scenario, y = MeanVariance, fill = Scenario)) +
+    ggplot2::geom_bar(stat = "identity") +
+    ggplot2::labs(title = "Mean Diagonal Variance", y = "Mean Variance", x = NULL) +
+    ggplot2::theme_minimal(base_size = 11) +
+    ggplot2::scale_fill_viridis_d() +
+    l_shaped_theme +
+    ggplot2::theme(
+      axis.title.x = ggplot2::element_blank(),
+      axis.text.x = ggplot2::element_blank()
+    )
+
+  vcv_plots[[1]] <- vcv_plots[[1]] + ggplot2::theme(legend.position = "none")
+  vcv_plots[[2]] <- vcv_plots[[2]] + ggplot2::theme(legend.position = "none")
+  cor_plots[[1]] <- cor_plots[[1]] + ggplot2::theme(legend.position = "none")
+  cor_plots[[2]] <- cor_plots[[2]] + ggplot2::theme(legend.position = "none")
+
+  title_text <- "Dataset-Matched Simulation Scenarios"
+
+  ((vcv_plots[[1]] + vcv_plots[[2]] + vcv_plots[[3]]) /
+     (cor_plots[[1]] + cor_plots[[2]] + cor_plots[[3]]) /
+     (p_effdim + p_eig + p_trace)) +
+    patchwork::plot_annotation(
+      title = title_text,
+      tag_levels = "A",
+      theme = ggplot2::theme(
+        plot.title = ggplot2::element_text(size = 14, face = "bold", hjust = 0.5),
+        plot.tag = ggplot2::element_text(size = 13, face = "bold")
+      )
+    )
+}
+
+pkg_file <- function(...) {
+  candidates <- c(
+    file.path("inst", ...),
+    file.path("..", "inst", ...)
+  )
+
+  for (path in candidates) {
+    if (file.exists(path)) {
+      return(path)
+    }
+  }
+
+  installed_path <- system.file(..., package = "bifrost")
+  if (nzchar(installed_path)) {
+    return(installed_path)
+  }
+
+  stop("Could not locate: ", file.path(...))
+}
+
+simulation_scenarios_caption_text <- paste0(
+  "Dataset-matched simulation scenarios. Panels A-C show the ancestral VCV, ",
+  "proportional scaling with s = 0.5, and a reduced-integration/faster-rate ",
+  "shift with g = 0.65. Panels D-F show their correlation matrices. Panels ",
+  "G-I summarize correlation effective dimensionality, covariance eigenvalue ",
+  "spectra, and mean marginal evolutionary variance. The proportional scenario ",
+  "changes scale without changing correlation structure; the integration-rate ",
+  "scenario changes covariance shape and rate together."
+)
+```
+
+```{r, echo = FALSE, results = "asis"}
+if (knitr::is_html_output()) cat("
+<style>
+img, .figure img, .figure > p > img {
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: none !important;
+  background: transparent !important;
+}
+
+p.caption, .caption, table > caption {
+  border-left: 0.32rem solid #d8dde3;
+  color: #2f3439;
+  font-size: inherit;
+  line-height: inherit;
+  margin: 0 3.8% 1.05rem 3.8%;
+  padding: 0 0 0 1rem;
+  text-align: left !important;
+}
+
+p.caption strong, .caption strong {
+  font-weight: 700;
+}
+
+table.simulation-preview-table > caption {
+  caption-side: bottom !important;
+  margin: 0.65rem 3.8% 1.35rem 3.8%;
+}
+
+table.simulation-preview-table > caption strong {
+  font-weight: 700;
+}
+
+table {
+  width: 100%;
+}
+
+table th, table td {
+  vertical-align: top;
+}
+
+table code {
+  white-space: nowrap;
+}
+
+.simulation-table-wrap {
+  margin: 1em 0 1.15em 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.simulation-table-wrap table {
+  margin-bottom: 0;
+}
+
+.simulation-preview-table thead th {
+  white-space: nowrap;
+}
+
+@media (max-width: 600px) {
+  h1.title {
+    font-size: 2rem;
+    line-height: 1.1;
+  }
+}
+</style>
+")
+```
+
+This is Part 1 of the dataset-matched simulation workflow. [Part 2](simulation-study-part-2.html) uses these performance scenarios to tune search settings and apply them to an empirical analysis.
+
+As part of a `bifrost` workflow, it helps to know how the method behaves on datasets that resemble the one you actually care about. A practical way to answer that question is to calibrate simulations to the empirical dataset. Here, calibration means parameterizing simulations to match the empirical tree, trait dimensionality, fitted mean structure, and residual covariance scale.
+
+We then compare search behavior under three scenarios:
+
+1. a null model with no shifts, to estimate expected false positives,
+2. the current generating model, where shifts are proportional covariance scalings, and
+3. a deliberately non-generating robustness scenario coupling reduced integration with faster marginal rates, or increased integration with slower marginal rates.
+
+Dataset-matched simulations can be used before or after an empirical search. Before the final search, they help choose search settings; after a search, they help evaluate whether those settings behave reasonably for the empirical tree, trait dimensionality, fitted mean structure, and residual covariance scale. In both cases, the workflow uses the same ingredients: a global calibration template, null and shifted simulation scenarios, false-positive and recovery summaries, and a way to compare candidate search settings. This is the same broad calibration strategy used in Berv et al. (2026). On large trees, repeated subtree resampling is helpful because it lets simulations vary across many local topologies and parameter draws without requiring a full-tree search on every replicate.
+
+The package generator improves on the manuscript implementation for new simulation studies by drawing ancestral covariance structures around the complete fitted empirical covariance and by representing integration-rate shifts in both biological directions. This refinement provides a more direct robustness test and does not alter the manuscript's empirical analyses or conclusions.
+
+Start by loading `bifrost`.
+
+```{r load_packages, eval = FALSE}
+library(bifrost)
+```
+
+## Build a dataset-matched template
+
+Here we use the empirical calibration structure from Berv et al. (2026), which models 12 skeletal traits jointly while keeping log body mass as a phylogenetic covariate.
+
+```{r load_bodyplan_example}
+tree_path <- pkg_file("extdata", "avian-skeleton", "passerine_bodyplan_tree.tre")
+trait_path <- pkg_file("extdata", "avian-skeleton", "passerine_bodyplan_data.RDS")
+
+bird_tree <- ape::read.tree(tree_path)
+bodyplan_data <- readRDS(trait_path)
+bodyplan_data <- as.matrix(bodyplan_data[bird_tree$tip.label, , drop = FALSE])
+
+skeletal_cols <- setdiff(colnames(bodyplan_data), "vertnet_mass")
+bodyplan_data <- bodyplan_data[, c(skeletal_cols, "vertnet_mass"), drop = FALSE]
+
+formula_str <- sprintf(
+  "trait_data[, 1:%d] ~ trait_data[, %d]",
+  length(skeletal_cols),
+  ncol(bodyplan_data)
+)
+
+c(
+  species = nrow(bodyplan_data),
+  skeletal_traits = length(skeletal_cols),
+  total_columns = ncol(bodyplan_data)
+)
+```
+
+The template comes from a single-regime global fit. That fit provides the empirical variance and covariance scale used to generate a fresh ancestral covariance matrix for each simulation replicate. Here the calibration model is a single-regime multivariate BM fit with `mvMORPH::mvgls()` using `method = "LL"`, following the multivariate phylogenetic GLS framework described by [Clavel, Aristide, and Morlon (2019)](https://doi.org/10.1093/sysbio/syy045) and [Clavel and Morlon (2020)](https://doi.org/10.1093/sysbio/syaa010).
+
+```{r create_template_code, eval = FALSE}
+bodyplan_template <- createSimulationTemplate(
+  baseline_tree = bird_tree,
+  trait_data = bodyplan_data,
+  formula = formula_str,
+  response_columns = seq_along(skeletal_cols),
+  predictor_columns = ncol(bodyplan_data),
+  method = "LL",
+  error = TRUE
+)
+```
+
+```{r create_template_live, echo = FALSE, message = FALSE, warning = FALSE}
+bodyplan_template_live <- createSimulationTemplate(
+  baseline_tree = bird_tree,
+  trait_data = bodyplan_data,
+  formula = formula_str,
+  response_columns = seq_along(skeletal_cols),
+  predictor_columns = ncol(bodyplan_data),
+  method = "LL",
+  error = TRUE
+)
+```
+
+```{r create_template_print, echo = FALSE}
+bodyplan_template_live
+```
+
+The template stores the aligned calibration data, the fitted global `mvgls` model, fitted means, and empirical variance/covariance summaries used to generate a fresh ancestral covariance matrix for each simulation replicate. Covariates such as body mass can shape those fitted means and residual covariance, but the simulation studies regenerate only the response block and evaluate intercept-only shift searches on those simulated responses. If no calibration covariates are needed, the same workflow reduces to the simpler `trait_data ~ 1` template. In all cases, response columns must be raw numeric variables that can be regenerated in each replicate.
+
+## Calibrating the manuscript generator
+
+The template's variance and covariance summary values were derived from the empirical fit. In the original manuscript generator, however, the covariance inputs parameterize a random lower-triangular factor that is cross-multiplied to form a positive-definite covariance matrix. The resulting covariance entries are therefore not centered directly on those input summaries. A small simulation grid can instead calibrate the generator coarsely to the empirical mean marginal variance, mean absolute correlation, and effective dimensionality.
+
+```{r original_generator_calibration}
+covariance_summary <- function(sigma) {
+  correlation <- stats::cov2cor(sigma)
+
+  c(
+    mean_variance = mean(diag(sigma)),
+    mean_absolute_correlation = mean(abs(correlation[lower.tri(correlation)])),
+    effective_dimensionality = compute_effective_dimensionality(sigma)
+  )
+}
+
+empirical_target <- covariance_summary(
+  bodyplan_template_live$residual_covariance
+)
+loading_unit <- sqrt(
+  empirical_target[["mean_variance"]] /
+    bodyplan_template_live$n_response_traits
+)
+
+original_calibration_grid <- expand.grid(
+  diagonal_fraction = c(0.02, 0.05, 0.10, 0.20),
+  loading_mean_fraction = c(0.75, 1.00, 1.25, 1.50),
+  loading_sd_fraction = c(0.25, 0.50, 0.75),
+  KEEP.OUT.ATTRS = FALSE
+)
+
+original_calibration_results <- withr::with_seed(2026, {
+  do.call(rbind, lapply(seq_len(nrow(original_calibration_grid)), function(i) {
+    candidate <- original_calibration_grid[i, , drop = FALSE]
+    candidate_template <- bodyplan_template_live
+    candidate_template$variance_mean <-
+      empirical_target[["mean_variance"]] * candidate$diagonal_fraction
+    candidate_template$variance_sd <-
+      candidate_template$variance_mean * 0.25
+    candidate_template$covariance_mean <-
+      loading_unit * candidate$loading_mean_fraction
+    candidate_template$covariance_sd <-
+      loading_unit * candidate$loading_sd_fraction
+
+    draws <- replicate(12L, {
+      simulated <- simulateNullDataset(
+        candidate_template,
+        tree_tip_count = 20,
+        simulation_generator = "original"
+      )
+      covariance_summary(simulated$covariance_matrix)
+    })
+
+    data.frame(
+      candidate,
+      as.list(rowMeans(draws)),
+      variance_mean = candidate_template$variance_mean,
+      variance_sd = candidate_template$variance_sd,
+      covariance_mean = candidate_template$covariance_mean,
+      covariance_sd = candidate_template$covariance_sd,
+      check.names = FALSE
+    )
+  }))
+})
+
+original_calibration_results$score <- with(
+  original_calibration_results,
+  abs(log(mean_variance / empirical_target[["mean_variance"]])) +
+    abs(log(mean_absolute_correlation /
+      empirical_target[["mean_absolute_correlation"]])) +
+    abs(log(effective_dimensionality /
+      empirical_target[["effective_dimensionality"]]))
+)
+original_calibration_results <- original_calibration_results[
+  order(original_calibration_results$score),
+]
+selected_original_calibration <- original_calibration_results[1L, , drop = FALSE]
+
+calibrated_original_template <- bodyplan_template_live
+for (field in c("variance_mean", "variance_sd", "covariance_mean", "covariance_sd")) {
+  calibrated_original_template[[field]] <- selected_original_calibration[[field]]
+}
+
+stopifnot(
+  is.finite(selected_original_calibration$score),
+  selected_original_calibration$mean_absolute_correlation > 0.05
+)
+```
+
+The empirical target and the selected candidate's simulated diagnostics are:
+
+```{r original_generator_calibration_diagnostics, echo = FALSE}
+calibration_diagnostics_display <- data.frame(
+  metric = c(
+    "Mean variance",
+    "Mean absolute correlation",
+    "Effective dimensionality"
+  ),
+  empirical_target = formatC(
+    unname(empirical_target),
+    digits = 3,
+    format = "fg",
+    flag = "#"
+  ),
+  selected_candidate = formatC(unlist(selected_original_calibration[
+    c(
+      "mean_variance",
+      "mean_absolute_correlation",
+      "effective_dimensionality"
+    )
+  ], use.names = FALSE), digits = 3, format = "fg", flag = "#"),
+  check.names = FALSE
+)
+knitr::kable(
+  calibration_diagnostics_display,
+  col.names = c("Diagnostic", "Empirical target", "Selected candidate"),
+  align = c("l", "r", "r")
+)
+```
+
+The selected grid inputs and their aggregate discrepancy score are:
+
+```{r original_generator_calibration_inputs, echo = FALSE}
+selected_inputs_display <- data.frame(
+  input = c(
+    "Diagonal fraction",
+    "Loading mean fraction",
+    "Loading SD fraction",
+    "Variance mean",
+    "Variance SD",
+    "Covariance mean",
+    "Covariance SD",
+    "Score"
+  ),
+  value = formatC(unlist(selected_original_calibration[
+    c(
+      "diagonal_fraction",
+      "loading_mean_fraction",
+      "loading_sd_fraction",
+      "variance_mean",
+      "variance_sd",
+      "covariance_mean",
+      "covariance_sd",
+      "score"
+    )
+  ], use.names = FALSE), digits = 3, format = "fg", flag = "#"),
+  check.names = FALSE
+)
+knitr::kable(
+  selected_inputs_display,
+  col.names = c("Selected input", "Value"),
+  align = c("l", "r")
+)
+```
+
+This inexpensive grid is illustrative rather than an optimization guarantee. If the selected candidate lies on a grid boundary, widen the corresponding range before using the calibration for a larger study.
+
+The calibrated template can drive the manuscript's original correlation-scaling operation directly. Here the sampled factor is restricted below one, producing reduced integration while the reciprocal variance adjustment increases marginal evolutionary variance.
+
+```{r original_generator_reduced_example}
+original_reduced_example <- withr::with_seed(2027, {
+  simulateShiftedDataset(
+    calibrated_original_template,
+    tree_tip_count = 80,
+    num_shifts = 1,
+    min_shift_tips = 5,
+    max_shift_tips = 30,
+    scale_mode = "correlation",
+    scale_factor_range = c(0.35, 0.75),
+    exclude_range = c(0.50, 0.60),
+    simulation_generator = "original",
+    buffer = 3
+  )
+})
+
+original_reduced_diagnostics <- do.call(rbind, lapply(
+  names(original_reduced_example$VCVs),
+  function(regime) {
+    data.frame(
+      regime = regime,
+      as.list(covariance_summary(original_reduced_example$VCVs[[regime]])),
+      check.names = FALSE
+    )
+  }
+))
+
+ancestral_row <- original_reduced_diagnostics$regime == "ancestral"
+derived_row <- !ancestral_row
+stopifnot(
+  original_reduced_example$sampledScaleFactors[[1L]] < 1,
+  original_reduced_diagnostics$mean_absolute_correlation[derived_row] <
+    original_reduced_diagnostics$mean_absolute_correlation[ancestral_row],
+  original_reduced_diagnostics$effective_dimensionality[derived_row] >
+    original_reduced_diagnostics$effective_dimensionality[ancestral_row],
+  original_reduced_diagnostics$mean_variance[derived_row] >
+    original_reduced_diagnostics$mean_variance[ancestral_row]
+)
+```
+
+The sampled correlation factor was `r formatC(original_reduced_example$sampledScaleFactors[[1L]], digits = 3, format = "f")`. Its ancestral and derived covariance diagnostics are:
+
+```{r original_generator_reduced_diagnostics, echo = FALSE}
+original_reduced_diagnostics_display <- original_reduced_diagnostics
+for (field in setdiff(names(original_reduced_diagnostics_display), "regime")) {
+  original_reduced_diagnostics_display[[field]] <- formatC(
+    original_reduced_diagnostics_display[[field]],
+    digits = 3,
+    format = "fg",
+    flag = "#"
+  )
+}
+knitr::kable(
+  original_reduced_diagnostics_display,
+  col.names = c(
+    "Regime",
+    "Mean variance",
+    "Mean absolute correlation",
+    "Effective dimensionality"
+  ),
+  align = c("l", "r", "r", "r")
+)
+```
+
+This reduced-only example demonstrates weaker average correlation and higher effective dimensionality together with higher marginal variance. It provides coarse calibration to those summaries, but it does not preserve the empirical pairwise correlation signs, modules, or eigenvectors. Analyses that require those full covariance features, or that need increased-integration shifts as well as reduced-integration shifts, should use `simulation_generator = "empirical"`.
+
+## Simulation scenarios
+
+The figure below places the three package scenarios side by side: an empirical ancestral covariance matrix, a proportional rescaling, and the integration-rate trade-off. The last scenario raises the eigenvalues of the ancestral correlation matrix to a power `g`, renormalizes to a correlation matrix, and multiplies the covariance matrix by `1 / g`. Thus `g < 1` reduces integration while increasing every marginal evolutionary variance; `g > 1` increases integration while decreasing every marginal variance.
+
+```{r simulation_scenarios_figure, echo = FALSE, fig.width = 8.8, fig.height = 8.4, out.width = "100%", fig.alt = "Schematic of the dataset-matched null, proportional, and integration-rate simulation scenarios.", fig.cap = vignette_figure_caption(paste0("**Figure 1.** ", simulation_scenarios_caption_text), simulation_scenarios_caption_text)}
+build_simulation_scenario_figure(
+  seed = 123,
+  n_traits = 10,
+  var_mean = 1,
+  var_sd = 0.1,
+  cov_mean = 0.5,
+  cov_sd = 0.25,
+  proportional_scale = 0.5,
+  integration_power = 0.65
+)
+```
+
+In the proportional panels, the covariance structure keeps the same shape and simply expands or contracts. In the integration-rate panels, weaker correlation structure is paired with larger marginal variance, so covariance shape and evolutionary rate change together. The shifted passerine examples below use these two simulation styles under repeated subtree resampling from the full tree, alongside a null no-shift baseline.
+
+```{r preview_template_setup, echo = FALSE, message = FALSE, warning = FALSE}
+preview_template <- bodyplan_template_live
+```
+
+```{r preview_results_setup, echo = FALSE, message = FALSE, warning = FALSE}
+preview_tables_path <- pkg_file(
+  "extdata",
+  "simulation-study-cache",
+  "passerine_preview_tables.rds"
+)
+preview_tables <- readRDS(preview_tables_path)
+stopifnot(
+  identical(preview_tables$schema_version, 3L),
+  identical(preview_tables$provenance$simulation_generator, "empirical"),
+  identical(preview_tables$provenance$integration_power_range, c(0.5, 1.25)),
+  identical(preview_tables$provenance$integration_exclude_range, c(0.8, 1.1))
+)
+```
+
+## Calibration guardrails
+
+Before launching a large study, keep four details in mind.
+
+- Simulation studies regenerate the response block only. Predictors shape the global calibration fit, but they are not re-fit inside each subtree-resampled search replicate.
+
+- Use the wrapper-level `seed` argument for reproducibility. Do not pass a separate seed inside `simulation_options`; the study wrappers manage replicate-level seeds.
+
+- The wrappers inherit template fit settings such as `method` and `error`, so `search_options` only needs to include deliberate overrides. Parallelize either the study wrapper or each embedded search, not both; the examples parallelize replicates and keep each search serial.
+
+- Check `per_replicate$n_candidates`. The value of `min_descendant_tips` changes the candidate-node universe rather than merely applying a different decision threshold to a fixed set of nodes. If it leaves no candidate shifts, that replicate is treated as unevaluable, and recovery specificity, false-positive rate, and balanced accuracy are reported as `NA`. Lower `min_descendant_tips` if too many replicates are unevaluable.
+
+The next three sections show the individual study calls. The fixed-settings comparison then uses bundled preview results to show the same logic side by side.
+
+## 1. Estimate False Positives
+
+The null study asks the baseline error question: if the real dataset contained no shifts at all, how often would the search still infer one?
+
+```{r false_positive_study, eval = FALSE}
+fp_study <- runFalsePositiveSimulationStudy(
+  template = bodyplan_template,
+  n_replicates = 100,
+  tree_tip_count = 250,
+  simulation_options = list(
+    simulation_generator = "empirical"
+  ),
+  search_options = list(
+    formula = "trait_data ~ 1",
+    min_descendant_tips = 10,
+    shift_acceptance_threshold = 10,
+    IC = "GIC",
+    num_cores = 1,
+    method = "LL",
+    error = TRUE,
+    plot = FALSE,
+    store_model_fit_history = FALSE
+  ),
+  num_cores = 8,
+  seed = 5
+)
+```
+
+```{r false_positive_inspect, eval = FALSE}
+fp_study
+head(fp_study$per_replicate)
+fp_study$study_summary
+```
+
+Null simulations are useful for screening candidate choices of `shift_acceptance_threshold`, `IC`, and `min_descendant_tips`.
+
+## 2. Estimate Recovery Under Proportional Scaling
+
+Recovery under proportional scaling evaluates the scenario that matches the current `bifrost` BMM search assumptions: shifted covariance matrices are scalar multiples of the background covariance matrix.
+
+```{r proportional_recovery_study, eval = FALSE}
+recovery_prop <- runShiftRecoverySimulationStudy(
+  template = bodyplan_template,
+  n_replicates = 100,
+  tree_tip_count = 250,
+  simulation_options = list(
+    simulation_generator = "empirical",
+    num_shifts = 5,
+    min_shift_tips = 10,
+    max_shift_tips = 20,
+    scale_mode = "proportional",
+    scale_factor_range = c(0.1, 2.0),
+    exclude_range = c(0.5, 1.5),
+    buffer = 3
+  ),
+  search_options = list(
+    formula = "trait_data ~ 1",
+    min_descendant_tips = 10,
+    shift_acceptance_threshold = 10,
+    IC = "GIC",
+    num_cores = 1,
+    method = "LL",
+    error = TRUE,
+    uncertaintyweights_par = TRUE,
+    plot = FALSE,
+    store_model_fit_history = FALSE
+  ),
+  fuzzy_distance = 2,
+  weighted = TRUE,
+  num_cores = 8,
+  seed = 5
+)
+```
+
+```{r proportional_recovery_inspect, eval = FALSE}
+recovery_prop
+recovery_prop$study_summary
+recovery_prop$evaluation$strict
+recovery_prop$evaluation$fuzzy
+recovery_prop$evaluation$weighted
+```
+
+## 3. Check the Integration-Rate Robustness Scenario
+
+It is also useful to test a deliberately mismatched scenario in which trait integration and evolutionary rate evolve together. This asks how well the same search settings behave when the data depart from strict proportional VCV scaling. The moderate power bands below sample reduced integration from `0.5-0.8` and increased integration from `1.1-1.25`; each power `g` scales marginal variances by exactly `1 / g`.
+
+```{r integration_recovery_study, eval = FALSE}
+recovery_integration <- runShiftRecoverySimulationStudy(
+  template = bodyplan_template,
+  n_replicates = 100,
+  tree_tip_count = 250,
+  simulation_options = list(
+    simulation_generator = "empirical",
+    num_shifts = 5,
+    min_shift_tips = 10,
+    max_shift_tips = 20,
+    scale_mode = "correlation",
+    integration_power_range = c(0.5, 1.25),
+    integration_exclude_range = c(0.8, 1.1),
+    buffer = 3
+  ),
+  search_options = list(
+    formula = "trait_data ~ 1",
+    min_descendant_tips = 10,
+    shift_acceptance_threshold = 10,
+    IC = "GIC",
+    num_cores = 1,
+    method = "LL",
+    error = TRUE,
+    uncertaintyweights_par = TRUE,
+    plot = FALSE,
+    store_model_fit_history = FALSE
+  ),
+  fuzzy_distance = 2,
+  weighted = TRUE,
+  num_cores = 8,
+  seed = 5
+)
+```
+
+```{r integration_recovery_inspect, eval = FALSE}
+recovery_integration
+recovery_integration$study_summary
+recovery_integration$evaluation$fuzzy
+```
+
+This scenario is not the current generating model for `bifrost`, so the goal is not perfect recovery. It deliberately changes covariance shape while the fitted search model permits only proportional covariance shifts. Lower recovery than in the proportional scenario is therefore expected and measures robustness to biologically motivated model misspecification rather than failure under the model's own assumptions.
+
+## 4. Compare Fixed Settings Across Scenarios
+
+After running each scenario on its own, it helps to put one fixed search configuration side by side across the null, proportional, and integration-rate cases. This worked example uses 100 repeated 250-tip subtree resamples from the passerine tree.
+
+The comparison uses one search configuration across all three scenarios: `shift_acceptance_threshold = 10` and `min_descendant_tips = 10`. In the shifted scenarios, each replicate adds five simulated shifts spanning clades with 10 to 20 descendant tips, matching the simulation-performance settings described in Berv et al. (2026). Every scenario uses the explicit empirical generator. The point here is not to optimize yet; it is to compare how null and shifted datasets behave under the same search settings.
+
+The table below uses bundled summaries from the code shown here, so package builds do not rerun the longer simulation studies.
+
+```{r medium_case_study_setup, eval = FALSE}
+if (requireNamespace("RhpcBLASctl", quietly = TRUE)) {
+  RhpcBLASctl::blas_set_num_threads(1)
+  RhpcBLASctl::omp_set_num_threads(1)
+}
+
+medium_case_template <- preview_template
+
+fixed_setting_proportional_options <- list(
+  simulation_generator = "empirical",
+  num_shifts = 5,
+  min_shift_tips = 10,
+  max_shift_tips = 20,
+  scale_factor_range = c(0.1, 2.0),
+  exclude_range = c(0.5, 1.5),
+  buffer = 3
+)
+
+fixed_setting_args <- list(
+  shift_acceptance_thresholds = 10,
+  min_descendant_tips_values = 10,
+  tree_tip_count = 250,
+  null_replicates = 100,
+  recovery_replicates = 100,
+  null_simulation_options = list(
+    simulation_generator = "empirical"
+  ),
+  proportional_simulation_options = fixed_setting_proportional_options,
+  correlation_simulation_options = list(
+    simulation_generator = "empirical",
+    integration_power_range = c(0.5, 1.25),
+    integration_exclude_range = c(0.8, 1.1)
+  ),
+  base_search_options = list(
+    formula = "trait_data ~ 1",
+    method = "LL",
+    error = TRUE,
+    num_cores = 1,
+    uncertaintyweights_par = TRUE,
+    plot = FALSE,
+    store_model_fit_history = FALSE,
+    progress = FALSE
+  ),
+  fuzzy_distance = 2,
+  weighted = TRUE,
+  num_cores = 8,
+  seed = 5,
+  store_studies = FALSE
+)
+
+gic_fixed <- do.call(
+  runSearchTuningGrid,
+  c(list(template = medium_case_template, IC = "GIC"), fixed_setting_args)
+)
+bic_fixed <- do.call(
+  runSearchTuningGrid,
+  c(list(template = medium_case_template, IC = "BIC"), fixed_setting_args)
+)
+```
+
+```{r medium_case_study_cached, echo = FALSE, message = FALSE, warning = FALSE}
+fixed_settings_table <- preview_tables$fixed_settings
+fixed_null_display <- fixed_settings_table[
+  fixed_settings_table$Scenario == "Null",
+  c("IC", "Mean FP", "Any FP", "Mean shifts", "Evaluable"),
+  drop = FALSE
+]
+fixed_recovery_display <- fixed_settings_table[
+  fixed_settings_table$Scenario != "Null",
+  c(
+    "IC", "Scenario", "Fuzzy recall", "Fuzzy specificity", "Fuzzy F1",
+    "Fuzzy balanced accuracy", "Mean shifts", "Evaluable"
+  ),
+  drop = FALSE
+]
+
+fixed_metric <- function(ic, scenario, metric) {
+  value <- fixed_settings_table[
+    fixed_settings_table$IC == ic & fixed_settings_table$Scenario == scenario,
+    metric,
+    drop = TRUE
+  ]
+  stopifnot(length(value) == 1L, is.finite(value))
+  formatC(value, digits = 3, format = "f")
+}
+```
+
+Null and shifted simulations answer different questions, so they are reported separately. The first table shows null false-positive behavior; the second shows recovery only where true shifts are known. This avoids treating an inapplicable recovery metric in a null simulation as a missing result.
+
+```{r medium_case_null_table, echo = FALSE, results = "asis"}
+render_preview_table(
+  fixed_null_display,
+  caption = "Table 1. Null behavior for the fixed GIC and BIC settings across 100 repeated 250-tip subsamples. Mean FP and Any FP directly summarize false-positive control; Evaluable reports the fraction of replicates with a usable candidate-node universe.",
+  col_names = c("IC", "Mean FP", "Any FP", "Mean shifts", "Evaluable"),
+  digits = c(0, 4, 3, 2, 3)
+)
+```
+
+```{r medium_case_recovery_table, echo = FALSE, results = "asis"}
+render_preview_table(
+  fixed_recovery_display,
+  caption = "Table 2. Shift recovery for the same fixed settings and repeated subsamples. Fuzzy scoring credits near misses within two nodes of a true shift. Balanced accuracy is the mean of fuzzy recall and fuzzy specificity; F1 is retained as the complementary precision-recall summary.",
+  col_names = c(
+    "IC", "Scenario", "Fuzzy rec.", "Fuzzy spec.", "Fuzzy F1",
+    "Fuzzy BA", "Mean shifts", "Evaluable"
+  ),
+  digits = c(0, 0, 3, 3, 3, 3, 2, 3)
+)
+```
+
+Candidate nodes without a true shift generally outnumber true-shift nodes, creating class imbalance. Raw accuracy can therefore look strong even when sensitivity is poor. Fuzzy balanced accuracy gives recall and specificity equal influence, while fuzzy matching credits biologically close near misses instead of counting every small node displacement as a complete failure. Balanced accuracy complements rather than replaces F1: balanced accuracy exposes the sensitivity-specificity trade-off, whereas F1 focuses on precision and recall and remains useful when false discoveries among inferred shifts are the main concern.
+
+For GIC, the cache reports fuzzy balanced accuracy of `r fixed_metric("GIC", "Proportional", "Fuzzy balanced accuracy")` under proportional shifts and `r fixed_metric("GIC", "Integration-rate", "Fuzzy balanced accuracy")` under the integration-rate trade-off. The corresponding BIC values are `r fixed_metric("BIC", "Proportional", "Fuzzy balanced accuracy")` and `r fixed_metric("BIC", "Integration-rate", "Fuzzy balanced accuracy")`. These cache-derived comparisons describe performance under the fitted generating model and under deliberate covariance-shape misspecification without hard-coding a particular cache result into the narrative.
+
+## Performance Summary
+
+These checks establish false-positive behavior under the null, recovery under the proportional generating model, and robustness to the integration-rate trade-off. [Part 2](simulation-study-part-2.html) uses those scenarios to tune search settings and apply them to the empirical analysis.
+
+## References
+
+If you use these data or reproduce this workflow, the most relevant citations are:
+
+- Berv, Jacob S., Charlotte M. Probst, Santiago Claramunt, J. Ryan Shipley, Matt Friedman, Stephen A. Smith, David F. Fouhey, and Brian C. Weeks. 2026. "Rates of passerine body plan evolution in time and space." *Nature Ecology & Evolution*. <https://doi.org/10.1038/s41559-026-03110-5>
+- Berv, Jacob S., Charlotte M. Probst, Santiago Claramunt, J. Ryan Shipley, Matt Friedman, Stephen A. Smith, David F. Fouhey, and Brian C. Weeks. 2026. "Supplementary data archive for Rates of passerine body plan evolution in time and space" (v1.0.0) [Data set]. Zenodo. <https://doi.org/10.5281/zenodo.19198393>
+- Clavel, Julien, Laurent Aristide, and Helene Morlon. 2019. "A penalized likelihood framework for high-dimensional phylogenetic comparative methods and an application to New-World monkeys brain evolution." *Systematic Biology* 68(1):93-116. <https://doi.org/10.1093/sysbio/syy045>
+- Clavel, Julien, and Helene Morlon. 2020. "Reliable phylogenetic regressions for multivariate comparative data: Illustration with the MANOVA and application to the effect of diet on mandible morphology in phyllostomid bats." *Systematic Biology* 69(5):927-943. <https://doi.org/10.1093/sysbio/syaa010>
+- Clavel, Julien, Gilles Escarguel, and Gildas Merceron. 2015. "mvMORPH: an R package for fitting multivariate evolutionary models to morphometric data." *Methods in Ecology and Evolution* 6(11):1311-1319. <https://doi.org/10.1111/2041-210X.12420>
+- Smith, Stephen A., Nicholas Walker-Hale, and Caroline T. Parins-Fukuchi. 2023. "Compositional shifts associated with major evolutionary transitions in plants." *New Phytologist* 239(6):2404-2415. <https://doi.org/10.1111/nph.19099>
+
+## Software Used in This Vignette
+
+- `bifrost` for empirical simulation templates, null and shifted datasets, repeated simulation studies, recovery evaluation, and tuning-grid summaries.
+- `mvMORPH`/`mvgls` machinery underlies the global calibration fit and empirical shift searches.
+- `ape` and `phytools` underlie the phylogenetic tree, SIMMAP, and subtree operations used by the simulation helpers.
+- `ggplot2`, `patchwork`, `viridis`, and `reshape2` draw the schematic simulation-scenario figure.
+- `knitr` and `rmarkdown` render the vignette and preview tables.

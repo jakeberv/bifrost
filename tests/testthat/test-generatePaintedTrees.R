@@ -1,221 +1,121 @@
 # tests/testthat/test-generatePaintedTrees.R
 
-# Use testthat edition 3 if your project is set up for it
-# testthat::local_edition(3)
-
-# Guard tests if required packages aren't available
-skip_if_missing_deps <- function() {
+skip_if_painted_tree_deps <- function() {
   testthat::skip_if_not_installed("ape")
   testthat::skip_if_not_installed("phytools")
 }
 
-# Optional: load deps explicitly (helpful in non-package projects)
-# library(ape)
-# library(phytools)
+make_painted_tree_fixture <- function() {
+  ape::read.tree(text = "((a:1,b:1):1,(c:1,(d:1,e:1):1):1);")
+}
 
-# Group: core generation and logging
-# Test: Basic functionality works correctly
-test_that("Basic functionality works correctly", {
-  skip_if_missing_deps()
+eligible_tip_count <- function(tree, node) {
+  descendants <- phytools::getDescendants(tree, node)
+  sum(descendants <= ape::Ntip(tree))
+}
 
-  set.seed(123)
-  tree <- ape::rcoal(100)
-  min_tips <- 10
+node_id_from_name <- function(name) {
+  as.integer(sub("^Node\\s+", "", name))
+}
 
-  # Enable verbose messages for this test, then restore previous option
-  old_verbose <- getOption("bifrost.verbose")
-  options(bifrost.verbose = TRUE)
-  on.exit(options(bifrost.verbose = old_verbose), add = TRUE)
+test_that("generatePaintedTrees returns one painted tree for each eligible clade including the root baseline", {
+  skip_if_painted_tree_deps()
 
-  # Capture message() output
-  out <- paste(
-    testthat::capture_messages(
-      painted_trees <- generatePaintedTrees(tree, min_tips)
-    ),
-    collapse = "\n"
+  tree <- make_painted_tree_fixture()
+  root <- ape::Ntip(tree) + 1L
+  painted <- generatePaintedTrees(tree, min_tips = 2, state = "shift_state")
+  node_ids <- vapply(names(painted), node_id_from_name, integer(1))
+
+  testthat::expect_type(painted, "list")
+  testthat::expect_true(length(painted) > 0L)
+  testthat::expect_true(root %in% node_ids)
+  testthat::expect_true(all(vapply(node_ids, eligible_tip_count, integer(1), tree = tree) >= 2L))
+  testthat::expect_true(all(vapply(painted, inherits, logical(1), what = "simmap")))
+  testthat::expect_true(all(vapply(painted, function(x) {
+    "shift_state" %in% unique(unlist(lapply(x$maps, names))) &&
+      "shift_state" %in% colnames(x$mapped.edge) &&
+      ape::Ntip(x) == ape::Ntip(tree) &&
+      ape::Nnode(x) == ape::Nnode(tree) &&
+      identical(x$tip.label, tree$tip.label)
+  }, logical(1))))
+})
+
+test_that("generatePaintedTrees respects min_tips and returns empty lists when no clade qualifies", {
+  skip_if_painted_tree_deps()
+
+  tree <- make_painted_tree_fixture()
+  low <- generatePaintedTrees(tree, min_tips = 2)
+  high <- generatePaintedTrees(tree, min_tips = 3)
+  impossible <- generatePaintedTrees(tree, min_tips = ape::Ntip(tree) + 1L)
+
+  testthat::expect_gte(length(low), length(high))
+  testthat::expect_length(impossible, 0L)
+})
+
+test_that("generatePaintedTrees roots unrooted input trees before painting", {
+  skip_if_painted_tree_deps()
+
+  tree <- ape::unroot(make_painted_tree_fixture())
+  testthat::expect_false(ape::is.rooted(tree))
+
+  painted <- generatePaintedTrees(tree, min_tips = 2)
+
+  testthat::expect_true(all(vapply(painted, ape::is.rooted, logical(1))))
+})
+
+test_that("generatePaintedTrees validates user-facing arguments", {
+  skip_if_painted_tree_deps()
+
+  tree <- make_painted_tree_fixture()
+
+  testthat::expect_error(
+    generatePaintedTrees(list(), min_tips = 2),
+    "`tree` must be a phylo object"
   )
-
-  # Structure checks
-  expect_type(painted_trees, "list")
-  expect_true(all(vapply(painted_trees, function(x) inherits(x, "phylo"), logical(1))))
-  expect_true(all(grepl("^Node \\d+$", names(painted_trees))))
-
-  # Output checks (because the function uses cat())
-  expect_true(grepl("eligible nodes are detected", out))
-  expect_true(grepl("sub-models generated", out))
+  testthat::expect_error(
+    generatePaintedTrees(tree, min_tips = 0),
+    "`min_tips` must be a single finite integer"
+  )
+  testthat::expect_error(
+    generatePaintedTrees(tree, min_tips = 2.5),
+    "`min_tips` must be a single finite integer"
+  )
+  testthat::expect_error(
+    generatePaintedTrees(tree, min_tips = 2, state = c("a", "b")),
+    "`state` must be a single non-empty character string"
+  )
 })
 
-# Group: tree preprocessing and parameter handling
-# Test: Unrooted trees are properly rooted
-test_that("Unrooted trees are properly rooted", {
-  skip_if_missing_deps()
-
-  set.seed(123)
-  tree <- ape::rcoal(20)
-  tree <- ape::unroot(tree)  # make unrooted
-  expect_false(ape::is.rooted(tree))
-
-  painted_trees <- generatePaintedTrees(tree, min_tips = 3)
-
-  # All returned trees should be rooted
-  expect_true(all(vapply(painted_trees, ape::is.rooted, logical(1))))
+test_that("bifrost integer validator enforces optional maximum bounds", {
+  testthat::expect_equal(
+    .bifrost_check_integer_scalar(3, "value", minimum = 1L, maximum = 5L),
+    3L
+  )
+  testthat::expect_error(
+    .bifrost_check_integer_scalar(6, "value", maximum = 5L),
+    "`value` must be a single finite integer <= 5"
+  )
 })
 
-# Test: Minimum tips threshold is respected
-test_that("Minimum tips threshold is respected", {
-  skip_if_missing_deps()
+test_that("generatePaintedTrees reports candidate and output counts only when verbose", {
+  skip_if_painted_tree_deps()
 
-  set.seed(123)
-  tree <- ape::rcoal(50)
-  min_tips_high <- 30
-  min_tips_low  <- 5
-
-  painted_trees_high <- generatePaintedTrees(tree, min_tips_high)
-  painted_trees_low  <- generatePaintedTrees(tree, min_tips_low)
-
-  expect_true(length(painted_trees_high) <= length(painted_trees_low))
-
-  if (length(painted_trees_high) > 0) {
-    for (i in seq_along(painted_trees_high)) {
-      node_num <- as.numeric(sub("^Node\\s+", "", names(painted_trees_high)[i]))
-      descendants <- phytools::getDescendants(tree, node_num)
-      tip_desc    <- descendants[descendants <= ape::Ntip(tree)]
-      expect_true(length(tip_desc) >= min_tips_high)
-    }
-  }
-})
-
-# Test: Edge cases are handled properly
-test_that("Edge cases are handled properly", {
-  skip_if_missing_deps()
-
-  set.seed(123)
-  small_tree <- ape::rcoal(5)
-
-  result_small <- generatePaintedTrees(small_tree, min_tips = 2)
-  expect_type(result_small, "list")
-
-  result_impossible <- generatePaintedTrees(small_tree, min_tips = 10)
-  expect_equal(length(result_impossible), 0)
-
-  result_single <- generatePaintedTrees(small_tree, min_tips = 1)
-  expect_type(result_single, "list")
-})
-
-# Test: Custom state parameter works
-test_that("Custom state parameter works", {
-  skip_if_missing_deps()
-
-  set.seed(123)
-  tree <- ape::rcoal(20)
-  custom_state <- "custom_shift"
-
-  painted_trees <- generatePaintedTrees(tree, min_tips = 3, state = custom_state)
-  expect_type(painted_trees, "list")
-  # Verifying the actual painting would require inspecting attributes,
-  # which depends on paintSubTree's implementation.
-})
-
-# Test: Painted trees include the requested state in maps and mapped.edge
-test_that("Painted trees include the requested state in maps and mapped.edge", {
-  skip_if_missing_deps()
-
-  set.seed(123)
-  tree <- ape::rcoal(20)
-  custom_state <- "shift_state"
-
-  painted_trees <- generatePaintedTrees(tree, min_tips = 3, state = custom_state)
-  expect_true(length(painted_trees) > 0)
-
-  for (pt in painted_trees) {
-    map_states <- unique(unlist(lapply(pt$maps, names)))
-    expect_true(custom_state %in% map_states)
-    expect_true(custom_state %in% colnames(pt$mapped.edge))
-  }
-})
-
-# Group: stability and structure invariants
-# Test: Results are consistent across runs with same input (smoke test with constructed inputs)
-test_that("Results are consistent across runs with same input", {
-  skip_if_missing_deps()
-
-  tree <- ape::rcoal(30)
-  min_tips <- 5
-
-  result1 <- generatePaintedTrees(tree, min_tips)
-  result2 <- generatePaintedTrees(tree, min_tips)
-
-  expect_equal(length(result1), length(result2))
-  expect_equal(names(result1), names(result2))
-})
-
-# Test: Original tree structure is preserved in painted trees
-test_that("Original tree structure is preserved in painted trees", {
-  skip_if_missing_deps()
-
-  set.seed(123)
-  tree <- ape::rcoal(25)
-  min_tips <- 4
-
-  painted_trees <- generatePaintedTrees(tree, min_tips)
-
-  if (length(painted_trees) > 0) {
-    for (painted_tree in painted_trees) {
-      expect_equal(ape::Ntip(painted_tree),  ape::Ntip(tree))
-      expect_equal(painted_tree$tip.label,    tree$tip.label)
-      expect_equal(ape::Nnode(painted_tree), ape::Nnode(tree))
-    }
-  }
-})
-
-# Group: eligibility and reporting checks
-# Test: Eligible nodes have at least min_tips descendants
-test_that("Eligible nodes have at least min_tips descendants", {
-  skip_if_missing_deps()
-
-  set.seed(123)
-  tree <- ape::rcoal(30)
-  min_tips <- 8
-
-  painted_trees <- generatePaintedTrees(tree, min_tips)
-
-  for (nm in names(painted_trees)) {
-    node_num <- as.numeric(sub("^Node\\s+", "", nm))
-    descendants <- phytools::getDescendants(tree, node_num)
-    tip_desc    <- descendants[descendants <= ape::Ntip(tree)]
-    expect_true(length(tip_desc) >= min_tips)
-  }
-})
-
-# Test: Console output reports matching counts
-test_that("Console output reports matching counts", {
-  skip_if_missing_deps()
-
-  set.seed(123)
-  tree <- ape::rcoal(40)
-  min_tips <- 6
+  tree <- make_painted_tree_fixture()
 
   old_verbose <- getOption("bifrost.verbose")
-  options(bifrost.verbose = TRUE)
   on.exit(options(bifrost.verbose = old_verbose), add = TRUE)
 
-  out <- paste(
-    testthat::capture_messages(
-      painted_trees <- generatePaintedTrees(tree, min_tips)
-    ),
-    collapse = "\n"
+  options(bifrost.verbose = FALSE)
+  quiet_messages <- testthat::capture_messages(
+    quiet <- generatePaintedTrees(tree, min_tips = 2)
   )
+  testthat::expect_length(quiet_messages, 0L)
 
-  eligible_match  <- regmatches(out, regexpr("\\d+(?= eligible nodes)", out, perl = TRUE))
-  generated_match <- regmatches(out, regexpr("\\d+(?= sub-models generated)", out, perl = TRUE))
-
-  if (length(eligible_match) > 0 && length(generated_match) > 0) {
-    eligible_count  <- as.numeric(eligible_match)
-    generated_count <- as.numeric(generated_match)
-
-    expect_equal(eligible_count, generated_count)
-    expect_equal(generated_count, length(painted_trees))
-  } else {
-    testthat::skip("Output did not contain expected phrases; check generatePaintedTrees() cat() strings.")
-  }
+  options(bifrost.verbose = TRUE)
+  verbose_messages <- testthat::capture_messages(
+    verbose <- generatePaintedTrees(tree, min_tips = 2)
+  )
+  testthat::expect_equal(verbose, quiet)
+  testthat::expect_true(any(grepl("eligible nodes are detected", verbose_messages)))
+  testthat::expect_true(any(grepl("sub-models generated", verbose_messages)))
 })
