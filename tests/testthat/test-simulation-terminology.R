@@ -41,6 +41,10 @@ test_that("manuscript-generator calibration is isolated as an experimental draft
     file.exists(part1),
     "Part 1 vignette source is unavailable in installed tests"
   )
+  testthat::skip_if_not(
+    file.exists(draft),
+    "Experimental calibration draft is unavailable in installed tests"
+  )
 
   part1_text <- paste(readLines(part1, warn = FALSE), collapse = "\n")
   testthat::expect_false(grepl(
@@ -54,21 +58,18 @@ test_that("manuscript-generator calibration is isolated as an experimental draft
     fixed = TRUE
   ))
 
-  testthat::expect_true(file.exists(draft))
-  if (file.exists(draft)) {
-    draft_text <- paste(readLines(draft, warn = FALSE), collapse = "\n")
-    testthat::expect_match(
-      draft_text,
-      "Draft: Calibrating the Original Manuscript Generator",
-      fixed = TRUE
-    )
-    testthat::expect_match(
-      draft_text,
-      'simulation_generator = "original"',
-      fixed = TRUE
-    )
-    testthat::expect_false(grepl("VignetteIndexEntry", draft_text, fixed = TRUE))
-  }
+  draft_text <- paste(readLines(draft, warn = FALSE), collapse = "\n")
+  testthat::expect_match(
+    draft_text,
+    "Draft: Calibrating the Original Manuscript Generator",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    draft_text,
+    'simulation_generator = "original"',
+    fixed = TRUE
+  )
+  testthat::expect_false(grepl("VignetteIndexEntry", draft_text, fixed = TRUE))
 
   testthat::expect_true(file.exists(build_ignore))
   testthat::expect_true(any(readLines(build_ignore, warn = FALSE) == "^experimental$"))

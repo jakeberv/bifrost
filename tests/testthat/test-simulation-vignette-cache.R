@@ -942,11 +942,10 @@ test_that("experimental draft preserves calibrated original-generator behavior",
     "../../experimental/simulation-study-manuscript-generator-calibration.Rmd"
   )
   testthat::skip_if_not(file.exists(part1_path), "Simulation vignette not present")
-  testthat::expect_true(file.exists(draft_path))
-
-  if (!file.exists(draft_path)) {
-    return(invisible())
-  }
+  testthat::skip_if_not(
+    file.exists(draft_path),
+    "Experimental calibration draft is unavailable in installed tests"
+  )
 
   source <- paste(readLines(
     draft_path,
