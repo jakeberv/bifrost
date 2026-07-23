@@ -32,6 +32,9 @@ jobs:
         with:
           needs: check
 
+      - name: Install package for multisession workers
+        run: R CMD INSTALL .
+
       - name: Exercise real parallel workers
         run: |
           testthat::test_local(
