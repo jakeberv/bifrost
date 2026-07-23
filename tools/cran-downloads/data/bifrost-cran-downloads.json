@@ -6,8 +6,8 @@
   "archive_note": "This file is the repository's canonical CRAN downloads archive. Existing days are preserved; fetched rows overwrite matching days so upstream corrections are retained.",
   "query_start": "1900-01-01",
   "start": "2026-01-21",
-  "end": "2026-07-04",
-  "total_downloads": 3074,
+  "end": "2026-07-18",
+  "total_downloads": 3207,
   "downloads": [
     {
       "day": "2026-01-21",
@@ -668,6 +668,62 @@
     {
       "day": "2026-07-04",
       "downloads": 4
+    },
+    {
+      "day": "2026-07-05",
+      "downloads": 50
+    },
+    {
+      "day": "2026-07-06",
+      "downloads": 8
+    },
+    {
+      "day": "2026-07-07",
+      "downloads": 10
+    },
+    {
+      "day": "2026-07-08",
+      "downloads": 9
+    },
+    {
+      "day": "2026-07-09",
+      "downloads": 8
+    },
+    {
+      "day": "2026-07-10",
+      "downloads": 5
+    },
+    {
+      "day": "2026-07-11",
+      "downloads": 2
+    },
+    {
+      "day": "2026-07-12",
+      "downloads": 7
+    },
+    {
+      "day": "2026-07-13",
+      "downloads": 7
+    },
+    {
+      "day": "2026-07-14",
+      "downloads": 7
+    },
+    {
+      "day": "2026-07-15",
+      "downloads": 5
+    },
+    {
+      "day": "2026-07-16",
+      "downloads": 9
+    },
+    {
+      "day": "2026-07-17",
+      "downloads": 3
+    },
+    {
+      "day": "2026-07-18",
+      "downloads": 3
     }
   ]
 }
