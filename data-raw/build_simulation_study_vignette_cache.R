@@ -78,7 +78,8 @@ select_grid_parameters <- function(grid_run) {
     max_any_false_positive = 0.50,
     min_evaluable_fraction = 0.50,
     primary_metric = "fuzzy_balanced_accuracy",
-    tie_break = "conservative"
+    tie_break = "conservative",
+    allow_infeasible = TRUE
   )
   if (isTRUE(selection$used_all_settings)) {
     stop(
