@@ -32,6 +32,10 @@ jobs:
         with:
           needs: check
 
+      - name: Install package for multisession workers
+        run: R CMD INSTALL .
+        shell: bash
+
       - name: Exercise real parallel workers
         run: |
           testthat::test_local(
@@ -55,7 +59,7 @@ jobs:
 
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
-          extra-packages: any::covr, any::xml2
+          extra-packages: any::covr, any::rstudioapi, any::xml2
           needs: coverage
 
       - name: Test coverage

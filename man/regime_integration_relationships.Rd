@@ -15,13 +15,15 @@ regime_integration_relationships(
 )
 }
 \arguments{
-\item{summaries}{A named list of manuscript-compatible \code{vars_cors} tables or
-a data frame from \code{\link[=summarize_regime_covariances]{summarize_regime_covariances()}}. Regime IDs within each
-input table must be unique and non-empty. List inputs are pooled with a
-\code{run} column.}
+\item{summaries}{A list of manuscript-compatible \code{vars_cors} tables or a data
+frame from \code{\link[=summarize_regime_covariances]{summarize_regime_covariances()}}. Regime IDs within each input
+table must be unique and non-empty. List inputs are pooled with a \code{run}
+column; missing or blank list names become \code{run1}, \code{run2}, and so on based
+on their positions, and the normalized names must be unique.}
 
-\item{resid_sd_threshold_vars, resid_sd_threshold_corrs}{Studentized residual
-thresholds used to filter the variance and correlation panels.}
+\item{resid_sd_threshold_vars, resid_sd_threshold_corrs}{Non-negative finite
+studentized-residual thresholds used to filter the variance and
+correlation panels.}
 
 \item{n_boot}{Number of bootstrap replicates for confidence curves.}
 
@@ -48,4 +50,10 @@ High-correlation filtering is applied before this step with
 \code{\link[=summarize_regime_covariances]{summarize_regime_covariances()}} via \code{remove_high_corr} and
 \code{corr_threshold}. The relationship object records residual filters and
 bootstrap settings, but it does not reapply matrix-level correlation filters.
+Rows with incomplete data for a panel remain in \code{combined} with an \code{NA}
+studentized residual and are omitted from that panel's point and removed-row
+data frames. Non-missing rates and variances must be finite and strictly
+positive, and non-missing correlations must be finite values in \verb{[-1, 1]}.
+Boundary correlations at \code{-1} or \code{1} are retained in \code{combined}, but their
+undefined Fisher-Z transforms and correlation-panel residuals are \code{NA}.
 }

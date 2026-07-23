@@ -75,6 +75,12 @@ test_that("comparison script uses public simulation generator vocabulary", {
   testthat::expect_false("simulation_design" %in% names(error_row))
 })
 
+test_that("comparison script preflights its direct helper dependencies", {
+  script_env <- .load_comparison_script()
+
+  testthat::expect_true("pkgload" %in% script_env$.comparison_required_packages)
+})
+
 test_that("comparison script excludes failed searches from inferred-shift means", {
   script_env <- .load_comparison_script()
 

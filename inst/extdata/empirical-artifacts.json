@@ -71,7 +71,7 @@
       "source_location": "data/temporal/02_shift_search/new_bifrost/min10.ic20.gic.RDS",
       "transformation": {
         "method": "Compact focal search retaining the final mapped tree, fitted BMM rates, shifts, IC summaries, VCVs, and IC weights while omitting full candidate fits and proposal history.",
-        "script": "tools/avian-skeleton/make-compact-sensitivity-searches.R"
+        "script": "No focal-artifact transformation script is recorded in this repository."
       },
       "license_id": "zenodo_cc_by_4_0"
     },

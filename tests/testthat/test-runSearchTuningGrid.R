@@ -814,6 +814,26 @@ test_that("runSearchTuningGrid validates inputs", {
     runSearchTuningGrid(
       template = tmpl,
       IC = "GIC",
+      shift_acceptance_thresholds = c(5, -1),
+      min_descendant_tips_values = 3,
+      proportional_simulation_options = list(num_shifts = 1, min_shift_tips = 2, max_shift_tips = 5)
+    ),
+    "finite non-negative"
+  )
+  testthat::expect_error(
+    runSearchTuningGrid(
+      template = tmpl,
+      IC = "GIC",
+      shift_acceptance_thresholds = Inf,
+      min_descendant_tips_values = 3,
+      proportional_simulation_options = list(num_shifts = 1, min_shift_tips = 2, max_shift_tips = 5)
+    ),
+    "finite non-negative"
+  )
+  testthat::expect_error(
+    runSearchTuningGrid(
+      template = tmpl,
+      IC = "GIC",
       shift_acceptance_thresholds = 5,
       min_descendant_tips_values = 3,
       proportional_simulation_options = list(num_shifts = 1, min_shift_tips = 2, max_shift_tips = 5),

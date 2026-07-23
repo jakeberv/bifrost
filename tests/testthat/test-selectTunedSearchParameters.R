@@ -99,6 +99,7 @@ test_that("selectTunedSearchParameters picks a conservative winner within one IC
   testthat::expect_equal(selected$recommended_search_options$min_descendant_tips, 10)
   testthat::expect_identical(selected$n_feasible_settings, 2L)
   testthat::expect_false(selected$used_all_settings)
+  testthat::expect_false(selected$filters$allow_infeasible)
   testthat::expect_output(
     print.bifrost_search_tuning_selection(selected),
     "Bifrost Tuned Search Selection"
@@ -118,7 +119,7 @@ test_that("selectTunedSearchParameters picks a conservative winner within one IC
   }
 })
 
-test_that("selectTunedSearchParameters can rank weighted metrics and fall back to the full grid", {
+test_that("selectTunedSearchParameters requires opt-in before ranking infeasible settings", {
   summary_table <- data.frame(
     setting_id = 1:2,
     IC = rep("BIC", 2),
@@ -143,18 +144,31 @@ test_that("selectTunedSearchParameters can rank weighted metrics and fall back t
   )
   tuning_grid <- make_tuning_grid_stub(summary_table, IC = "BIC")
 
-  testthat::expect_warning(
-    selected <- selectTunedSearchParameters(
+  testthat::expect_error(
+    selectTunedSearchParameters(
       tuning_grid,
       max_false_positive_rate = 0.01,
       max_any_false_positive = 0.05,
       primary_metric = "weighted_fuzzy_f1",
       scenario_weights = c(0.25, 0.75)
     ),
-    "full rankable grid"
+    "No rankable tuning settings met"
+  )
+
+  testthat::expect_warning(
+    selected <- selectTunedSearchParameters(
+      tuning_grid,
+      max_false_positive_rate = 0.01,
+      max_any_false_positive = 0.05,
+      primary_metric = "weighted_fuzzy_f1",
+      scenario_weights = c(0.25, 0.75),
+      allow_infeasible = TRUE
+    ),
+    "allow_infeasible = TRUE"
   )
 
   testthat::expect_true(selected$used_all_settings)
+  testthat::expect_true(selected$filters$allow_infeasible)
   testthat::expect_identical(selected$n_feasible_settings, 0L)
   testthat::expect_identical(selected$selected_row$setting_id, 2L)
   testthat::expect_identical(selected$recommended_search_options$IC, "BIC")
@@ -290,6 +304,14 @@ test_that("selectTunedSearchParameters validates its inputs", {
     "max_false_positive_rate"
   )
   testthat::expect_error(
+    selectTunedSearchParameters(tuning_grid, max_false_positive_rate = 2),
+    "between 0 and 1"
+  )
+  testthat::expect_error(
+    selectTunedSearchParameters(tuning_grid, max_false_positive_rate = Inf),
+    "between 0 and 1"
+  )
+  testthat::expect_error(
     selectTunedSearchParameters(tuning_grid, max_any_false_positive = 2),
     "between 0 and 1"
   )
@@ -300,6 +322,10 @@ test_that("selectTunedSearchParameters validates its inputs", {
   testthat::expect_error(
     selectTunedSearchParameters(tuning_grid, scenario_weights = c(1, -1)),
     "scenario_weights"
+  )
+  testthat::expect_error(
+    selectTunedSearchParameters(tuning_grid, allow_infeasible = NA),
+    "allow_infeasible"
   )
   testthat::expect_error(
     selectTunedSearchParameters(tuning_grid, primary_metric = "weighted_fuzzy_f1"),

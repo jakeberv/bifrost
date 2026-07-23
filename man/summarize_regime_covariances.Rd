@@ -73,4 +73,6 @@ matching row and column trait names; violations produce a regime-specific
 error. Invalid matrices
 encountered in a \code{regime_covariances} fit object are instead represented as
 failed rows with missing summaries and a diagnostic message.
+A one-trait matrix has no pairwise correlations, so its mean absolute
+correlation and Fisher-Z summary are returned as \code{NA}.
 }

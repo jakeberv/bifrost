@@ -19,8 +19,8 @@ fit_regime_covariance_runs(
 }
 \arguments{
 \item{x}{Named list of \code{bifrost_search} objects, compatible search-like
-lists, or SIMMAP-style \code{phylo} trees. Blank names are generated and names
-must be unique after normalization.}
+lists, or SIMMAP-style \code{phylo} trees. Missing or blank names are generated
+and names must be unique after normalization.}
 
 \item{trait_data}{Matrix or data frame with unique, non-empty row names
 matching the tree tip labels. Column names may be omitted; when present,

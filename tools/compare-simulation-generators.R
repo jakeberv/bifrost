@@ -1,4 +1,8 @@
 .comparison_generators <- c("original", "empirical")
+.comparison_required_packages <- c(
+  "ape", "future", "future.apply", "mvMORPH", "phytools", "pkgload",
+  "progressr", "RRphylo", "withr"
+)
 
 .comparison_integer <- function(value, name, minimum = 1L) {
   parsed <- suppressWarnings(as.numeric(value))
@@ -368,10 +372,7 @@
     stop("Could not create output directory: ", options$output_dir, call. = FALSE)
   }
 
-  required <- c(
-    "ape", "future", "future.apply", "mvMORPH", "phytools", "progressr",
-    "RRphylo", "withr"
-  )
+  required <- .comparison_required_packages
   missing <- required[!vapply(required, requireNamespace, logical(1L), quietly = TRUE)]
   if (length(missing)) {
     stop("Missing required package(s): ", paste(missing, collapse = ", "), call. = FALSE)

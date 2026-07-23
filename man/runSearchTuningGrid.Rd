@@ -30,8 +30,8 @@ runSearchTuningGrid(
 \item{IC}{Character scalar, either \code{"GIC"} or \code{"BIC"}. The tuning grid is
 run for this IC family only.}
 
-\item{shift_acceptance_thresholds}{Numeric vector of candidate
-\code{shift_acceptance_threshold} values to evaluate.}
+\item{shift_acceptance_thresholds}{Finite, non-negative numeric vector of
+candidate \code{shift_acceptance_threshold} values to evaluate.}
 
 \item{min_descendant_tips_values}{Integer vector of candidate
 \code{min_descendant_tips} values to evaluate.}

@@ -87,13 +87,16 @@
     tryCatch(
       do.call(search_optimal_configuration, search_args),
       error = function(e) {
-        candidate_count <- max(length(generate_painted_trees(
+        candidate_trees <- generate_painted_trees(
           ape::as.phylo(sim[[tree_component]]),
           min_tips = search_options$min_descendant_tips
-        )) - 1L, 0L)
+        )
+        candidate_trees <- candidate_trees[-1]
+        candidate_nodes <- as.integer(sub("^Node ", "", names(candidate_trees)))
         list(
           shift_nodes_no_uncertainty = integer(0),
-          num_candidates = candidate_count,
+          num_candidates = length(candidate_trees),
+          candidate_nodes = candidate_nodes,
           ic_weights = data.frame(
             node = integer(0),
             ic_with_shift = numeric(0),
@@ -806,8 +809,11 @@ runShiftRecoverySimulationStudy <- function(template,
 #' @param simresults A list of search results corresponding to `simdata`, usually
 #'   the `results` component returned by [runShiftRecoverySimulationStudy()].
 #'   Each element should contain `shift_nodes_no_uncertainty` and
-#'   `num_candidates`; if `weighted = TRUE`, `ic_weights` is also used when
-#'   available.
+#'   `num_candidates`. Results from [searchOptimalConfiguration()] also carry
+#'   `candidate_nodes`, which allows candidate-aware specificity calculations;
+#'   legacy result objects without that component retain the historical
+#'   count-only calculation. If `weighted = TRUE`, `ic_weights` is also used
+#'   when available.
 #' @param fuzzy_distance Integer node distance threshold used for fuzzy matching.
 #' @param weighted Logical; if `TRUE`, compute weighted precision/recall/F1 using
 #'   the inferred-node IC weights from each search result when available.
@@ -826,6 +832,16 @@ runShiftRecoverySimulationStudy <- function(template,
 #'
 #' Search results carrying a non-empty `error` field are retained by the study
 #' wrappers for diagnosis but excluded from recovery counts and metrics.
+#'
+#' For current search results, true-negative counts are calculated over the
+#' explicit `candidate_nodes` universe. True shifts excluded by the search's
+#' candidate filter still contribute false negatives, but are not subtracted
+#' from the number of candidate negatives. This prevents specificity and
+#' balanced accuracy from being distorted when a simulated shift is not an
+#' eligible search candidate. Supplied candidate-node vectors must contain
+#' unique, valid whole-number node IDs and agree with `num_candidates`. For
+#' compatibility, result objects that provide only `num_candidates` use the
+#' historical count-only formula.
 #'
 #' When a replicate has no evaluable candidate shifts (`num_candidates == 0`),
 #' recall-style quantities can still be computed from the true and inferred
@@ -904,11 +920,40 @@ evaluateShiftRecovery <- function(simdata,
     true_nodes <- simdata[[k]]$shiftNodes
     inferred_nodes <- simresults[[k]]$shift_nodes_no_uncertainty
     candidate_count <- simresults[[k]]$num_candidates
+    candidate_nodes <- simresults[[k]]$candidate_nodes
     tree_k <- simdata[[k]]$paintedTree
 
     if (is.null(true_nodes) || is.null(inferred_nodes) || is.null(candidate_count) ||
         is.null(tree_k)) {
       next
+    }
+    if (!is.null(candidate_nodes)) {
+      candidate_count_checked <- .simulation_check_integer_scalar(
+        candidate_count,
+        name = "num_candidates",
+        minimum = 0L,
+        message = "num_candidates must be a single non-negative integer when candidate_nodes is supplied."
+      )
+      valid_candidate_nodes <- is.numeric(candidate_nodes) &&
+        !anyNA(candidate_nodes) &&
+        all(is.finite(candidate_nodes)) &&
+        all(candidate_nodes == floor(candidate_nodes)) &&
+        all(candidate_nodes >= -.Machine$integer.max) &&
+        all(candidate_nodes <= .Machine$integer.max)
+      if (!valid_candidate_nodes) {
+        stop("candidate_nodes must be a finite whole-number vector.", call. = FALSE)
+      }
+      candidate_nodes <- as.integer(candidate_nodes)
+      if (anyDuplicated(candidate_nodes)) {
+        stop("candidate_nodes must contain unique node IDs.", call. = FALSE)
+      }
+      if (length(candidate_nodes) != candidate_count_checked) {
+        stop("length(candidate_nodes) must equal num_candidates.", call. = FALSE)
+      }
+      max_tree_node <- ape::Ntip(tree_k) + ape::Nnode(tree_k)
+      if (any(candidate_nodes < 1L | candidate_nodes > max_tree_node)) {
+        stop("candidate_nodes must contain valid node IDs for the replicate tree.", call. = FALSE)
+      }
     }
     n_evaluable_replicates <- n_evaluable_replicates + 1L
 
@@ -924,11 +969,21 @@ evaluateShiftRecovery <- function(simdata,
     strict_tp_nodes <- intersect(true_nodes, inferred_nodes)
     strict_fp_nodes <- setdiff(inferred_nodes, true_nodes)
     strict_fn_nodes <- setdiff(true_nodes, inferred_nodes)
-    strict_tn <- max(
-      candidate_count - length(strict_tp_nodes) -
-        length(strict_fp_nodes) - length(strict_fn_nodes),
-      0L
-    )
+    strict_tn <- if (is.null(candidate_nodes)) {
+      max(
+        candidate_count - length(strict_tp_nodes) -
+          length(strict_fp_nodes) - length(strict_fn_nodes),
+        0L
+      )
+    } else {
+      max(
+        length(candidate_nodes) -
+          length(intersect(strict_tp_nodes, candidate_nodes)) -
+          length(intersect(strict_fp_nodes, candidate_nodes)) -
+          length(intersect(strict_fn_nodes, candidate_nodes)),
+        0L
+      )
+    }
 
     strict_counts <- strict_counts + c(
       TP = length(strict_tp_nodes),
@@ -949,6 +1004,7 @@ evaluateShiftRecovery <- function(simdata,
       fuzzy_fp <- length(inferred_nodes)
       fuzzy_fn <- length(true_nodes)
       matched_inferred <- rep(FALSE, length(inferred_nodes))
+      matched_true <- rep(FALSE, length(true_nodes))
     } else {
       distance_matrix <- matrix(
         Inf,
@@ -990,7 +1046,17 @@ evaluateShiftRecovery <- function(simdata,
       fuzzy_fn <- length(true_nodes) - sum(matched_true)
     }
 
-    fuzzy_tn <- max(candidate_count - fuzzy_tp - fuzzy_fp - fuzzy_fn, 0L)
+    fuzzy_tn <- if (is.null(candidate_nodes)) {
+      max(candidate_count - fuzzy_tp - fuzzy_fp - fuzzy_fn, 0L)
+    } else {
+      max(
+        length(candidate_nodes) -
+          length(intersect(inferred_nodes[matched_inferred], candidate_nodes)) -
+          length(intersect(inferred_nodes[!matched_inferred], candidate_nodes)) -
+          length(intersect(true_nodes[!matched_true], candidate_nodes)),
+        0L
+      )
+    }
     fuzzy_counts <- fuzzy_counts + c(TP = fuzzy_tp, FP = fuzzy_fp, FN = fuzzy_fn, TN = fuzzy_tn)
 
     if (weighted && !is.null(weights)) {

@@ -21,8 +21,8 @@
 #'   [createSimulationTemplate()].
 #' @param IC Character scalar, either `"GIC"` or `"BIC"`. The tuning grid is
 #'   run for this IC family only.
-#' @param shift_acceptance_thresholds Numeric vector of candidate
-#'   `shift_acceptance_threshold` values to evaluate.
+#' @param shift_acceptance_thresholds Finite, non-negative numeric vector of
+#'   candidate `shift_acceptance_threshold` values to evaluate.
 #' @param min_descendant_tips_values Integer vector of candidate
 #'   `min_descendant_tips` values to evaluate.
 #' @param tree_tip_count Optional integer tip count passed to the simulation
@@ -181,8 +181,10 @@ runSearchTuningGrid <- function(template,
   if (missing(shift_acceptance_thresholds) ||
       !is.numeric(shift_acceptance_thresholds) ||
       length(shift_acceptance_thresholds) < 1L ||
-      anyNA(shift_acceptance_thresholds)) {
-    stop("shift_acceptance_thresholds must be a numeric vector with at least one value.")
+      anyNA(shift_acceptance_thresholds) ||
+      any(!is.finite(shift_acceptance_thresholds)) ||
+      any(shift_acceptance_thresholds < 0)) {
+    stop("shift_acceptance_thresholds must be a finite non-negative numeric vector with at least one value.")
   }
   if (missing(min_descendant_tips_values) ||
       is.null(min_descendant_tips_values)) {
@@ -531,7 +533,7 @@ runSearchTuningGrid <- function(template,
 #' @param tuning_grid A `bifrost_search_tuning_grid` returned by
 #'   [runSearchTuningGrid()].
 #' @param max_false_positive_rate Maximum acceptable mean false-positive rate
-#'   under the null study.
+#'   under the null study, as a finite number between zero and one.
 #' @param max_any_false_positive Maximum acceptable fraction of null replicates
 #'   that infer at least one shift.
 #' @param min_evaluable_fraction Minimum acceptable fraction of replicates with
@@ -549,6 +551,10 @@ runSearchTuningGrid <- function(template,
 #' @param tie_break Character scalar. `"conservative"` prefers larger thresholds
 #'   and larger `min_descendant_tips` when the primary ranking score is tied;
 #'   `"liberal"` prefers the smaller values.
+#' @param allow_infeasible Logical. If `FALSE` (the default), stop without a
+#'   recommendation when no rankable setting satisfies every constraint. Set to
+#'   `TRUE` to retain the historical diagnostic fallback that ranks the full
+#'   rankable grid and marks `used_all_settings = TRUE`.
 #'
 #' @details
 #' The selector uses a two-step decision rule. First, it filters out settings
@@ -559,10 +565,11 @@ runSearchTuningGrid <- function(template,
 #'
 #' Only settings with finite recovery metrics for every scenario having positive
 #' weight are rankable. If no rankable settings pass the filters, the function
-#' warns, falls back to the full rankable grid, and records that no feasible
-#' settings were available under the supplied constraints. If the grid contains
-#' no rankable settings, the function stops rather than returning an unsupported
-#' recommendation.
+#' stops by default rather than returning an unsupported recommendation. With
+#' `allow_infeasible = TRUE`, it warns, falls back to the full rankable grid, and
+#' records that no feasible settings were available under the supplied
+#' constraints. If the grid contains no rankable settings, the function always
+#' stops.
 #'
 #' @return A list of class `bifrost_search_tuning_selection` with components:
 #' \describe{
@@ -602,7 +609,8 @@ selectTunedSearchParameters <- function(tuning_grid,
                                           "weighted_fuzzy_f1"
                                         ),
                                         scenario_weights = c(proportional = 0.5, correlation = 0.5),
-                                        tie_break = c("conservative", "liberal")) {
+                                        tie_break = c("conservative", "liberal"),
+                                        allow_infeasible = FALSE) {
   primary_metric <- match.arg(primary_metric)
   tie_break <- match.arg(tie_break)
 
@@ -610,8 +618,9 @@ selectTunedSearchParameters <- function(tuning_grid,
     stop("tuning_grid must be a 'bifrost_search_tuning_grid' object.")
   }
   if (!is.numeric(max_false_positive_rate) || length(max_false_positive_rate) != 1L ||
-      is.na(max_false_positive_rate) || max_false_positive_rate < 0) {
-    stop("max_false_positive_rate must be a single non-negative number.")
+      is.na(max_false_positive_rate) || !is.finite(max_false_positive_rate) ||
+      max_false_positive_rate < 0 || max_false_positive_rate > 1) {
+    stop("max_false_positive_rate must be a single finite number between 0 and 1.")
   }
   if (!is.numeric(max_any_false_positive) || length(max_any_false_positive) != 1L ||
       is.na(max_any_false_positive) || max_any_false_positive < 0 ||
@@ -628,6 +637,10 @@ selectTunedSearchParameters <- function(tuning_grid,
       any(scenario_weights < 0) ||
       sum(scenario_weights) <= 0) {
     stop("scenario_weights must be a non-negative numeric vector of length 2.")
+  }
+  if (!is.logical(allow_infeasible) || length(allow_infeasible) != 1L ||
+      is.na(allow_infeasible)) {
+    stop("allow_infeasible must be TRUE or FALSE.")
   }
 
   metric_suffix <- primary_metric
@@ -708,9 +721,18 @@ selectTunedSearchParameters <- function(tuning_grid,
   n_feasible_settings <- nrow(feasible)
   used_all_settings <- FALSE
   if (nrow(feasible) == 0L) {
+    if (!allow_infeasible) {
+      stop(
+        "No rankable tuning settings met the false-positive and evaluability ",
+        "constraints; no recommendation can be made. Set allow_infeasible = TRUE ",
+        "to inspect the historical full-grid fallback.",
+        call. = FALSE
+      )
+    }
     warning(
       "No rankable tuning settings met the false-positive and evaluability ",
-      "constraints; ranking the full rankable grid instead.",
+      "constraints; ranking the full rankable grid because ",
+      "allow_infeasible = TRUE.",
       call. = FALSE
     )
     feasible <- rankable_table
@@ -764,7 +786,8 @@ selectTunedSearchParameters <- function(tuning_grid,
       max_false_positive_rate = max_false_positive_rate,
       max_any_false_positive = max_any_false_positive,
       min_evaluable_fraction = min_evaluable_fraction,
-      tie_break = tie_break
+      tie_break = tie_break,
+      allow_infeasible = allow_infeasible
     )
   )
   class(out) <- c("bifrost_search_tuning_selection", class(out))

@@ -246,8 +246,8 @@ fit_regime_covariances <- function(x = NULL,
 #' regime subtrees in parallel through `cores`.
 #'
 #' @param x Named list of `bifrost_search` objects, compatible search-like
-#'   lists, or SIMMAP-style `phylo` trees. Blank names are generated and names
-#'   must be unique after normalization.
+#'   lists, or SIMMAP-style `phylo` trees. Missing or blank names are generated
+#'   and names must be unique after normalization.
 #' @inheritParams fit_regime_covariances
 #' @param tree_element For search-like list inputs, the element containing the
 #'   mapped tree to use for post-hoc refits. Set to `NULL` to let
@@ -357,6 +357,8 @@ fit_regime_covariance_runs <- function(x,
 #' error. Invalid matrices
 #' encountered in a `regime_covariances` fit object are instead represented as
 #' failed rows with missing summaries and a diagnostic message.
+#' A one-trait matrix has no pairwise correlations, so its mean absolute
+#' correlation and Fisher-Z summary are returned as `NA`.
 #'
 #' @export
 summarize_regime_covariances <- function(x,
@@ -446,8 +448,12 @@ summarize_regime_covariances <- function(x,
     .regime_validate_covariance_matrix(mat, regime)
     mean_variance <- mean(diag(mat), na.rm = TRUE)
     cor_mat <- stats::cov2cor(mat)
-    mean_abs_correlation <- mean(abs(cor_mat[upper.tri(cor_mat, diag = FALSE)]),
-                                 na.rm = TRUE)
+    pairwise_correlations <- cor_mat[upper.tri(cor_mat, diag = FALSE)]
+    mean_abs_correlation <- if (length(pairwise_correlations) == 0L) {
+      NA_real_
+    } else {
+      mean(abs(pairwise_correlations), na.rm = TRUE)
+    }
     fisher_value <- .regime_fisher_z(mean_abs_correlation, fisher_boundary)
 
     data.frame(
@@ -486,8 +492,8 @@ summarize_regime_covariances <- function(x,
 #' high-correlation filtering explicit and reusable.
 #'
 #' @param x Named list of `regime_covariances` objects, usually from
-#'   [fit_regime_covariance_runs()]. Blank names are generated and names must
-#'   be unique after normalization.
+#'   [fit_regime_covariance_runs()]. Missing or blank names are generated and
+#'   names must be unique after normalization.
 #' @param searches Optional named list of corresponding `bifrost_search`
 #'   objects. Run names are matched to `x`.
 #' @param rates Optional named list of regime-rate vectors, or one named rate
@@ -541,6 +547,22 @@ summarize_regime_covariance_runs <- function(x,
   )
 }
 
+.regime_check_unused_dots <- function(dots) {
+  if (length(dots) > 0L) {
+    dot_names <- names(dots)
+    if (is.null(dot_names)) {
+      dot_names <- rep.int("", length(dots))
+    }
+    missing_names <- is.na(dot_names) | !nzchar(trimws(dot_names))
+    dot_names[missing_names] <- paste0("..", which(missing_names))
+    stop(
+      "Unused argument(s): ",
+      paste(dot_names, collapse = ", "),
+      call. = FALSE
+    )
+  }
+}
+
 #' Run PCA on Regime Correlation Structures
 #'
 #' Convert each regime covariance matrix to a correlation matrix, vectorize the
@@ -563,10 +585,11 @@ summarize_regime_covariance_runs <- function(x,
 #' @param regime_ages Optional named numeric vector of regime ages.
 #' @param trait_labels Optional labels for the matrix rows/columns. Supply a
 #'   named vector to map internal trait names to display labels, or an unnamed
-#'   vector in matrix order.
-#' @param min_tips Optional minimum tip count for inclusion when `tip_counts`
-#'   are available. Matching the manuscript `min_n` convention, regimes are
-#'   retained only when `tip_count > min_tips`.
+#'   vector in matrix order. Resolved labels must be unique and not blank.
+#' @param min_tips Optional positive whole-number minimum tip count for
+#'   inclusion when `tip_counts` are available. Matching the manuscript `min_n`
+#'   convention, regimes are retained only when `tip_count > min_tips`. At
+#'   least one non-missing tip count must be available when this filter is used.
 #' @param ... Reserved for future extensions.
 #'
 #' @return An object of class `regime_correlation_pca` containing the `prcomp`
@@ -586,8 +609,9 @@ regime_correlation_pca <- function(x,
                                    min_tips = NULL,
                                    ...) {
   dots <- list(...)
-  if (length(dots) > 0L) {
-    stop("Unused argument(s): ", paste(names(dots), collapse = ", "), call. = FALSE)
+  .regime_check_unused_dots(dots)
+  if (!is.null(min_tips)) {
+    min_tips <- .regime_validate_min_tips(min_tips)
   }
 
   extracted <- .regime_extract_covariance_list(x)
@@ -602,6 +626,13 @@ regime_correlation_pca <- function(x,
   regimes <- names(matrices)
   tip_counts <- .regime_match_optional(tip_counts, regimes)
   regime_ages <- .regime_match_optional(regime_ages, regimes)
+  if (!is.null(min_tips) && all(is.na(tip_counts))) {
+    stop(
+      "`min_tips` requires available `tip_counts`; supply at least one ",
+      "non-missing tip count.",
+      call. = FALSE
+    )
+  }
 
   keep <- vapply(matrices, is.matrix, logical(1))
   if (!is.null(min_tips)) {
@@ -626,6 +657,7 @@ regime_correlation_pca <- function(x,
     internal_traits <- paste0("trait", seq_len(nrow(template)))
   }
   labels <- .regime_resolve_trait_labels(trait_labels, internal_traits)
+  .regime_validate_identifiers(labels, "trait labels")
   upper_names <- .regime_upper_pair_names(labels)
 
   aligned_matrices <- lapply(regimes, function(regime) {
@@ -701,14 +733,19 @@ regime_correlation_pca <- function(x,
 #'
 #' @param pca A `regime_correlation_pca` object from
 #'   [regime_correlation_pca()] computed with `use_correlation = TRUE`.
-#' @param modules Named list of character vectors. Each element names the trait
-#'   labels belonging to one anatomical, developmental, or functional module.
+#' @param modules Named list of character vectors. Module names must be unique
+#'   and not blank. Each element names the unique trait labels belonging to one
+#'   anatomical, developmental, or functional module. Singleton modules are
+#'   allowed; their within-module scores and PC correlations are `NA` because
+#'   no pairwise correlation is defined.
 #' @param comparisons Optional named list defining module comparisons to score.
 #'   Each element must be a length-two character vector naming entries in
 #'   `modules`. When both names are the same, the score is the mean
 #'   upper-triangle within-module correlation; otherwise it is the mean
 #'   between-module correlation. If `NULL`, all within-module and pairwise
-#'   between-module comparisons are generated.
+#'   between-module comparisons are generated. Missing or blank comparison
+#'   names are generated from their module pairs; the resulting names must be
+#'   unique and not blank.
 #' @param pcs Principal components to correlate with module summaries. Supply
 #'   numeric indices or names such as `"PC1"`. Defaults to all PCA score
 #'   columns.
@@ -772,10 +809,9 @@ regime_module_diagnostics <- function(pca,
       correlation = vapply(
         names(comparisons),
         function(comparison_name) {
-          stats::cor(
+          .regime_complete_correlation(
             pca$scores[, pc],
-            module_scores[[comparison_name]],
-            use = "complete.obs"
+            module_scores[[comparison_name]]
           )
         },
         numeric(1)
@@ -836,7 +872,8 @@ regime_module_diagnostics <- function(pca,
 #' @details The collapse step follows the manuscript implementation: a
 #'   monophyletic regime is represented by one collapsed tip, whereas all tips
 #'   assigned to a nonmonophyletic regime are removed. When removals occur, the
-#'   function emits one warning listing every dropped regime ID.
+#'   function emits one warning listing every dropped regime ID. The collapse
+#'   stops if regime relabeling would create duplicated output tip labels.
 #' @export
 regime_integration_pgls <- function(summary_data,
                                     search = NULL,
@@ -899,12 +936,14 @@ regime_integration_pgls <- function(summary_data,
 #' Supplementary Figure 4A-style rate-vs-variance and rate-vs-integration
 #' panels. Use `plot()` on the returned object to draw the panels.
 #'
-#' @param summaries A named list of manuscript-compatible `vars_cors` tables or
-#'   a data frame from [summarize_regime_covariances()]. Regime IDs within each
-#'   input table must be unique and non-empty. List inputs are pooled with a
-#'   `run` column.
-#' @param resid_sd_threshold_vars,resid_sd_threshold_corrs Studentized residual
-#'   thresholds used to filter the variance and correlation panels.
+#' @param summaries A list of manuscript-compatible `vars_cors` tables or a data
+#'   frame from [summarize_regime_covariances()]. Regime IDs within each input
+#'   table must be unique and non-empty. List inputs are pooled with a `run`
+#'   column; missing or blank list names become `run1`, `run2`, and so on based
+#'   on their positions, and the normalized names must be unique.
+#' @param resid_sd_threshold_vars,resid_sd_threshold_corrs Non-negative finite
+#'   studentized-residual thresholds used to filter the variance and
+#'   correlation panels.
 #' @param n_boot Number of bootstrap replicates for confidence curves.
 #' @param ci_level Confidence level for bootstrap ribbons.
 #' @param seed Optional random seed for reproducible bootstrap curves.
@@ -921,6 +960,12 @@ regime_integration_pgls <- function(summary_data,
 #' [summarize_regime_covariances()] via `remove_high_corr` and
 #' `corr_threshold`. The relationship object records residual filters and
 #' bootstrap settings, but it does not reapply matrix-level correlation filters.
+#' Rows with incomplete data for a panel remain in `combined` with an `NA`
+#' studentized residual and are omitted from that panel's point and removed-row
+#' data frames. Non-missing rates and variances must be finite and strictly
+#' positive, and non-missing correlations must be finite values in `[-1, 1]`.
+#' Boundary correlations at `-1` or `1` are retained in `combined`, but their
+#' undefined Fisher-Z transforms and correlation-panel residuals are `NA`.
 #' @export
 regime_integration_relationships <- function(summaries,
                                              resid_sd_threshold_vars = 2,
@@ -929,11 +974,21 @@ regime_integration_relationships <- function(summaries,
                                              ci_level = 0.99,
                                              seed = NULL,
                                              min_tips = NULL) {
+  resid_sd_threshold_vars <- .regime_validate_resid_sd_threshold(
+    resid_sd_threshold_vars,
+    "resid_sd_threshold_vars"
+  )
+  resid_sd_threshold_corrs <- .regime_validate_resid_sd_threshold(
+    resid_sd_threshold_corrs,
+    "resid_sd_threshold_corrs"
+  )
   validated_seed <- .regime_validate_module_plot_seed(seed)
   correlation_seed <- if (is.null(validated_seed)) {
     NULL
+  } else if (validated_seed == .Machine$integer.max) {
+    0L
   } else {
-    .regime_validate_module_plot_seed(as.double(validated_seed) + 1)
+    validated_seed + 1L
   }
   combined <- .regime_bind_summary_runs(summaries)
   combined <- .regime_filter_summary_min_tips(
@@ -941,19 +996,55 @@ regime_integration_relationships <- function(summaries,
     min_tips = min_tips,
     caller = "regime_integration_relationships"
   )
-  combined$fisher_z_corr <- fisher_z_transform(combined$corrs)
+  .regime_validate_relationship_values(combined)
+  combined$fisher_z_corr <- vapply(
+    combined$corrs,
+    .regime_fisher_z,
+    numeric(1),
+    boundary = "NA"
+  )
   combined$log_rate <- log(combined$rate)
   combined$log_vars <- log(combined$vars)
 
-  lm_vars <- stats::lm(log_rate ~ log_vars, data = combined)
+  lm_vars <- stats::lm(
+    log_rate ~ log_vars,
+    data = combined,
+    na.action = stats::na.exclude
+  )
   combined$vars_resid <- stats::rstudent(lm_vars)
-  variance_points <- combined[abs(combined$vars_resid) <= resid_sd_threshold_vars, , drop = FALSE]
-  variance_removed <- combined[abs(combined$vars_resid) > resid_sd_threshold_vars, , drop = FALSE]
+  variance_evaluable <- !is.na(combined$vars_resid)
+  variance_points <- combined[
+    variance_evaluable &
+      abs(combined$vars_resid) <= resid_sd_threshold_vars,
+    ,
+    drop = FALSE
+  ]
+  variance_removed <- combined[
+    variance_evaluable &
+      abs(combined$vars_resid) > resid_sd_threshold_vars,
+    ,
+    drop = FALSE
+  ]
 
-  lm_corrs <- stats::lm(log_rate ~ fisher_z_corr, data = combined)
+  lm_corrs <- stats::lm(
+    log_rate ~ fisher_z_corr,
+    data = combined,
+    na.action = stats::na.exclude
+  )
   combined$corrs_resid <- stats::rstudent(lm_corrs)
-  correlation_points <- combined[abs(combined$corrs_resid) <= resid_sd_threshold_corrs, , drop = FALSE]
-  correlation_removed <- combined[abs(combined$corrs_resid) > resid_sd_threshold_corrs, , drop = FALSE]
+  correlation_evaluable <- !is.na(combined$corrs_resid)
+  correlation_points <- combined[
+    correlation_evaluable &
+      abs(combined$corrs_resid) <= resid_sd_threshold_corrs,
+    ,
+    drop = FALSE
+  ]
+  correlation_removed <- combined[
+    correlation_evaluable &
+      abs(combined$corrs_resid) > resid_sd_threshold_corrs,
+    ,
+    drop = FALSE
+  ]
 
   variance_lm <- stats::lm(log_rate ~ log_vars, data = variance_points)
   correlation_lm <- stats::lm(log_rate ~ fisher_z_corr, data = correlation_points)
@@ -1139,9 +1230,7 @@ as.data.frame.regime_correlation_pca <- function(x,
                                                  ),
                                                  ...) {
   dots <- list(...)
-  if (length(dots) > 0L) {
-    stop("Unused argument(s): ", paste(names(dots), collapse = ", "), call. = FALSE)
-  }
+  .regime_check_unused_dots(dots)
   component <- match.arg(component)
 
   if (identical(component, "scores")) {
@@ -1195,8 +1284,12 @@ as.data.frame.regime_correlation_pca <- function(x,
 #' @param x A `regime_correlation_pca` object.
 #' @param type Plot type: `"loadings"`, `"scores"`, or `"variance"`.
 #' @param components Principal components to draw for loading or variance
-#'   plots. Supply numeric indices or names such as `"PC1"`.
-#' @param pc_x,pc_y Components for the score scatter plot.
+#'   plots. Supply numeric indices or names such as `"PC1"`. By default, the
+#'   first four available components, or all components when fewer exist, are
+#'   drawn.
+#' @param pc_x,pc_y Components for the score scatter plot. The default uses
+#'   PC1 and PC2 when available, or PC1 for both axes when only one component
+#'   exists.
 #' @param palette Optional color vector for loading heatmaps.
 #' @param main Optional plot title. For loading plots with multiple
 #'   components, supply one title per component.
@@ -1227,10 +1320,18 @@ plot.regime_correlation_pca <- function(x,
                                         show_legend = TRUE,
                                         cex.axis = 0.62,
                                         ...) {
+  components_missing <- missing(components)
+  pc_y_missing <- missing(pc_y)
   type <- match.arg(type)
   cluster <- match.arg(cluster)
   heatmap_engine <- match.arg(heatmap_engine)
   pc_names <- colnames(x$scores)
+  if (components_missing) {
+    components <- seq_len(min(4L, length(pc_names)))
+  }
+  if (pc_y_missing) {
+    pc_y <- min(2L, length(pc_names))
+  }
 
   if (identical(type, "loadings")) {
     component_idx <- .regime_pca_component_indices(components, pc_names)
@@ -1345,9 +1446,7 @@ as.data.frame.regime_module_diagnostics <- function(x,
                                                     ),
                                                     ...) {
   dots <- list(...)
-  if (length(dots) > 0L) {
-    stop("Unused argument(s): ", paste(names(dots), collapse = ", "), call. = FALSE)
-  }
+  .regime_check_unused_dots(dots)
   component <- match.arg(component)
   if (identical(component, "scores")) {
     return(x$module_scores)
@@ -1490,8 +1589,17 @@ plot.regime_module_diagnostics <- function(x,
     if (is.null(plot_args$type)) {
       plot_args$type <- "n"
     }
-    if (is.null(plot_args$ylim) && !is.null(curve)) {
-      plot_args$ylim <- range(fit_data$y_vals, curve$ymin, curve$ymax, na.rm = TRUE)
+    if (is.null(plot_args$ylim)) {
+      if (!is.null(curve)) {
+        plot_args$ylim <- range(
+          fit_data$y_vals,
+          curve$ymin,
+          curve$ymax,
+          na.rm = TRUE
+        )
+      } else if (!any(is.finite(y_vals))) {
+        plot_args$ylim <- c(-1, 1)
+      }
     }
     do.call(
       graphics::plot,
@@ -1565,6 +1673,14 @@ plot.regime_module_diagnostics <- function(x,
   invisible(ci_level)
 }
 
+.regime_validate_resid_sd_threshold <- function(threshold, name) {
+  if (!is.numeric(threshold) || length(threshold) != 1L ||
+      !is.finite(threshold) || threshold < 0) {
+    stop("`", name, "` must be a non-negative finite number.", call. = FALSE)
+  }
+  as.numeric(threshold)
+}
+
 .regime_validate_module_plot_seed <- function(seed) {
   if (is.null(seed)) {
     return(NULL)
@@ -1604,9 +1720,7 @@ as.data.frame.regime_integration_relationships <- function(x,
                                                            ),
                                                            ...) {
   dots <- list(...)
-  if (length(dots) > 0L) {
-    stop("Unused argument(s): ", paste(names(dots), collapse = ", "), call. = FALSE)
-  }
+  .regime_check_unused_dots(dots)
   component <- match.arg(component)
   if (identical(component, "models")) {
     return(.regime_integration_model_summary(x))
@@ -1732,6 +1846,24 @@ as.data.frame.regime_integration_relationships <- function(x,
   x
 }
 
+.regime_normalize_run_names <- function(run_names, n_runs, name) {
+  if (is.null(run_names)) {
+    run_names <- rep(NA_character_, n_runs)
+  }
+  missing_names <- is.na(run_names) | !nzchar(trimws(run_names))
+  run_names[missing_names] <- paste0("run", which(missing_names))
+  duplicated_run_names <- unique(run_names[duplicated(run_names)])
+  if (length(duplicated_run_names) > 0L) {
+    stop(
+      "`", name, "` contains duplicated run name(s): ",
+      paste(duplicated_run_names, collapse = ", "),
+      ".",
+      call. = FALSE
+    )
+  }
+  run_names
+}
+
 .regime_validate_run_list <- function(x, name) {
   if (inherits(x, "phylo") ||
       inherits(x, "bifrost_search") ||
@@ -1746,23 +1878,7 @@ as.data.frame.regime_integration_relationships <- function(x,
   if (!is.list(x) || length(x) == 0L) {
     stop("`", name, "` must be a non-empty list.", call. = FALSE)
   }
-  run_names <- names(x)
-  if (is.null(run_names)) {
-    run_names <- paste0("run", seq_along(x))
-  }
-  missing_names <- !nzchar(run_names)
-  if (any(missing_names)) {
-    run_names[missing_names] <- paste0("run", which(missing_names))
-  }
-  duplicated_run_names <- unique(run_names[duplicated(run_names)])
-  if (length(duplicated_run_names) > 0L) {
-    stop(
-      "`", name, "` contains duplicated run name(s): ",
-      paste(duplicated_run_names, collapse = ", "),
-      ".",
-      call. = FALSE
-    )
-  }
+  run_names <- .regime_normalize_run_names(names(x), length(x), name)
   names(x) <- run_names
   x
 }
@@ -1849,7 +1965,7 @@ as.data.frame.regime_integration_relationships <- function(x,
 
   col_names <- colnames(trait_data)
   if (!is.null(col_names)) {
-    for (name in col_names) {
+    for (name in setdiff(col_names, "trait_data")) {
       assign(name, trait_data[, name], envir = eval_env)
     }
   }
@@ -2180,6 +2296,47 @@ as.data.frame.regime_integration_relationships <- function(x,
   .regime_append_optional_summary_columns(out, summary_data)
 }
 
+.regime_validate_relationship_values <- function(data) {
+  validate_positive <- function(values, column) {
+    if (!is.numeric(values)) {
+      stop("`", column, "` must be numeric.", call. = FALSE)
+    }
+    invalid <- is.nan(values) |
+      (!is.na(values) & (!is.finite(values) | values <= 0))
+    if (any(invalid)) {
+      stop(
+        "`", column,
+        "` values must be finite and strictly positive when present; ",
+        "invalid regime(s): ",
+        paste(data$regime[invalid], collapse = ", "),
+        ".",
+        call. = FALSE
+      )
+    }
+  }
+
+  validate_positive(data$rate, "rate")
+  validate_positive(data$vars, "vars")
+
+  if (!is.numeric(data$corrs)) {
+    stop("`corrs` must be numeric.", call. = FALSE)
+  }
+  invalid_correlation <- is.nan(data$corrs) |
+    (!is.na(data$corrs) &
+      (!is.finite(data$corrs) | abs(data$corrs) > 1))
+  if (any(invalid_correlation)) {
+    stop(
+      "`corrs` values must be finite numbers between -1 and 1 when present; ",
+      "invalid regime(s): ",
+      paste(data$regime[invalid_correlation], collapse = ", "),
+      ".",
+      call. = FALSE
+    )
+  }
+
+  invisible(data)
+}
+
 .regime_append_optional_summary_columns <- function(out, summary_data) {
   optional <- c("tip_count", "regime_age", "status", "message")
   for (column in intersect(optional, names(summary_data))) {
@@ -2212,12 +2369,13 @@ as.data.frame.regime_integration_relationships <- function(x,
   }
 
   if (!is.list(vars_cors) || length(vars_cors) == 0L) {
-    stop("`vars_cors` must be a data frame or a non-empty named list of data frames.", call. = FALSE)
+    stop("`vars_cors` must be a data frame or a non-empty list of data frames.", call. = FALSE)
   }
-  run_names <- names(vars_cors)
-  if (is.null(run_names) || any(!nzchar(run_names))) {
-    run_names <- paste0("run", seq_along(vars_cors))
-  }
+  run_names <- .regime_normalize_run_names(
+    names(vars_cors),
+    length(vars_cors),
+    "summaries"
+  )
   out <- lapply(seq_along(vars_cors), function(i) {
     df <- .regime_standardize_summary_data(vars_cors[[i]])
     df$run <- run_names[[i]]
@@ -2379,6 +2537,9 @@ as.data.frame.regime_integration_relationships <- function(x,
 }
 
 .regime_pca_component_indices <- function(components, pc_names) {
+  if (length(components) < 1L) {
+    stop("`components` must identify at least one principal component.", call. = FALSE)
+  }
   if (is.character(components)) {
     idx <- match(components, pc_names)
     if (anyNA(idx)) {
@@ -2386,9 +2547,14 @@ as.data.frame.regime_integration_relationships <- function(x,
     }
     return(as.integer(idx))
   }
-  if (!is.numeric(components) || length(components) < 1L ||
-      any(!is.finite(components)) ||
-      any(components < 1 | components > length(pc_names))) {
+  if (!is.numeric(components) || is.complex(components) ||
+      any(!is.finite(components))) {
+    stop("`components` must identify valid principal components.", call. = FALSE)
+  }
+  if (any(components != floor(components))) {
+    stop("Numeric `components` indices must be whole-number values.", call. = FALSE)
+  }
+  if (any(components < 1 | components > length(pc_names))) {
     stop("`components` must identify valid principal components.", call. = FALSE)
   }
   as.integer(components)
@@ -2606,13 +2772,31 @@ as.data.frame.regime_integration_relationships <- function(x,
   if (!is.list(modules) || length(modules) == 0L) {
     stop("`modules` must be a non-empty named list.", call. = FALSE)
   }
-  if (is.null(names(modules)) || any(!nzchar(names(modules)))) {
+  if (is.null(names(modules))) {
     stop("`modules` must be named.", call. = FALSE)
   }
+  .regime_validate_identifiers(names(modules), "module names")
   modules <- lapply(modules, as.character)
   empty <- names(modules)[vapply(modules, length, integer(1)) == 0L]
   if (length(empty) > 0L) {
     stop("Empty module definition(s): ", paste(empty, collapse = ", "), call. = FALSE)
+  }
+  for (module_name in names(modules)) {
+    duplicated_traits <- unique(
+      modules[[module_name]][duplicated(modules[[module_name]])]
+    )
+    if (length(duplicated_traits) > 0L) {
+      stop(
+        "Module `", module_name, "` contains duplicated trait label(s): ",
+        paste(duplicated_traits, collapse = ", "),
+        ".",
+        call. = FALSE
+      )
+    }
+    .regime_validate_identifiers(
+      modules[[module_name]],
+      paste0("trait labels in module `", module_name, "`")
+    )
   }
   module_traits <- unique(unlist(modules, use.names = FALSE))
   missing_traits <- setdiff(module_traits, trait_labels)
@@ -2633,13 +2817,21 @@ as.data.frame.regime_integration_relationships <- function(x,
   if (!is.list(comparisons) || length(comparisons) == 0L) {
     stop("`comparisons` must be a non-empty named list.", call. = FALSE)
   }
-  if (is.null(names(comparisons)) || any(!nzchar(names(comparisons)))) {
-    names(comparisons) <- vapply(
-      comparisons,
-      function(x) paste(as.character(x), collapse = "_vs_"),
-      character(1)
-    )
+  comparison_names <- names(comparisons)
+  generated_names <- vapply(
+    comparisons,
+    function(x) paste(as.character(x), collapse = "_vs_"),
+    character(1)
+  )
+  if (is.null(comparison_names)) {
+    comparison_names <- generated_names
+  } else {
+    missing_names <- is.na(comparison_names) |
+      !nzchar(trimws(comparison_names))
+    comparison_names[missing_names] <- generated_names[missing_names]
   }
+  names(comparisons) <- comparison_names
+  .regime_validate_identifiers(names(comparisons), "comparison names")
   comparisons <- lapply(comparisons, as.character)
   invalid_length <- names(comparisons)[
     vapply(comparisons, length, integer(1)) != 2L
@@ -2669,7 +2861,11 @@ as.data.frame.regime_integration_relationships <- function(x,
   module_names <- names(modules)
   within <- lapply(module_names, function(module) c(module, module))
   names(within) <- paste0("within_", module_names)
-  between <- utils::combn(module_names, 2L, simplify = FALSE)
+  between <- if (length(module_names) >= 2L) {
+    utils::combn(module_names, 2L, simplify = FALSE)
+  } else {
+    list()
+  }
   names(between) <- vapply(
     between,
     function(x) paste(x, collapse = "_vs_"),
@@ -2687,6 +2883,19 @@ as.data.frame.regime_integration_relationships <- function(x,
     return(mean(sub_mat[upper.tri(sub_mat, diag = FALSE)], na.rm = TRUE))
   }
   mean(mat[module_a, module_b, drop = FALSE], na.rm = TRUE)
+}
+
+.regime_complete_correlation <- function(x, y) {
+  complete <- stats::complete.cases(x, y)
+  if (sum(complete) < 2L) {
+    return(NA_real_)
+  }
+  x <- x[complete]
+  y <- y[complete]
+  if (all(x == x[[1L]]) || all(y == y[[1L]])) {
+    return(NA_real_)
+  }
+  stats::cor(x, y)
 }
 
 .regime_recycle_plot_selection <- function(x, y, x_name, y_name) {
@@ -2751,6 +2960,20 @@ as.data.frame.regime_integration_relationships <- function(x,
   paste(trait_names[idx[, 1]], trait_names[idx[, 2]], sep = "__")
 }
 
+.regime_validate_collapsed_tip_labels <- function(tree, tips, state) {
+  prospective_tip_labels <- tree$tip.label
+  if (length(tips) > 1L) {
+    prospective_tip_labels <- prospective_tip_labels[
+      !prospective_tip_labels %in% tips[-1L]
+    ]
+  }
+  prospective_tip_labels[prospective_tip_labels == tips[[1L]]] <- state
+  .regime_validate_identifiers(
+    prospective_tip_labels,
+    "collapsed tree tip labels"
+  )
+}
+
 .collapse_regime_phylogeny <- function(simmap_tree) {
   tree <- .regime_resolve_tree(tree = simmap_tree)
   tip_states <- .regime_tip_states(tree)
@@ -2764,10 +2987,12 @@ as.data.frame.regime_integration_relationships <- function(x,
       next
     } # nocov end
     if (length(tips) == 1L) {
+      .regime_validate_collapsed_tip_labels(out, tips, state)
       out$tip.label[out$tip.label == tips] <- state
       next
     }
     if (ape::is.monophyletic(ape::as.phylo(out), tips)) {
+      .regime_validate_collapsed_tip_labels(out, tips, state)
       out <- ape::drop.tip(out, tips[-1L])
       out$tip.label[out$tip.label == tips[[1L]]] <- state
     } else {
@@ -2775,6 +3000,8 @@ as.data.frame.regime_integration_relationships <- function(x,
       out <- ape::drop.tip(out, tips)
     }
   }
+
+  .regime_validate_identifiers(out$tip.label, "collapsed tree tip labels")
 
   if (length(dropped_regimes) > 0L) {
     warning(
