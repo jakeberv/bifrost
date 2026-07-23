@@ -818,7 +818,7 @@ test_that("regime integration summary helpers reject malformed inputs", {
   )
   testthat::expect_error(
     regime_integration_relationships(list()),
-    "non-empty named list"
+    "non-empty list"
   )
   testthat::expect_error(
     regime_integration_relationships(data.frame(rate = 1, vars = 1)),
@@ -1743,6 +1743,31 @@ test_that("relationship summaries accept manuscript-shaped tables and preserve b
     n_boot = 1
   )
   testthat::expect_equal(unique(unnamed_runs$combined$run), c("run1", "run2"))
+
+  mixed_runs <- list(empirical = vars_cors, vars_cors)
+  mixed_runs_relationships <- regime_integration_relationships(
+    mixed_runs,
+    resid_sd_threshold_vars = 1000,
+    resid_sd_threshold_corrs = 1000,
+    n_boot = 1
+  )
+  testthat::expect_equal(
+    unique(mixed_runs_relationships$combined$run),
+    c("empirical", "run2")
+  )
+
+  missing_name_runs <- list(empirical = vars_cors, vars_cors)
+  names(missing_name_runs)[[2L]] <- NA_character_
+  missing_name_relationships <- regime_integration_relationships(
+    missing_name_runs,
+    resid_sd_threshold_vars = 1000,
+    resid_sd_threshold_corrs = 1000,
+    n_boot = 1
+  )
+  testthat::expect_equal(
+    unique(missing_name_relationships$combined$run),
+    c("empirical", "run2")
+  )
 
   old_seed <- if (exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)) {
     get(".Random.seed", envir = .GlobalEnv)

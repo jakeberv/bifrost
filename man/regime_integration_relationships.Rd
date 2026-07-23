@@ -15,10 +15,11 @@ regime_integration_relationships(
 )
 }
 \arguments{
-\item{summaries}{A named list of manuscript-compatible \code{vars_cors} tables or
-a data frame from \code{\link[=summarize_regime_covariances]{summarize_regime_covariances()}}. Regime IDs within each
-input table must be unique and non-empty. List inputs are pooled with a
-\code{run} column.}
+\item{summaries}{A list of manuscript-compatible \code{vars_cors} tables or a data
+frame from \code{\link[=summarize_regime_covariances]{summarize_regime_covariances()}}. Regime IDs within each input
+table must be unique and non-empty. List inputs are pooled with a \code{run}
+column; missing or blank list names become \code{run1}, \code{run2}, and so on based
+on their positions.}
 
 \item{resid_sd_threshold_vars, resid_sd_threshold_corrs}{Studentized residual
 thresholds used to filter the variance and correlation panels.}

@@ -906,10 +906,11 @@ regime_integration_pgls <- function(summary_data,
 #' Supplementary Figure 4A-style rate-vs-variance and rate-vs-integration
 #' panels. Use `plot()` on the returned object to draw the panels.
 #'
-#' @param summaries A named list of manuscript-compatible `vars_cors` tables or
-#'   a data frame from [summarize_regime_covariances()]. Regime IDs within each
-#'   input table must be unique and non-empty. List inputs are pooled with a
-#'   `run` column.
+#' @param summaries A list of manuscript-compatible `vars_cors` tables or a data
+#'   frame from [summarize_regime_covariances()]. Regime IDs within each input
+#'   table must be unique and non-empty. List inputs are pooled with a `run`
+#'   column; missing or blank list names become `run1`, `run2`, and so on based
+#'   on their positions.
 #' @param resid_sd_threshold_vars,resid_sd_threshold_corrs Studentized residual
 #'   thresholds used to filter the variance and correlation panels.
 #' @param n_boot Number of bootstrap replicates for confidence curves.
@@ -2219,11 +2220,14 @@ as.data.frame.regime_integration_relationships <- function(x,
   }
 
   if (!is.list(vars_cors) || length(vars_cors) == 0L) {
-    stop("`vars_cors` must be a data frame or a non-empty named list of data frames.", call. = FALSE)
+    stop("`vars_cors` must be a data frame or a non-empty list of data frames.", call. = FALSE)
   }
   run_names <- names(vars_cors)
-  if (is.null(run_names) || any(!nzchar(run_names))) {
+  if (is.null(run_names)) {
     run_names <- paste0("run", seq_along(vars_cors))
+  } else {
+    missing_names <- is.na(run_names) | !nzchar(run_names)
+    run_names[missing_names] <- paste0("run", which(missing_names))
   }
   out <- lapply(seq_along(vars_cors), function(i) {
     df <- .regime_standardize_summary_data(vars_cors[[i]])
