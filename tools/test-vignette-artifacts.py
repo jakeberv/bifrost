@@ -939,7 +939,8 @@ def main() -> None:
         "-e",
         (
             'config <- yaml::read_yaml("_pkgdown.yml"); '
-            'value <- config$template[["math-rendering"]]; '
+            'template <- config[["template"]]; '
+            'value <- if (is.list(template)) template[["math-rendering"]] else NULL; '
             "if (!is.null(value)) cat(value)"
         ),
     ).stdout.strip()
