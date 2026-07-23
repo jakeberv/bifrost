@@ -1389,6 +1389,7 @@ test_that("regime_correlation_pca validates inputs and supports plotting modes",
     grDevices::dev.off()
     unlink(pdf_file)
   }, add = TRUE)
+  testthat::expect_s3_class(plot(pca), "regime_correlation_pca")
   testthat::expect_s3_class(plot(pca, type = "scores"), "regime_correlation_pca")
   testthat::expect_s3_class(plot(pca, type = "variance", components = 1:2), "regime_correlation_pca")
   testthat::expect_s3_class(
@@ -1422,6 +1423,48 @@ test_that("regime_correlation_pca validates inputs and supports plotting modes",
   testthat::expect_error(
     as.data.frame(pca, unused = TRUE),
     "Unused"
+  )
+})
+
+test_that("regime PCA plotting adapts implicit defaults to available components", {
+  two_trait_matrix <- function(correlation) {
+    matrix(
+      c(1, correlation, correlation, 1),
+      nrow = 2,
+      dimnames = list(c("a", "b"), c("a", "b"))
+    )
+  }
+  pca <- regime_correlation_pca(
+    list(
+      r1 = two_trait_matrix(0.1),
+      r2 = two_trait_matrix(0.2),
+      r3 = two_trait_matrix(0.3)
+    )
+  )
+
+  pdf_file <- tempfile(fileext = ".pdf")
+  grDevices::pdf(pdf_file)
+  on.exit({
+    grDevices::dev.off()
+    unlink(pdf_file)
+  }, add = TRUE)
+
+  testthat::expect_s3_class(plot(pca), "regime_correlation_pca")
+  testthat::expect_s3_class(
+    plot(pca, type = "scores"),
+    "regime_correlation_pca"
+  )
+  testthat::expect_s3_class(
+    plot(pca, type = "variance"),
+    "regime_correlation_pca"
+  )
+  testthat::expect_error(
+    plot(pca, components = 1:4),
+    "valid principal components"
+  )
+  testthat::expect_error(
+    plot(pca, type = "scores", pc_y = 2),
+    "valid principal components"
   )
 })
 

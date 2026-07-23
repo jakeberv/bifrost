@@ -1284,8 +1284,12 @@ as.data.frame.regime_correlation_pca <- function(x,
 #' @param x A `regime_correlation_pca` object.
 #' @param type Plot type: `"loadings"`, `"scores"`, or `"variance"`.
 #' @param components Principal components to draw for loading or variance
-#'   plots. Supply numeric indices or names such as `"PC1"`.
-#' @param pc_x,pc_y Components for the score scatter plot.
+#'   plots. Supply numeric indices or names such as `"PC1"`. By default, the
+#'   first four available components, or all components when fewer exist, are
+#'   drawn.
+#' @param pc_x,pc_y Components for the score scatter plot. The default uses
+#'   PC1 and PC2 when available, or PC1 for both axes when only one component
+#'   exists.
 #' @param palette Optional color vector for loading heatmaps.
 #' @param main Optional plot title. For loading plots with multiple
 #'   components, supply one title per component.
@@ -1316,10 +1320,18 @@ plot.regime_correlation_pca <- function(x,
                                         show_legend = TRUE,
                                         cex.axis = 0.62,
                                         ...) {
+  components_missing <- missing(components)
+  pc_y_missing <- missing(pc_y)
   type <- match.arg(type)
   cluster <- match.arg(cluster)
   heatmap_engine <- match.arg(heatmap_engine)
   pc_names <- colnames(x$scores)
+  if (components_missing) {
+    components <- seq_len(min(4L, length(pc_names)))
+  }
+  if (pc_y_missing) {
+    pc_y <- min(2L, length(pc_names))
+  }
 
   if (identical(type, "loadings")) {
     component_idx <- .regime_pca_component_indices(components, pc_names)
