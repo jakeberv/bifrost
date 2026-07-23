@@ -1260,6 +1260,20 @@ test_that("regime_correlation_pca validates inputs and supports plotting modes",
   pca <- regime_correlation_pca(mats)
 
   testthat::expect_error(regime_correlation_pca(mats, unused = TRUE), "Unused")
+  testthat::expect_error(
+    regime_correlation_pca(
+      mats,
+      TRUE,
+      TRUE,
+      TRUE,
+      NULL,
+      NULL,
+      NULL,
+      NULL,
+      TRUE
+    ),
+    "Unused argument\\(s\\): \\.\\.1"
+  )
   testthat::expect_error(regime_correlation_pca(mats[1], min_tips = 10), "At least two")
   testthat::expect_error(
     regime_correlation_pca(list(r1 = base, r2 = base[1:2, 1:2], r3 = base)),

@@ -547,6 +547,22 @@ summarize_regime_covariance_runs <- function(x,
   )
 }
 
+.regime_check_unused_dots <- function(dots) {
+  if (length(dots) > 0L) {
+    dot_names <- names(dots)
+    if (is.null(dot_names)) {
+      dot_names <- rep.int("", length(dots))
+    }
+    missing_names <- is.na(dot_names) | !nzchar(trimws(dot_names))
+    dot_names[missing_names] <- paste0("..", which(missing_names))
+    stop(
+      "Unused argument(s): ",
+      paste(dot_names, collapse = ", "),
+      call. = FALSE
+    )
+  }
+}
+
 #' Run PCA on Regime Correlation Structures
 #'
 #' Convert each regime covariance matrix to a correlation matrix, vectorize the
@@ -592,9 +608,7 @@ regime_correlation_pca <- function(x,
                                    min_tips = NULL,
                                    ...) {
   dots <- list(...)
-  if (length(dots) > 0L) {
-    stop("Unused argument(s): ", paste(names(dots), collapse = ", "), call. = FALSE)
-  }
+  .regime_check_unused_dots(dots)
   if (!is.null(min_tips)) {
     min_tips <- .regime_validate_min_tips(min_tips)
   }
@@ -1199,9 +1213,7 @@ as.data.frame.regime_correlation_pca <- function(x,
                                                  ),
                                                  ...) {
   dots <- list(...)
-  if (length(dots) > 0L) {
-    stop("Unused argument(s): ", paste(names(dots), collapse = ", "), call. = FALSE)
-  }
+  .regime_check_unused_dots(dots)
   component <- match.arg(component)
 
   if (identical(component, "scores")) {
@@ -1405,9 +1417,7 @@ as.data.frame.regime_module_diagnostics <- function(x,
                                                     ),
                                                     ...) {
   dots <- list(...)
-  if (length(dots) > 0L) {
-    stop("Unused argument(s): ", paste(names(dots), collapse = ", "), call. = FALSE)
-  }
+  .regime_check_unused_dots(dots)
   component <- match.arg(component)
   if (identical(component, "scores")) {
     return(x$module_scores)
@@ -1681,9 +1691,7 @@ as.data.frame.regime_integration_relationships <- function(x,
                                                            ),
                                                            ...) {
   dots <- list(...)
-  if (length(dots) > 0L) {
-    stop("Unused argument(s): ", paste(names(dots), collapse = ", "), call. = FALSE)
-  }
+  .regime_check_unused_dots(dots)
   component <- match.arg(component)
   if (identical(component, "models")) {
     return(.regime_integration_model_summary(x))
