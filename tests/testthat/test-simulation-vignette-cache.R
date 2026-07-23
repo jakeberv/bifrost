@@ -934,18 +934,29 @@ test_that("Part 1 preserves the original correlation color scale", {
   )))
 })
 
-test_that("Part 1 demonstrates calibrated reduced integration with the original generator", {
-  vignette_path <- testthat::test_path(
+test_that("experimental draft preserves calibrated original-generator behavior", {
+  part1_path <- testthat::test_path(
     "../../vignettes/simulation-study-part-1.Rmd"
   )
-  testthat::skip_if_not(file.exists(vignette_path), "Simulation vignette not present")
+  draft_path <- testthat::test_path(
+    "../../experimental/simulation-study-manuscript-generator-calibration.Rmd"
+  )
+  testthat::skip_if_not(file.exists(part1_path), "Simulation vignette not present")
+  testthat::skip_if_not(
+    file.exists(draft_path),
+    "Experimental calibration draft is unavailable in installed tests"
+  )
 
   source <- paste(readLines(
-    vignette_path,
+    draft_path,
     warn = FALSE
   ), collapse = "\n")
 
-  testthat::expect_match(source, "Calibrating the manuscript generator")
+  testthat::expect_match(
+    source,
+    "Draft: Calibrating the Original Manuscript Generator",
+    fixed = TRUE
+  )
   testthat::expect_match(source, 'simulation_generator = "original"', fixed = TRUE)
   testthat::expect_match(source, "original_calibration_grid", fixed = TRUE)
   testthat::expect_match(

@@ -7,20 +7,29 @@ articles:
     contents:
       - theoretical-background-vignette
       - pca-model-selection-and-bifrost-vignette
-  - title: Using bifrost
-    navbar: Using bifrost
+  - title: Getting Started
+    navbar: Getting Started
     contents:
       - quick-start-vignette
       - jaw-shape-vignette
-      - simulation-study-part-1
-      - simulation-study-part-2
+  - title: Rate Mapping
+    navbar: Rate Mapping
+    contents:
+      - rate-map-jaw-shape-vignette
+      - rate-map-jaw-shape-part-2-comparisons
+  - title: Avian Skeleton Case Study
+    navbar: Avian Skeleton Case Study
+    contents:
       - avian-skeleton-part-1
       - avian-skeleton-part-2
       - avian-skeleton-part-3
       - avian-skeleton-part-4
       - avian-skeleton-part-5
-      - rate-map-jaw-shape-vignette
-      - rate-map-jaw-shape-part-2-comparisons
+  - title: Simulation and Calibration
+    navbar: Simulation and Calibration
+    contents:
+      - simulation-study-part-1
+      - simulation-study-part-2
 template:
   bootstrap: 5
   includes:

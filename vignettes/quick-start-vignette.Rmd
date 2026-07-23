@@ -35,17 +35,19 @@ In practical terms, *`bifrost`* asks:
 The smallest end-to-end workflow is a simulated single-regime example. Running it is mainly a quick way to confirm that *`bifrost`* and its dependencies are installed correctly and that the core search routine runs on your machine. In this case, we typically expect *`bifrost`* to recover no shifts.
 
 ```{r}
+# Load the packages needed to simulate and analyze the example.
 library(bifrost)
 library(ape)
 library(phytools)
 library(mvMORPH)
 
+# Fix the random-number stream so the worked example is reproducible.
 set.seed(1)
 
-# Simulate a tree
+# Simulate a 50-tip tree scaled to unit depth.
 tr <- pbtree(n = 50, scale = 1)
 
-# Simulate multivariate traits under a single-regime BM1 model (no shifts)
+# Simulate two traits under a single-regime BM1 model with no shifts.
 sigma <- diag(0.1, 2)  # 2 x 2 variance-covariance matrix for two traits
 theta <- c(0, 0)       # ancestral means for the two traits
 
@@ -60,11 +62,11 @@ sim <- mvSIM(
   )
 )
 
-# mvSIM returns either a matrix or a list of matrices depending on mvMORPH version
+# Normalize version-dependent mvSIM output to a tip-by-trait matrix.
 X <- if (is.list(sim)) sim[[1]] else sim
 rownames(X) <- tr$tip.label
 
-# Run bifrost's greedy search for shifts
+# Run bifrost's greedy shift search with a conservative GIC threshold.
 res <- searchOptimalConfiguration(
   baseline_tree              = tr,
   trait_data                 = X,
@@ -79,7 +81,7 @@ res <- searchOptimalConfiguration(
   progress                   = FALSE
 )
 
-# For this single-regime BM1 simulation, we typically expect no inferred shifts
+# Inspect the recovered shifts, information criterion, and regime covariance.
 res$shift_nodes_no_uncertainty
 res$optimal_ic - res$baseline_ic
 str(res$VCVs)
@@ -199,3 +201,7 @@ When moving from this smoke test to a real dataset:
 - repeat searches under nearby settings before treating individual inferred shifts as robust.
 
 Once this smoke test runs cleanly, the next step is usually to move to a real dataset and inspect the returned shifts, IC support values, and regime-specific VCVs in more detail. For a full empirical workflow, continue to the [jaw-shape vignette](jaw-shape-vignette.html); for broader conceptual background on the package website, see [Brownian Motion and Multivariate Shifts](https://jakeberv.com/bifrost/articles/theoretical-background-vignette.html) and [Whole-Tree Models, PCA, and *`bifrost`*](https://jakeberv.com/bifrost/articles/pca-model-selection-and-bifrost-vignette.html).
+
+## AI Assistance
+
+This vignette was developed with assistance from OpenAI tools for drafting, editing, and figure refinement; all scientific content, interpretation, and final decisions were reviewed by the authors.

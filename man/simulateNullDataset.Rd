@@ -2,7 +2,7 @@
 % Please edit documentation in R/simulation-generators.R
 \name{simulateNullDataset}
 \alias{simulateNullDataset}
-\title{Simulate a Dataset-Matched Null Replicate}
+\title{Simulate an Empirically Calibrated Null Replicate}
 \usage{
 simulateNullDataset(
   template,
@@ -41,7 +41,8 @@ covariance degrees of freedom, and covariance diagnostics.
 }
 \description{
 Generate a single no-shift simulation replicate under a uniform Brownian
-motion process using the dataset-matched covariance-generation framework.
+motion process using the empirically calibrated covariance-generation
+framework.
 By default, each replicate uses the element-sampling operations from the
 published simulation code. The empirical generator is available explicitly
 for full-covariance draws centered on a \code{\link[=createSimulationTemplate]{createSimulationTemplate()}} object.

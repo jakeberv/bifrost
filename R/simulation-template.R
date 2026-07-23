@@ -1,4 +1,4 @@
-#' Create a Dataset-Matched Simulation Template for `bifrost`
+#' Create an Empirically Calibrated Simulation Template for `bifrost`
 #'
 #' @description
 #' Fit a global single-regime multivariate GLS model to an empirical dataset and

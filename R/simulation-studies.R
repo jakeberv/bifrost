@@ -137,7 +137,7 @@
 #'   [searchOptimalConfiguration()]. These override the default response-only
 #'   intercept-only search settings assembled from `template`. If `formula` is
 #'   omitted, the wrapper inherits `template$search_formula`, which is
-#'   intercept-only in the dataset-matched simulation workflow.
+#'   intercept-only in the empirically calibrated simulation workflow.
 #' @param num_cores Integer number of workers used across replicate analyses.
 #'   When greater than one, outer replicate parallelism takes precedence and
 #'   each inner search is forced to `search_options$num_cores = 1`.
@@ -455,7 +455,7 @@ runFalsePositiveSimulationStudy <- function(template,
 #'   [searchOptimalConfiguration()]. These override the default response-only
 #'   intercept-only search settings assembled from `template`. If `formula` is
 #'   omitted, the wrapper inherits `template$search_formula`, which is
-#'   intercept-only in the dataset-matched simulation workflow.
+#'   intercept-only in the empirically calibrated simulation workflow.
 #' @param fuzzy_distance Integer node distance used for fuzzy matching in
 #'   [evaluateShiftRecovery()].
 #' @param weighted Logical; if `TRUE`, compute weighted recovery summaries using

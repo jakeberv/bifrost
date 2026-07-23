@@ -47,6 +47,7 @@ Read [Part 1: Workflow and near-zero diagnostics](rate-map-jaw-shape-vignette.ht
 Load the packages needed for the comparison and diagnostic views.
 
 ```{r load_packages}
+# Load the package and phylogenetic utilities used in the comparisons.
 library(bifrost)
 library(ape)
 library(phytools)
@@ -55,6 +56,7 @@ library(phytools)
 Load the reference tree used for plotting and same-topology examples.
 
 ```{r load_jaw_shape_tree}
+# Load and standardize the packaged reference phylogeny from Part 1.
 tree_path <- system.file(
   "extdata", "jaw-shape", "mrbayes_prune_tree.RDS",
   package = "bifrost"
@@ -66,6 +68,7 @@ fish.tree <- ladderize(untangle(as.phylo(fish.tree)))
 Load the cached threshold sweep created in Part 1.
 
 ```{r load_threshold_sweep}
+# Restore the Part 1 threshold sweep and recover its numeric thresholds.
 cache_path <- rate_map_cache_path()
 if (!file.exists(cache_path)) {
   stop("No jaw-shape threshold cache found; run the Part 1 sweep first.")
@@ -80,6 +83,7 @@ near-zero metadata, adapted from Otsu's histogram thresholding criterion
 ([Otsu 1979](https://doi.org/10.1109/TSMC.1979.4310076)).
 
 ```{r reconstruct_equal_weight_map}
+# Rebuild the adjusted equal-weight map used as the uncertainty reference.
 jaw_rate_map_equal <- rateMap(
   jaw_threshold_runs,
   weights = "equal",
@@ -89,6 +93,8 @@ jaw_rate_map_equal <- rateMap(
     rate_flags = rateMapRateFlags(method = "tail_cluster")
   )
 )
+
+# Reapply the same categorical display mapping used in Part 1.
 jaw_rate_map_equal <- rateMapView(
   jaw_rate_map_equal,
   palette = "Viridis",
@@ -110,6 +116,7 @@ permissive fitted configuration, so read the map as a model-outcome weighting
 over retained fits rather than as a formal threshold-selection rule.
 
 ```{r ic_weighted_branch_category_ratemap}
+# Weight completed threshold searches by their relative GIC support.
 jaw_rate_map_ic <- rateMap(
   jaw_threshold_runs,
   weights = "ic",
@@ -119,12 +126,15 @@ jaw_rate_map_ic <- rateMap(
     rate_flags = rateMapRateFlags(method = "tail_cluster")
   )
 )
+
+# Freeze the IC-weighted categorical view for tables and plotting.
 jaw_rate_map_ic <- rateMapView(
   jaw_rate_map_ic,
   palette = "Viridis",
   legend_title = "IC-weighted mean log fitted rate"
 )
 
+# Inspect the fitted map, fit-level weights, and display categories.
 jaw_rate_map_ic
 jaw_rate_map_ic$weight_table
 jaw_rate_map_ic$rate_categories
@@ -178,6 +188,7 @@ cat(
 ```
 
 ```{r plot_ic_weighted_branch_category_ratemap, fig.width = 8, fig.height = 6, fig.cap = "**Figure 1. IC-weighted branch-category rate map after near-zero flagging.** This arc tree summarizes the same threshold sweep after weighting each completed search by its relative GIC support. Branches in the separated lower log-rate cluster are shown as a separate grey category; remaining regular branches are colored by ordered categories of the IC-weighted mean fitted log-rate.", fig.alt = "Arc-style phylogenetic tree with grey near-zero branches and colored IC-weighted branch log-rate categories across the jaw-shape threshold sweep."}
+# Draw the IC-weighted map with near-zero branches shown separately.
 plot(
   jaw_rate_map_ic,
   type = "arc",
@@ -236,6 +247,7 @@ more across runs. As a first example, plot the across-threshold standard
 deviation:
 
 ```{r plot_rate_sd, fig.width = 8, fig.height = 6, fig.cap = "**Figure 2. Across-threshold standard deviation.** This uncertainty map recolors the equal-weight `rateMap()` object by the standard deviation of fitted branch log-rates across the six threshold searches. Larger values mark branches whose inferred rates change more across the threshold sweep, while smaller values mark branches with more stable rate assignments.", fig.alt = "Arc-style phylogenetic tree with branches colored by across-threshold standard deviation in fitted log-rate."}
+# Recolor the equal-weight map by across-threshold standard deviation.
 plot(
   jaw_rate_map_equal,
   value = "sd",
@@ -255,6 +267,7 @@ knitr::include_graphics(rate_map_artifact("rate_sd_ratemap.png"))
 Or plot the highest-density, or shortest weighted, interval width:
 
 ```{r plot_rate_highest_density_interval_width, fig.width = 8, fig.height = 6, fig.cap = "**Figure 3. Across-threshold 95% shortest-interval width.** This uncertainty map recolors the equal-weight `rateMap()` object by the width of the highest-density, or shortest weighted, interval containing 95% of the run-level log-rate values for each branch. Wider intervals indicate less stable fitted rate assignments across threshold searches; narrower intervals indicate stronger agreement among runs.", fig.alt = "Arc-style phylogenetic tree with branches colored by the width of the across-threshold highest-density interval in fitted log-rate."}
+# Recolor the map by the 95% shortest-interval width across thresholds.
 plot(
   jaw_rate_map_equal,
   value = "highest_density_interval_width",
@@ -277,11 +290,13 @@ the upper quartile of `highest_density_interval_width`, then ask whether
 near-zero branches are overrepresented in that high-uncertainty set.
 
 ```{r uncertainty_overlap_diagnostic}
+# Flag near-zero branches and branches in the upper uncertainty quartile.
 rate_intervals <- jaw_rate_map_equal$intervals
 near_zero <- rate_intervals$is_near_zero %in% TRUE
 high_interval_width <- rate_intervals$highest_density_interval_width >=
   quantile(rate_intervals$highest_density_interval_width, 0.75, na.rm = TRUE)
 
+# Count near-zero branches in the full and high-uncertainty branch sets.
 branch_set_n <- c(
   nrow(rate_intervals),
   sum(high_interval_width)
@@ -291,6 +306,7 @@ near_zero_n <- c(
   sum(near_zero & high_interval_width)
 )
 
+# Report the overlap as counts and percentages.
 uncertainty_overlap_summary <- data.frame(
   branch_set = c(
     "all branches",
@@ -466,6 +482,7 @@ positive, and values below one correspond to negative values on the default
 log-rate maps.
 
 ```{r raw_rate_ratemap}
+# Recompute and plot equal-weight summaries on the original rate scale.
 jaw_raw_rate_map <- rateMap(
   jaw_threshold_runs,
   weights = "equal",
@@ -520,6 +537,7 @@ descendant-tip counts and representative taxa. In this run, the highest log-rate
 whole-branch summaries point to the same lungfish-rich region highlighted above.
 
 ```{r highest_log_rate_branch_table}
+# Rank branch summaries by their equal-weight mean fitted log-rate.
 branch_rates <- jaw_rate_map_equal$intervals
 highest_log_rate_branches <- branch_rates[
   order(branch_rates$value, decreasing = TRUE),
@@ -529,6 +547,8 @@ highest_log_rate_branches <- branch_rates[
     "q025", "q975", "highest_density_interval_low", "highest_density_interval_high", "n"
   )
 ]
+
+# Format clade identifiers for a compact reader-facing table.
 highest_log_rate_branches$clade_key <- vapply(
   highest_log_rate_branches$clade_key,
   rate_map_format_clade_key,
@@ -572,6 +592,7 @@ better-supported threshold outcomes emphasize different log-rates than the
 unweighted sensitivity average.
 
 ```{r compare_weighting_schemes}
+# Build parallel branch summaries under equal and IC weighting.
 equal_branch_map <- rateMap(
   jaw_threshold_runs,
   summary = "branch",
@@ -586,6 +607,7 @@ ic_branch_map <- rateMap(
   progress = TRUE
 )
 
+# Join corresponding branches and rank their absolute weighting differences.
 comparison <- merge(
   equal_branch_map$intervals[, c("edge", "value")],
   ic_branch_map$intervals[, c("edge", "value")],
@@ -639,10 +661,6 @@ The `rateMap()` plotting layer follows the `phytools` SIMMAP plotting ecosystem
 described in Part 1: rate-valued summaries are drawn using the same lineage of
 tools as `densityMap()`, `plotSimmap()`, and `plotTree()`.
 
-This vignette was developed with assistance from OpenAI tools for drafting and
-editing; all scientific content, interpretation, and final decisions were
-reviewed by the authors.
-
 ## References
 
 - Clavel, J., Aristide, L., and Morlon, H. (2019). *A Penalized Likelihood Framework for High-Dimensional Phylogenetic Comparative Methods and an Application to New-World Monkeys Brain Evolution*. [https://doi.org/10.1093/sysbio/syy045](https://doi.org/10.1093/sysbio/syy045)
@@ -657,3 +675,7 @@ reviewed by the authors.
 
 - `bifrost` for shift searches and `rateMap()` summaries.
 - `ape` and `phytools` for phylogenetic data structures, SIMMAP trees, and plotting.
+
+## AI Assistance
+
+This vignette was developed with assistance from OpenAI tools for drafting, editing, and figure refinement; all scientific content, interpretation, and final decisions were reviewed by the authors.
