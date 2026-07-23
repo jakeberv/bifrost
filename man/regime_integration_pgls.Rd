@@ -46,5 +46,6 @@ collapsed regime phylogeny.
 The collapse step follows the manuscript implementation: a
 monophyletic regime is represented by one collapsed tip, whereas all tips
 assigned to a nonmonophyletic regime are removed. When removals occur, the
-function emits one warning listing every dropped regime ID.
+function emits one warning listing every dropped regime ID. The collapse
+stops if regime relabeling would create duplicated output tip labels.
 }

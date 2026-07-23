@@ -21,8 +21,9 @@ table must be unique and non-empty. List inputs are pooled with a \code{run}
 column; missing or blank list names become \code{run1}, \code{run2}, and so on based
 on their positions.}
 
-\item{resid_sd_threshold_vars, resid_sd_threshold_corrs}{Studentized residual
-thresholds used to filter the variance and correlation panels.}
+\item{resid_sd_threshold_vars, resid_sd_threshold_corrs}{Non-negative finite
+studentized-residual thresholds used to filter the variance and
+correlation panels.}
 
 \item{n_boot}{Number of bootstrap replicates for confidence curves.}
 

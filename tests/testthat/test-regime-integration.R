@@ -845,6 +845,50 @@ test_that("regime integration summary helpers reject malformed inputs", {
     regime_integration_relationships(relationship_summary, ci_level = 1),
     "ci_level"
   )
+  testthat::expect_error(
+    regime_integration_relationships(
+      relationship_summary,
+      resid_sd_threshold_vars = c(1, 2),
+      n_boot = 1
+    ),
+    "resid_sd_threshold_vars.*non-negative finite number"
+  )
+  testthat::expect_error(
+    regime_integration_relationships(
+      relationship_summary,
+      resid_sd_threshold_corrs = NA_real_,
+      n_boot = 1
+    ),
+    "resid_sd_threshold_corrs.*non-negative finite number"
+  )
+  testthat::expect_error(
+    regime_integration_relationships(
+      relationship_summary,
+      resid_sd_threshold_vars = -1,
+      n_boot = 1
+    ),
+    "resid_sd_threshold_vars.*non-negative finite number"
+  )
+  testthat::expect_error(
+    regime_integration_relationships(
+      relationship_summary,
+      resid_sd_threshold_corrs = Inf,
+      n_boot = 1
+    ),
+    "resid_sd_threshold_corrs.*non-negative finite number"
+  )
+  testthat::expect_error(
+    regime_integration_relationships(
+      relationship_summary,
+      resid_sd_threshold_vars = "2",
+      n_boot = 1
+    ),
+    "resid_sd_threshold_vars.*non-negative finite number"
+  )
+  testthat::expect_identical(
+    .regime_validate_resid_sd_threshold(0, "resid_sd_threshold_vars"),
+    0
+  )
   testthat::expect_error(fisher_z_transform(1), "undefined")
 
   duplicated_summary <- relationship_summary
@@ -894,12 +938,10 @@ test_that("regime relationship bootstrap controls require usable R integers", {
   set.seed(2026)
   seed_before <- .Random.seed
   testthat::expect_warning(
-    testthat::expect_error(
-      call_relationships(seed = .Machine$integer.max),
-      "seed.*R integer range"
-    ),
+    endpoint_relationships <- call_relationships(seed = .Machine$integer.max),
     NA
   )
+  testthat::expect_s3_class(endpoint_relationships, "regime_integration_relationships")
   testthat::expect_equal(.Random.seed, seed_before)
 
   testthat::expect_warning(
@@ -910,6 +952,30 @@ test_that("regime relationship bootstrap controls require usable R integers", {
   )
   testthat::expect_s3_class(safe_relationships, "regime_integration_relationships")
   testthat::expect_equal(.Random.seed, seed_before)
+})
+
+test_that("relationship bootstrap streams remain distinct at the seed boundary", {
+  bootstrap_seeds <- list()
+  testthat::local_mocked_bindings(
+    .regime_bootstrap_curve = function(..., seed) {
+      bootstrap_seeds[[length(bootstrap_seeds) + 1L]] <<- seed
+      data.frame(x = 1, fit = 1, lower = 1, upper = 1)
+    },
+    .package = "bifrost"
+  )
+
+  regime_integration_relationships(
+    .regime_integration_relationship_summary(),
+    resid_sd_threshold_vars = 1000,
+    resid_sd_threshold_corrs = 1000,
+    n_boot = 1,
+    seed = .Machine$integer.max
+  )
+
+  testthat::expect_identical(
+    bootstrap_seeds,
+    list(.Machine$integer.max, 0L)
+  )
 })
 
 test_that("regime integration summaries cover matrix-list and legacy status shapes", {
@@ -1514,6 +1580,33 @@ test_that("summarize_regime_covariances can derive tip counts and ages from sear
   testthat::expect_false(all(is.na(out$tip_count)))
   testthat::expect_false(all(is.na(out$regime_age)))
   testthat::expect_true(all(out$tip_count[!is.na(out$tip_count)] > 10))
+})
+
+test_that("regime phylogeny collapse rejects duplicated output tip labels", {
+  testthat::skip_if_not_installed("ape")
+  testthat::skip_if_not_installed("phytools")
+
+  tree <- ape::read.tree(text = "(((a:1,b:1):1,(c:1,d:1):1):1,e:3);")
+  tree <- phytools::paintSubTree(
+    tree,
+    node = ape::Ntip(tree) + 1L,
+    state = "root"
+  )
+  tree <- phytools::paintSubTree(
+    tree,
+    node = ape::Ntip(tree) + 2L,
+    state = "wing"
+  )
+  tree <- phytools::paintSubTree(
+    tree,
+    node = ape::Ntip(tree) + 3L,
+    state = "c"
+  )
+
+  testthat::expect_error(
+    .collapse_regime_phylogeny(tree),
+    "collapsed tree tip labels.*duplicated identifier.*c"
+  )
 })
 
 test_that("regime_integration_pgls reproduces representative manuscript model", {

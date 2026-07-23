@@ -843,7 +843,8 @@ regime_module_diagnostics <- function(pca,
 #' @details The collapse step follows the manuscript implementation: a
 #'   monophyletic regime is represented by one collapsed tip, whereas all tips
 #'   assigned to a nonmonophyletic regime are removed. When removals occur, the
-#'   function emits one warning listing every dropped regime ID.
+#'   function emits one warning listing every dropped regime ID. The collapse
+#'   stops if regime relabeling would create duplicated output tip labels.
 #' @export
 regime_integration_pgls <- function(summary_data,
                                     search = NULL,
@@ -911,8 +912,9 @@ regime_integration_pgls <- function(summary_data,
 #'   table must be unique and non-empty. List inputs are pooled with a `run`
 #'   column; missing or blank list names become `run1`, `run2`, and so on based
 #'   on their positions.
-#' @param resid_sd_threshold_vars,resid_sd_threshold_corrs Studentized residual
-#'   thresholds used to filter the variance and correlation panels.
+#' @param resid_sd_threshold_vars,resid_sd_threshold_corrs Non-negative finite
+#'   studentized-residual thresholds used to filter the variance and
+#'   correlation panels.
 #' @param n_boot Number of bootstrap replicates for confidence curves.
 #' @param ci_level Confidence level for bootstrap ribbons.
 #' @param seed Optional random seed for reproducible bootstrap curves.
@@ -937,11 +939,21 @@ regime_integration_relationships <- function(summaries,
                                              ci_level = 0.99,
                                              seed = NULL,
                                              min_tips = NULL) {
+  resid_sd_threshold_vars <- .regime_validate_resid_sd_threshold(
+    resid_sd_threshold_vars,
+    "resid_sd_threshold_vars"
+  )
+  resid_sd_threshold_corrs <- .regime_validate_resid_sd_threshold(
+    resid_sd_threshold_corrs,
+    "resid_sd_threshold_corrs"
+  )
   validated_seed <- .regime_validate_module_plot_seed(seed)
   correlation_seed <- if (is.null(validated_seed)) {
     NULL
+  } else if (validated_seed == .Machine$integer.max) {
+    0L
   } else {
-    .regime_validate_module_plot_seed(as.double(validated_seed) + 1)
+    validated_seed + 1L
   }
   combined <- .regime_bind_summary_runs(summaries)
   combined <- .regime_filter_summary_min_tips(
@@ -1571,6 +1583,14 @@ plot.regime_module_diagnostics <- function(x,
     stop("`ci_level` must be between 0 and 1.", call. = FALSE)
   }
   invisible(ci_level)
+}
+
+.regime_validate_resid_sd_threshold <- function(threshold, name) {
+  if (!is.numeric(threshold) || length(threshold) != 1L ||
+      !is.finite(threshold) || threshold < 0) {
+    stop("`", name, "` must be a non-negative finite number.", call. = FALSE)
+  }
+  as.numeric(threshold)
 }
 
 .regime_validate_module_plot_seed <- function(seed) {
@@ -2775,6 +2795,20 @@ as.data.frame.regime_integration_relationships <- function(x,
   paste(trait_names[idx[, 1]], trait_names[idx[, 2]], sep = "__")
 }
 
+.regime_validate_collapsed_tip_labels <- function(tree, tips, state) {
+  prospective_tip_labels <- tree$tip.label
+  if (length(tips) > 1L) {
+    prospective_tip_labels <- prospective_tip_labels[
+      !prospective_tip_labels %in% tips[-1L]
+    ]
+  }
+  prospective_tip_labels[prospective_tip_labels == tips[[1L]]] <- state
+  .regime_validate_identifiers(
+    prospective_tip_labels,
+    "collapsed tree tip labels"
+  )
+}
+
 .collapse_regime_phylogeny <- function(simmap_tree) {
   tree <- .regime_resolve_tree(tree = simmap_tree)
   tip_states <- .regime_tip_states(tree)
@@ -2788,10 +2822,12 @@ as.data.frame.regime_integration_relationships <- function(x,
       next
     } # nocov end
     if (length(tips) == 1L) {
+      .regime_validate_collapsed_tip_labels(out, tips, state)
       out$tip.label[out$tip.label == tips] <- state
       next
     }
     if (ape::is.monophyletic(ape::as.phylo(out), tips)) {
+      .regime_validate_collapsed_tip_labels(out, tips, state)
       out <- ape::drop.tip(out, tips[-1L])
       out$tip.label[out$tip.label == tips[[1L]]] <- state
     } else {
@@ -2799,6 +2835,8 @@ as.data.frame.regime_integration_relationships <- function(x,
       out <- ape::drop.tip(out, tips)
     }
   }
+
+  .regime_validate_identifiers(out$tip.label, "collapsed tree tip labels")
 
   if (length(dropped_regimes) > 0L) {
     warning(
