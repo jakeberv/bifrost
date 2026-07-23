@@ -22,7 +22,7 @@ jobs:
       NOT_CRAN: "true"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: r-lib/actions/setup-r@v2
         with:
@@ -51,7 +51,7 @@ jobs:
       NOT_CRAN: "true"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: r-lib/actions/setup-r@v2
         with:
@@ -78,7 +78,7 @@ jobs:
           }
         shell: Rscript {0}
 
-      - uses: codecov/codecov-action@v5
+      - uses: codecov/codecov-action@v6
         if: always()
         with:
           # Fail if error if not on PR, or if on PR and token is given
@@ -97,7 +97,7 @@ jobs:
 
       - name: Upload test results
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: coverage-test-failures
           path: ${{ runner.temp }}/package
