@@ -59,22 +59,14 @@ Install [Rtools](https://cran.r-project.org/bin/windows/Rtools/) for your R vers
 **macOS users:**  
 You may need to install [XQuartz](https://www.xquartz.org/) to build or run packages that depend on certain graphical or system libraries.
 
-## Release status
+## Development status
 
-CRAN currently provides `bifrost` 0.1.4. The GitHub development version includes repository-only additions documented here but not yet available from CRAN:
-
-- Search histories can now be inspected with the `icTrajectory()` extractor and plotted directly with `plot()`, for example `traj <- icTrajectory(search); plot(traj)`. The older `plot_ic_acceptance_matrix()` helper remains available as a compatibility wrapper.
-- Stored model-fit histories now include richer per-candidate records, including errored candidate fits, so search diagnostics can preserve accepted, rejected, and errored proposals.
-- The `rateMap()` workflow, along with `rateMapView()`, `rateMapControl()`, `rateMapRateFlags()`, and `plot()` / `print()` methods for `rateMap` objects, summarizes and visualizes branch-rate patterns from completed `bifrost` searches. The two rate-map jaw-shape articles below are part of this development-version documentation.
-- `lineage_rates()` and the shift-distribution toolkit summarize inherited lineage rates, shift timing and waiting times, rate-distribution fits, and shift-magnitude patterns from completed searches.
-- Regime covariance and integration tools fit and summarize per-regime covariance structure, diagnose modules and correlation-space variation, compare integration relationships, and support post-hoc pGLS analyses.
-- The simulation framework creates reproducible null and shifted datasets, evaluates strict and fuzzy shift recovery, runs fixed-IC tuning grids, and selects search settings using fuzzy balanced accuracy by default. The original manuscript generator remains the default, with the empirically calibrated full-covariance generator available explicitly.
-- Formula-based searches now accept formula objects as well as character strings, support numeric response-only data frames for intercept-only searches, and support named-column data-frame formulas such as `cbind(y1, y2) ~ size + grp` for pGLS-style workflows.
-- The development version requires R 4.2 or newer.
-
-Some repository workflows are still being actively developed, especially methodological guidance for pGLS-style uses of `bifrost` with hidden branch-specific rate variation. Repository tooling and generated site assets, such as the CRAN downloads tracker, support development and documentation rather than the core CRAN API.
-
-All source vignettes listed below are maintained as website articles and excluded from the CRAN package tarball. This avoids rebuilding manuscript-scale demonstrations, including the five-part avian skeleton workflow, during CRAN checks while keeping the complete documentation available through pkgdown.
+CRAN provides `bifrost` 0.1.4. The GitHub development version contains
+unreleased features and documentation and requires R 4.2 or newer. See the
+[development-status page](https://jakeberv.com/bifrost/articles/development-status.html)
+for a stable-versus-development comparison, current caveats, and the website
+article packaging policy; see [NEWS](https://jakeberv.com/bifrost/news/index.html)
+for the complete changelog.
 
 ## Overview
 

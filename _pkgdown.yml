@@ -2,6 +2,10 @@ url: https://jakeberv.com/bifrost/
 # Vignettes are tracked in this source checkout so pkgdown can build articles,
 # but .Rbuildignore excludes vignettes/ from the package tarball.
 articles:
+  - title: Project Status
+    desc: Release availability and development-version differences.
+    contents:
+      - articles/development-status
   - title: Background
     navbar: Background
     contents:
@@ -88,7 +92,9 @@ template:
             (nameCode && nameCode.textContent) ||
             window.location.pathname.split('/').pop() ||
             '';
-          let slug = sourceText.replace(/^.*\//, '');
+          const sourcePath = sourceText.replace(/\\/g, '/');
+          if (sourcePath.includes('/articles/')) return;
+          let slug = sourcePath.replace(/^.*\//, '');
           const lowerSlug = slug.toLowerCase();
           if (lowerSlug.endsWith('.rmd')) {
             slug = slug.slice(0, -4);
