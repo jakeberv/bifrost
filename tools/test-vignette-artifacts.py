@@ -921,7 +921,7 @@ def main() -> None:
             + ", ".join(late_or_missing_reports)
         )
     codecov_step = (
-        "      - uses: codecov/codecov-action@v5\n"
+        "      - uses: codecov/codecov-action@v6\n"
         "        if: always()\n"
     )
     if codecov_step not in coverage_workflow:
