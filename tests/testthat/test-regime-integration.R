@@ -1384,6 +1384,18 @@ test_that("regime_correlation_pca validates inputs and supports plotting modes",
     "valid principal components"
   )
   testthat::expect_error(
+    plot(pca, type = "variance", components = 1.5),
+    "whole-number"
+  )
+  testthat::expect_error(
+    plot(pca, type = "variance", components = character()),
+    "at least one principal component"
+  )
+  testthat::expect_error(
+    plot(pca, type = "variance", components = 1 + 0i),
+    "valid principal components"
+  )
+  testthat::expect_error(
     plot(pca, type = "loadings", components = 1:2, main = "one"),
     NA
   )

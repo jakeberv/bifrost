@@ -2517,6 +2517,9 @@ as.data.frame.regime_integration_relationships <- function(x,
 }
 
 .regime_pca_component_indices <- function(components, pc_names) {
+  if (length(components) < 1L) {
+    stop("`components` must identify at least one principal component.", call. = FALSE)
+  }
   if (is.character(components)) {
     idx <- match(components, pc_names)
     if (anyNA(idx)) {
@@ -2524,9 +2527,14 @@ as.data.frame.regime_integration_relationships <- function(x,
     }
     return(as.integer(idx))
   }
-  if (!is.numeric(components) || length(components) < 1L ||
-      any(!is.finite(components)) ||
-      any(components < 1 | components > length(pc_names))) {
+  if (!is.numeric(components) || is.complex(components) ||
+      any(!is.finite(components))) {
+    stop("`components` must identify valid principal components.", call. = FALSE)
+  }
+  if (any(components != floor(components))) {
+    stop("Numeric `components` indices must be whole-number values.", call. = FALSE)
+  }
+  if (any(components < 1 | components > length(pc_names))) {
     stop("`components` must identify valid principal components.", call. = FALSE)
   }
   as.integer(components)
