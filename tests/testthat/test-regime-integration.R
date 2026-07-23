@@ -1504,6 +1504,23 @@ test_that("regime_module_diagnostics handles one and singleton modules", {
   testthat::expect_true(all(is.na(
     singleton_modules$correlations$correlation[within_correlations]
   )))
+
+  pdf_file <- tempfile(fileext = ".pdf")
+  grDevices::pdf(pdf_file)
+  on.exit({
+    grDevices::dev.off()
+    unlink(pdf_file)
+  }, add = TRUE)
+  testthat::expect_warning(
+    singleton_plot <- plot(
+      singleton_modules,
+      pc = "PC1",
+      comparison = "within_first",
+      n_boot = 0
+    ),
+    NA
+  )
+  testthat::expect_s3_class(singleton_plot, "regime_module_diagnostics")
 })
 
 test_that("regime_module_diagnostics validates modules, comparisons, and plot selections", {

@@ -1550,8 +1550,17 @@ plot.regime_module_diagnostics <- function(x,
     if (is.null(plot_args$type)) {
       plot_args$type <- "n"
     }
-    if (is.null(plot_args$ylim) && !is.null(curve)) {
-      plot_args$ylim <- range(fit_data$y_vals, curve$ymin, curve$ymax, na.rm = TRUE)
+    if (is.null(plot_args$ylim)) {
+      if (!is.null(curve)) {
+        plot_args$ylim <- range(
+          fit_data$y_vals,
+          curve$ymin,
+          curve$ymax,
+          na.rm = TRUE
+        )
+      } else if (!any(is.finite(y_vals))) {
+        plot_args$ylim <- c(-1, 1)
+      }
     }
     do.call(
       graphics::plot,
