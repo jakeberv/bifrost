@@ -16,19 +16,33 @@
   - Added the `rateMap()` workflow and supporting view, control, flagging, print, and plot methods for summarizing branch-rate patterns across completed searches.
   - Improved category legends for uneven rate breaks and strengthened validation of category colors.
 
-* Empirically calibrated simulations:
-  - Added empirical null, proportional-shift, and integration-rate robustness workflows centered on the fitted residual covariance.
-  - Added `simulation_generator = c("original", "empirical")` for explicit generator selection.
+* Lineage-rate and shift-distribution analyses:
+  - Added `lineage_rates()` for tip-level summaries of inherited rate histories and associated branch and shift diagnostics.
+  - Added tools for extracting shift nodes, transitions, waiting times, and magnitude groups; fitting waiting-time and lineage-rate distributions; bootstrapping rate-distribution summaries; and comparing shift magnitudes.
+
+* Regime covariance and integration analyses:
+  - Added `fit_regime_covariances()`, `fit_regime_covariance_runs()`, and their summary helpers for post-hoc covariance estimation across fitted regimes and search runs.
+  - Added module diagnostics, correlation-matrix PCA, integration-relationship summaries, and `regime_integration_pgls()` for examining regime-specific covariance structure and downstream relationships.
+
+* Simulation studies and tuning:
+  - Added reproducible simulation templates, null and shifted dataset generators, false-positive and shift-recovery studies, recovery evaluation, and fixed-IC tuning grids.
+  - Added empirical null, proportional-shift, and integration-rate robustness workflows centered on fitted residual covariance, with `simulation_generator = c("original", "empirical")` for explicit generator selection.
   - Simulation generators now default to `"original"` for exact reproduction of the published operations; the full-covariance Wishart/spectral generator remains available explicitly as `simulation_generator = "empirical"`.
+  - `selectTunedSearchParameters()` filters settings using null false-positive and evaluability safeguards, then ranks feasible settings by fuzzy balanced accuracy by default.
   - Reduced multisession transfer size by using compact namespace-level workers and by avoiding a complete calibration template inside every replicate's call record.
 
 * Documentation / vignettes:
   - Added two rate-map jaw-shape workflows and refreshed the existing jaw-shape vignette.
+  - Added a five-part avian skeleton case study covering search inspection, lineage rates, shift distributions, magnitude comparisons, and post-hoc covariance and integration analyses.
   - Added a two-part empirically calibrated simulation guide covering performance assessment, search tuning, and empirical application.
   - Added tooling and CI workflows for generated vignette PDFs and executable Colab notebooks.
+  - Standardized code annotations, figure captions, rendered widget layout, and AI-assistance disclosures across the website articles.
   - Updated Berv et al. (2026) citation metadata and avian skeleton references for the published *Nature Ecology & Evolution* article DOI.
 
 * Maintenance:
+  - Increased the minimum supported R version from 4.1 to 4.2.
+  - Hardened lineage-rate, regime-integration, simulation, and tuning workflows around malformed inputs, failed fits, reproducible parallel execution, and infeasible selections.
+  - Expanded CI coverage for package checks, exact coverage accounting, parallel smoke tests, serialized empirical artifacts, and generated vignette outputs.
   - Added an automated CRAN downloads tracker and generated chart for the README and development website.
 
 # bifrost 0.1.4

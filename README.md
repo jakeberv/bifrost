@@ -66,11 +66,15 @@ CRAN currently provides `bifrost` 0.1.4. The GitHub development version includes
 - Search histories can now be inspected with the `icTrajectory()` extractor and plotted directly with `plot()`, for example `traj <- icTrajectory(search); plot(traj)`. The older `plot_ic_acceptance_matrix()` helper remains available as a compatibility wrapper.
 - Stored model-fit histories now include richer per-candidate records, including errored candidate fits, so search diagnostics can preserve accepted, rejected, and errored proposals.
 - The `rateMap()` workflow, along with `rateMapView()`, `rateMapControl()`, `rateMapRateFlags()`, and `plot()` / `print()` methods for `rateMap` objects, summarizes and visualizes branch-rate patterns from completed `bifrost` searches. The two rate-map jaw-shape articles below are part of this development-version documentation.
+- `lineage_rates()` and the shift-distribution toolkit summarize inherited lineage rates, shift timing and waiting times, rate-distribution fits, and shift-magnitude patterns from completed searches.
+- Regime covariance and integration tools fit and summarize per-regime covariance structure, diagnose modules and correlation-space variation, compare integration relationships, and support post-hoc pGLS analyses.
+- The simulation framework creates reproducible null and shifted datasets, evaluates strict and fuzzy shift recovery, runs fixed-IC tuning grids, and selects search settings using fuzzy balanced accuracy by default. The original manuscript generator remains the default, with the empirically calibrated full-covariance generator available explicitly.
 - Formula-based searches now accept formula objects as well as character strings, support numeric response-only data frames for intercept-only searches, and support named-column data-frame formulas such as `cbind(y1, y2) ~ size + grp` for pGLS-style workflows.
+- The development version requires R 4.2 or newer.
 
 Some repository workflows are still being actively developed, especially methodological guidance for pGLS-style uses of `bifrost` with hidden branch-specific rate variation. Repository tooling and generated site assets, such as the CRAN downloads tracker, support development and documentation rather than the core CRAN API.
 
-Long empirical article sequences, including the avian skeleton workflow on the pkgdown site, are intentionally excluded from the CRAN package tarball to avoid rebuilding large manuscript-scale demonstrations during CRAN checks.
+All source vignettes listed below are maintained as website articles and excluded from the CRAN package tarball. This avoids rebuilding manuscript-scale demonstrations, including the five-part avian skeleton workflow, during CRAN checks while keeping the complete documentation available through pkgdown.
 
 ## Overview
 
@@ -96,16 +100,39 @@ Long empirical article sequences, including the avian skeleton workflow on the p
 - [Whole-Tree Models, PCA, and bifrost](https://jakeberv.com/bifrost/articles/pca-model-selection-and-bifrost-vignette.html)  
   Explains why whole-tree homogeneous models and PCA truncation can mislead inference when evolutionary processes vary across the tree.
 
-### Using bifrost
+### Getting Started
 
 - [Quick Start with bifrost](https://jakeberv.com/bifrost/articles/quick-start-vignette.html)  
   A practical introduction to the core `bifrost` workflow using a minimal simulated example, including setup, key arguments, outputs, and interpretation.
 - [Detecting Evolutionary Shifts in Paleozoic Fish Jaw Shape with bifrost](https://jakeberv.com/bifrost/articles/jaw-shape-vignette.html)  
   A full empirical case study using the packaged fossil jaw-shape dataset, showing how to run, inspect, and interpret a real `bifrost` analysis end to end.
+
+### Rate Mapping
+
 - [Mapping Sensitivity in Jaw-Shape Evolutionary Rates with rateMap, Part 1](https://jakeberv.com/bifrost/articles/rate-map-jaw-shape-vignette.html)
   A follow-up case study showing the compute-first `rateMap()` workflow: build a reusable branch-rate summary object from completed searches, diagnose broad fitted-rate ranges, and display near-zero branches with explicit diagnostic metadata.
 - [Mapping Sensitivity in Jaw-Shape Evolutionary Rates with rateMap, Part 2](https://jakeberv.com/bifrost/articles/rate-map-jaw-shape-part-2-comparisons.html)
   Extends the same jaw-shape sweep into IC weighting, uncertainty summaries, same-topology tree samples, original-scale rates, interval maps, and additional diagnostics.
+
+### Avian Skeleton Case Study
+
+- [Passerine Body Plan Evolution, Part 1: Fitting and Inspecting a Search](https://jakeberv.com/bifrost/articles/avian-skeleton-part-1.html)
+  Introduces the empirical dataset, fits the manuscript-scale search, and inspects the inferred shifts and IC trajectory.
+- [Passerine Body Plan Evolution, Part 2: Lineage-Rate Summaries](https://jakeberv.com/bifrost/articles/avian-skeleton-part-2.html)
+  Reconstructs tip-level lineage-rate summaries and visualizes their temporal and spatial variation.
+- [Passerine Body Plan Evolution, Part 3: Shift Timing and Distribution Fits](https://jakeberv.com/bifrost/articles/avian-skeleton-part-3.html)
+  Extracts shift events and evaluates waiting-time and lineage-rate distributions.
+- [Passerine Body Plan Evolution, Part 4: Shift Magnitude Comparisons](https://jakeberv.com/bifrost/articles/avian-skeleton-part-4.html)
+  Quantifies and compares the magnitudes of inferred rate shifts among biological groups.
+- [Passerine Body Plan Evolution, Part 5: Post-hoc Integration and Covariance Structure](https://jakeberv.com/bifrost/articles/avian-skeleton-part-5.html)
+  Examines regime-specific covariance, modularity, integration, and post-hoc phylogenetic relationships.
+
+### Simulation and Calibration
+
+- [Empirically Calibrated Simulations for bifrost, Part 1: Performance](https://jakeberv.com/bifrost/articles/simulation-study-part-1.html)
+  Builds reproducible null and shifted simulations and reports false-positive behavior and strict and fuzzy shift recovery.
+- [Empirically Calibrated Simulations for bifrost, Part 2: Tuning and Application](https://jakeberv.com/bifrost/articles/simulation-study-part-2.html)
+  Tunes search controls with null safeguards and fuzzy balanced accuracy, then carries the selected settings into empirical analysis.
 
 ## Additional note
 
