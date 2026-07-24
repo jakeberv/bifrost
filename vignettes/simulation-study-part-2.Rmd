@@ -406,6 +406,8 @@ bic_preview_table <- add_combined_score(preview_tables$tuning$bic)
 preview_recommendations <- preview_tables$tuning$selected
 ```
 
+These cached tables reproduce manuscript-era summaries. Their true-negative denominator predates candidate-node-aware accounting, while fresh simulation runs use the current candidate-aware accounting. The cache is retained for reproducibility rather than silently recomputed; this provenance note does not itself change the documented selected recommendations.
+
 Each row represents one threshold/clade-size combination evaluated under repeated subtree resampling.
 
 ### GIC tuning grid

@@ -104,6 +104,7 @@
       "source_location": "Schema-3 cache constructed directly by data-raw/build_simulation_study_vignette_cache.R from validated empirical GIC and BIC grid RDS inputs.",
       "transformation": {
         "method": "Construct the schema-3 simulation vignette cache directly from validated empirical GIC and BIC grid RDS inputs, including full recovery metrics and fuzzy-balanced-accuracy tuning summaries.",
+        "metric_accounting": "The bundled historical/manuscript cache uses the original count-only true-negative accounting; candidate-node-aware true-negative accounting applies to newly generated simulation results.",
         "script": "data-raw/build_simulation_study_vignette_cache.R"
       },
       "license_id": "zenodo_cc_by_4_0"
