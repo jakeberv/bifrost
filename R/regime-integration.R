@@ -874,6 +874,9 @@ regime_module_diagnostics <- function(pca,
 #'   assigned to a nonmonophyletic regime are removed. When removals occur, the
 #'   function emits one warning listing every dropped regime ID. The collapse
 #'   stops if regime relabeling would create duplicated output tip labels.
+#'   Standardization is computed across all summary rows surviving the optional
+#'   `min_tips` filter before rows absent from the collapsed regime phylogeny are
+#'   dropped. This intentional ordering matches manuscript preprocessing.
 #' @export
 regime_integration_pgls <- function(summary_data,
                                     search = NULL,

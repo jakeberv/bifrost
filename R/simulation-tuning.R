@@ -97,8 +97,9 @@
 #' are `NA`. Candidate-set availability among completed searches is tracked via
 #' evaluable fractions so that overly strict `min_descendant_tips` settings can
 #' be screened out before choosing a final workflow. Completion and failure
-#' rates are reported separately and failed searches are excluded from
-#' scientific means and proportions.
+#' rates use all attempted replicates and are reported separately. Scientific
+#' means, proportions, and recovery summaries are computed among completed
+#' searches, so failed searches are excluded from those summaries.
 #'
 #' Parallelism is owned by the top-level function that the user calls. In this
 #' helper, `num_cores` is interpreted at the setting level, so dependent study
@@ -536,9 +537,10 @@ runSearchTuningGrid <- function(template,
 #'   under the null study, as a finite number between zero and one.
 #' @param max_any_false_positive Maximum acceptable fraction of null replicates
 #'   that infer at least one shift.
-#' @param min_evaluable_fraction Minimum acceptable fraction of replicates with
-#'   at least one candidate shift. This filter is applied to the null,
-#'   proportional, and integration-rate summaries.
+#' @param min_evaluable_fraction Minimum acceptable candidate-set availability
+#'   among completed searches. This filter is applied to the null,
+#'   proportional, and integration-rate summaries; it is not a completion-rate
+#'   threshold.
 #' @param primary_metric Character scalar indicating the recovery metric used to
 #'   rank feasible settings. Defaults to `"fuzzy_balanced_accuracy"`.
 #'   Supported legacy values are `"fuzzy_f1"`, `"fuzzy_recall"`, `"strict_f1"`,
@@ -562,6 +564,10 @@ runSearchTuningGrid <- function(template,
 #' ranks the remaining settings using a weighted average of the chosen recovery
 #' metric across the proportional and integration-rate scenarios. By default,
 #' this ranking metric is fuzzy balanced accuracy.
+#'
+#' Evaluable fractions measure candidate availability among completed searches.
+#' Completion and failure rates remain reported metadata based on all attempted
+#' replicates: the selector does not apply an automatic completion-rate filter.
 #'
 #' Only settings with finite recovery metrics for every scenario having positive
 #' weight are rankable. If no rankable settings pass the filters, the function

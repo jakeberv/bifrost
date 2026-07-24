@@ -60,6 +60,39 @@ test_that("selectTunedSearchParameters defaults to fuzzy balanced accuracy", {
   )
 })
 
+test_that("selectTunedSearchParameters treats completion rates as reported metadata", {
+  summary_table <- data.frame(
+    setting_id = 1:2,
+    IC = rep("GIC", 2),
+    shift_acceptance_threshold = c(5, 10),
+    min_descendant_tips = c(5, 10),
+    null_mean_false_positive_rate = c(0.02, 0.02),
+    null_fraction_any_false_positive = c(0.1, 0.1),
+    null_evaluable_fraction = c(1, 1),
+    proportional_evaluable_fraction = c(1, 1),
+    correlation_evaluable_fraction = c(1, 1),
+    null_completion_rate = c(0.1, 1),
+    proportional_completion_rate = c(0.1, 1),
+    correlation_completion_rate = c(0.1, 1),
+    null_failure_rate = c(0.9, 0),
+    proportional_failure_rate = c(0.9, 0),
+    correlation_failure_rate = c(0.9, 0),
+    proportional_fuzzy_balanced_accuracy = c(0.90, 0.60),
+    correlation_fuzzy_balanced_accuracy = c(0.90, 0.60),
+    stringsAsFactors = FALSE
+  )
+
+  selected <- selectTunedSearchParameters(
+    make_tuning_grid_stub(summary_table),
+    max_false_positive_rate = 1,
+    max_any_false_positive = 1,
+    min_evaluable_fraction = 0,
+    primary_metric = "fuzzy_balanced_accuracy"
+  )
+
+  testthat::expect_identical(selected$selected_row$setting_id, 1L)
+})
+
 test_that("selectTunedSearchParameters picks a conservative winner within one IC family", {
   summary_table <- data.frame(
     setting_id = 1:3,
