@@ -24,10 +24,10 @@ searchOptimalConfiguration(
 }
 \arguments{
 \item{baseline_tree}{A rooted \code{phylo} (or SIMMAP/\code{phylo}) object representing
-the starting tree. It does not need to already be painted: the function coerces the
-input to a \code{phylo} object and internally paints a single baseline state at the root
-before generating candidate shift configurations. Tip labels must match
-\code{trait_data}.}
+the starting tree. It does not need to already be painted: existing SIMMAP states and
+within-edge segments are discarded before candidate generation, and the function
+internally paints a single baseline state at the root. Search candidates represent
+cladogenic shifts painted at descendant nodes. Tip labels must match \code{trait_data}.}
 
 \item{trait_data}{A \code{matrix} or \code{data.frame} of continuous trait values with row
 names matching \code{baseline_tree$tip.label} (same order). For the default
