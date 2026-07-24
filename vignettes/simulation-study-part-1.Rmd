@@ -171,10 +171,9 @@ build_simulation_scenario_figure <- function(
   integration_power = 0.65
 ) {
   if (!requireNamespace("ggplot2", quietly = TRUE) ||
-      !requireNamespace("reshape2", quietly = TRUE) ||
       !requireNamespace("viridis", quietly = TRUE) ||
       !requireNamespace("patchwork", quietly = TRUE)) {
-    stop("Rendering the simulation-scenarios figure requires ggplot2, reshape2, viridis, and patchwork.")
+    stop("Rendering the simulation-scenarios figure requires ggplot2, viridis, and patchwork.")
   }
 
   set.seed(seed)
@@ -207,8 +206,8 @@ build_simulation_scenario_figure <- function(
   vcv_limits <- c(min(all_vals), max(all_vals))
 
   melt_matrix <- function(mat) {
-    df <- reshape2::melt(mat)
-    colnames(df) <- c("Trait1", "Trait2", "Value")
+    df <- as.data.frame(as.table(mat), stringsAsFactors = FALSE)
+    names(df) <- c("Trait1", "Trait2", "Value")
     df
   }
 
@@ -875,7 +874,7 @@ If you use these data or reproduce this workflow, the most relevant citations ar
 - `bifrost` for empirical simulation templates, null and shifted datasets, repeated simulation studies, recovery evaluation, and tuning-grid summaries.
 - `mvMORPH`/`mvgls` machinery underlies the global calibration fit and empirical shift searches.
 - `ape` and `phytools` underlie the phylogenetic tree, SIMMAP, and subtree operations used by the simulation helpers.
-- `ggplot2`, `patchwork`, `viridis`, and `reshape2` draw the schematic simulation-scenario figure.
+- `ggplot2`, `patchwork`, and `viridis` draw the schematic simulation-scenario figure.
 - `knitr` and `rmarkdown` render the vignette and preview tables.
 
 ## AI Assistance

@@ -29,6 +29,8 @@ Imports:
     phytools,
     RRphylo,
     grDevices,
+    graphics,
+    grid,
     stats,
     mvMORPH,
     viridis,
@@ -42,7 +44,6 @@ Suggests:
     evd,
     fitdistrplus,
     geomorph,
-    ggplot2,
     knitr,
     palaeoverse,
     patchwork,
@@ -50,9 +51,7 @@ Suggests:
     phylolm,
     plotly,
     png,
-    pkgload,
     readxl,
-    reshape2,
     rmarkdown,
     scales,
     scatterplot3d,
@@ -61,6 +60,9 @@ Suggests:
     withr,
     spelling,
     htmltools
+Config/Needs/website:
+    ggplot2,
+    pkgload
 Config/testthat/edition: 3
 Config/testthat/parallel: false
 Language: en-US
