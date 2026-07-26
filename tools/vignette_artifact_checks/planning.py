@@ -68,6 +68,7 @@ def make_fixture(source: Path, destination: Path) -> None:
         "render-vignette-pdf.R",
         "test-vignette-artifacts.py",
         "validate-empirical-artifacts.py",
+        "validate-pkgdown-config.R",
         "vignette_artifacts.R",
     ]:
         shutil.copy2(source / "tools" / filename, tools / filename)

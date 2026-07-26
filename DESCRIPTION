@@ -62,7 +62,8 @@ Suggests:
     htmltools
 Config/Needs/website:
     ggplot2,
-    pkgload
+    pkgload,
+    yaml
 Config/testthat/edition: 3
 Config/testthat/parallel: false
 Language: en-US

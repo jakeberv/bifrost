@@ -3,32 +3,12 @@
 from __future__ import annotations
 
 import re
+import tempfile
 from pathlib import Path
 
 from .common import run
 
 __all__ = ["run_repository_contract_checks"]
-
-
-def pkgdown_template_value(config_text: str, key: str) -> str | None:
-    in_template = False
-    key_pattern = re.compile(
-        rf"^  {re.escape(key)}:\s*(?P<value>[^#]*?)(?:\s+#.*)?$"
-    )
-    for line in config_text.splitlines():
-        stripped = line.strip()
-        if not in_template:
-            if re.fullmatch(r"template:\s*(?:#.*)?", line):
-                in_template = True
-            continue
-        if not stripped or stripped.startswith("#"):
-            continue
-        if not line[0].isspace():
-            break
-        match = key_pattern.fullmatch(line)
-        if match:
-            return match.group("value").strip().strip("\"'")
-    return None
 
 
 def run_repository_contract_checks(source: Path, all_slugs: list[str]) -> None:
@@ -119,34 +99,58 @@ def run_repository_contract_checks(source: Path, all_slugs: list[str]) -> None:
     if "rmarkdown::resolve_output_format(" not in renderer:
         raise AssertionError("PDF renderer must resolve each vignette's YAML format")
 
-    pkgdown_config = (source / "_pkgdown.yml").read_text()
-    pkgdown_math_parser_cases = (
-        ("template:\n  math-rendering: katex\n", "katex"),
-        ("template:\n  math-rendering: 'katex' # renderer\n", "katex"),
-        ("template:\n  # math-rendering: katex\n", None),
+    pkgdown_config_path = source / "_pkgdown.yml"
+    pkgdown_config = pkgdown_config_path.read_text()
+    pkgdown_validator = source / "tools/validate-pkgdown-config.R"
+    pkgdown_validator_cases = (
+        ("block template", "template:\n  math-rendering: katex\n", True),
+        ("inline template", "template: {math-rendering: katex}\n", True),
+        ("missing template", "navbar:\n  structure: [left, right]\n", False),
+        ("plural template key", "templates:\n  math-rendering: katex\n", False),
         (
-            "template:\n"
-            "  includes:\n"
-            "    in_header: |\n"
-            "      math-rendering: katex\n"
-            "navbar:\n"
-            "  math-rendering: katex\n",
-            None,
+            "extended template key",
+            "template-extra:\n  math-rendering: katex\n",
+            False,
         ),
+        ("missing math-rendering", "template:\n  bootstrap: 5\n", False),
+        ("non-katex renderer", "template:\n  math-rendering: mathjax\n", False),
+        (
+            "inline sequence renderer",
+            "template:\n  math-rendering: [katex]\n",
+            False,
+        ),
+        (
+            "block sequence renderer",
+            "template:\n  math-rendering:\n    - katex\n",
+            False,
+        ),
+        ("malformed YAML", "template: [\n", False),
     )
-    for config_text, expected in pkgdown_math_parser_cases:
-        actual = pkgdown_template_value(config_text, "math-rendering")
-        if actual != expected:
-            raise AssertionError(
-                "pkgdown template parser returned "
-                f"{actual!r}; expected {expected!r}"
+    with tempfile.TemporaryDirectory(prefix="bifrost-pkgdown-config-") as temp:
+        for label, config_text, should_succeed in pkgdown_validator_cases:
+            config_path = Path(temp) / f"{label.replace(' ', '-')}.yml"
+            config_path.write_text(config_text)
+            result = run(
+                source,
+                "Rscript",
+                "--vanilla",
+                str(pkgdown_validator),
+                str(config_path),
+                check=False,
             )
-    math_renderer = pkgdown_template_value(pkgdown_config, "math-rendering")
-    if math_renderer != "katex":
-        raise AssertionError(
-            "pkgdown config must use KaTeX so equations render across reference "
-            "pages and articles"
-        )
+            if (result.returncode == 0) != should_succeed:
+                raise AssertionError(
+                    f"pkgdown validator case {label!r} returned "
+                    f"{result.returncode}; stdout:\n{result.stdout}\n"
+                    f"stderr:\n{result.stderr}"
+                )
+    run(
+        source,
+        "Rscript",
+        "--vanilla",
+        str(pkgdown_validator),
+        str(pkgdown_config_path),
+    )
     if "bifrost.goatcounter.com/count" not in pkgdown_config:
         raise AssertionError("pkgdown config must inline the GoatCounter header include")
     if (source / "pkgdown/extra-head.html").exists():
