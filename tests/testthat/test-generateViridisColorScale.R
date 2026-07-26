@@ -76,6 +76,38 @@ test_that("Permutation of input still yields a correctly sorted mapping", {
   expect_equal(names(out_perm$ParamColorMapping), names(params)[order(params)])
 })
 
+# Test: Color assignments depend on sorted rank, not numeric spacing
+test_that("Color assignments are identical for inputs with the same rank ordering", {
+  skip_if_missing_deps()
+
+  evenly_spaced <- c(slow = 1, medium = 2, fast = 3)
+  radically_spaced <- c(slow = -1000000, medium = -1, fast = 10000000)
+
+  evenly_spaced_out <- generateViridisColorScale(evenly_spaced)
+  radically_spaced_out <- generateViridisColorScale(radically_spaced)
+
+  expect_equal(
+    evenly_spaced_out$NamedColors,
+    radically_spaced_out$NamedColors
+  )
+  expect_equal(names(evenly_spaced_out$NamedColors), c("slow", "medium", "fast"))
+  expect_equal(names(radically_spaced_out$NamedColors), c("slow", "medium", "fast"))
+})
+
+# Test: Only numeric parameter vectors are accepted
+test_that("Non-numeric parameter vectors produce a clear error", {
+  skip_if_missing_deps()
+
+  expect_error(
+    generateViridisColorScale(c(slow = "low", fast = "high")),
+    "params must be a numeric vector"
+  )
+  expect_error(
+    generateViridisColorScale(factor(c("slow", "fast"))),
+    "params must be a numeric vector"
+  )
+})
+
 # Group: edge cases and input variants
 # Test: Duplicate values are allowed; mapping is non-decreasing and names are a permutation
 test_that("Duplicate values are allowed; mapping is non-decreasing and names are a permutation", {
@@ -111,8 +143,7 @@ test_that("Unnamed input returns colors; output names may be NULL", {
 test_that("Constant-valued input does not error and returns valid colors", {
   skip_if_missing_deps()
 
-  # Note: normalization would produce NaN for zero range, but those normalized
-  # values aren't used to compute colors in the current implementation.
+  # Tied values still receive one color per sorted input position.
   params <- c(a = 5, b = 5, c = 5)
   expect_silent({
     out <- generateViridisColorScale(params)
