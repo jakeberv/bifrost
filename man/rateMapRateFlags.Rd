@@ -80,17 +80,14 @@ minimum counts are all satisfied. It is display metadata, not data deletion,
 model correction, or formal threshold selection.
 }
 \examples{
-\dontrun{
-ctrl <- rateMapControl(rate_flags = rateMapRateFlags(zero_floor = 1e-8))
-rm_obj <- rateMap(fits, control = ctrl)
-rm_obj$rate_diagnostics
+floor_flags <- rateMapRateFlags(zero_floor = 1e-8)
+floor_flags[c("method", "near_zero", "zero_floor")]
 
-cluster_ctrl <- rateMapControl(
-  rate_flags = rateMapRateFlags(method = "tail_cluster")
+tail_flags <- rateMapRateFlags(
+  method = "tail_cluster",
+  high_outlier = TRUE
 )
-rm_obj <- rateMap(fits, control = cluster_ctrl)
-rm_obj$rate_diagnostics
-}
+tail_flags[c("method", "near_zero", "high_outlier")]
 
 }
 \references{

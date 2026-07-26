@@ -38,3 +38,24 @@ and settings.
 Summarize within- and between-module correlations for each post-hoc regime
 and correlate those module summaries with regime correlation PCA scores.
 }
+\examples{
+make_correlation <- function(r12, r13, r23) {
+  matrix(
+    c(1, r12, r13, r12, 1, r23, r13, r23, 1),
+    nrow = 3,
+    dimnames = list(c("bill", "wing", "tail"),
+                    c("bill", "wing", "tail"))
+  )
+}
+covariances <- list(
+  r1 = make_correlation(0.1, 0.2, 0.3),
+  r2 = make_correlation(0.2, 0.1, 0.4),
+  r3 = make_correlation(-0.1, 0.3, 0.2),
+  r4 = make_correlation(0.4, -0.2, 0.1)
+)
+pca <- regime_correlation_pca(covariances)
+modules <- list(flight = c("wing", "tail"), feeding = "bill")
+diagnostics <- regime_module_diagnostics(pca, modules)
+diagnostics$correlations
+
+}

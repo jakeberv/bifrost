@@ -80,22 +80,13 @@ useful for interval maps, same-topology tree samples, custom fit object
 shapes, invalid-fit handling, and future-based parallel scheduling.
 }
 \examples{
-\dontrun{
-# Same-topology tree samples with differing branch lengths:
-ctrl <- rateMapControl(check = "topology")
-posterior_rates <- rateMap(
-  posterior_fit_list,
-  target_tree = summary_tree,
-  uncertainty = TRUE,
-  control = ctrl
+ctrl <- rateMapControl(
+  res = 200,
+  check = "topology",
+  na_action = "omit",
+  rate_flags = rateMapRateFlags(zero_floor = 1e-8)
 )
-
-# Interval maps with a finer depth grid:
-interval_rates <- rateMap(
-  fits,
-  summary = "interval",
-  control = rateMapControl(res = 200)
-)
-}
+ctrl[c("res", "check", "na_action")]
+ctrl$rate_flags[c("method", "zero_floor")]
 
 }

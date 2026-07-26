@@ -883,9 +883,7 @@ test_that("searchOptimalConfiguration returns consistent ic_weights for serial v
 test_that("searchOptimalConfiguration does not write files to the working directory", {
   skip_if_missing_deps()
 
-  # Isolated working directory (base R only)
-  wd <- tempfile("bifrost-wd-")
-  dir.create(wd, recursive = TRUE)
+  wd <- withr::local_tempdir(pattern = "bifrost-wd-")
   oldwd <- getwd()
   on.exit(setwd(oldwd), add = TRUE)
   setwd(wd)
@@ -1303,8 +1301,7 @@ test_that("search helper uses future path only when requested", {
 })
 
 test_that("search history loader derives missing IC values from stored models", {
-  sub_dir <- tempfile("bifrost-history-")
-  dir.create(sub_dir)
+  sub_dir <- withr::local_tempdir(pattern = "bifrost-history-")
   saveRDS(
     list(
       ic = NULL,

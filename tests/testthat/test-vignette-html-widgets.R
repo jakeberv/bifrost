@@ -12,8 +12,7 @@ test_that("lineage-rate HTML controls retain their authored DOM", {
     "Pandoc is required for the HTML widget regression test"
   )
 
-  output_dir <- tempfile("lineage-rate-widget-")
-  dir.create(output_dir)
+  output_dir <- withr::local_tempdir(pattern = "lineage-rate-widget-")
   rendered <- rmarkdown::render(
     input = source,
     output_format = "rmarkdown::html_vignette",

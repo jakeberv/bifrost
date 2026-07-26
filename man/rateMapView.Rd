@@ -74,22 +74,28 @@ or more plots. The numeric branch or interval summaries computed by
 \code{\link[=rateMap]{rateMap()}} are not recomputed.
 }
 \examples{
-\dontrun{
-rm_obj <- rateMap(fits, uncertainty = TRUE)
+toy_tree <- ape::read.tree(text = "((a:1,b:1):1,c:2);")
+toy_tree <- phytools::paintSubTree(
+  toy_tree,
+  node = ape::Ntip(toy_tree) + 1L,
+  state = "0"
+)
+toy_tree <- phytools::paintSubTree(
+  toy_tree,
+  node = ape::Ntip(toy_tree) + 2L,
+  state = "1"
+)
+toy_fit <- list(
+  variables = list(tree = toy_tree),
+  param = c("0" = 0.1, "1" = 0.5)
+)
+rm_obj <- rateMap(toy_fit, log = FALSE, progress = FALSE)
 display_obj <- rateMapView(
   rm_obj,
   palette = "Viridis",
-  n_categories = 5,
-  legend_title = "Mean log fitted rate"
+  n_categories = 3,
+  legend_title = "Fitted rate"
 )
-plot(display_obj, type = "arc", show_tip_labels = FALSE)
-
-sd_obj <- rateMapView(
-  rm_obj,
-  value = "sd",
-  palette = "Inferno",
-  color_mode = "continuous"
-)
-}
+display_obj[c("color_mode", "category_labels", "title")]
 
 }

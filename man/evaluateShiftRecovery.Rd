@@ -85,10 +85,32 @@ shifts, but specificity, false-positive rate, and balanced accuracy are
 returned as \code{NA} because there are no evaluable negatives.
 }
 \examples{
-\dontrun{
-# Usually called on the output of runShiftRecoverySimulationStudy():
-# evaluateShiftRecovery(study$simdata, study$results, fuzzy_distance = 2)
-}
+set.seed(1)
+tr <- ape::rtree(8)
+tr <- phytools::paintSubTree(
+  tr,
+  node = ape::Ntip(tr) + 1L,
+  state = "ancestral",
+  anc.state = "ancestral"
+)
+true_node <- setdiff(unique(tr$edge[, 1]), ape::Ntip(tr) + 1L)[1]
+simdata <- list(list(paintedTree = tr, shiftNodes = true_node))
+simresults <- list(list(
+  shift_nodes_no_uncertainty = true_node,
+  num_candidates = 6L,
+  ic_weights = data.frame(
+    node = true_node,
+    ic_weight_withshift = 0.8
+  )
+))
+
+recovery <- evaluateShiftRecovery(
+  simdata,
+  simresults,
+  fuzzy_distance = 2,
+  verbose = FALSE
+)
+recovery$strict
 
 }
 \seealso{

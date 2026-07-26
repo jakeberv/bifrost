@@ -66,16 +66,14 @@ included predictors. This is the lower-level replicate generator used by
 false-positive simulation workflows.
 }
 \examples{
-\dontrun{
 set.seed(1)
-tr <- ape::rtree(20)
-X <- matrix(rnorm(20 * 3), ncol = 3)
+tr <- ape::rtree(12)
+X <- matrix(rnorm(12 * 2), ncol = 2)
 rownames(X) <- tr$tip.label
 tmpl <- createSimulationTemplate(tr, X, formula = "trait_data ~ 1", method = "LL")
 
-sim_null <- simulateNullDataset(tmpl, tree_tip_count = 15, seed = 2)
-str(sim_null$trait_data)
-}
+sim_null <- simulateNullDataset(tmpl, tree_tip_count = 10, seed = 2)
+dim(sim_null$trait_data)
 
 }
 \seealso{

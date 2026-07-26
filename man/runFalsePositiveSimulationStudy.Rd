@@ -84,24 +84,28 @@ If no replicate yields an evaluable false-positive rate, the study-level mean
 and median false-positive summaries are returned as \code{NA}.
 }
 \examples{
-\dontrun{
+\donttest{
 set.seed(1)
-tr <- ape::rtree(30)
-X <- matrix(rnorm(30 * 3), ncol = 3)
+tr <- ape::rtree(14)
+X <- matrix(rnorm(14 * 2), ncol = 2)
 rownames(X) <- tr$tip.label
 tmpl <- createSimulationTemplate(tr, X, formula = "trait_data ~ 1", method = "LL")
 
 fp_study <- runFalsePositiveSimulationStudy(
   tmpl,
-  n_replicates = 2,
-  tree_tip_count = 20,
+  n_replicates = 1,
+  tree_tip_count = 12,
   search_options = list(
     formula = "trait_data ~ 1",
-    min_descendant_tips = 3,
+    min_descendant_tips = 2,
     shift_acceptance_threshold = 5,
     num_cores = 1,
     IC = "GIC",
-    method = "LL"
+    method = "LL",
+    plot = FALSE,
+    progress = FALSE,
+    verbose = FALSE,
+    store_model_fit_history = FALSE
   ),
   num_cores = 1,
   seed = 2

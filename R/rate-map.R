@@ -1445,17 +1445,14 @@
 #'   `rateMapControl(rate_flags = )`.
 #'
 #' @examples
-#' \dontrun{
-#' ctrl <- rateMapControl(rate_flags = rateMapRateFlags(zero_floor = 1e-8))
-#' rm_obj <- rateMap(fits, control = ctrl)
-#' rm_obj$rate_diagnostics
+#' floor_flags <- rateMapRateFlags(zero_floor = 1e-8)
+#' floor_flags[c("method", "near_zero", "zero_floor")]
 #'
-#' cluster_ctrl <- rateMapControl(
-#'   rate_flags = rateMapRateFlags(method = "tail_cluster")
+#' tail_flags <- rateMapRateFlags(
+#'   method = "tail_cluster",
+#'   high_outlier = TRUE
 #' )
-#' rm_obj <- rateMap(fits, control = cluster_ctrl)
-#' rm_obj$rate_diagnostics
-#' }
+#' tail_flags[c("method", "near_zero", "high_outlier")]
 #'
 #' @references
 #' Otsu, N. (1979). A threshold selection method from gray-level histograms.
@@ -1653,23 +1650,14 @@ rateMapRateFlags <- function(near_zero = NULL,
 #'   [rateMap()].
 #'
 #' @examples
-#' \dontrun{
-#' # Same-topology tree samples with differing branch lengths:
-#' ctrl <- rateMapControl(check = "topology")
-#' posterior_rates <- rateMap(
-#'   posterior_fit_list,
-#'   target_tree = summary_tree,
-#'   uncertainty = TRUE,
-#'   control = ctrl
+#' ctrl <- rateMapControl(
+#'   res = 200,
+#'   check = "topology",
+#'   na_action = "omit",
+#'   rate_flags = rateMapRateFlags(zero_floor = 1e-8)
 #' )
-#'
-#' # Interval maps with a finer depth grid:
-#' interval_rates <- rateMap(
-#'   fits,
-#'   summary = "interval",
-#'   control = rateMapControl(res = 200)
-#' )
-#' }
+#' ctrl[c("res", "check", "na_action")]
+#' ctrl$rate_flags[c("method", "zero_floor")]
 #'
 #' @export
 rateMapControl <- function(res = 100,

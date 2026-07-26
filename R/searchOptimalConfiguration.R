@@ -222,7 +222,7 @@
 #' # Simulate a tree
 #' tr <- pbtree(n = 50, scale = 1)
 #'
-#' # Define two regimes: "0" (baseline) and "1" (high-rate) on a subset of tips
+#' # Define baseline regime "0" and high-rate regime "1" on a subset of tips
 #' states <- setNames(rep("0", Ntip(tr)), tr$tip.label)
 #' high_clade_tips <- tr$tip.label[1:20]
 #' states[high_clade_tips] <- "1"
@@ -252,7 +252,7 @@
 #' X <- if (is.list(sim)) sim[[1]] else sim
 #' rownames(X) <- simmap$tip.label
 #'
-#' # Run the search on the unpainted tree (single baseline regime)
+#' # Run the search on the unpainted single-regime tree
 #' res <- searchOptimalConfiguration(
 #'   baseline_tree              = as.phylo(simmap),
 #'   trait_data                 = X,
@@ -271,7 +271,7 @@
 #' res$optimal_ic - res$baseline_ic
 #' str(res$VCVs)
 #'
-#' \dontrun{
+#' \donttest{
 #' # Intercept-only empirical-style search:
 #' # high-dimensional response matrix with H&L + measurement error
 #' res_hl <- searchOptimalConfiguration(
@@ -279,15 +279,14 @@
 #'   trait_data                 = X,
 #'   formula                    = "trait_data ~ 1",
 #'   min_descendant_tips        = 10,
-#'   num_cores                  = 2,
+#'   num_cores                  = 1,
 #'   shift_acceptance_threshold = 20,
-#'   uncertaintyweights_par     = TRUE,
 #'   IC                         = "GIC",
 #'   plot                       = FALSE,
 #'   method                     = "H&L",
 #'   error                      = TRUE,
-#'   store_model_fit_history    = TRUE,
-#'   verbose                    = TRUE,
+#'   store_model_fit_history    = FALSE,
+#'   verbose                    = FALSE,
 #'   progress                   = FALSE
 #' )
 #'
@@ -305,14 +304,14 @@
 #'   trait_data                 = dat,
 #'   formula                    = "trait_data[, 1:2] ~ trait_data[, 3]",
 #'   min_descendant_tips        = 10,
-#'   num_cores                  = 2,
+#'   num_cores                  = 1,
 #'   shift_acceptance_threshold = 20,
 #'   IC                         = "GIC",
 #'   plot                       = FALSE,
 #'   method                     = "LL",
 #'   error                      = TRUE,
-#'   store_model_fit_history    = TRUE,
-#'   verbose                    = TRUE,
+#'   store_model_fit_history    = FALSE,
+#'   verbose                    = FALSE,
 #'   progress                   = FALSE
 #' )
 #' }

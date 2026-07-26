@@ -164,34 +164,53 @@ calls are forced to \code{num_cores = 1} as well. This avoids nested parallelism
 while keeping the user-facing API simple.
 }
 \examples{
-\dontrun{
+\donttest{
 set.seed(1)
-tr <- ape::rtree(40)
-X <- matrix(rnorm(40 * 3), ncol = 3)
+tr <- ape::rtree(16)
+X <- matrix(rnorm(16 * 2), ncol = 2)
 rownames(X) <- tr$tip.label
 tmpl <- createSimulationTemplate(tr, X, formula = "trait_data ~ 1", method = "LL")
 
 gic_grid <- runSearchTuningGrid(
   template = tmpl,
   IC = "GIC",
-  shift_acceptance_thresholds = c(2, 10),
-  min_descendant_tips_values = c(5, 10),
-  null_replicates = 10,
-  recovery_replicates = 10,
+  shift_acceptance_thresholds = 5,
+  min_descendant_tips_values = 2,
+  tree_tip_count = 14,
+  null_replicates = 1,
+  recovery_replicates = 1,
+  null_simulation_options = list(simulation_generator = "empirical"),
   proportional_simulation_options = list(
-    num_shifts = 2,
-    min_shift_tips = 5,
-    max_shift_tips = 10
+    num_shifts = 1,
+    min_shift_tips = 2,
+    max_shift_tips = 5,
+    scale_factor_range = c(5, 8),
+    exclude_range = c(5.5, 6),
+    buffer = 0,
+    simulation_generator = "empirical"
   ),
   base_search_options = list(
     formula = "trait_data ~ 1",
-    method = "LL"
+    method = "LL",
+    plot = FALSE,
+    progress = FALSE,
+    verbose = FALSE,
+    store_model_fit_history = FALSE
   ),
+  weighted = FALSE,
   num_cores = 1,
-  seed = 1
+  seed = 2,
+  store_studies = FALSE
 )
 
-head(gic_grid$summary_table)
+gic_grid$summary_table[, c(
+  "shift_acceptance_threshold",
+  "min_descendant_tips",
+  "null_mean_false_positive_rate",
+  "proportional_evaluable_fraction",
+  "proportional_strict_recall",
+  "proportional_fuzzy_balanced_accuracy"
+)]
 }
 
 }

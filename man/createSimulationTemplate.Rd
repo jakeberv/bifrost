@@ -92,10 +92,9 @@ forms such as transformed responses, \code{.} shorthand, and character predictor
 are rejected early.
 }
 \examples{
-\dontrun{
 set.seed(1)
-tr <- ape::rtree(20)
-X <- matrix(rnorm(20 * 3), ncol = 3)
+tr <- ape::rtree(12)
+X <- matrix(rnorm(12 * 2), ncol = 2)
 rownames(X) <- tr$tip.label
 
 tmpl <- createSimulationTemplate(
@@ -106,21 +105,6 @@ tmpl <- createSimulationTemplate(
 )
 
 tmpl
-
-size <- rnorm(20)
-X_with_size <- cbind(X, size = size)
-
-covariate_tmpl <- createSimulationTemplate(
-  baseline_tree = tr,
-  trait_data = X_with_size,
-  formula = "trait_data[, 1:3] ~ trait_data[, 4]",
-  response_columns = 1:3,
-  predictor_columns = 4,
-  method = "LL"
-)
-
-covariate_tmpl$search_formula
-}
 
 }
 \seealso{

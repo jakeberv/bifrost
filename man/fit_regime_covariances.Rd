@@ -80,3 +80,33 @@ have unique matching row and column trait names. Fits that do not satisfy
 those requirements are retained with status \code{"failed"} and a diagnostic
 message.
 }
+\examples{
+tree <- ape::read.tree(text = paste0(
+  "(((a:1,b:1):1,(c:1,d:1):1):1,",
+  "((e:1,f:1):1,(g:1,h:1):1):1);"
+))
+tree <- phytools::paintSubTree(
+  tree, node = ape::Ntip(tree) + 1L, state = "root"
+)
+tree <- phytools::paintSubTree(
+  tree, node = ape::getMRCA(tree, c("a", "d")), state = "slow"
+)
+tree <- phytools::paintSubTree(
+  tree, node = ape::getMRCA(tree, c("e", "h")), state = "fast"
+)
+set.seed(1)
+traits <- matrix(
+  stats::rnorm(16),
+  nrow = 8,
+  dimnames = list(tree$tip.label, c("bill", "wing"))
+)
+fits <- fit_regime_covariances(
+  tree = tree,
+  trait_data = traits,
+  min_tips = 4,
+  error = FALSE,
+  method = "LL"
+)
+fits$status
+
+}
