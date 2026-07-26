@@ -28,8 +28,9 @@ if (!dir.exists(output_dir)) {
 }
 
 output_dir <- normalizePath(output_dir, winslash = "/", mustWork = TRUE)
-if (file.access(output_dir, mode = 2L) != 0L) {
-  stop("Output directory is not writable: ", output_dir, call. = FALSE)
+if (file.access(output_dir, mode = 3L) != 0L) {
+  stop("Output directory is not writable and searchable: ", output_dir,
+       call. = FALSE)
 }
 
 if (!requireNamespace("checktor", quietly = TRUE)) {
