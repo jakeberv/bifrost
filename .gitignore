@@ -23,3 +23,5 @@ experimental/
 __pycache__/
 .playwright-cli/
 /tools/cran-downloads/node_modules/
+/tools/pkgdown-browser-smoke/node_modules/
+/tools/pkgdown-browser-smoke/test-results/

@@ -26,9 +26,10 @@ under the null study, as a finite number between zero and one.}
 \item{max_any_false_positive}{Maximum acceptable fraction of null replicates
 that infer at least one shift.}
 
-\item{min_evaluable_fraction}{Minimum acceptable fraction of replicates with
-at least one candidate shift. This filter is applied to the null,
-proportional, and integration-rate summaries.}
+\item{min_evaluable_fraction}{Minimum acceptable candidate-set availability
+among completed searches. This filter is applied to the null,
+proportional, and integration-rate summaries; it is not a completion-rate
+threshold.}
 
 \item{primary_metric}{Character scalar indicating the recovery metric used to
 rank feasible settings. Defaults to \code{"fuzzy_balanced_accuracy"}.
@@ -79,6 +80,10 @@ that violate the null false-positive or evaluability constraints. Second, it
 ranks the remaining settings using a weighted average of the chosen recovery
 metric across the proportional and integration-rate scenarios. By default,
 this ranking metric is fuzzy balanced accuracy.
+
+Evaluable fractions measure candidate availability among completed searches.
+Completion and failure rates remain reported metadata based on all attempted
+replicates: the selector does not apply an automatic completion-rate filter.
 
 Only settings with finite recovery metrics for every scenario having positive
 weight are rankable. If no rankable settings pass the filters, the function

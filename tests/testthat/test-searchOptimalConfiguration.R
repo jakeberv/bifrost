@@ -69,6 +69,46 @@ expect_numeric_scalar <- function(x) {
   testthat::expect_true(is.numeric(x) && length(x) == 1L && is.finite(x))
 }
 
+test_that("search tree initialization discards incoming within-edge SIMMAP segments", {
+  skip_if_missing_deps()
+
+  input <- ape::read.tree(text = "((a:1,b:1):1,c:2);")
+  input <- phytools::paintSubTree(
+    input,
+    node = ape::Ntip(input) + 1L,
+    state = "0",
+    anc.state = "0",
+    stem = FALSE
+  )
+  input <- phytools::paintSubTree(
+    input,
+    node = ape::Ntip(input) + 2L,
+    state = "1",
+    anc.state = "0",
+    stem = 0.5
+  )
+
+  testthat::expect_true(any(lengths(input$maps) > 1L))
+
+  normalized <- bifrost:::.bifrost_search_initialize_tree(input)
+
+  testthat::expect_true(isTRUE(ape::all.equal.phylo(
+    ape::as.phylo(input),
+    ape::as.phylo(normalized)
+  )))
+  testthat::expect_identical(normalized$tip.label, input$tip.label)
+  testthat::expect_equal(normalized$edge.length, input$edge.length)
+  testthat::expect_true(all(lengths(normalized$maps) == 1L))
+  testthat::expect_true(all(unlist(lapply(normalized$maps, names)) == "0"))
+
+  candidates <- generatePaintedTrees(normalized, min_tips = 1L)
+  testthat::expect_true(all(vapply(
+    candidates,
+    function(candidate) all(lengths(candidate$maps) == 1L),
+    logical(1)
+  )))
+})
+
 # Group: end-to-end runs and core outputs
 # Test: searchOptimalConfiguration runs end-to-end on simulated data (GIC) (fixture simdata.RDS; 100-tip subsample; GIC path)
 test_that("searchOptimalConfiguration runs end-to-end on simulated data (GIC)", {

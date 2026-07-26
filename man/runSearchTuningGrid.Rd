@@ -153,8 +153,9 @@ deterministic per-study seeds used for each setting; otherwise those columns
 are \code{NA}. Candidate-set availability among completed searches is tracked via
 evaluable fractions so that overly strict \code{min_descendant_tips} settings can
 be screened out before choosing a final workflow. Completion and failure
-rates are reported separately and failed searches are excluded from
-scientific means and proportions.
+rates use all attempted replicates and are reported separately. Scientific
+means, proportions, and recovery summaries are computed among completed
+searches, so failed searches are excluded from those summaries.
 
 Parallelism is owned by the top-level function that the user calls. In this
 helper, \code{num_cores} is interpreted at the setting level, so dependent study

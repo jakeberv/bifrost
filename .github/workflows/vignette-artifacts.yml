@@ -6,6 +6,7 @@ on:
       - .github/workflows/pkgdown.yml
       - .github/workflows/vignette-artifacts.yml
       - _pkgdown.yml
+      - pkgdown/**
       - DESCRIPTION
       - R/**
       - inst/extdata/**
@@ -14,8 +15,11 @@ on:
       - tools/build-colab-notebook.py
       - tools/colab_dependencies.py
       - tools/test-vignette-artifacts.py
+      - tools/vignette_artifact_checks/**
+      - tools/validate-pkgdown-config.R
       - tools/validate-empirical-artifacts.py
       - tools/avian-skeleton/**
+      - tools/pkgdown-browser-smoke/**
       - vignettes/**
 
 permissions:
@@ -23,6 +27,12 @@ permissions:
 
 jobs:
   vignette-artifacts:
+    if: >-
+      github.actor != 'github-actions[bot]' ||
+      github.event.pull_request.user.login == 'github-actions[bot]'
+    concurrency:
+      group: vignette-artifacts-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     outputs:
       colab_slugs: ${{ steps.changed.outputs.colab_slugs }}

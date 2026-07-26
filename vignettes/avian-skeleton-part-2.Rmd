@@ -237,16 +237,12 @@ max-width: 760px;
 padding-top: 0.72rem;
 width: min(760px, 100%);
 }
-#lineage-decay-widget-part2 .ldw-plot-shell {
-position: relative;
-}
 #lineage-decay-widget-part2 .ldw-axis-slider {
-bottom: 5.05rem;
 display: grid;
 gap: 0.05rem;
-left: 7.1%;
-position: absolute;
-width: 35.8%;
+margin: 0.35rem auto 0.8rem;
+max-width: 360px;
+width: min(360px, 100%);
 }
 #lineage-decay-widget-part2 .ldw-axis-slider label {
 align-items: baseline;
@@ -601,23 +597,18 @@ display: block;
 #lineage-decay-widget-part2 .ldw-panel-d-controls {
 margin-top: 0.45rem;
 }
-#lineage-decay-widget-part2 .ldw-axis-slider {
-bottom: 4.65rem;
-left: 7%;
-width: 36%;
-}
 }
 </style>
 <div class="ldw-shell">
 <div class="ldw-plot-shell">
 <svg id="ldw-svg-part2" viewBox="0 0 980 465" role="img" aria-label="Interactive age-decay kernel plot with raw weights and normalized shares"></svg>
+</div>
 <div class="ldw-axis-slider" aria-label="Maximum age for the raw kernel panel">
 <label for="ldw-max-age-part2">
 <span>Maximum age</span>
 <span><output id="ldw-max-age-value-part2" for="ldw-max-age-part2">25</output> Myr</span>
 </label>
 <input id="ldw-max-age-part2" type="range" min="10" max="50" step="5" value="25" />
-</div>
 </div>
 <div class="ldw-tree-shell">
 <svg id="ltw-svg-part2" viewBox="0 0 980 430" role="img" aria-label="Interactive simmap lineage path and normalized weights"></svg>

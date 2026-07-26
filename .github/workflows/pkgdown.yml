@@ -9,12 +9,15 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: "pages"
-  cancel-in-progress: false
-
 jobs:
   build:
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.actor != 'github-actions[bot]' ||
+      github.event.pull_request.user.login == 'github-actions[bot]'
+    concurrency:
+      group: pkgdown-build-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -33,6 +36,13 @@ jobs:
       - name: Setup TinyTeX
         uses: r-lib/actions/setup-tinytex@v2
 
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: tools/pkgdown-browser-smoke/package-lock.json
+
       - name: Install R dependencies (incl. pkgdown)
         uses: r-lib/actions/setup-r-dependencies@v2
         with:
@@ -47,12 +57,21 @@ jobs:
             install = FALSE
           )
 
+      - name: Install pkgdown browser smoke dependencies
+        run: npm ci --prefix tools/pkgdown-browser-smoke
+
+      - name: Install Chromium for pkgdown browser smoke tests
+        run: npx --prefix tools/pkgdown-browser-smoke playwright install --with-deps chromium
+
+      - name: Test built pkgdown site in Chromium
+        run: npm test --prefix tools/pkgdown-browser-smoke
+
       - name: Restore cached vignette PDFs
         id: vignette-pdf-cache
         uses: actions/cache/restore@v5
         with:
           path: .cache/vignette-artifacts
-          key: vignette-pdfs-${{ runner.os }}-${{ hashFiles('vignettes/**/*.Rmd', 'vignettes/**/*.png', 'vignettes/**/*.gif', 'vignettes/**/*.jpg', 'vignettes/**/*.jpeg', 'vignettes/**/*.svg', 'vignettes/**/*.csv', 'vignettes/**/*.txt', 'vignettes/**/*.rds', 'vignettes/**/*.RDS', 'vignettes/**/*.R', 'R/**', 'inst/extdata/**', 'DESCRIPTION', '_pkgdown.yml', '.github/workflows/pkgdown.yml', 'tools/vignette_artifacts.R', 'tools/render-vignette-pdf.R', 'tools/build-colab-notebook.py', 'tools/colab_dependencies.py', 'tools/test-vignette-artifacts.py') }}
+          key: vignette-pdfs-${{ runner.os }}-${{ hashFiles('vignettes/**/*.Rmd', 'vignettes/**/*.png', 'vignettes/**/*.gif', 'vignettes/**/*.jpg', 'vignettes/**/*.jpeg', 'vignettes/**/*.svg', 'vignettes/**/*.csv', 'vignettes/**/*.txt', 'vignettes/**/*.rds', 'vignettes/**/*.RDS', 'vignettes/**/*.R', 'R/**', 'inst/extdata/**', 'DESCRIPTION', '_pkgdown.yml', 'pkgdown/**', '.github/workflows/pkgdown.yml', 'tools/vignette_artifacts.R', 'tools/render-vignette-pdf.R', 'tools/build-colab-notebook.py', 'tools/colab_dependencies.py', 'tools/test-vignette-artifacts.py', 'tools/vignette_artifact_checks/**', 'tools/validate-pkgdown-config.R', 'tools/pkgdown-browser-smoke/**') }}
           restore-keys: |
             vignette-pdfs-${{ runner.os }}-
 
@@ -98,6 +117,9 @@ jobs:
 
   deploy:
     if: github.event_name != 'pull_request'
+    concurrency:
+      group: pages
+      cancel-in-progress: false
     permissions:
       contents: read
       pages: write

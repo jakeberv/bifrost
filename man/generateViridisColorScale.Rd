@@ -2,7 +2,7 @@
 % Please edit documentation in R/plotting-utils.R
 \name{generateViridisColorScale}
 \alias{generateViridisColorScale}
-\title{Generate Scaled Viridis Color Palette for Rate Parameters}
+\title{Generate Viridis Color Palette for Ranked Parameters}
 \usage{
 generateViridisColorScale(params)
 }
@@ -14,22 +14,24 @@ preserved and used to label the resulting color mapping.}
 A named list with two elements:
 \describe{
 \item{\code{NamedColors}}{A named character vector of hex color codes, with names
-corresponding to the input parameter names, ordered by increasing parameter value.}
+corresponding to the input parameter names, ordered by increasing parameter value and
+colored at evenly spaced positions by rank.}
 \item{\code{ParamColorMapping}}{A named numeric vector of the sorted parameter values,
 maintaining the same order and names as \code{NamedColors}.}
 }
 }
 \description{
 Creates a named color mapping for a set of numeric parameters (e.g., evolutionary rates)
-using the \pkg{viridis} color palette. Parameters are first sorted in ascending order and
-normalized to the range [0, 1], then mapped to evenly spaced viridis colors for
-intuitive visualization.
+using the \pkg{viridis} color palette. Parameters are sorted in ascending order and
+assigned evenly spaced colors by rank. Numeric magnitude and distance between parameter
+values are not encoded in the colors.
 }
 \details{
 This function is useful for plotting results where parameters should be visually
-distinguished based on their magnitude (e.g., rate shifts across a phylogeny).
-By using the perceptually uniform viridis palette, it avoids misleading color
-interpretations common with rainbow scales.
+distinguished by their ordering (e.g., rate shifts across a phylogeny). By using the
+perceptually uniform viridis palette, it avoids misleading color interpretations common
+with rainbow scales. Colors encode sorted rank only; they do not represent the magnitude
+of a parameter or the distance between parameter values.
 }
 \examples{
 if (requireNamespace("viridis", quietly = TRUE)) {

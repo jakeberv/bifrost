@@ -113,6 +113,9 @@ def validate(root: Path, manifest: dict, update_checksums: bool) -> int:
         if path_text == (
             "inst/extdata/simulation-study-cache/passerine_preview_tables.rds"
         ):
+            require_text(
+                transformation, "metric_accounting", f"{context} transformation"
+            )
             if "simulation-study-vignette.Rmd" in source_location:
                 raise AssertionError(
                     f"{context} references the deleted simulation vignette slug"

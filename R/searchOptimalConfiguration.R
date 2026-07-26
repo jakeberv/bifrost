@@ -23,10 +23,10 @@
 #' (intraspecific-variance) term from the data.
 #'
 #' @param baseline_tree A rooted \code{phylo} (or SIMMAP/\code{phylo}) object representing
-#'   the starting tree. It does not need to already be painted: the function coerces the
-#'   input to a \code{phylo} object and internally paints a single baseline state at the root
-#'   before generating candidate shift configurations. Tip labels must match
-#'   \code{trait_data}.
+#'   the starting tree. It does not need to already be painted: existing SIMMAP states and
+#'   within-edge segments are discarded before candidate generation, and the function
+#'   internally paints a single baseline state at the root. Search candidates represent
+#'   cladogenic shifts painted at descendant nodes. Tip labels must match \code{trait_data}.
 #' @param trait_data A \code{matrix} or \code{data.frame} of continuous trait values with row
 #'   names matching \code{baseline_tree$tip.label} (same order). For the default
 #'   \code{formula = "trait_data ~ 1"}, \code{trait_data} is typically supplied as a numeric
@@ -387,10 +387,7 @@ searchOptimalConfiguration <-
       stop("formula must be a single character string or formula object.")
     }
 
-    # Coerce to phylo and initialize a single baseline regime at the root
-    baseline_tree <- paintSubTree(((as.phylo(baseline_tree))),
-                                  node = length(baseline_tree$tip.label) + 1,
-                                  state = 0)
+    baseline_tree <- .bifrost_search_initialize_tree(baseline_tree)
 
     #generate initial set of painted candidate trees with shifts at each sub-node
     .progress("%s", "Generating candidate shift models...")
@@ -666,3 +663,8 @@ searchOptimalConfiguration <-
 
   }
 #... is optional arguments to be passed to mvgls
+
+.bifrost_search_initialize_tree <- function(baseline_tree) {
+  tree <- as.phylo(baseline_tree)
+  paintSubTree(tree, node = Ntip(tree) + 1L, state = 0)
+}
