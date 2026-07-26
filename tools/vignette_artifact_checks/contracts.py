@@ -34,6 +34,7 @@ def run_repository_contract_checks(source: Path, all_slugs: list[str]) -> None:
     if "'tools/colab_dependencies.py'" not in workflow:
         raise AssertionError("PDF cache key must include Colab dependency detection")
     for cache_input in (
+        "'pkgdown/**'",
         "'tools/vignette_artifact_checks/**'",
         "'tools/validate-pkgdown-config.R'",
     ):
@@ -41,6 +42,11 @@ def run_repository_contract_checks(source: Path, all_slugs: list[str]) -> None:
             raise AssertionError(f"PDF cache key is missing {cache_input}")
     if "  pull_request:\n" not in workflow:
         raise AssertionError("pkgdown workflow must build pull requests")
+    browser_smoke_path = "tools/pkgdown-browser-smoke/**"
+    if f"'{browser_smoke_path}'" not in workflow:
+        raise AssertionError(
+            "PDF cache key must include the pkgdown browser smoke suite"
+        )
     workflow_preamble = workflow[: workflow.index("\njobs:\n")]
     if "\nconcurrency:\n" in workflow_preamble:
         raise AssertionError(
@@ -69,6 +75,47 @@ def run_repository_contract_checks(source: Path, all_slugs: list[str]) -> None:
     if upload_gate not in workflow:
         raise AssertionError(
             "pkgdown Pages artifact upload must be disabled for pull requests"
+        )
+    pkgdown_dependencies = (
+        "      - name: Setup Node\n"
+        "        uses: actions/setup-node@v6\n"
+        "        with:\n"
+        "          node-version: 24\n"
+        "          cache: npm\n"
+        "          cache-dependency-path: tools/pkgdown-browser-smoke/package-lock.json\n"
+        "\n"
+        "      - name: Install R dependencies (incl. pkgdown)\n"
+        "        uses: r-lib/actions/setup-r-dependencies@v2\n"
+        "        with:\n"
+        "          extra-packages: any::pkgdown, local::.\n"
+    )
+    if pkgdown_dependencies not in workflow:
+        raise AssertionError(
+            "pkgdown workflow must set up the cached Node 24 browser-test "
+            "environment before retaining any::pkgdown"
+        )
+    pkgdown_browser_smoke_steps = (
+        "      - name: Build pkgdown site into docs/\n"
+        "        shell: Rscript {0}\n"
+        "        run: |\n"
+        "          pkgdown::build_site_github_pages(\n"
+        "            new_process = FALSE,\n"
+        "            install = FALSE\n"
+        "          )\n"
+        "\n"
+        "      - name: Install pkgdown browser smoke dependencies\n"
+        "        run: npm ci --prefix tools/pkgdown-browser-smoke\n"
+        "\n"
+        "      - name: Install Chromium for pkgdown browser smoke tests\n"
+        "        run: npx --prefix tools/pkgdown-browser-smoke playwright install --with-deps chromium\n"
+        "\n"
+        "      - name: Test built pkgdown site in Chromium\n"
+        "        run: npm test --prefix tools/pkgdown-browser-smoke\n"
+    )
+    if pkgdown_browser_smoke_steps not in workflow:
+        raise AssertionError(
+            "pkgdown workflow must run the Chromium browser smoke suite after "
+            "building docs/"
         )
 
     deploy_schedule = (
@@ -181,21 +228,86 @@ def run_repository_contract_checks(source: Path, all_slugs: list[str]) -> None:
         str(pkgdown_validator),
         str(pkgdown_config_path),
     )
-    if "bifrost.goatcounter.com/count" not in pkgdown_config:
-        raise AssertionError("pkgdown config must inline the GoatCounter header include")
-    if (source / "pkgdown/extra-head.html").exists():
-        raise AssertionError("unused pkgdown header include must not remain tracked")
-    if "const encodedSlug = encodeURIComponent(slug);" not in pkgdown_config:
-        raise AssertionError("pkgdown artifact links must URL-encode vignette slugs")
-    if "if (sourcePath.includes('/articles/')) return;" not in pkgdown_config:
+    pkgdown_assets = {
+        "stylesheet": source / "pkgdown/extra.css",
+        "script": source / "pkgdown/extra.js",
+    }
+    missing_pkgdown_assets = [
+        label for label, path in pkgdown_assets.items() if not path.is_file()
+    ]
+    if missing_pkgdown_assets:
         raise AssertionError(
-            "pkgdown artifact links must skip website-only articles"
+            "missing extracted pkgdown assets: " + ", ".join(missing_pkgdown_assets)
         )
-    if "pdf.href = './' + encodedSlug + '.pdf';" not in pkgdown_config:
+    pkgdown_script = pkgdown_assets["script"].read_text()
+    artifact_slug_match = re.search(
+        r"const ARTICLE_ARTIFACT_SLUGS = new Set\(\[\s*"
+        r'(?P<slugs>(?:"[^"]+"\s*,?\s*)*)\]\);',
+        pkgdown_script,
+    )
+    if artifact_slug_match is None:
+        raise AssertionError(
+            "pkgdown artifact links must define ARTICLE_ARTIFACT_SLUGS"
+        )
+    artifact_slugs = set(
+        re.findall(r'"([^\"]+)"', artifact_slug_match.group("slugs"))
+    )
+    notebook_slugs = {
+        path.stem for path in (source / "vignettes/colab").glob("*.ipynb")
+    }
+    if artifact_slugs != notebook_slugs:
+        raise AssertionError(
+            "pkgdown artifact slug set must match committed Colab notebooks; "
+            f"expected {sorted(notebook_slugs)}, got {sorted(artifact_slugs)}"
+        )
+    if "function getArticleArtifactSlug(pathname) {" not in pkgdown_script:
+        raise AssertionError(
+            "pkgdown artifact links must resolve eligibility from the pathname"
+        )
+    if (
+        "const slug = getArticleArtifactSlug(window.location.pathname);"
+        not in pkgdown_script
+    ):
+        raise AssertionError(
+            "pkgdown artifact links must use pathname-based eligibility"
+        )
+    for selector in ("small.dont-index code", ".name code"):
+        if selector in pkgdown_script:
+            raise AssertionError(
+                "pkgdown artifact links must not read internal source-label markup: "
+                + selector
+            )
+    goatcounter_header = (
+        "  includes:\n"
+        "    in_header: |\n"
+        "      <script data-goatcounter=\"https://bifrost.goatcounter.com/count\"\n"
+        "              async src=\"https://gc.zgo.at/count.js\"></script>\n"
+    )
+    if goatcounter_header not in pkgdown_config:
+        raise AssertionError(
+            "pkgdown config must inline the GoatCounter header include"
+        )
+    if "in_header: pkgdown/extra-head.html" in pkgdown_config:
+        raise AssertionError(
+            "pkgdown config must not reference pkgdown/extra-head.html"
+        )
+    if (source / "pkgdown/extra-head.html").exists():
+        raise AssertionError("pkgdown/extra-head.html must be removed")
+    mermaid_import = (
+        "import('https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/"
+        "mermaid.esm.min.mjs?v=1091')"
+    )
+    if mermaid_import not in pkgdown_script:
+        raise AssertionError("pkgdown script must dynamically import pinned Mermaid 10.9.1")
+    if "window.mermaid = mermaid;" not in pkgdown_script:
+        raise AssertionError("pkgdown script must expose Mermaid on window")
+    if "const encodedSlug = encodeURIComponent(slug);" not in pkgdown_script:
+        raise AssertionError("pkgdown artifact links must URL-encode vignette slugs")
+    if "pdf.href = './' + encodedSlug + '.pdf';" not in pkgdown_script:
         raise AssertionError("pkgdown PDF link must use the encoded vignette slug")
-    if "encodedSlug + '.ipynb';" not in pkgdown_config:
+    if "encodedSlug + '.ipynb';" not in pkgdown_script:
         raise AssertionError("pkgdown Colab link must use the encoded vignette slug")
-    if "actions.setAttribute('role', 'group');" not in pkgdown_config:
+    if "actions.setAttribute('role', 'group');" not in pkgdown_script:
         raise AssertionError("pkgdown artifact action label must describe a group")
 
     artifact_tool = (source / "tools/vignette_artifacts.R").read_text()
@@ -218,7 +330,6 @@ def run_repository_contract_checks(source: Path, all_slugs: list[str]) -> None:
             "Part 2 must emit its HTML widget directly and omit leading "
             "indentation so Pandoc can match the widget's block-level Div tags"
         )
-
     manifest_validator = source / "tools/validate-empirical-artifacts.py"
     if not manifest_validator.exists():
         raise AssertionError("empirical artifact checksum validator is missing")
@@ -237,7 +348,12 @@ def run_repository_contract_checks(source: Path, all_slugs: list[str]) -> None:
         raise AssertionError("PR artifact checks must not checkout a mutable branch ref")
     if "      - tools/colab_dependencies.py" not in pr_workflow:
         raise AssertionError("PR artifact workflow must watch Colab dependency detection")
+    if f"      - {browser_smoke_path}" not in pr_workflow:
+        raise AssertionError(
+            "PR artifact workflow must watch the pkgdown browser smoke suite"
+        )
     for watched_path in (
+        "      - pkgdown/**",
         "      - tools/vignette_artifact_checks/**",
         "      - tools/validate-pkgdown-config.R",
     ):

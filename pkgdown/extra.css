@@ -1,0 +1,18 @@
+.article-artifact-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.75rem;
+}
+.article-artifact-actions .article-pdf-badge,
+.article-artifact-actions .article-colab-badge {
+  align-items: center;
+  display: inline-flex;
+  line-height: 1;
+  text-decoration: none;
+}
+.article-artifact-actions img {
+  display: block;
+  height: 20px;
+}

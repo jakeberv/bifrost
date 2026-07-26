@@ -6,6 +6,7 @@ on:
       - .github/workflows/pkgdown.yml
       - .github/workflows/vignette-artifacts.yml
       - _pkgdown.yml
+      - pkgdown/**
       - DESCRIPTION
       - R/**
       - inst/extdata/**
@@ -18,6 +19,7 @@ on:
       - tools/validate-pkgdown-config.R
       - tools/validate-empirical-artifacts.py
       - tools/avian-skeleton/**
+      - tools/pkgdown-browser-smoke/**
       - vignettes/**
 
 permissions:
