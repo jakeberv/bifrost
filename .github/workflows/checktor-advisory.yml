@@ -1,0 +1,79 @@
+name: checktor advisory audit
+
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checktor:
+    name: checktor (advisory)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Pandoc
+        uses: r-lib/actions/setup-pandoc@v2
+
+      - name: Setup R
+        uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: release
+          use-public-rspm: true
+
+      - name: Install package and audit dependencies
+        uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: any::checktor@0.1.0
+          needs: check
+
+      - name: Build and unpack source package
+        id: source-package
+        shell: bash
+        run: |
+          audit_root="${RUNNER_TEMP}/checktor-audit"
+          reports="${audit_root}/reports"
+          unpacked="${audit_root}/source"
+          mkdir -p "$audit_root" "$reports" "$unpacked"
+
+          (
+            cd "$audit_root"
+            R CMD build --no-manual "$GITHUB_WORKSPACE"
+          )
+
+          mapfile -t tarballs < <(find "$audit_root" -maxdepth 1 -type f -name '*.tar.gz' -print)
+          if [ "${#tarballs[@]}" -ne 1 ]; then
+            echo "::error::Expected exactly one source tarball, found ${#tarballs[@]}."
+            exit 1
+          fi
+
+          tar -xzf "${tarballs[0]}" -C "$unpacked"
+          mapfile -t package_dirs < <(find "$unpacked" -mindepth 1 -maxdepth 1 -type d -print)
+          if [ "${#package_dirs[@]}" -ne 1 ] || [ ! -f "${package_dirs[0]}/DESCRIPTION" ]; then
+            echo "::error::Could not identify the unpacked source package."
+            exit 1
+          fi
+
+          echo "package-path=${package_dirs[0]}" >> "$GITHUB_OUTPUT"
+          echo "report-path=$reports" >> "$GITHUB_OUTPUT"
+
+      - name: Run advisory checktor audit
+        run: >-
+          Rscript tools/checktor-audit.R
+          "${{ steps.source-package.outputs.package-path }}"
+          "${{ steps.source-package.outputs.report-path }}"
+
+      - name: Upload checktor reports
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: checktor-advisory-${{ github.sha }}
+          path: ${{ runner.temp }}/checktor-audit/reports
+          if-no-files-found: warn
+          retention-days: 14
