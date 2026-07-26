@@ -33,8 +33,35 @@ def run_repository_contract_checks(source: Path, all_slugs: list[str]) -> None:
         raise AssertionError("PDF cache key must include its production workflow")
     if "'tools/colab_dependencies.py'" not in workflow:
         raise AssertionError("PDF cache key must include Colab dependency detection")
+    for cache_input in (
+        "'tools/vignette_artifact_checks/**'",
+        "'tools/validate-pkgdown-config.R'",
+    ):
+        if cache_input not in workflow:
+            raise AssertionError(f"PDF cache key is missing {cache_input}")
     if "  pull_request:\n" not in workflow:
         raise AssertionError("pkgdown workflow must build pull requests")
+    workflow_preamble = workflow[: workflow.index("\njobs:\n")]
+    if "\nconcurrency:\n" in workflow_preamble:
+        raise AssertionError(
+            "pkgdown workflow must not make PR builds contend for Pages concurrency"
+        )
+    build_schedule = (
+        "  build:\n"
+        "    if: >-\n"
+        "      github.event_name != 'pull_request' ||\n"
+        "      github.actor != 'github-actions[bot]' ||\n"
+        "      github.event.pull_request.user.login == 'github-actions[bot]'\n"
+        "    concurrency:\n"
+        "      group: pkgdown-build-${{ github.event.pull_request.number || "
+        "github.ref }}\n"
+        "      cancel-in-progress: ${{ github.event_name == 'pull_request' }}\n"
+    )
+    if build_schedule not in workflow:
+        raise AssertionError(
+            "pkgdown build job must skip bot notebook follow-ups on human-authored "
+            "PRs, allow bot-authored maintenance PRs, and cancel only stale PR builds"
+        )
     upload_gate = (
         "      - name: Upload site artifact for Pages\n"
         "        if: github.event_name != 'pull_request'\n"
@@ -44,13 +71,16 @@ def run_repository_contract_checks(source: Path, all_slugs: list[str]) -> None:
             "pkgdown Pages artifact upload must be disabled for pull requests"
         )
 
-    deploy_gate = (
+    deploy_schedule = (
         "  deploy:\n"
         "    if: github.event_name != 'pull_request'\n"
+        "    concurrency:\n"
+        "      group: pages\n"
+        "      cancel-in-progress: false\n"
     )
-    if deploy_gate not in workflow:
+    if deploy_schedule not in workflow:
         raise AssertionError(
-            "pkgdown deploy job must be disabled for pull requests"
+            "pkgdown deploy job must be disabled for pull requests and serialized"
         )
 
     check_workflow = (source / ".github/workflows/R-CMD-check.yaml").read_text()
@@ -207,10 +237,32 @@ def run_repository_contract_checks(source: Path, all_slugs: list[str]) -> None:
         raise AssertionError("PR artifact checks must not checkout a mutable branch ref")
     if "      - tools/colab_dependencies.py" not in pr_workflow:
         raise AssertionError("PR artifact workflow must watch Colab dependency detection")
+    for watched_path in (
+        "      - tools/vignette_artifact_checks/**",
+        "      - tools/validate-pkgdown-config.R",
+    ):
+        if watched_path not in pr_workflow:
+            raise AssertionError(
+                f"PR artifact workflow must watch {watched_path.strip()[2:]}"
+            )
     if "      - tools/validate-empirical-artifacts.py" not in pr_workflow:
         raise AssertionError("PR artifact workflow must watch the artifact validator")
     if "      - tools/avian-skeleton/**" not in pr_workflow:
         raise AssertionError("PR artifact workflow must watch artifact generators")
+    artifact_schedule = (
+        "  vignette-artifacts:\n"
+        "    if: >-\n"
+        "      github.actor != 'github-actions[bot]' ||\n"
+        "      github.event.pull_request.user.login == 'github-actions[bot]'\n"
+        "    concurrency:\n"
+        "      group: vignette-artifacts-${{ github.event.pull_request.number }}\n"
+        "      cancel-in-progress: true\n"
+    )
+    if artifact_schedule not in pr_workflow:
+        raise AssertionError(
+            "PR artifact job must skip bot notebook follow-ups on human-authored "
+            "PRs, allow bot-authored maintenance PRs, and cancel stale runs per PR"
+        )
     generate_step_name = "      - name: Generate changed Colab notebooks"
     audit_step_name = "      - name: Test vignette artifacts"
     generate_step = pr_workflow.find(generate_step_name)

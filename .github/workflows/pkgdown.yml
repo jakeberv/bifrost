@@ -9,12 +9,15 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: "pages"
-  cancel-in-progress: false
-
 jobs:
   build:
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.actor != 'github-actions[bot]' ||
+      github.event.pull_request.user.login == 'github-actions[bot]'
+    concurrency:
+      group: pkgdown-build-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -52,7 +55,7 @@ jobs:
         uses: actions/cache/restore@v5
         with:
           path: .cache/vignette-artifacts
-          key: vignette-pdfs-${{ runner.os }}-${{ hashFiles('vignettes/**/*.Rmd', 'vignettes/**/*.png', 'vignettes/**/*.gif', 'vignettes/**/*.jpg', 'vignettes/**/*.jpeg', 'vignettes/**/*.svg', 'vignettes/**/*.csv', 'vignettes/**/*.txt', 'vignettes/**/*.rds', 'vignettes/**/*.RDS', 'vignettes/**/*.R', 'R/**', 'inst/extdata/**', 'DESCRIPTION', '_pkgdown.yml', '.github/workflows/pkgdown.yml', 'tools/vignette_artifacts.R', 'tools/render-vignette-pdf.R', 'tools/build-colab-notebook.py', 'tools/colab_dependencies.py', 'tools/test-vignette-artifacts.py') }}
+          key: vignette-pdfs-${{ runner.os }}-${{ hashFiles('vignettes/**/*.Rmd', 'vignettes/**/*.png', 'vignettes/**/*.gif', 'vignettes/**/*.jpg', 'vignettes/**/*.jpeg', 'vignettes/**/*.svg', 'vignettes/**/*.csv', 'vignettes/**/*.txt', 'vignettes/**/*.rds', 'vignettes/**/*.RDS', 'vignettes/**/*.R', 'R/**', 'inst/extdata/**', 'DESCRIPTION', '_pkgdown.yml', '.github/workflows/pkgdown.yml', 'tools/vignette_artifacts.R', 'tools/render-vignette-pdf.R', 'tools/build-colab-notebook.py', 'tools/colab_dependencies.py', 'tools/test-vignette-artifacts.py', 'tools/vignette_artifact_checks/**', 'tools/validate-pkgdown-config.R') }}
           restore-keys: |
             vignette-pdfs-${{ runner.os }}-
 
@@ -98,6 +101,9 @@ jobs:
 
   deploy:
     if: github.event_name != 'pull_request'
+    concurrency:
+      group: pages
+      cancel-in-progress: false
     permissions:
       contents: read
       pages: write
