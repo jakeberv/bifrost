@@ -62,3 +62,33 @@ the package analogue of the manuscript \code{fitPosthocModels()} step: the
 top-level run iteration is explicit, while each run can still fit its
 regime subtrees in parallel through \code{cores}.
 }
+\examples{
+tree <- ape::read.tree(text = paste0(
+  "(((a:1,b:1):1,(c:1,d:1):1):1,",
+  "((e:1,f:1):1,(g:1,h:1):1):1);"
+))
+tree <- phytools::paintSubTree(
+  tree, node = ape::Ntip(tree) + 1L, state = "root"
+)
+tree <- phytools::paintSubTree(
+  tree, node = ape::getMRCA(tree, c("a", "d")), state = "slow"
+)
+tree <- phytools::paintSubTree(
+  tree, node = ape::getMRCA(tree, c("e", "h")), state = "fast"
+)
+set.seed(2)
+traits <- matrix(
+  stats::rnorm(16),
+  nrow = 8,
+  dimnames = list(tree$tip.label, c("bill", "wing"))
+)
+run_fits <- fit_regime_covariance_runs(
+  list(first = tree, second = tree),
+  trait_data = traits,
+  min_tips = 4,
+  error = FALSE,
+  method = "LL"
+)
+vapply(run_fits, function(x) sum(x$status$status == "ok"), integer(1))
+
+}

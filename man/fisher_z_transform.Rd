@@ -16,3 +16,7 @@ Numeric vector of transformed correlations.
 Transform correlation coefficients with \code{atanh(r)} while rejecting values
 outside the open interval \verb{(-1, 1)}.
 }
+\examples{
+fisher_z_transform(c(-0.5, 0, 0.5))
+
+}

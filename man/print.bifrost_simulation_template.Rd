@@ -22,14 +22,12 @@ downstream simulation-search formula, and the empirical covariance summaries
 used to generate simulation replicates.
 }
 \examples{
-\dontrun{
 set.seed(1)
-tr <- ape::rtree(20)
-X <- matrix(rnorm(20 * 3), ncol = 3)
+tr <- ape::rtree(12)
+X <- matrix(rnorm(12 * 2), ncol = 2)
 rownames(X) <- tr$tip.label
 tmpl <- createSimulationTemplate(tr, X, formula = "trait_data ~ 1", method = "LL")
 tmpl
-}
 
 }
 \seealso{

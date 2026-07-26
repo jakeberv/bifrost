@@ -234,6 +234,9 @@
 #' node states are the summary target; it is not a duration-weighted integrator
 #' over mapped within-edge segments.
 #' }
+#'
+#' For a completed search result named `search_result`, the usual search-result
+#' call is `lineage_rates(bifrost_search = search_result)`.
 #' @references
 #' Berv, J. S. et al. (2026). Rates of passerine body plan evolution in time
 #' and space. \emph{Nature Ecology & Evolution}.
@@ -280,11 +283,6 @@
 #'   log = FALSE,
 #'   progress = FALSE
 #' )
-#'
-#' \dontrun{
-#' # Search-result mode: use the multi-regime BMM fit and SIMMAP tree.
-#' lineage_summary <- lineage_rates(bifrost_search = search_result)
-#' }
 #' @export
 lineage_rates <- function(
   bifrost_search = NULL,

@@ -317,8 +317,8 @@ test_that("source provenance hashes relevant files and ignores unrelated dirt", 
     return(invisible(NULL))
   }
 
-  first <- tempfile(fileext = ".R")
-  second <- tempfile(fileext = ".R")
+  first <- withr::local_tempfile(fileext = ".R")
+  second <- withr::local_tempfile(fileext = ".R")
   writeLines("first <- 1", first)
   writeLines("second <- 2", second)
   files <- c(
@@ -522,7 +522,7 @@ test_that("cache builder rejects absent or malformed source provenance", {
   )
 
   for (name in names(variants)) {
-    path <- tempfile(fileext = ".rds")
+    path <- withr::local_tempfile(fileext = ".rds")
     saveRDS(variants[[name]], path)
     testthat::expect_error(
       helpers$read_grid_run(path, "GIC"),
@@ -559,7 +559,7 @@ test_that("valid grid outputs resume while overwrite reruns", {
     source_provenance,
     setting_workers = 1L
   )
-  output_path <- tempfile(fileext = ".rds")
+  output_path <- withr::local_tempfile(fileext = ".rds")
   saveRDS(wrapper, output_path)
   run_count <- 0L
   run_grid <- function() {
@@ -641,8 +641,8 @@ test_that("cache builder uses selected fixture rows and validates before writing
     source_provenance,
     setting_workers = 2L
   )
-  gic_path <- tempfile(fileext = ".rds")
-  bic_path <- tempfile(fileext = ".rds")
+  gic_path <- withr::local_tempfile(fileext = ".rds")
+  bic_path <- withr::local_tempfile(fileext = ".rds")
   saveRDS(gic_wrapper, gic_path)
   saveRDS(bic_wrapper, bic_path)
 
@@ -651,7 +651,7 @@ test_that("cache builder uses selected fixture rows and validates before writing
   testthat::expect_identical(cache$tuning$selected$Threshold, c(20, 10))
   testthat::expect_identical(cache$tuning$selected$`Min clade`, c(10L, 20L))
 
-  out_path <- tempfile(fileext = ".rds")
+  out_path <- withr::local_tempfile(fileext = ".rds")
   saveRDS(list(sentinel = TRUE), out_path)
   helpers$write_simulation_cache(cache, out_path)
   testthat::expect_identical(readRDS(out_path)$schema_version, 3L)

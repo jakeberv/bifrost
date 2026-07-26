@@ -127,34 +127,53 @@
 #'   [runShiftRecoverySimulationStudy()], [selectTunedSearchParameters()]
 #'
 #' @examples
-#' \dontrun{
+#' \donttest{
 #' set.seed(1)
-#' tr <- ape::rtree(40)
-#' X <- matrix(rnorm(40 * 3), ncol = 3)
+#' tr <- ape::rtree(16)
+#' X <- matrix(rnorm(16 * 2), ncol = 2)
 #' rownames(X) <- tr$tip.label
 #' tmpl <- createSimulationTemplate(tr, X, formula = "trait_data ~ 1", method = "LL")
 #'
 #' gic_grid <- runSearchTuningGrid(
 #'   template = tmpl,
 #'   IC = "GIC",
-#'   shift_acceptance_thresholds = c(2, 10),
-#'   min_descendant_tips_values = c(5, 10),
-#'   null_replicates = 10,
-#'   recovery_replicates = 10,
+#'   shift_acceptance_thresholds = 5,
+#'   min_descendant_tips_values = 2,
+#'   tree_tip_count = 14,
+#'   null_replicates = 1,
+#'   recovery_replicates = 1,
+#'   null_simulation_options = list(simulation_generator = "empirical"),
 #'   proportional_simulation_options = list(
-#'     num_shifts = 2,
-#'     min_shift_tips = 5,
-#'     max_shift_tips = 10
+#'     num_shifts = 1,
+#'     min_shift_tips = 2,
+#'     max_shift_tips = 5,
+#'     scale_factor_range = c(5, 8),
+#'     exclude_range = c(5.5, 6),
+#'     buffer = 0,
+#'     simulation_generator = "empirical"
 #'   ),
 #'   base_search_options = list(
 #'     formula = "trait_data ~ 1",
-#'     method = "LL"
+#'     method = "LL",
+#'     plot = FALSE,
+#'     progress = FALSE,
+#'     verbose = FALSE,
+#'     store_model_fit_history = FALSE
 #'   ),
+#'   weighted = FALSE,
 #'   num_cores = 1,
-#'   seed = 1
+#'   seed = 2,
+#'   store_studies = FALSE
 #' )
 #'
-#' head(gic_grid$summary_table)
+#' gic_grid$summary_table[, c(
+#'   "shift_acceptance_threshold",
+#'   "min_descendant_tips",
+#'   "null_mean_false_positive_rate",
+#'   "proportional_evaluable_fraction",
+#'   "proportional_strict_recall",
+#'   "proportional_fuzzy_balanced_accuracy"
+#' )]
 #' }
 #'
 #' @export
@@ -596,11 +615,29 @@ runSearchTuningGrid <- function(template,
 #' @seealso [runSearchTuningGrid()], [searchOptimalConfiguration()]
 #'
 #' @examples
-#' \dontrun{
-#' # Usually called after runSearchTuningGrid():
-#' # tuned <- selectTunedSearchParameters(gic_grid)
-#' # tuned$recommended_search_options
-#' }
+#' summary_table <- data.frame(
+#'   setting_id = 1:2,
+#'   shift_acceptance_threshold = c(5, 10),
+#'   min_descendant_tips = c(3L, 5L),
+#'   null_mean_false_positive_rate = c(0.02, 0.01),
+#'   null_fraction_any_false_positive = c(0.1, 0.1),
+#'   null_evaluable_fraction = c(1, 1),
+#'   proportional_evaluable_fraction = c(1, 1),
+#'   correlation_evaluable_fraction = c(1, 1),
+#'   proportional_fuzzy_balanced_accuracy = c(0.7, 0.8),
+#'   correlation_fuzzy_balanced_accuracy = c(0.7, 0.8)
+#' )
+#' tuning_grid <- structure(
+#'   list(
+#'     IC = "GIC",
+#'     summary_table = summary_table,
+#'     base_search_options = list(formula = "trait_data ~ 1", method = "LL")
+#'   ),
+#'   class = c("bifrost_search_tuning_grid", "list")
+#' )
+#'
+#' tuned <- selectTunedSearchParameters(tuning_grid)
+#' tuned$recommended_search_options
 #'
 #' @export
 selectTunedSearchParameters <- function(tuning_grid,

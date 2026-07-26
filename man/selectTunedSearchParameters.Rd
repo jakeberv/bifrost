@@ -94,11 +94,29 @@ constraints. If the grid contains no rankable settings, the function always
 stops.
 }
 \examples{
-\dontrun{
-# Usually called after runSearchTuningGrid():
-# tuned <- selectTunedSearchParameters(gic_grid)
-# tuned$recommended_search_options
-}
+summary_table <- data.frame(
+  setting_id = 1:2,
+  shift_acceptance_threshold = c(5, 10),
+  min_descendant_tips = c(3L, 5L),
+  null_mean_false_positive_rate = c(0.02, 0.01),
+  null_fraction_any_false_positive = c(0.1, 0.1),
+  null_evaluable_fraction = c(1, 1),
+  proportional_evaluable_fraction = c(1, 1),
+  correlation_evaluable_fraction = c(1, 1),
+  proportional_fuzzy_balanced_accuracy = c(0.7, 0.8),
+  correlation_fuzzy_balanced_accuracy = c(0.7, 0.8)
+)
+tuning_grid <- structure(
+  list(
+    IC = "GIC",
+    summary_table = summary_table,
+    base_search_options = list(formula = "trait_data ~ 1", method = "LL")
+  ),
+  class = c("bifrost_search_tuning_grid", "list")
+)
+
+tuned <- selectTunedSearchParameters(tuning_grid)
+tuned$recommended_search_options
 
 }
 \seealso{

@@ -180,24 +180,28 @@
 #'   [searchOptimalConfiguration()]
 #'
 #' @examples
-#' \dontrun{
+#' \donttest{
 #' set.seed(1)
-#' tr <- ape::rtree(30)
-#' X <- matrix(rnorm(30 * 3), ncol = 3)
+#' tr <- ape::rtree(14)
+#' X <- matrix(rnorm(14 * 2), ncol = 2)
 #' rownames(X) <- tr$tip.label
 #' tmpl <- createSimulationTemplate(tr, X, formula = "trait_data ~ 1", method = "LL")
 #'
 #' fp_study <- runFalsePositiveSimulationStudy(
 #'   tmpl,
-#'   n_replicates = 2,
-#'   tree_tip_count = 20,
+#'   n_replicates = 1,
+#'   tree_tip_count = 12,
 #'   search_options = list(
 #'     formula = "trait_data ~ 1",
-#'     min_descendant_tips = 3,
+#'     min_descendant_tips = 2,
 #'     shift_acceptance_threshold = 5,
 #'     num_cores = 1,
 #'     IC = "GIC",
-#'     method = "LL"
+#'     method = "LL",
+#'     plot = FALSE,
+#'     progress = FALSE,
+#'     verbose = FALSE,
+#'     store_model_fit_history = FALSE
 #'   ),
 #'   num_cores = 1,
 #'   seed = 2
@@ -503,36 +507,47 @@ runFalsePositiveSimulationStudy <- function(template,
 #'   [runFalsePositiveSimulationStudy()]
 #'
 #' @examples
-#' \dontrun{
+#' \donttest{
 #' set.seed(1)
-#' tr <- ape::rtree(40)
-#' X <- matrix(rnorm(40 * 3), ncol = 3)
+#' tr <- ape::rtree(16)
+#' X <- matrix(rnorm(16 * 2), ncol = 2)
 #' rownames(X) <- tr$tip.label
 #' tmpl <- createSimulationTemplate(tr, X, formula = "trait_data ~ 1", method = "LL")
 #'
 #' recovery_study <- runShiftRecoverySimulationStudy(
 #'   tmpl,
-#'   n_replicates = 2,
-#'   tree_tip_count = 25,
+#'   n_replicates = 1,
+#'   tree_tip_count = 14,
 #'   simulation_options = list(
-#'     num_shifts = 2,
-#'     min_shift_tips = 3,
-#'     max_shift_tips = 8,
-#'     scale_mode = "proportional"
+#'     num_shifts = 1,
+#'     min_shift_tips = 2,
+#'     max_shift_tips = 5,
+#'     scale_mode = "proportional",
+#'     scale_factor_range = c(5, 8),
+#'     exclude_range = c(5.5, 6),
+#'     buffer = 0
 #'   ),
 #'   search_options = list(
 #'     formula = "trait_data ~ 1",
-#'     min_descendant_tips = 3,
+#'     min_descendant_tips = 2,
 #'     shift_acceptance_threshold = 5,
 #'     num_cores = 1,
 #'     IC = "GIC",
-#'     method = "LL"
+#'     method = "LL",
+#'     plot = FALSE,
+#'     progress = FALSE,
+#'     verbose = FALSE,
+#'     store_model_fit_history = FALSE
 #'   ),
+#'   weighted = FALSE,
 #'   num_cores = 1,
 #'   seed = 2
 #' )
 #'
-#' recovery_study
+#' recovery_study$per_replicate[
+#'   , c("n_true_shifts", "n_inferred_shifts", "status")
+#' ]
+#' unlist(recovery_study$evaluation$strict)
 #' }
 #'
 #' @export
@@ -866,10 +881,32 @@ runShiftRecoverySimulationStudy <- function(template,
 #' @seealso [runShiftRecoverySimulationStudy()], [simulateShiftedDataset()]
 #'
 #' @examples
-#' \dontrun{
-#' # Usually called on the output of runShiftRecoverySimulationStudy():
-#' # evaluateShiftRecovery(study$simdata, study$results, fuzzy_distance = 2)
-#' }
+#' set.seed(1)
+#' tr <- ape::rtree(8)
+#' tr <- phytools::paintSubTree(
+#'   tr,
+#'   node = ape::Ntip(tr) + 1L,
+#'   state = "ancestral",
+#'   anc.state = "ancestral"
+#' )
+#' true_node <- setdiff(unique(tr$edge[, 1]), ape::Ntip(tr) + 1L)[1]
+#' simdata <- list(list(paintedTree = tr, shiftNodes = true_node))
+#' simresults <- list(list(
+#'   shift_nodes_no_uncertainty = true_node,
+#'   num_candidates = 6L,
+#'   ic_weights = data.frame(
+#'     node = true_node,
+#'     ic_weight_withshift = 0.8
+#'   )
+#' ))
+#'
+#' recovery <- evaluateShiftRecovery(
+#'   simdata,
+#'   simresults,
+#'   fuzzy_distance = 2,
+#'   verbose = FALSE
+#' )
+#' recovery$strict
 #'
 #' @export
 evaluateShiftRecovery <- function(simdata,

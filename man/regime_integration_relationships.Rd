@@ -57,3 +57,18 @@ positive, and non-missing correlations must be finite values in \verb{[-1, 1]}.
 Boundary correlations at \code{-1} or \code{1} are retained in \code{combined}, but their
 undefined Fisher-Z transforms and correlation-panel residuals are \code{NA}.
 }
+\examples{
+summary_data <- data.frame(
+  regime = paste0("r", 1:6),
+  rate = c(1.0, 1.4, 1.7, 2.5, 3.1, 4.2),
+  mean_variance = c(0.7, 0.9, 1.4, 1.8, 2.6, 3.4),
+  mean_abs_correlation = c(0.12, 0.18, 0.23, 0.31, 0.37, 0.44)
+)
+relationships <- regime_integration_relationships(
+  summary_data,
+  n_boot = 20,
+  seed = 1
+)
+stats::coef(relationships$variance_lm)
+
+}

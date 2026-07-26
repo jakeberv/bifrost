@@ -188,25 +188,28 @@ tree-layout argument names close to \code{phytools}: \code{type}, \code{fsize}, 
 \code{rateMap} controls, not \code{phytools} arguments.
 }
 \examples{
-\dontrun{
-rm_obj <- rateMap(fits, progress = FALSE)
+toy_tree <- ape::read.tree(text = "((a:1,b:1):1,c:2);")
+toy_tree <- phytools::paintSubTree(
+  toy_tree,
+  node = ape::Ntip(toy_tree) + 1L,
+  state = "0"
+)
+toy_tree <- phytools::paintSubTree(
+  toy_tree,
+  node = ape::Ntip(toy_tree) + 2L,
+  state = "1"
+)
+toy_fit <- list(
+  variables = list(tree = toy_tree),
+  param = c("0" = 0.1, "1" = 0.5)
+)
+rm_obj <- rateMap(toy_fit, log = FALSE, progress = FALSE)
 plot(
   rm_obj,
   type = "arc",
   show_tip_labels = FALSE,
-  legend_fsize = 0.8
+  legend = FALSE
 )
-
-# If rm_obj was built with uncertainty = TRUE, plot uncertainty directly:
-plot(rm_obj, value = "sd", palette = "Inferno")
-
-# Use a continuous ramp instead of the default ordered rate categories:
-plot(rm_obj, color_mode = "continuous")
-
-# Or keep category colors but change the binning:
-plot(rm_obj, n_categories = 5, category_bin_method = "equal")
-plot(rm_obj, category_breaks = c(-4, -2, 0, 2))
-}
 
 }
 \references{

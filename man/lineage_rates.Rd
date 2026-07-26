@@ -265,6 +265,9 @@ values measure. For generic SIMMAP trees, use this helper when ancestral
 node states are the summary target; it is not a duration-weighted integrator
 over mapped within-edge segments.
 }
+
+For a completed search result named \code{search_result}, the usual search-result
+call is \code{lineage_rates(bifrost_search = search_result)}.
 }
 \examples{
 # Generic input mode: summarize arbitrary state-associated values on a mapped tree.
@@ -286,11 +289,6 @@ lineage_rates(
   log = FALSE,
   progress = FALSE
 )
-
-\dontrun{
-# Search-result mode: use the multi-regime BMM fit and SIMMAP tree.
-lineage_summary <- lineage_rates(bifrost_search = search_result)
-}
 }
 \references{
 Berv, J. S. et al. (2026). Rates of passerine body plan evolution in time

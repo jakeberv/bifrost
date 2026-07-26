@@ -22,10 +22,21 @@ type, generating scenario, replicate counts, and the main false-positive or
 recovery summaries attached to the study object.
 }
 \examples{
-\dontrun{
-# Usually called on the output of a simulation-study wrapper:
-# study
-}
+study <- structure(
+  list(
+    study_type = "false_positive",
+    generating_scenario = "null",
+    study_summary = list(
+      n_replicates = 2L,
+      n_completed = 2L,
+      n_failed = 0L,
+      mean_false_positive_rate = 0,
+      median_false_positive_rate = 0
+    )
+  ),
+  class = c("bifrost_simulation_study", "list")
+)
+study
 
 }
 \seealso{

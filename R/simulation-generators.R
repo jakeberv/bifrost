@@ -50,16 +50,14 @@
 #'   [runFalsePositiveSimulationStudy()]
 #'
 #' @examples
-#' \dontrun{
 #' set.seed(1)
-#' tr <- ape::rtree(20)
-#' X <- matrix(rnorm(20 * 3), ncol = 3)
+#' tr <- ape::rtree(12)
+#' X <- matrix(rnorm(12 * 2), ncol = 2)
 #' rownames(X) <- tr$tip.label
 #' tmpl <- createSimulationTemplate(tr, X, formula = "trait_data ~ 1", method = "LL")
 #'
-#' sim_null <- simulateNullDataset(tmpl, tree_tip_count = 15, seed = 2)
-#' str(sim_null$trait_data)
-#' }
+#' sim_null <- simulateNullDataset(tmpl, tree_tip_count = 10, seed = 2)
+#' dim(sim_null$trait_data)
 #'
 #' @export
 simulateNullDataset <- function(template,
@@ -280,25 +278,25 @@ simulateNullDataset <- function(template,
 #'   [runShiftRecoverySimulationStudy()]
 #'
 #' @examples
-#' \dontrun{
 #' set.seed(1)
-#' tr <- ape::rtree(40)
-#' X <- matrix(rnorm(40 * 3), ncol = 3)
+#' tr <- ape::read.tree(
+#'   text = "((((t1:1,t2:1):1,t3:2):1,t4:3):1,t5:4);"
+#' )
+#' X <- matrix(rnorm(5 * 2), ncol = 2)
 #' rownames(X) <- tr$tip.label
 #' tmpl <- createSimulationTemplate(tr, X, formula = "trait_data ~ 1", method = "LL")
 #'
 #' sim_shift <- simulateShiftedDataset(
 #'   tmpl,
-#'   tree_tip_count = 25,
-#'   num_shifts = 2,
-#'   min_shift_tips = 3,
-#'   max_shift_tips = 8,
+#'   num_shifts = 1,
+#'   min_shift_tips = 4,
+#'   max_shift_tips = 4,
 #'   scale_mode = "proportional",
+#'   buffer = 0,
 #'   seed = 3
 #' )
 #'
 #' sim_shift$shiftNodes
-#' }
 #'
 #' @export
 simulateShiftedDataset <- function(template,

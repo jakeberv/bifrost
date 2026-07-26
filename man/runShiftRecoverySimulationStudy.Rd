@@ -97,36 +97,47 @@ template placeholder so the complete calibration template is not serialized
 again inside every simulated object.
 }
 \examples{
-\dontrun{
+\donttest{
 set.seed(1)
-tr <- ape::rtree(40)
-X <- matrix(rnorm(40 * 3), ncol = 3)
+tr <- ape::rtree(16)
+X <- matrix(rnorm(16 * 2), ncol = 2)
 rownames(X) <- tr$tip.label
 tmpl <- createSimulationTemplate(tr, X, formula = "trait_data ~ 1", method = "LL")
 
 recovery_study <- runShiftRecoverySimulationStudy(
   tmpl,
-  n_replicates = 2,
-  tree_tip_count = 25,
+  n_replicates = 1,
+  tree_tip_count = 14,
   simulation_options = list(
-    num_shifts = 2,
-    min_shift_tips = 3,
-    max_shift_tips = 8,
-    scale_mode = "proportional"
+    num_shifts = 1,
+    min_shift_tips = 2,
+    max_shift_tips = 5,
+    scale_mode = "proportional",
+    scale_factor_range = c(5, 8),
+    exclude_range = c(5.5, 6),
+    buffer = 0
   ),
   search_options = list(
     formula = "trait_data ~ 1",
-    min_descendant_tips = 3,
+    min_descendant_tips = 2,
     shift_acceptance_threshold = 5,
     num_cores = 1,
     IC = "GIC",
-    method = "LL"
+    method = "LL",
+    plot = FALSE,
+    progress = FALSE,
+    verbose = FALSE,
+    store_model_fit_history = FALSE
   ),
+  weighted = FALSE,
   num_cores = 1,
   seed = 2
 )
 
-recovery_study
+recovery_study$per_replicate[
+  , c("n_true_shifts", "n_inferred_shifts", "status")
+]
+unlist(recovery_study$evaluation$strict)
 }
 
 }

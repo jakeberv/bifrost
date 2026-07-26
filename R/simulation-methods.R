@@ -31,14 +31,12 @@
 #' @seealso [createSimulationTemplate()]
 #'
 #' @examples
-#' \dontrun{
 #' set.seed(1)
-#' tr <- ape::rtree(20)
-#' X <- matrix(rnorm(20 * 3), ncol = 3)
+#' tr <- ape::rtree(12)
+#' X <- matrix(rnorm(12 * 2), ncol = 2)
 #' rownames(X) <- tr$tip.label
 #' tmpl <- createSimulationTemplate(tr, X, formula = "trait_data ~ 1", method = "LL")
 #' tmpl
-#' }
 #'
 #' @export
 print.bifrost_simulation_template <- function(x, ...) {
@@ -89,10 +87,21 @@ print.bifrost_simulation_template <- function(x, ...) {
 #'   [runShiftRecoverySimulationStudy()]
 #'
 #' @examples
-#' \dontrun{
-#' # Usually called on the output of a simulation-study wrapper:
-#' # study
-#' }
+#' study <- structure(
+#'   list(
+#'     study_type = "false_positive",
+#'     generating_scenario = "null",
+#'     study_summary = list(
+#'       n_replicates = 2L,
+#'       n_completed = 2L,
+#'       n_failed = 0L,
+#'       mean_false_positive_rate = 0,
+#'       median_false_positive_rate = 0
+#'     )
+#'   ),
+#'   class = c("bifrost_simulation_study", "list")
+#' )
+#' study
 #'
 #' @export
 print.bifrost_simulation_study <- function(x, ...) {

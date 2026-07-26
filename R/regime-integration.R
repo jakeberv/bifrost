@@ -53,6 +53,35 @@
 #' those requirements are retained with status `"failed"` and a diagnostic
 #' message.
 #'
+#' @examples
+#' tree <- ape::read.tree(text = paste0(
+#'   "(((a:1,b:1):1,(c:1,d:1):1):1,",
+#'   "((e:1,f:1):1,(g:1,h:1):1):1);"
+#' ))
+#' tree <- phytools::paintSubTree(
+#'   tree, node = ape::Ntip(tree) + 1L, state = "root"
+#' )
+#' tree <- phytools::paintSubTree(
+#'   tree, node = ape::getMRCA(tree, c("a", "d")), state = "slow"
+#' )
+#' tree <- phytools::paintSubTree(
+#'   tree, node = ape::getMRCA(tree, c("e", "h")), state = "fast"
+#' )
+#' set.seed(1)
+#' traits <- matrix(
+#'   stats::rnorm(16),
+#'   nrow = 8,
+#'   dimnames = list(tree$tip.label, c("bill", "wing"))
+#' )
+#' fits <- fit_regime_covariances(
+#'   tree = tree,
+#'   trait_data = traits,
+#'   min_tips = 4,
+#'   error = FALSE,
+#'   method = "LL"
+#' )
+#' fits$status
+#'
 #' @export
 fit_regime_covariances <- function(x = NULL,
                                    tree = NULL,
@@ -256,6 +285,36 @@ fit_regime_covariances <- function(x = NULL,
 #'
 #' @return A named list of `regime_covariances` objects with class
 #'   `regime_covariance_runs`.
+#'
+#' @examples
+#' tree <- ape::read.tree(text = paste0(
+#'   "(((a:1,b:1):1,(c:1,d:1):1):1,",
+#'   "((e:1,f:1):1,(g:1,h:1):1):1);"
+#' ))
+#' tree <- phytools::paintSubTree(
+#'   tree, node = ape::Ntip(tree) + 1L, state = "root"
+#' )
+#' tree <- phytools::paintSubTree(
+#'   tree, node = ape::getMRCA(tree, c("a", "d")), state = "slow"
+#' )
+#' tree <- phytools::paintSubTree(
+#'   tree, node = ape::getMRCA(tree, c("e", "h")), state = "fast"
+#' )
+#' set.seed(2)
+#' traits <- matrix(
+#'   stats::rnorm(16),
+#'   nrow = 8,
+#'   dimnames = list(tree$tip.label, c("bill", "wing"))
+#' )
+#' run_fits <- fit_regime_covariance_runs(
+#'   list(first = tree, second = tree),
+#'   trait_data = traits,
+#'   min_tips = 4,
+#'   error = FALSE,
+#'   method = "LL"
+#' )
+#' vapply(run_fits, function(x) sum(x$status$status == "ok"), integer(1))
+#'
 #' @export
 fit_regime_covariance_runs <- function(x,
                                        trait_data,
@@ -359,6 +418,23 @@ fit_regime_covariance_runs <- function(x,
 #' failed rows with missing summaries and a diagnostic message.
 #' A one-trait matrix has no pairwise correlations, so its mean absolute
 #' correlation and Fisher-Z summary are returned as `NA`.
+#'
+#' @examples
+#' covariances <- list(
+#'   slow = matrix(
+#'     c(1, 0.3, 0.3, 2), nrow = 2,
+#'     dimnames = list(c("bill", "wing"), c("bill", "wing"))
+#'   ),
+#'   fast = matrix(
+#'     c(2, 0.8, 0.8, 3), nrow = 2,
+#'     dimnames = list(c("bill", "wing"), c("bill", "wing"))
+#'   )
+#' )
+#' summarize_regime_covariances(
+#'   covariances,
+#'   rates = c(slow = 0.8, fast = 1.6),
+#'   tip_counts = c(slow = 12, fast = 9)
+#' )
 #'
 #' @export
 summarize_regime_covariances <- function(x,
@@ -504,6 +580,23 @@ summarize_regime_covariances <- function(x,
 #'
 #' @return A named list of summary data frames with class
 #'   `regime_covariance_run_summaries`.
+#'
+#' @examples
+#' slow <- matrix(c(1, 0.3, 0.3, 2), nrow = 2)
+#' fast <- matrix(c(2, 0.8, 0.8, 3), nrow = 2)
+#' covariance_runs <- list(
+#'   first = list(slow = slow, fast = fast),
+#'   second = list(slow = slow * 1.2, fast = fast * 0.9)
+#' )
+#' run_summaries <- summarize_regime_covariance_runs(
+#'   covariance_runs,
+#'   rates = list(
+#'     first = c(slow = 0.8, fast = 1.6),
+#'     second = c(slow = 0.9, fast = 1.4)
+#'   )
+#' )
+#' run_summaries$first
+#'
 #' @export
 summarize_regime_covariance_runs <- function(x,
                                              searches = NULL,
@@ -597,6 +690,24 @@ summarize_regime_covariance_runs <- function(x,
 #'   regime IDs, trait labels, optional diagnostics, and a `settings` list that
 #'   records the PCA scaling, tip-count filter, and whether retained covariance
 #'   matrices were scalar-proportional.
+#'
+#' @examples
+#' make_correlation <- function(r12, r13, r23) {
+#'   matrix(
+#'     c(1, r12, r13, r12, 1, r23, r13, r23, 1),
+#'     nrow = 3,
+#'     dimnames = list(c("bill", "wing", "tail"),
+#'                     c("bill", "wing", "tail"))
+#'   )
+#' }
+#' covariances <- list(
+#'   r1 = make_correlation(0.1, 0.2, 0.3),
+#'   r2 = make_correlation(0.2, 0.1, 0.4),
+#'   r3 = make_correlation(-0.1, 0.3, 0.2),
+#'   r4 = make_correlation(0.4, -0.2, 0.1)
+#' )
+#' pca <- regime_correlation_pca(covariances)
+#' pca$variance_explained
 #'
 #' @export
 regime_correlation_pca <- function(x,
@@ -753,6 +864,27 @@ regime_correlation_pca <- function(x,
 #' @return An object of class `regime_module_diagnostics`, containing
 #'   per-regime module scores, PC/module correlations, comparison definitions,
 #'   and settings.
+#'
+#' @examples
+#' make_correlation <- function(r12, r13, r23) {
+#'   matrix(
+#'     c(1, r12, r13, r12, 1, r23, r13, r23, 1),
+#'     nrow = 3,
+#'     dimnames = list(c("bill", "wing", "tail"),
+#'                     c("bill", "wing", "tail"))
+#'   )
+#' }
+#' covariances <- list(
+#'   r1 = make_correlation(0.1, 0.2, 0.3),
+#'   r2 = make_correlation(0.2, 0.1, 0.4),
+#'   r3 = make_correlation(-0.1, 0.3, 0.2),
+#'   r4 = make_correlation(0.4, -0.2, 0.1)
+#' )
+#' pca <- regime_correlation_pca(covariances)
+#' modules <- list(flight = c("wing", "tail"), feeding = "bill")
+#' diagnostics <- regime_module_diagnostics(pca, modules)
+#' diagnostics$correlations
+#'
 #' @export
 regime_module_diagnostics <- function(pca,
                                       modules,
@@ -877,6 +1009,37 @@ regime_module_diagnostics <- function(pca,
 #'   Standardization is computed across all summary rows surviving the optional
 #'   `min_tips` filter before rows absent from the collapsed regime phylogeny are
 #'   dropped. This intentional ordering matches manuscript preprocessing.
+#'
+#' @examples
+#' if (requireNamespace("phylolm", quietly = TRUE)) {
+#'   tree <- ape::read.tree(text = paste0(
+#'     "((((a:1,b:1):1,(c:1,d:1):1):1,",
+#'     "((e:1,f:1):1,(g:1,h:1):1):1):1,(i:1,j:1):3);"
+#'   ))
+#'   tree <- phytools::paintSubTree(
+#'     tree, node = ape::Ntip(tree) + 1L, state = "root"
+#'   )
+#'   tip_pairs <- list(
+#'     r1 = c("a", "b"), r2 = c("c", "d"), r3 = c("e", "f"),
+#'     r4 = c("g", "h"), r5 = c("i", "j")
+#'   )
+#'   for (regime in names(tip_pairs)) {
+#'     tree <- phytools::paintSubTree(
+#'       tree,
+#'       node = ape::getMRCA(tree, tip_pairs[[regime]]),
+#'       state = regime
+#'     )
+#'   }
+#'   summary_data <- data.frame(
+#'     regime = names(tip_pairs),
+#'     rate = c(0.8, 1.1, 1.7, 2.2, 3.4),
+#'     mean_variance = c(0.6, 0.9, 1.3, 2.0, 2.7),
+#'     mean_abs_correlation = c(0.10, 0.18, 0.25, 0.32, 0.41)
+#'   )
+#'   fit <- regime_integration_pgls(summary_data, tree = tree)
+#'   stats::coef(fit)
+#' }
+#'
 #' @export
 regime_integration_pgls <- function(summary_data,
                                     search = NULL,
@@ -969,6 +1132,21 @@ regime_integration_pgls <- function(summary_data,
 #' positive, and non-missing correlations must be finite values in `[-1, 1]`.
 #' Boundary correlations at `-1` or `1` are retained in `combined`, but their
 #' undefined Fisher-Z transforms and correlation-panel residuals are `NA`.
+#'
+#' @examples
+#' summary_data <- data.frame(
+#'   regime = paste0("r", 1:6),
+#'   rate = c(1.0, 1.4, 1.7, 2.5, 3.1, 4.2),
+#'   mean_variance = c(0.7, 0.9, 1.4, 1.8, 2.6, 3.4),
+#'   mean_abs_correlation = c(0.12, 0.18, 0.23, 0.31, 0.37, 0.44)
+#' )
+#' relationships <- regime_integration_relationships(
+#'   summary_data,
+#'   n_boot = 20,
+#'   seed = 1
+#' )
+#' stats::coef(relationships$variance_lm)
+#'
 #' @export
 regime_integration_relationships <- function(summaries,
                                              resid_sd_threshold_vars = 2,
@@ -1203,6 +1381,10 @@ plot.regime_integration_relationships <- function(x,
 #' @param correlations Numeric correlation vector.
 #'
 #' @return Numeric vector of transformed correlations.
+#'
+#' @examples
+#' fisher_z_transform(c(-0.5, 0, 0.5))
+#'
 #' @export
 fisher_z_transform <- function(correlations) {
   if (any(correlations <= -1 | correlations >= 1, na.rm = TRUE)) {

@@ -52,3 +52,34 @@ Standardization is computed across all summary rows surviving the optional
 \code{min_tips} filter before rows absent from the collapsed regime phylogeny are
 dropped. This intentional ordering matches manuscript preprocessing.
 }
+\examples{
+if (requireNamespace("phylolm", quietly = TRUE)) {
+  tree <- ape::read.tree(text = paste0(
+    "((((a:1,b:1):1,(c:1,d:1):1):1,",
+    "((e:1,f:1):1,(g:1,h:1):1):1):1,(i:1,j:1):3);"
+  ))
+  tree <- phytools::paintSubTree(
+    tree, node = ape::Ntip(tree) + 1L, state = "root"
+  )
+  tip_pairs <- list(
+    r1 = c("a", "b"), r2 = c("c", "d"), r3 = c("e", "f"),
+    r4 = c("g", "h"), r5 = c("i", "j")
+  )
+  for (regime in names(tip_pairs)) {
+    tree <- phytools::paintSubTree(
+      tree,
+      node = ape::getMRCA(tree, tip_pairs[[regime]]),
+      state = regime
+    )
+  }
+  summary_data <- data.frame(
+    regime = names(tip_pairs),
+    rate = c(0.8, 1.1, 1.7, 2.2, 3.4),
+    mean_variance = c(0.6, 0.9, 1.3, 2.0, 2.7),
+    mean_abs_correlation = c(0.10, 0.18, 0.25, 0.32, 0.41)
+  )
+  fit <- regime_integration_pgls(summary_data, tree = tree)
+  stats::coef(fit)
+}
+
+}

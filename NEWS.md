@@ -33,6 +33,9 @@
   - Reduced multisession transfer size by using compact namespace-level workers and by avoiding a complete calibration template inside every replicate's call record.
 
 * Documentation / vignettes:
+  - Added small, deterministic, runnable help examples for regime-integration,
+    simulation, rate-map, lineage-rate, and tuning workflows; longer model-fitting
+    examples now use bounded `\donttest{}` blocks that are exercised in CI.
   - Added two rate-map jaw-shape workflows and refreshed the existing jaw-shape vignette.
   - Added a five-part avian skeleton case study covering search inspection, lineage rates, shift distributions, magnitude comparisons, and post-hoc covariance and integration analyses.
   - Added a two-part empirically calibrated simulation guide covering performance assessment, search tuning, and empirical application.
@@ -41,6 +44,8 @@
   - Updated Berv et al. (2026) citation metadata and avian skeleton references for the published *Nature Ecology & Evolution* article DOI.
 
 * Maintenance:
+  - Added an advisory `checktor` CI audit with downloadable Markdown and CSV
+    reports, and made temporary-file cleanup explicit in affected tests.
   - Increased the minimum supported R version from 4.1 to 4.2.
   - Hardened lineage-rate, regime-integration, simulation, and tuning workflows around malformed inputs, failed fits, reproducible parallel execution, and infeasible selections.
   - Expanded CI coverage for package checks, exact coverage accounting, parallel smoke tests, serialized empirical artifacts, and generated vignette outputs.

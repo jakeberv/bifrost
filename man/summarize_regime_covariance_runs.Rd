@@ -52,3 +52,20 @@ Apply \code{\link[=summarize_regime_covariances]{summarize_regime_covariances()}
 \code{generateVarsCorsList()} step while keeping rate matching, tip counts, and
 high-correlation filtering explicit and reusable.
 }
+\examples{
+slow <- matrix(c(1, 0.3, 0.3, 2), nrow = 2)
+fast <- matrix(c(2, 0.8, 0.8, 3), nrow = 2)
+covariance_runs <- list(
+  first = list(slow = slow, fast = fast),
+  second = list(slow = slow * 1.2, fast = fast * 0.9)
+)
+run_summaries <- summarize_regime_covariance_runs(
+  covariance_runs,
+  rates = list(
+    first = c(slow = 0.8, fast = 1.6),
+    second = c(slow = 0.9, fast = 1.4)
+  )
+)
+run_summaries$first
+
+}

@@ -76,3 +76,21 @@ failed rows with missing summaries and a diagnostic message.
 A one-trait matrix has no pairwise correlations, so its mean absolute
 correlation and Fisher-Z summary are returned as \code{NA}.
 }
+\examples{
+covariances <- list(
+  slow = matrix(
+    c(1, 0.3, 0.3, 2), nrow = 2,
+    dimnames = list(c("bill", "wing"), c("bill", "wing"))
+  ),
+  fast = matrix(
+    c(2, 0.8, 0.8, 3), nrow = 2,
+    dimnames = list(c("bill", "wing"), c("bill", "wing"))
+  )
+)
+summarize_regime_covariances(
+  covariances,
+  rates = c(slow = 0.8, fast = 1.6),
+  tip_counts = c(slow = 12, fast = 9)
+)
+
+}
