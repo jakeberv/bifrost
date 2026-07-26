@@ -89,6 +89,12 @@ for (name in trajectory_test_internals) {
   assign(name, value, envir = environment())
 }
 
+testthat::test_that("plot_ic_acceptance_matrix is not exported", {
+  testthat::expect_false(
+    "plot_ic_acceptance_matrix" %in% getNamespaceExports("bifrost")
+  )
+})
+
 testthat::test_that("icTrajectory extracts baseline and proposal rows from bifrost_search", {
   traj <- icTrajectory(make_search_for_trajectory())
 
@@ -494,6 +500,7 @@ testthat::test_that("icTrajectory axis and label helpers apply documented fallba
   testthat::expect_equal(.icTrajectory_delta_limits(c(0, 0), NULL), c(-1, 1))
   testthat::expect_equal(.icTrajectory_delta_limits(c(-2, 4), c(4, -2)), c(4, -2))
   testthat::expect_equal(.icTrajectory_y_label(NULL, NA_character_), "IC score")
+  testthat::expect_equal(.icTrajectory_y_label("Custom label", "GIC"), "Custom label")
   testthat::expect_equal(.icTrajectory_axis_limits(c(0, 0)), c(-1, 1))
 })
 
@@ -653,62 +660,5 @@ testthat::test_that("plot.icTrajectory validates plotting arguments", {
   testthat::expect_error(
     plot.icTrajectory(make_search_for_trajectory(), legend = FALSE),
     "`x` must be an `icTrajectory` object"
-  )
-})
-
-testthat::test_that("plot_ic_acceptance_matrix remains as a compatibility wrapper", {
-  mat <- cbind(
-    ic = c(-1000, -1010, -1008, NA_real_),
-    accepted = c(1L, 1L, 0L, 0L)
-  )
-
-  open_null_device_trajectory()
-  on.exit(close_device_trajectory(), add = TRUE)
-
-  testthat::expect_invisible(
-    plot_ic_acceptance_matrix(
-      mat,
-      plot_title = "Legacy default",
-      rate_limits = c(-5, 15),
-      legend = FALSE
-    )
-  )
-  testthat::expect_invisible(
-    plot_ic_acceptance_matrix(
-      mat,
-      plot_title = "Legacy no overlay",
-      plot_rate_of_improvement = FALSE,
-      baseline_ic = -995,
-      symbols = c(accepted = 19),
-      scales = c(point = 1.2),
-      legend = FALSE
-    )
-  )
-})
-
-testthat::test_that("plot_ic_acceptance_matrix validates legacy arguments", {
-  mat <- cbind(
-    ic = c(-1000, -1010, -1008),
-    accepted = c(1L, 1L, 0L)
-  )
-
-  open_null_device_trajectory()
-  on.exit(close_device_trajectory(), add = TRUE)
-
-  testthat::expect_error(
-    plot_ic_acceptance_matrix(mat[, 1, drop = FALSE]),
-    "`matrix_data` must have at least one row and two columns"
-  )
-  testthat::expect_error(
-    plot_ic_acceptance_matrix(mat, plot_rate_of_improvement = NA),
-    "`plot_rate_of_improvement` must be TRUE or FALSE"
-  )
-  testthat::expect_error(
-    plot_ic_acceptance_matrix(mat, rate_limits = c(NA_real_, 1)),
-    "`rate_limits` must be a numeric vector of length 2"
-  )
-  testthat::expect_error(
-    plot_ic_acceptance_matrix(cbind(ic = c(NA_real_, -1010), accepted = c(1L, 1L))),
-    "first IC value in `matrix_data` must be finite"
   )
 })

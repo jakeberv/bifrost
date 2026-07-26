@@ -9,7 +9,8 @@
 
 * Search inputs and diagnostics:
   - Formula-based searches now accept formula objects as well as character strings, numeric response-only data frames for intercept-only searches, and named-column data-frame formulas for pGLS-style workflows.
-  - Added `icTrajectory()` and its `plot()` method for inspecting stored search histories; `plot_ic_acceptance_matrix()` remains available as a compatibility wrapper.
+  - Added `icTrajectory()` and its `plot()` method for inspecting stored search histories.
+  - Removed the superseded `plot_ic_acceptance_matrix()` wrapper; migrate to `plot(icTrajectory(x))`.
   - Stored model-fit histories now retain richer accepted, rejected, and errored candidate records.
 
 * Branch-rate summaries:
