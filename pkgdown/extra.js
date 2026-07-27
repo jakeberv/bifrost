@@ -14,6 +14,39 @@ const ARTICLE_ARTIFACT_SLUGS = new Set([
   "theoretical-background-vignette"
 ]);
 
+(function syncCranDownloadsTheme() {
+  const preferredMedia = {
+    dark: "(prefers-color-scheme: dark)",
+    light: "(prefers-color-scheme: light)"
+  };
+
+  const sync = () => {
+    const activeTheme = document.documentElement.getAttribute("data-bs-theme");
+    document.querySelectorAll("picture.cran-downloads-picture").forEach(picture => {
+      picture.querySelectorAll("source[data-theme]").forEach(source => {
+        const sourceTheme = source.getAttribute("data-theme");
+        source.media = activeTheme === "dark" || activeTheme === "light"
+          ? (sourceTheme === activeTheme ? "all" : "not all")
+          : preferredMedia[sourceTheme];
+      });
+    });
+  };
+
+  const run = () => {
+    sync();
+    new MutationObserver(sync).observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-bs-theme"]
+    });
+  };
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", run);
+  } else {
+    run();
+  }
+})();
+
 function getArticleArtifactSlug(pathname) {
   const match = /^(?:\/[^/]+)*\/articles\/([^/]+)\.html$/.exec(pathname);
   if (!match) return null;

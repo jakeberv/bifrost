@@ -27,6 +27,15 @@ const outputPngPath =
 const readmePngPath =
   process.env.CRAN_DOWNLOADS_README_PNG ||
   path.resolve(projectRoot, "..", "..", "man", "figures", "cran-downloads.png");
+const outputDarkSvgPath =
+  process.env.CRAN_DOWNLOADS_DARK_SVG ||
+  path.join(projectRoot, "output", "cran-downloads-dark.svg");
+const outputDarkPngPath =
+  process.env.CRAN_DOWNLOADS_DARK_PNG ||
+  path.join(projectRoot, "output", "cran-downloads-dark.png");
+const readmeDarkPngPath =
+  process.env.CRAN_DOWNLOADS_DARK_README_PNG ||
+  path.resolve(projectRoot, "..", "..", "man", "figures", "cran-downloads-dark.png");
 
 const canvasWidth = 1200;
 const canvasHeight = 500;
@@ -65,61 +74,92 @@ const rollingAverageData = rows.map((row, index) => {
   };
 });
 
-const leftChart = renderChart({
-  title: "Cumulative CRAN downloads",
-  yLabel: "Downloads",
-  colors: ["#dd4528"],
-  datasets: [
-    {
-      label: `total ${cumulative.toLocaleString("en-US")}`,
-      logo: "",
-      data: cumulativeData,
-    },
-  ],
-});
+const themes = [
+  {
+    name: "light",
+    background: "#fff",
+    stroke: "#111827",
+    colors: ["#dd4528", "#28a3dd"],
+    svgPath: outputSvgPath,
+    pngPath: outputPngPath,
+    readmePngPath,
+  },
+  {
+    name: "dark",
+    background: "#0d1117",
+    stroke: "white",
+    colors: ["#ff6b6b", "#48dbfb"],
+    svgPath: outputDarkSvgPath,
+    pngPath: outputDarkPngPath,
+    readmePngPath: readmeDarkPngPath,
+  },
+];
 
-const rightChart = renderChart({
-  title: "Download rate",
-  yLabel: "Downloads/day",
-  colors: ["#28a3dd"],
-  legendPosition: "bottom-right",
-  datasets: [
-    {
-      label: `${rateWindowDays}-day avg`,
-      logo: "",
-      data: rollingAverageData,
-    },
-  ],
-});
+const hasRsvgConvert = commandExists("rsvg-convert");
+for (const theme of themes) {
+  const optimized = optimize(renderComposite(theme), { multipass: true }).data;
+  fs.mkdirSync(path.dirname(theme.svgPath), { recursive: true });
+  fs.writeFileSync(theme.svgPath, `${optimized}\n`);
+  console.log(theme.svgPath);
 
-const composite = `<?xml version="1.0" encoding="UTF-8"?>
+  if (hasRsvgConvert) {
+    fs.mkdirSync(path.dirname(theme.pngPath), { recursive: true });
+    const png = spawnSync(
+      "rsvg-convert",
+      ["-b", theme.background, "-f", "png", "-o", theme.pngPath, theme.svgPath],
+      { stdio: "inherit" },
+    );
+    if (png.status !== 0) {
+      throw new Error(`rsvg-convert failed for ${theme.name} chart`);
+    }
+    console.log(theme.pngPath);
+
+    fs.mkdirSync(path.dirname(theme.readmePngPath), { recursive: true });
+    fs.copyFileSync(theme.pngPath, theme.readmePngPath);
+    console.log(theme.readmePngPath);
+  }
+}
+
+function renderComposite(theme) {
+  const leftChart = renderChart({
+    title: "Cumulative CRAN downloads",
+    yLabel: "Downloads",
+    colors: [theme.colors[0]],
+    datasets: [
+      {
+        label: `total ${cumulative.toLocaleString("en-US")}`,
+        logo: "",
+        data: cumulativeData,
+      },
+    ],
+    theme,
+  });
+
+  const rightChart = renderChart({
+    title: "Download rate",
+    yLabel: "Downloads/day",
+    colors: [theme.colors[1]],
+    legendPosition: "bottom-right",
+    datasets: [
+      {
+        label: `${rateWindowDays}-day avg`,
+        logo: "",
+        data: rollingAverageData,
+      },
+    ],
+    theme,
+  });
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${canvasWidth}" height="${canvasHeight}" viewBox="0 0 ${canvasWidth} ${canvasHeight}">
-  <rect width="100%" height="100%" fill="white"/>
+  <rect width="100%" height="100%" fill="${theme.background}"/>
   <image href="${escapeDataUri(leftChart)}" x="24" y="${chartY}" width="${chartWidth}" height="${chartHeight}"/>
   <image href="${escapeDataUri(rightChart)}" x="616" y="${chartY}" width="${chartWidth}" height="${chartHeight}"/>
 </svg>
 `;
-
-const optimized = optimize(composite, { multipass: true }).data;
-fs.mkdirSync(path.dirname(outputSvgPath), { recursive: true });
-fs.writeFileSync(outputSvgPath, `${optimized}\n`);
-console.log(outputSvgPath);
-
-if (commandExists("rsvg-convert")) {
-  const png = spawnSync("rsvg-convert", ["-b", "white", "-f", "png", "-o", outputPngPath, outputSvgPath], {
-    stdio: "inherit",
-  });
-  if (png.status !== 0) {
-    throw new Error("rsvg-convert failed");
-  }
-  console.log(outputPngPath);
-
-  fs.mkdirSync(path.dirname(readmePngPath), { recursive: true });
-  fs.copyFileSync(outputPngPath, readmePngPath);
-  console.log(readmePngPath);
 }
 
-function renderChart({ title, yLabel, datasets, colors, legendPosition = "top-left" }) {
+function renderChart({ title, yLabel, datasets, colors, theme, legendPosition = "top-left" }) {
   const dom = new JSDOM(`<!DOCTYPE html><body></body>`);
   const svg = dom.window.document.createElement("svg");
 
@@ -138,7 +178,7 @@ function renderChart({ title, yLabel, datasets, colors, legendPosition = "top-le
       data: { datasets },
       showDots: false,
       transparent: false,
-      theme: "light",
+      theme: theme.name,
     },
     {
       envType: "node",
@@ -148,8 +188,8 @@ function renderChart({ title, yLabel, datasets, colors, legendPosition = "top-le
       xTickCount: 4,
       yTickCount: 4,
       dataColors: colors,
-      backgroundColor: "white",
-      strokeColor: "#111827",
+      backgroundColor: theme.background,
+      strokeColor: theme.stroke,
       legendPosition,
     },
   );
@@ -157,7 +197,7 @@ function renderChart({ title, yLabel, datasets, colors, legendPosition = "top-le
   const background = dom.window.document.createElement("rect");
   background.setAttribute("width", "100%");
   background.setAttribute("height", "100%");
-  background.setAttribute("fill", "white");
+  background.setAttribute("fill", theme.background);
   svg.insertBefore(background, svg.firstChild);
 
   return fixJsdomSvgCasing(svg.outerHTML);
