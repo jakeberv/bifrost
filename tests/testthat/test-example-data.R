@@ -129,7 +129,7 @@ testthat::test_that("manifest validation rejects malformed downloader records", 
     list("missing downloader field", function(x) {
       x$artifacts[[1L]]$size_bytes <- NULL; x
     }),
-    list("exactly the supported identifiers", function(x) {
+    list("supported identifiers: jaw-tree, jaw-landmarks", function(x) {
       x$artifacts[[1L]]$artifact_id <- "extra-artifact"; x
     })
   )
@@ -188,6 +188,10 @@ testthat::test_that("the local override rejects incompatible, changed, and escap
   write_example_data_fixture(root)
   unlink(jaw)
   testthat::expect_error(bifrost_example_file("jaw-tree"), "is missing")
+
+  dir.create(jaw)
+  testthat::expect_error(bifrost_example_file("jaw-tree"), "is missing")
+  unlink(jaw, recursive = TRUE)
 
   write_example_data_fixture(root)
   manifest <- read_example_data_fixture(root)

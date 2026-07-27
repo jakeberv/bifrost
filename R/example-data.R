@@ -159,7 +159,10 @@
   if (!setequal(identifiers, .bifrost_example_identifiers)) {
     .bifrost_manifest_error(
       source,
-      "downloader artifacts must have exactly the supported identifiers: "
+      paste0(
+        "downloader artifacts must have exactly the supported identifiers: ",
+        paste(.bifrost_example_identifiers, collapse = ", ")
+      )
     )
   }
 
@@ -180,7 +183,7 @@
 
 .bifrost_verify_example_file <- function(path, entry, source) {
   identifier <- entry$artifact_id
-  if (!file.exists(path)) {
+  if (!utils::file_test("-f", path)) {
     stop(
       "Example-data artifact '", identifier, "' from ", source,
       " is missing at ", path,
