@@ -100,7 +100,7 @@ That design also illustrates a common `bifrost` use case beyond intercept-only a
 
 ### What this workflow covers
 
-The complete Berv et al. (2026) search repeatedly fits and compares candidate hidden-rate configurations across a large phylogeny. That is the analysis to run for a full empirical study, but it is too slow and memory-intensive for a package vignette. These worked examples therefore use compact package-local objects:
+The complete Berv et al. (2026) search repeatedly fits and compares candidate hidden-rate configurations across a large phylogeny. That is the analysis to run for a full empirical study, but it is too slow and memory-intensive for a package vignette. These worked examples therefore use compact cached objects:
 
 - Part 1 specifies the focal search, then inspects a compact precomputed `bifrost_search` object that preserves the final fitted model, accepted shifts, mapped tree, fitted regime rates, and information-criterion trajectory.
 - Part 2 uses the same compact focal result to compute lineage-rate summaries.
@@ -108,7 +108,7 @@ The complete Berv et al. (2026) search repeatedly fits and compares candidate hi
 - Part 4 first uses the compact focal result for a single-run shift-magnitude example, then uses the compact sensitivity bundle for pooled comparisons.
 - Part 5 uses compact post-hoc covariance summaries to ask whether the temporal rate regimes also differ in independently refit integration structure.
 
-The package includes the lightweight inputs needed for the workflow: the passerine tree, a 13-column species-level matrix containing 12 skeletal measurements and `vertnet_mass`, compact focal and sensitivity search objects, and a compact post-hoc integration bundle. The complete Berv et al. (2026) archive remains the source for proposal history, sensitivity searches, and candidate model fits.
+The public example-data resolver supplies the lightweight inputs used in each part on demand. The complete Berv et al. (2026) archive remains the citable paper snapshot and the source for proposal history, sensitivity searches, and candidate model fits.
 
 <br>
 
@@ -130,16 +130,20 @@ library(RColorBrewer)
 
 ## Data Sources and Availability
 
-### Package-local inputs
+### On-demand inputs
 
-The examples below use four package-local files:
+Part 1 requests three files through `bifrost_example_file()`:
 
-- tree: `inst/extdata/avian-skeleton/passerine_bodyplan_tree.tre`
-- trait matrix: `inst/extdata/avian-skeleton/passerine_bodyplan_data.RDS`
-- compact focal search result: `inst/extdata/avian-skeleton/passerine_bodyplan_search_compact.RDS`
-- compact sensitivity search results: `inst/extdata/avian-skeleton/passerine_bodyplan_search_sensitivity_compact.RDS`
+- passerine tree (`passerine-tree`), approximately 81 KB
+- trait matrix (`passerine-traits`), approximately 212 KB
+- compact focal search result (`passerine-search`), approximately 1.9 MB
 
-The tree and trait matrix reproduce the `searchOptimalConfiguration()` setup shown below. The compact focal result preserves the fitted BMM regime-rate parameters, mapped SIMMAP trees, accepted shifts, regime VCVs, IC weights, and IC acceptance matrix used by `icTrajectory()`, but omits the full optimized `mvgls` object and individual candidate fits. The compact sensitivity bundle keeps mapped trees, BMM regime rates, and compact IC acceptance matrices for downstream examples. Use the full Zenodo archive for proposal-level history, sensitivity searches, full fitted model objects, and proposal metadata.
+First use downloads and verifies these files; later calls reuse the verified cache. The tree and trait matrix reproduce the `searchOptimalConfiguration()` setup shown below. The compact focal result preserves the fitted BMM regime-rate parameters, mapped SIMMAP trees, accepted shifts, regime VCVs, IC weights, and IC acceptance matrix used by `icTrajectory()`, but omits the full optimized `mvgls` object and individual candidate fits. Use the full Zenodo archive for proposal-level history, sensitivity searches, full fitted model objects, and proposal metadata. To explicitly check for an updated focal result, run:
+
+```{r refresh_passerine_search, eval=FALSE}
+# Refresh the compact focal search only when an updated copy is wanted.
+bifrost_example_file("passerine-search", refresh = TRUE)
+```
 
 ### Complete Berv et al. archive
 
@@ -154,32 +158,21 @@ The archive includes these vignette-relevant files:
 
 ### Species-level trait matrix
 
-The packaged `passerine_bodyplan_data.RDS` object is the assembled species-level comparative matrix used in the Berv et al. (2026) temporal analysis. It has one row per species: 2,057 passerine species by 13 columns, with 12 skeletal traits plus `vertnet_mass`. It is not the raw specimen-level table. The underlying Skelevision workflow measured skeletal elements from photographs of museum voucher skeletons using U-Net and Mask R-CNN (Weeks et al. 2023; Weeks et al. 2025). Those specimen-level data comprise 14,419 voucher specimens spanning the same 2,057 passerine species, covering 34% of passerine species and 89% of passerine families.
+The `passerine-traits` object is the assembled species-level comparative matrix used in the Berv et al. (2026) temporal analysis. It has one row per species: 2,057 passerine species by 13 columns, with 12 skeletal traits plus `vertnet_mass`. It is not the raw specimen-level table. The underlying Skelevision workflow measured skeletal elements from photographs of museum voucher skeletons using U-Net and Mask R-CNN (Weeks et al. 2023; Weeks et al. 2025). Those specimen-level data comprise 14,419 voucher specimens spanning the same 2,057 passerine species, covering 34% of passerine species and 89% of passerine families.
 
-The 12 skeletal columns in the packaged matrix span the hindlimb (`femur`, `tarsus` = tibiotarsus, `metatarsus` = tarsometatarsus), forelimb (`humerus`, `ulna`, `radius`, `carpometacarpus`, `second_digit` = second digit phalanx), and axial/cranial skeleton (`cv.keel.1` = keel, `cv.furcula.1` = furcula, `sclerotic_ring`, `cv.skull.1` = skull-bill length). The companion dataset already imputes missing skeletal values with a multivariate evolutionary model, so the packaged matrix contains complete species-level data.
+The 12 skeletal columns in the matrix span the hindlimb (`femur`, `tarsus` = tibiotarsus, `metatarsus` = tarsometatarsus), forelimb (`humerus`, `ulna`, `radius`, `carpometacarpus`, `second_digit` = second digit phalanx), and axial/cranial skeleton (`cv.keel.1` = keel, `cv.furcula.1` = furcula, `sclerotic_ring`, `cv.skull.1` = skull-bill length). The companion dataset already imputes missing skeletal values with a multivariate evolutionary model, so this matrix contains complete species-level data.
 
 `vertnet_mass` likewise gives an assembled species-level covariate rather than a direct image measurement. Following the companion dataset workflow, Berv et al. (2026) pulled body masses from specimen label metadata archived through VertNet. In the underlying specimen set, 54.2% of individual skeletons had recorded masses, and 69.2% of species had at least one mass record (mean ~5.5 records per species). Here we use the species-level best linear unbiased prediction of mean log body mass from the companion comparative imputation framework, which accounts for missing data and within- and between-species variation.
 
-## Loading the packaged example
+## Loading the example data
 
 ```{r load_data}
-# Resolve package-local paths for the tree and species-level matrix.
-tree_path <- system.file(
-  "extdata",
-  "avian-skeleton",
-  "passerine_bodyplan_tree.tre",
-  package = "bifrost"
-)
-trait_path <- system.file(
-  "extdata",
-  "avian-skeleton",
-  "passerine_bodyplan_data.RDS",
-  package = "bifrost"
-)
-stopifnot(nzchar(tree_path), nzchar(trait_path))
+# Resolve the tree and species-level matrix through the public cache.
+tree_path <- bifrost_example_file("passerine-tree")
+trait_path <- bifrost_example_file("passerine-traits")
 
 # Load the time-scaled tree and assembled comparative data.
-bird_tree <- read.tree(tree_path)
+bird_tree <- ape::read.tree(tree_path)
 bodyplan_data <- readRDS(trait_path)
 
 # Normalize internal edge order before matching rows to tip labels.
@@ -209,7 +202,7 @@ c(
 
 The postorder step only standardizes the tree's internal edge traversal before row matching. It does not change topology, branch lengths, tip labels, or downstream model inputs; rows are still aligned explicitly by species name.
 
-The packaged matrix orders the 12 skeletal traits first and `vertnet_mass` last. That layout makes the model formula explicit:
+The matrix orders the 12 skeletal traits first and `vertnet_mass` last. That layout makes the model formula explicit:
 
 ```{r bodyplan_formula}
 # Confirm the multivariate response and body-mass covariate columns.
@@ -304,17 +297,11 @@ If your goal is to learn the API or inspect the final object structure, start wi
 
 ## Loading the focal run result
 
-For inspection examples, this vignette uses a compact package-local copy of the focal Berv et al. (2026) result. It has the same `bifrost_search` top-level structure as the full object and gives you enough information to inspect the final mapped tree, fitted BMM rates, accepted shifts, and stored IC trajectory. Part 2 uses this compact focal object for lineage-rate summaries, Part 3 uses it for shift timing and distribution fits, and Part 4 uses it for the single-run shift-magnitude example before switching to the compact sensitivity bundle for pooled comparisons.
+For inspection examples, this vignette uses the compact cached copy of the focal Berv et al. (2026) result. It has the same `bifrost_search` top-level structure as the full object and gives you enough information to inspect the final mapped tree, fitted BMM rates, accepted shifts, and stored IC trajectory. Part 2 uses this compact focal object for lineage-rate summaries, Part 3 uses it for shift timing and distribution fits, and Part 4 uses it for the single-run shift-magnitude example before switching to the compact sensitivity bundle for pooled comparisons.
 
 ```{r load_compact_bodyplan_search}
 # Load the compact focal result used throughout Parts 1-4.
-search_path <- system.file(
-  "extdata",
-  "avian-skeleton",
-  "passerine_bodyplan_search_compact.RDS",
-  package = "bifrost"
-)
-stopifnot(nzchar(search_path))
+search_path <- bifrost_example_file("passerine-search")
 
 bodyplan_search <- readRDS(search_path)
 
@@ -360,7 +347,7 @@ if (!inherits(bodyplan_search, "bifrost_search")) {
 
 ## Inspecting the Search Object
 
-The current `bifrost` API returns a `bifrost_search` object. The examples below use the compact package-local `bodyplan_search` object you loaded above; the same code applies to a result that `searchOptimalConfiguration()` creates or that you load from the complete archived focal run.
+The current `bifrost` API returns a `bifrost_search` object. The examples below use the compact cached `bodyplan_search` object you loaded above; the same code applies to a result that `searchOptimalConfiguration()` creates or that you load from the complete archived focal run.
 
 ```{r inspect_returned_object}
 # Confirm that the compact object contains the fields used below.
@@ -480,8 +467,8 @@ knitr::include_graphics("avian-skeleton/bodyplan_rate_map_arc_tree.png")
 ## Practical Takeaways
 
 - Body mass enters this analysis as a phylogenetic covariate, so `bifrost` applies the hidden-rate search to skeletal dimensions after conditioning on `vertnet_mass`.
-- The packaged tree and trait matrix let you reproduce the focal `searchOptimalConfiguration()` setup.
-- The compact package-local `bifrost_search` object preserves the final optimized model, mapped tree, and IC trajectory needed for Parts 1-3, plus the single-run shift-magnitude example in Part 4.
+- The cached tree and trait matrix let you reproduce the focal `searchOptimalConfiguration()` setup.
+- The compact `bifrost_search` object preserves the final optimized model, mapped tree, and IC trajectory needed for Parts 1-3, plus the single-run shift-magnitude example in Part 4.
 - `rateMap()` turns the fitted BMM rates into the Berv et al. (2026) branch-rate tree; Part 3 adds the shift-node marks after Part 2 introduces lineage-rate summaries.
 - Use the full Zenodo archive when you need the individual candidate model fits or proposal-level metadata that the compact object omits.
 - `icTrajectory()` quickly shows how the greedy search progressed across accepted and rejected candidates.

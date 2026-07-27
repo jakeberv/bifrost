@@ -355,8 +355,8 @@ def run_notebook_checks(source: Path, all_slugs: list[str]) -> None:
                 "library(bifrost)",
                 "lineage_decay_widget <- list(",
             ),
-            "simulation-study-part-1": ("pkg_file <- function(...)",),
-            "simulation-study-part-2": ("pkg_file <- function(...)",),
+            "simulation-study-part-1": ("bifrost_example_file(\"passerine-tree\")",),
+            "simulation-study-part-2": ("bifrost_example_file(\"passerine-tree\")",),
         }
         for required in required_code.get(notebook_path.stem, ()):
             if required not in body_code:
@@ -475,16 +475,14 @@ def run_notebook_checks(source: Path, all_slugs: list[str]) -> None:
                 "stopifnot(identical(lineage_decay_widget$defaults$half_life, 5))",
             ),
             "simulation-study-part-1": (
-                "pkg_file <- function(...)",
-                "stopifnot(file.exists(pkg_file(\n"
-                '  "extdata", "avian-skeleton", "passerine_bodyplan_tree.tre"\n'
-                ")))",
+                'if (!exists("createSimulationTemplate", mode = "function"))',
+                "tree_path <- bifrost_example_file(\"passerine-tree\")\n"
+                "stopifnot(file.exists(tree_path))",
             ),
             "simulation-study-part-2": (
-                "pkg_file <- function(...)",
-                "stopifnot(file.exists(pkg_file(\n"
-                '  "extdata", "avian-skeleton", "passerine_bodyplan_tree.tre"\n'
-                ")))",
+                'if (!exists("createSimulationTemplate", mode = "function"))',
+                "tree_path <- bifrost_example_file(\"passerine-tree\")\n"
+                "stopifnot(file.exists(tree_path))",
             ),
         }
         if notebook_path.stem in clean_setup_probes:

@@ -97,15 +97,18 @@ The workflow starts from the same fitted multi-regime Brownian motion model (BMM
 
 ## Loading the compact focal result
 
+This part requests only the compact focal search (`passerine-search`), an
+approximately 1.9 MB download on first use. Later calls reuse the verified
+cache. This explicit command checks for an update:
+
+```{r refresh_passerine_search, eval=FALSE}
+# Refresh the compact focal search only when an updated copy is wanted.
+bifrost_example_file("passerine-search", refresh = TRUE)
+```
+
 ```{r load_compact_bodyplan_search_part3}
 # Load the same compact focal result inspected in Part 1.
-search_path <- system.file(
-  "extdata",
-  "avian-skeleton",
-  "passerine_bodyplan_search_compact.RDS",
-  package = "bifrost"
-)
-stopifnot(nzchar(search_path))
+search_path <- bifrost_example_file("passerine-search")
 
 bodyplan_search <- readRDS(search_path)
 
