@@ -7,6 +7,7 @@
   "scripts": {
     "fetch": "tsx scripts/fetch-cran-downloads.mjs",
     "render": "tsx scripts/render-cran-downloads.mjs",
+    "test": "node --test tests/*.test.mjs",
     "update": "pnpm run fetch && pnpm run render"
   },
   "dependencies": {

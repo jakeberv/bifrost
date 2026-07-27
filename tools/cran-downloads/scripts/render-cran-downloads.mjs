@@ -12,6 +12,9 @@ const projectRoot = path.resolve(__dirname, "..");
 
 const packageName = process.env.CRAN_PACKAGE || "bifrost";
 const rateWindowDays = Number(process.env.CRAN_DOWNLOADS_RATE_WINDOW_DAYS || 14);
+if (!Number.isInteger(rateWindowDays) || rateWindowDays < 1) {
+  throw new Error("CRAN_DOWNLOADS_RATE_WINDOW_DAYS must be a positive integer");
+}
 const dataPath =
   process.env.CRAN_DOWNLOADS_DATA ||
   path.join(projectRoot, "data", `${packageName}-cran-downloads.json`);
