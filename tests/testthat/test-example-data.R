@@ -639,7 +639,7 @@ testthat::test_that("invalid remote manifests fail without cached artifacts", {
 
   testthat::expect_error(
     bifrost_example_file("jaw-tree"),
-    "Could not obtain bifrost example-data artifact"
+    "Could not obtain bifrost example-data artifact.*Expected cache location"
   )
   testthat::expect_length(list.files(file.path(cache, "artifacts")), 0L)
 })

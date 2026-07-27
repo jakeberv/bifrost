@@ -434,10 +434,11 @@
   NULL
 }
 
-.bifrost_example_remote_failure <- function(name, source_url, cache_path, error) {
+.bifrost_example_remote_failure <- function(name, source_url, cache_location,
+                                            error) {
   stop(
     "Could not obtain bifrost example-data artifact '", name,
-    "' from ", source_url, ". Expected cache path: ", cache_path,
+    "' from ", source_url, ". Expected cache location: ", cache_location,
     ". Set BIFROST_ARTIFACT_DIR to a verified local artifact directory. Details: ",
     conditionMessage(error),
     call. = FALSE
