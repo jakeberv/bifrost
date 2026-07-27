@@ -2,7 +2,7 @@ const { test, expect } = require("@playwright/test");
 
 async function stubExternalServices(page) {
   await page.route(
-    /https:\/\/(?:cdn\.jsdelivr\.net|gc\.zgo\.at|(?:[^/]+\.)?goatcounter\.com|github\.com|codecov\.io|www\.r-pkg\.org|cranlogs\.r-pkg\.org|img\.shields\.io|colab\.research\.google\.com|jakeberv\.com|www\.rse\.ox\.ac\.uk)\//,
+    /https:\/\/(?:cdn\.jsdelivr\.net|gc\.zgo\.at|(?:[^/]+\.)?goatcounter\.com|github\.com|raw\.githubusercontent\.com|codecov\.io|www\.r-pkg\.org|cranlogs\.r-pkg\.org|img\.shields\.io|colab\.research\.google\.com|jakeberv\.com|www\.rse\.ox\.ac\.uk)\//,
     (route) => route.abort()
   );
   await page.route("**/mermaid.esm.min.mjs*", (route) =>

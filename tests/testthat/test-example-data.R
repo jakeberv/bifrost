@@ -619,8 +619,9 @@ testthat::test_that("a symlinked manifest cache entry is replaced safely", {
 })
 
 testthat::test_that("the transport rejects non-HTTPS URLs before download", {
+  destination <- withr::local_tempfile()
   testthat::expect_error(
-    .bifrost_download_example_file("http://example.org/file", tempfile(), TRUE),
+    .bifrost_download_example_file("http://example.org/file", destination, TRUE),
     "require an HTTPS URL"
   )
 })
