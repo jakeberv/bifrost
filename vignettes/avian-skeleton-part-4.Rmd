@@ -92,21 +92,25 @@ Berv et al. (2026) used `bifrost` to identify hidden rate shifts in multivariate
 
 Berv et al. (2026) reported this comparison in Supplementary Figure 5. Their workflow counted rate-increase and rate-decrease shifts within each sensitivity run, then pooled inferred shifts across the 12 temporal sensitivity searches. The pooled shifts were summarized three ways: GIC and BIC runs together, GIC runs only, and BIC runs only.
 
-This vignette computes that non-spatial shift-magnitude workflow from compact package data. Parts 1-3 introduce the focal search, lineage-rate summaries, and transition table used here. We first show the single-run calculation on the focal `min10.ic20.gic` result, then load the compact sensitivity bundle to obtain the run-level shift-direction frequencies and pooled magnitude-density comparisons. The magnitude test compares `log(abs(rate_delta))` for increases and decreases with a Monte-Carlo two-sample KS test.
+This vignette computes that non-spatial shift-magnitude workflow from compact cached data. Parts 1-3 introduce the focal search, lineage-rate summaries, and transition table used here. We first show the single-run calculation on the focal `min10.ic20.gic` result, then load the compact sensitivity bundle to obtain the run-level shift-direction frequencies and pooled magnitude-density comparisons. The magnitude test compares `log(abs(rate_delta))` for increases and decreases with a Monte-Carlo two-sample KS test.
 
 ## Loading the compact focal result
 
-Start with the compact focal result bundled with `bifrost`. This object represents the `min10.ic20.gic` search and keeps the final mapped tree plus fitted BMM regime rates.
+This part requests the compact focal search (`passerine-search`, approximately
+1.9 MB) and sensitivity results (`passerine-sensitivity`, approximately 392 KB).
+First use downloads and verifies each file; later calls reuse the verified
+cache. This explicit command checks for an updated sensitivity result:
+
+```{r refresh_passerine_sensitivity, eval=FALSE}
+# Refresh the compact sensitivity results only when an updated copy is wanted.
+bifrost_example_file("passerine-sensitivity", refresh = TRUE)
+```
+
+Start with the compact focal result. This object represents the `min10.ic20.gic` search and keeps the final mapped tree plus fitted BMM regime rates.
 
 ```{r load_compact_bodyplan_search_part4}
 # Load the focal min10.ic20.gic search used for the single-run example.
-search_path <- system.file(
-  "extdata",
-  "avian-skeleton",
-  "passerine_bodyplan_search_compact.RDS",
-  package = "bifrost"
-)
-stopifnot(nzchar(search_path))
+search_path <- bifrost_example_file("passerine-search")
 
 bodyplan_search <- readRDS(search_path)
 
@@ -179,13 +183,7 @@ The bundle contains reduced versions of the 12 Berv et al. (2026) search outputs
 
 ```{r load_compact_sensitivity_searches_part4}
 # Load the compact bundle of all 12 temporal sensitivity searches.
-sensitivity_path <- system.file(
-  "extdata",
-  "avian-skeleton",
-  "passerine_bodyplan_search_sensitivity_compact.RDS",
-  package = "bifrost"
-)
-stopifnot(nzchar(sensitivity_path))
+sensitivity_path <- bifrost_example_file("passerine-sensitivity")
 
 bodyplan_sensitivity_searches <- readRDS(sensitivity_path)
 

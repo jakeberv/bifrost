@@ -33,6 +33,14 @@
   - Reduced multisession transfer size by using compact namespace-level workers and by avoiding a complete calibration template inside every replicate's call record.
 
 * Documentation / vignettes:
+  - Removed all former `system.file("extdata", ...)` empirical paths intentionally.
+    Use `bifrost_example_file()` instead for the eight named artifacts:
+    `jaw-tree`, `jaw-landmarks`, `passerine-tree`, `passerine-traits`,
+    `passerine-search`, `passerine-sensitivity`, `passerine-posthoc`, and
+    `simulation-preview-tables`.
+  - Reduced installed package size by no longer distributing repository/site
+    empirical payloads through CRAN. Normal package installation, attachment,
+    examples, and checks remain network-free.
   - Added small, deterministic, runnable help examples for regime-integration,
     simulation, rate-map, lineage-rate, and tuning workflows; longer model-fitting
     examples now use bounded `\donttest{}` blocks that are exercised in CI.

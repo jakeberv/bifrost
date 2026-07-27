@@ -95,35 +95,24 @@ The key modeling point is what the scalar search can and cannot test. The fitted
 
 Berv et al. (2026) used this temporal post-hoc integration workflow for Supplementary Text 2.1 and Supplementary Figure 4. The paper also includes spatial/local assemblage covariance analyses, but those use a separate data structure and are not folded into this vignette.
 
-This vignette has two goals. First, it shows how the Berv et al. (2026) post-hoc workflow maps onto reusable `bifrost` functions for fitting, summarizing, plotting, pGLS, PCA, and module diagnostics. Second, it recomputes the reported Supplementary Text 2.1 and Supplementary Figure 4 summaries from compact post-hoc artifacts, without shipping the full archived model object.
+This vignette has two goals. First, it shows how the Berv et al. (2026) post-hoc workflow maps onto reusable `bifrost` functions for fitting, summarizing, plotting, pGLS, PCA, and module diagnostics. Second, it recomputes the reported Supplementary Text 2.1 and Supplementary Figure 4 summaries from compact post-hoc artifacts, without requiring the full archived model object at runtime.
 
 The analysis unfolds in three checks: global rate-variance and rate-integration relationships across sensitivity runs, a representative collapsed-regime pGLS, and a focal PCA of post-hoc correlation structure with module diagnostics.
 
 ## Inputs and analysis settings
 
-The full analysis object, `runs_with_posthoc.rds` in the Berv et al. (2026) Zenodo archive, stores complete `mvgls` fits and is too large for a package vignette. The package instead ships compact artifacts: all-run variance/correlation summaries, representative pGLS anchors, focal `min10.ic20.gic` post-hoc correlation matrices after the stricter tip-count filter used for Supplementary Figure 4, PCA inputs, trait labels, module definitions, and provenance.
+The full analysis object, `runs_with_posthoc.rds` in the Berv et al. (2026) Zenodo archive, stores complete `mvgls` fits and is too large for a package vignette. This part requests the trait matrix (`passerine-traits`, approximately 212 KB), sensitivity results (`passerine-sensitivity`, approximately 392 KB), and compact post-hoc summaries (`passerine-posthoc`, approximately 132 KB). First use downloads and verifies these three files; later calls reuse the verified cache. The compact post-hoc object retains all-run variance/correlation summaries, representative pGLS anchors, focal `min10.ic20.gic` post-hoc correlation matrices after the stricter tip-count filter used for Supplementary Figure 4, PCA inputs, trait labels, module definitions, and provenance. This explicit command checks for an update:
+
+```{r refresh_passerine_posthoc, eval=FALSE}
+# Refresh the compact post-hoc summaries only when an updated copy is wanted.
+bifrost_example_file("passerine-posthoc", refresh = TRUE)
+```
 
 ```{r load_part5_inputs}
-# Resolve the package-local compact inputs used throughout this part.
-trait_path <- system.file(
-  "extdata",
-  "avian-skeleton",
-  "passerine_bodyplan_data.RDS",
-  package = "bifrost"
-)
-posthoc_path <- system.file(
-  "extdata",
-  "avian-skeleton",
-  "passerine_bodyplan_posthoc_integration_compact.RDS",
-  package = "bifrost"
-)
-sensitivity_path <- system.file(
-  "extdata",
-  "avian-skeleton",
-  "passerine_bodyplan_search_sensitivity_compact.RDS",
-  package = "bifrost"
-)
-stopifnot(nzchar(trait_path), nzchar(posthoc_path), nzchar(sensitivity_path))
+# Resolve the compact inputs used throughout this part.
+trait_path <- bifrost_example_file("passerine-traits")
+posthoc_path <- bifrost_example_file("passerine-posthoc")
+sensitivity_path <- bifrost_example_file("passerine-sensitivity")
 
 # Load the species-level matrix, compact sensitivity searches, and post-hoc bundle.
 bodyplan_traits <- readRDS(trait_path)

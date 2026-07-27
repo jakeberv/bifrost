@@ -6,6 +6,12 @@ test_that("lineage-rate HTML controls retain their authored DOM", {
     file.exists(source),
     "Lineage-rate vignette source is unavailable in installed tests"
   )
+  artifact_root <- Sys.getenv("BIFROST_ARTIFACT_DIR", unset = "")
+  testthat::skip_if(
+    !nzchar(artifact_root) ||
+      !file.exists(file.path(artifact_root, "empirical-artifacts.json")),
+    "Repository empirical artifact directory is required for vignette rendering"
+  )
   testthat::skip_if_not_installed("rmarkdown")
   testthat::skip_if_not(
     rmarkdown::pandoc_available(),

@@ -55,12 +55,20 @@ library(phytools)
 
 Load the reference tree used for plotting and same-topology examples.
 
+This part requests only the approximately 3 KB tree from the maintained GitHub
+copy of the cited
+[Dryad dataset](https://datadryad.org/dataset/doi:10.5061/dryad.z08kprrqf).
+The first call downloads and verifies it; later calls reuse the verified cache.
+This explicit command checks for an update:
+
+```{r refresh_rate_map_jaw_tree, eval=FALSE}
+# Refresh the jaw tree only when an updated copy is wanted.
+bifrost_example_file("jaw-tree", refresh = TRUE)
+```
+
 ```{r load_jaw_shape_tree}
-# Load and standardize the packaged reference phylogeny from Part 1.
-tree_path <- system.file(
-  "extdata", "jaw-shape", "mrbayes_prune_tree.RDS",
-  package = "bifrost"
-)
+# Load and standardize the reference phylogeny from Part 1.
+tree_path <- bifrost_example_file("jaw-tree")
 fish.tree <- readRDS(tree_path)
 fish.tree <- ladderize(untangle(as.phylo(fish.tree)))
 ```

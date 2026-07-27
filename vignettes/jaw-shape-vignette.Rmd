@@ -96,14 +96,17 @@ The dataset consists of two main components:
 1.  A phylogenetic tree (`mrbayes_prune_tree.RDS`) for 86 species of Silurian-Devonian bony fishes.
 2.  A 3D landmark dataset (`jaws_coords.RDS`) representing the 3D jaw shapes for each of these species.
 
-These files are included with the package and are available from the publication's [Dryad data repository](https://datadryad.org/dataset/doi:10.5061/dryad.z08kprrqf). We can load them using `system.file()` to find the correct path within the package's installed directory.
+On first use, `bifrost_example_file()` downloads approximately 3 KB for the tree and 245 KB for the landmarks from the maintained GitHub copy of the publication's [Dryad dataset](https://datadryad.org/dataset/doi:10.5061/dryad.z08kprrqf). Later calls reuse the verified local cache. To explicitly check for an updated copy, run:
+
+```{r refresh_jaw_tree, eval=FALSE}
+# Refresh the jaw tree only when an updated copy is wanted.
+bifrost_example_file("jaw-tree", refresh = TRUE)
+```
 
 ```{r load_data, eval=FALSE}
-# Define paths to the data files included in the package
-tree_path <- system.file("extdata", "jaw-shape", "mrbayes_prune_tree.RDS", 
-                         package = "bifrost")
-landmark_path <- system.file("extdata", "jaw-shape", "jaws_coords.RDS", 
-                             package = "bifrost")
+# Resolve the tree and landmark data through the public example-data cache.
+tree_path <- bifrost_example_file("jaw-tree")
+landmark_path <- bifrost_example_file("jaw-landmarks")
 
 # Load the phylogenetic tree and landmark data
 fish.tree <- readRDS(tree_path)

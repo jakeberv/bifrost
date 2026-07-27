@@ -10,8 +10,20 @@ import re
 from pathlib import Path, PurePosixPath
 
 
-MANIFEST = Path("inst/extdata/empirical-artifacts.json")
+MANIFEST = Path("data-remote/empirical-artifacts.json")
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
+ARTIFACT_ID = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$")
+PACKAGE_VERSION = re.compile(r"^[0-9]+(?:[.-][0-9]+)*$")
+EXPECTED_ARTIFACT_IDS = {
+    "jaw-tree",
+    "jaw-landmarks",
+    "passerine-tree",
+    "passerine-traits",
+    "passerine-search",
+    "passerine-sensitivity",
+    "passerine-posthoc",
+    "simulation-preview-tables",
+}
 
 
 def find_repo_root(start: Path) -> Path:
@@ -58,9 +70,9 @@ def scoped_files(root: Path, scope: dict) -> set[str]:
     return files
 
 
-def validate(root: Path, manifest: dict, update_checksums: bool) -> int:
-    if manifest.get("schema_version") != 1:
-        raise AssertionError("manifest schema_version must be 1")
+def validate(root: Path, manifest: dict, update_checksums: bool) -> tuple[int, int]:
+    if manifest.get("schema_version") != 2:
+        raise AssertionError("manifest schema_version must be 2")
     require_text(manifest, "description", "manifest")
 
     sources = manifest.get("sources")
@@ -86,6 +98,7 @@ def validate(root: Path, manifest: dict, update_checksums: bool) -> int:
             require_text(license_record, key, f"license {license_id!r}")
 
     paths: list[str] = []
+    downloader_ids: list[str] = []
     for index, artifact in enumerate(artifacts, start=1):
         context = f"artifact #{index}"
         path_text = require_text(artifact, "path", context)
@@ -96,6 +109,51 @@ def validate(root: Path, manifest: dict, update_checksums: bool) -> int:
         if not path.is_file():
             raise AssertionError(f"manifest artifact does not exist: {path_text}")
         paths.append(path_text)
+
+        downloader_only_fields = (
+            "artifact_id",
+            "size_bytes",
+            "minimum_bifrost_version",
+        )
+        is_downloader = path_text.startswith("data-remote/") or any(
+            field in artifact for field in downloader_only_fields
+        )
+        if is_downloader:
+            for field in downloader_only_fields:
+                if field not in artifact:
+                    raise AssertionError(f"{context} requires downloader field {field!r}")
+            if not path_text.startswith("data-remote/"):
+                raise AssertionError(
+                    f"{context} downloader path must begin with data-remote/"
+                )
+            artifact_id = artifact["artifact_id"]
+            if (
+                not isinstance(artifact_id, str)
+                or ARTIFACT_ID.fullmatch(artifact_id) is None
+            ):
+                raise AssertionError(
+                    f"{context} requires a lowercase hyphenated artifact_id"
+                )
+            size_bytes = artifact["size_bytes"]
+            if type(size_bytes) is not int or size_bytes <= 0:
+                raise AssertionError(
+                    f"{context} requires a positive whole-number size_bytes"
+                )
+            actual_size = path.stat().st_size
+            if size_bytes != actual_size:
+                raise AssertionError(
+                    f"byte-size mismatch for {path_text}: "
+                    f"expected {size_bytes}, got {actual_size}"
+                )
+            minimum_version = artifact["minimum_bifrost_version"]
+            if (
+                not isinstance(minimum_version, str)
+                or PACKAGE_VERSION.fullmatch(minimum_version) is None
+            ):
+                raise AssertionError(
+                    f"{context} requires a valid minimum_bifrost_version"
+                )
+            downloader_ids.append(artifact_id)
 
         source_id = require_text(artifact, "source_id", context)
         if source_id not in sources:
@@ -111,7 +169,7 @@ def validate(root: Path, manifest: dict, update_checksums: bool) -> int:
         method = require_text(transformation, "method", f"{context} transformation")
         require_text(transformation, "script", f"{context} transformation")
         if path_text == (
-            "inst/extdata/simulation-study-cache/passerine_preview_tables.rds"
+            "data-remote/simulation-study-cache/passerine_preview_tables.rds"
         ):
             require_text(
                 transformation, "metric_accounting", f"{context} transformation"
@@ -145,6 +203,13 @@ def validate(root: Path, manifest: dict, update_checksums: bool) -> int:
 
     if len(paths) != len(set(paths)):
         raise AssertionError("manifest contains duplicate artifact paths")
+    if len(downloader_ids) != len(set(downloader_ids)):
+        raise AssertionError("manifest contains duplicate artifact_id entries")
+    if set(downloader_ids) != EXPECTED_ARTIFACT_IDS:
+        raise AssertionError(
+            "manifest downloader entries must expose exactly the eight expected "
+            "artifact identifiers"
+        )
     expected = scoped_files(root, manifest.get("scope", {}))
     recorded_paths = set(paths)
     missing = sorted(expected - recorded_paths)
@@ -156,7 +221,7 @@ def validate(root: Path, manifest: dict, update_checksums: bool) -> int:
         if extra:
             details.append("records outside scope: " + ", ".join(extra))
         raise AssertionError("; ".join(details))
-    return len(paths)
+    return len(paths), len(downloader_ids)
 
 
 def main() -> None:
@@ -171,16 +236,22 @@ def main() -> None:
     root = find_repo_root(Path.cwd())
     manifest_path = root / MANIFEST
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    count = validate(root, manifest, args.update_checksums)
+    count, downloader_count = validate(root, manifest, args.update_checksums)
     if args.update_checksums:
         manifest_path.write_text(
             json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
             encoding="utf-8",
         )
         validate(root, manifest, False)
-        print(f"Updated and validated {count} empirical artifact checksums.")
+        print(
+            f"Updated and validated {count} empirical artifact checksums "
+            f"({downloader_count} downloader entries)."
+        )
     else:
-        print(f"Validated {count} empirical artifact checksums and provenance records.")
+        print(
+            f"Validated {count} empirical artifact checksums and provenance "
+            f"records ({downloader_count} downloader entries)."
+        )
 
 
 if __name__ == "__main__":

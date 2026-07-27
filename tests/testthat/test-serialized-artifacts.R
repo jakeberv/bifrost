@@ -23,9 +23,12 @@ collect_serialized_character_values <- function(x) {
   values
 }
 
-test_that("shipped serialized artifacts do not contain absolute paths", {
-  artifact_dir <- system.file("extdata", package = "bifrost")
-  testthat::expect_true(nzchar(artifact_dir))
+test_that("repository empirical serialized artifacts do not contain absolute paths", {
+  artifact_dir <- Sys.getenv("BIFROST_ARTIFACT_DIR", unset = "")
+  testthat::skip_if(
+    !nzchar(artifact_dir) || !dir.exists(artifact_dir),
+    "repository empirical artifact directory unavailable for serialized artifacts"
+  )
   artifact_paths <- list.files(
     artifact_dir,
     pattern = "\\.[Rr][Dd][Ss]$",

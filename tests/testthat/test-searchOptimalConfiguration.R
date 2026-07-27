@@ -10,6 +10,11 @@ skip_if_missing_deps <- function() {
   testthat::skip_if_not_installed("future")
 }
 
+test_that("the internal search fixture contains one simulation", {
+  fixture <- readRDS(testthat::test_path("fixtures", "simdata.RDS"))
+  testthat::expect_length(fixture, 1L)
+})
+
 # ---- locate and load fixture -------------------------------------------------
 load_simdata_fixture <- function() {
   # Expect the file at tests/testthat/fixtures/simdata.RDS

@@ -84,10 +84,10 @@
 
 .comparison_build_template <- function() {
   tree_path <- file.path(
-    "inst", "extdata", "avian-skeleton", "passerine_bodyplan_tree.tre"
+    "data-remote", "avian-skeleton", "passerine_bodyplan_tree.tre"
   )
   data_path <- file.path(
-    "inst", "extdata", "avian-skeleton", "passerine_bodyplan_data.RDS"
+    "data-remote", "avian-skeleton", "passerine_bodyplan_data.RDS"
   )
   if (!file.exists(tree_path) || !file.exists(data_path)) {
     stop("Run this script from the bifrost package root.", call. = FALSE)

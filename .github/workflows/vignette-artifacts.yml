@@ -9,7 +9,7 @@ on:
       - pkgdown/**
       - DESCRIPTION
       - R/**
-      - inst/extdata/**
+      - data-remote/**
       - tools/vignette_artifacts.R
       - tools/render-vignette-pdf.R
       - tools/build-colab-notebook.py
@@ -34,6 +34,8 @@ jobs:
       group: vignette-artifacts-${{ github.event.pull_request.number }}
       cancel-in-progress: true
     runs-on: ubuntu-latest
+    env:
+      BIFROST_ARTIFACT_DIR: ${{ github.workspace }}/data-remote
     outputs:
       colab_slugs: ${{ steps.changed.outputs.colab_slugs }}
     steps:

@@ -94,7 +94,7 @@ should be allowed to carry their own fitted regime.
 ## Setup
 
 Load the packages used in the jaw-shape workflow. `geomorph::two.d.array()`
-converts the packaged landmark array into a two-dimensional species-by-trait
+converts the landmark array into a two-dimensional species-by-trait
 matrix, matching the setup in the main jaw-shape vignette.
 
 ```{r load_packages}
@@ -107,16 +107,21 @@ library(geomorph)
 
 Load and align the same data used in the jaw-shape vignette.
 
+On first use, the resolver downloads approximately 3 KB for the tree and 245 KB
+for the landmarks from the maintained GitHub copy of the cited
+[Dryad dataset](https://datadryad.org/dataset/doi:10.5061/dryad.z08kprrqf).
+Later calls reuse the verified cache. This explicit command checks for an
+update:
+
+```{r refresh_rate_map_jaw_tree, eval=FALSE}
+# Refresh the jaw tree only when an updated copy is wanted.
+bifrost_example_file("jaw-tree", refresh = TRUE)
+```
+
 ```{r load_jaw_shape_data}
-# Locate and read the packaged jaw-shape tree and landmark coordinates.
-tree_path <- system.file(
-  "extdata", "jaw-shape", "mrbayes_prune_tree.RDS",
-  package = "bifrost"
-)
-landmark_path <- system.file(
-  "extdata", "jaw-shape", "jaws_coords.RDS",
-  package = "bifrost"
-)
+# Resolve and read the jaw-shape tree and landmark coordinates.
+tree_path <- bifrost_example_file("jaw-tree")
+landmark_path <- bifrost_example_file("jaw-landmarks")
 
 fish.tree <- readRDS(tree_path)
 landmarks <- readRDS(landmark_path)

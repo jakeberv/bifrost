@@ -104,7 +104,7 @@ test_that("reader-visible simulation chunks open with intent comments", {
   )
 
   visible_chunks <- lapply(paths, reader_visible_r_chunks)
-  testthat::expect_identical(lengths(visible_chunks), c(10L, 11L))
+  testthat::expect_identical(lengths(visible_chunks), c(11L, 12L))
 
   for (chunks in visible_chunks) {
     missing_comments <- vapply(chunks, function(chunk) {

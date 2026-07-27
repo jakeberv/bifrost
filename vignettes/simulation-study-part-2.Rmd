@@ -119,25 +119,6 @@ add_combined_score <- function(x) {
   x
 }
 
-pkg_file <- function(...) {
-  candidates <- c(
-    file.path("inst", ...),
-    file.path("..", "inst", ...)
-  )
-
-  for (path in candidates) {
-    if (file.exists(path)) {
-      return(path)
-    }
-  }
-
-  installed_path <- system.file(..., package = "bifrost")
-  if (nzchar(installed_path)) {
-    return(installed_path)
-  }
-
-  stop("Could not locate: ", file.path(...))
-}
 ```
 
 ```{r, echo = FALSE, results = "asis"}
@@ -211,7 +192,7 @@ table code {
 
 This is Part 2 of the empirically calibrated simulation workflow. It is independently runnable, but [Part 1](simulation-study-part-1.html) introduces the null, proportional, and integration-rate scenarios and interprets their performance.
 
-Here we use those scenarios to compare search settings, select tuned GIC and BIC configurations, and carry the selected controls into an empirical search. The bundled tables summarize the same passerine calibration runs shown by the executable code, so rendering the article does not rerun the full simulation grid.
+Here we use those scenarios to compare search settings, select tuned GIC and BIC configurations, and carry the selected controls into an empirical search. The cached tables summarize the same passerine calibration runs shown by the executable code, so rendering the article does not rerun the full simulation grid.
 
 Start by loading `bifrost`.
 
@@ -220,14 +201,26 @@ Start by loading `bifrost`.
 library(bifrost)
 ```
 
+This part requests the passerine tree (`passerine-tree`, approximately 81 KB),
+trait matrix (`passerine-traits`, approximately 212 KB), and simulation preview
+tables (`simulation-preview-tables`, approximately 5 KB). First use downloads
+and verifies each file; later calls reuse the verified cache. The larger tree
+and trait files share that resolver cache with the passerine articles. This
+explicit command checks for an updated preview table:
+
+```{r refresh_simulation_preview_tables, eval=FALSE}
+# Refresh the preview tables only when an updated copy is wanted.
+bifrost_example_file("simulation-preview-tables", refresh = TRUE)
+```
+
 ## Build an empirically calibrated template
 
 Here we use the empirical calibration structure from Berv et al. (2026), which models 12 skeletal traits jointly while keeping log body mass as a phylogenetic covariate.
 
 ```{r load_bodyplan_example}
-# Locate the packaged passerine tree and calibrated skeletal measurements.
-tree_path <- pkg_file("extdata", "avian-skeleton", "passerine_bodyplan_tree.tre")
-trait_path <- pkg_file("extdata", "avian-skeleton", "passerine_bodyplan_data.RDS")
+# Resolve the passerine tree and calibrated skeletal measurements.
+tree_path <- bifrost_example_file("passerine-tree")
+trait_path <- bifrost_example_file("passerine-traits")
 
 # Align the trait rows to the tree's tip order.
 bird_tree <- ape::read.tree(tree_path)
@@ -268,7 +261,7 @@ bodyplan_template <- createSimulationTemplate(
 )
 ```
 
-The template call is shown rather than evaluated during package rendering because the tuning tables use the bundled cache. In an interactive or Colab run, execute it before running a new tuning grid.
+The template call is shown rather than evaluated during package rendering because the tuning tables use the cached preview. In an interactive or Colab run, execute it before running a new tuning grid.
 
 ```{r preview_template_setup, eval = FALSE}
 # Reuse the empirical template as the input to each tuning grid.
@@ -276,11 +269,7 @@ preview_template <- bodyplan_template
 ```
 
 ```{r preview_results_setup, echo = FALSE, message = FALSE, warning = FALSE}
-preview_tables_path <- pkg_file(
-  "extdata",
-  "simulation-study-cache",
-  "passerine_preview_tables.rds"
-)
+preview_tables_path <- bifrost_example_file("simulation-preview-tables")
 preview_tables <- readRDS(preview_tables_path)
 stopifnot(
   identical(preview_tables$schema_version, 3L),
@@ -296,7 +285,7 @@ The fixed-settings comparison describes how one search configuration behaves. Ch
 
 In practice, this usually means running one grid for GIC and a second grid for BIC. If the empirical analysis will be fitted with GIC, it makes the most sense to choose the best threshold and clade-size settings within the GIC results. The same logic applies to BIC. Pooling them into a single ranking is less useful because the two criteria penalize model complexity differently.
 
-The grid varies three acceptance thresholds (`10`, `20`, `30`) and two minimum clade sizes (`10`, `20`). The bundled results use 100 null and 100 recovery replicates per scenario and setting on 250-tip subtrees. Smaller pilot runs can check code and runtime, but tuning decisions should use enough replicates to stabilize the false-positive and recovery summaries.
+The grid varies three acceptance thresholds (`10`, `20`, `30`) and two minimum clade sizes (`10`, `20`). The cached results use 100 null and 100 recovery replicates per scenario and setting on 250-tip subtrees. Smaller pilot runs can check code and runtime, but tuning decisions should use enough replicates to stabilize the false-positive and recovery summaries.
 
 ```{r preview_tuning_setup, eval = FALSE}
 # Define the shared grid, simulation scenarios, and embedded search controls.

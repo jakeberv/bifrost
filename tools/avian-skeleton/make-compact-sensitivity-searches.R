@@ -62,8 +62,7 @@ output_path <- if (length(args) >= 2L) {
   args[[2L]]
 } else {
   file.path(
-    "inst",
-    "extdata",
+    "data-remote",
     "avian-skeleton",
     "passerine_bodyplan_search_sensitivity_compact.RDS"
   )

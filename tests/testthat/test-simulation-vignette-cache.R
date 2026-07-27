@@ -1,8 +1,10 @@
 test_that("simulation vignette cache records the empirical generator", {
-  cache_path <- testthat::test_path(
-    "../../inst/extdata/simulation-study-cache/passerine_preview_tables.rds"
+  root <- Sys.getenv("BIFROST_ARTIFACT_DIR", unset = "")
+  testthat::skip_if(
+    !nzchar(root) || !dir.exists(root),
+    "repository empirical artifact directory unavailable for simulation vignette cache"
   )
-  testthat::skip_if_not(file.exists(cache_path), "Simulation vignette cache not present")
+  cache_path <- bifrost_example_file("simulation-preview-tables")
 
   cache <- readRDS(cache_path)
 
@@ -358,8 +360,8 @@ test_that("source provenance hashes relevant files and ignores unrelated dirt", 
     "data-raw/run_simulation_study_vignette_grids.R",
     "DESCRIPTION",
     "NAMESPACE",
-    "inst/extdata/avian-skeleton/passerine_bodyplan_tree.tre",
-    "inst/extdata/avian-skeleton/passerine_bodyplan_data.RDS"
+    "data-remote/avian-skeleton/passerine_bodyplan_tree.tre",
+    "data-remote/avian-skeleton/passerine_bodyplan_data.RDS"
   ) %in% names(actual_files)))
   testthat::expect_true(any(grepl("^R/.*\\.R$", names(actual_files))))
 })

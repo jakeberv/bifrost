@@ -165,7 +165,7 @@ shared_dependencies <- function() {
     "tools/colab_dependencies.py",
     "tools/test-vignette-artifacts.py",
     repo_rel(list_repo_files("R")),
-    repo_rel(list_repo_files("inst/extdata"))
+    repo_rel(list_repo_files("data-remote"))
   )
   sort(unique(files[file.exists(files) & !dir.exists(files)]))
 }
@@ -264,7 +264,7 @@ shared_changed <- function(files) {
   shared <- shared_dependencies()
   any(files %in% shared) ||
     any(startsWith(files, "R/")) ||
-    any(startsWith(files, "inst/extdata/")) ||
+    any(startsWith(files, "data-remote/")) ||
     any(startsWith(files, ".github/workflows/")) ||
     any(files %in% c("DESCRIPTION", "_pkgdown.yml"))
 }

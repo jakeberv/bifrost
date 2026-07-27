@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 import tempfile
 from pathlib import Path
@@ -333,6 +334,91 @@ def run_repository_contract_checks(source: Path, all_slugs: list[str]) -> None:
     manifest_validator = source / "tools/validate-empirical-artifacts.py"
     if not manifest_validator.exists():
         raise AssertionError("empirical artifact checksum validator is missing")
+    manifest_path = source / "data-remote/empirical-artifacts.json"
+    manifest = json.loads(manifest_path.read_text())
+    stale_location_sources = [
+        artifact["path"]
+        for artifact in manifest["artifacts"]
+        if re.search(
+            r"(?i)\bpackage-local\b",
+            artifact.get("transformation", {}).get("method", ""),
+        )
+    ]
+    simulation_producer = (
+        source / "data-raw/run_simulation_study_vignette_grids.R"
+    ).read_text()
+    if re.search(r"(?i)\bpackaged passerine\b", simulation_producer):
+        stale_location_sources.append(
+            "data-raw/run_simulation_study_vignette_grids.R"
+        )
+    if stale_location_sources:
+        raise AssertionError(
+            "authoritative sources retain stale package-local passerine wording: "
+            + ", ".join(stale_location_sources)
+        )
+    expected_ids = {
+        "jaw-tree", "jaw-landmarks", "passerine-tree", "passerine-traits",
+        "passerine-search", "passerine-sensitivity", "passerine-posthoc",
+        "simulation-preview-tables",
+    }
+
+    source_vignette_paths = [
+        source / "vignettes/jaw-shape-vignette.Rmd",
+        source / "vignettes/rate-map-jaw-shape-vignette.Rmd",
+        source / "vignettes/rate-map-jaw-shape-part-2-comparisons.Rmd",
+        source / "vignettes/avian-skeleton-part-1.Rmd",
+        source / "vignettes/avian-skeleton-part-2.Rmd",
+        source / "vignettes/avian-skeleton-part-3.Rmd",
+        source / "vignettes/avian-skeleton-part-4.Rmd",
+        source / "vignettes/avian-skeleton-part-5.Rmd",
+        source / "vignettes/simulation-study-part-1.Rmd",
+        source / "vignettes/simulation-study-part-2.Rmd",
+    ]
+    source_vignettes = {
+        path.name: path.read_text() for path in source_vignette_paths
+    }
+    forbidden_source_patterns = {
+        "system.file()": r"\bsystem\.file\s*\(",
+        "pkg_file helper": r"\bpkg_file\s*<-\s*function\b",
+        "inst/extdata path": r"\binst/extdata\b",
+        "stale packaged-data claim": (
+            r"(?i)\b(?:bundled|packaged|package-local)\s+"
+            r"(?:empirical\s+)?(?:data|dataset|artifact|file|copy|inventory)\b"
+        ),
+    }
+    for filename, text in source_vignettes.items():
+        forbidden = [
+            label
+            for label, pattern in forbidden_source_patterns.items()
+            if re.search(pattern, text)
+        ]
+        if forbidden:
+            raise AssertionError(
+                f"{filename} retains package-local empirical-data loading: "
+                + ", ".join(forbidden)
+            )
+        if "bifrost_example_file(" not in text:
+            raise AssertionError(
+                f"{filename} must resolve empirical data with bifrost_example_file()"
+            )
+        if re.search(r"refresh\s*=\s*TRUE", text) is None:
+            raise AssertionError(
+                f"{filename} must show the explicit refresh = TRUE update check"
+            )
+
+    resolved_ids = set()
+    for text in source_vignettes.values():
+        resolved_ids.update(
+            re.findall(r'bifrost_example_file\(\s*"([^"]+)"', text)
+        )
+    missing_source_ids = expected_ids - resolved_ids
+    if missing_source_ids:
+        raise AssertionError(
+            "source vignettes do not resolve every empirical artifact identifier: "
+            + ", ".join(sorted(missing_source_ids))
+        )
+    if (source / "inst/extdata").exists():
+        raise AssertionError("ordinary empirical data must live outside inst/extdata")
     run(source, "python3", str(manifest_validator))
 
     pr_workflow = (source / ".github/workflows/vignette-artifacts.yml").read_text()

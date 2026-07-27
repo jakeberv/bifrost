@@ -15,6 +15,7 @@
 ^LICENSE$
 ^experimental$
 ^data-raw($|/)
+^data-remote($|/)
 ^output($|/)
 ^bifrost\.Rcheck($|/)
 ^\.\.Rcheck($|/)
@@ -38,3 +39,4 @@
 ^lintr\.R$
 ^tools($|/)
 ^vignettes($|/)
+^man/figures/cran-downloads[.]png$

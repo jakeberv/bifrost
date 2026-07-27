@@ -350,26 +350,6 @@ build_simulation_scenario_figure <- function(
     )
 }
 
-pkg_file <- function(...) {
-  candidates <- c(
-    file.path("inst", ...),
-    file.path("..", "inst", ...)
-  )
-
-  for (path in candidates) {
-    if (file.exists(path)) {
-      return(path)
-    }
-  }
-
-  installed_path <- system.file(..., package = "bifrost")
-  if (nzchar(installed_path)) {
-    return(installed_path)
-  }
-
-  stop("Could not locate: ", file.path(...))
-}
-
 simulation_scenarios_caption_text <- paste0(
   "Empirically calibrated simulation scenarios. Panels A-C show the ancestral VCV, ",
   "proportional scaling with s = 0.5, and a reduced-integration/faster-rate ",
@@ -471,14 +451,26 @@ Start by loading `bifrost`.
 library(bifrost)
 ```
 
+This part requests the passerine tree (`passerine-tree`, approximately 81 KB),
+trait matrix (`passerine-traits`, approximately 212 KB), and simulation preview
+tables (`simulation-preview-tables`, approximately 5 KB). First use downloads
+and verifies each file; later calls reuse the verified cache. The larger tree
+and trait files share that resolver cache with the passerine articles. This
+explicit command checks for an updated preview table:
+
+```{r refresh_simulation_preview_tables, eval=FALSE}
+# Refresh the preview tables only when an updated copy is wanted.
+bifrost_example_file("simulation-preview-tables", refresh = TRUE)
+```
+
 ## Build an empirically calibrated template
 
 Here we use the empirical calibration structure from Berv et al. (2026), which models 12 skeletal traits jointly while keeping log body mass as a phylogenetic covariate.
 
 ```{r load_bodyplan_example}
-# Locate the packaged passerine tree and calibrated skeletal measurements.
-tree_path <- pkg_file("extdata", "avian-skeleton", "passerine_bodyplan_tree.tre")
-trait_path <- pkg_file("extdata", "avian-skeleton", "passerine_bodyplan_data.RDS")
+# Resolve the passerine tree and calibrated skeletal measurements.
+tree_path <- bifrost_example_file("passerine-tree")
+trait_path <- bifrost_example_file("passerine-traits")
 
 # Align the trait rows to the tree's tip order.
 bird_tree <- ape::read.tree(tree_path)
@@ -563,11 +555,7 @@ preview_template <- bodyplan_template_live
 ```
 
 ```{r preview_results_setup, echo = FALSE, message = FALSE, warning = FALSE}
-preview_tables_path <- pkg_file(
-  "extdata",
-  "simulation-study-cache",
-  "passerine_preview_tables.rds"
-)
+preview_tables_path <- bifrost_example_file("simulation-preview-tables")
 preview_tables <- readRDS(preview_tables_path)
 stopifnot(
   identical(preview_tables$schema_version, 3L),
@@ -589,7 +577,7 @@ Before launching a large study, keep four details in mind.
 
 - Check `per_replicate$n_candidates`. The value of `min_descendant_tips` changes the candidate-node universe rather than merely applying a different decision threshold to a fixed set of nodes. If it leaves no candidate shifts, that replicate is treated as unevaluable, and recovery specificity, false-positive rate, and balanced accuracy are reported as `NA`. Lower `min_descendant_tips` if too many replicates are unevaluable.
 
-The next three sections show the individual study calls. The fixed-settings comparison then uses bundled preview results to show the same logic side by side.
+The next three sections show the individual study calls. The fixed-settings comparison then uses cached preview results to show the same logic side by side.
 
 ## 1. Estimate False Positives
 
@@ -731,7 +719,7 @@ After running each scenario on its own, it helps to put one fixed search configu
 
 The comparison uses one search configuration across all three scenarios: `shift_acceptance_threshold = 10` and `min_descendant_tips = 10`. In the shifted scenarios, each replicate adds five simulated shifts spanning clades with 10 to 20 descendant tips, matching the simulation-performance settings described in Berv et al. (2026). Every scenario uses the explicit empirical generator. The point here is not to optimize yet; it is to compare how null and shifted datasets behave under the same search settings.
 
-The table below uses bundled summaries from the code shown here, so package builds do not rerun the longer simulation studies.
+The table below uses cached summaries from the code shown here, so package builds do not rerun the longer simulation studies.
 
 ```{r medium_case_study_setup, eval = FALSE}
 # Prevent nested BLAS/OpenMP parallelism during replicate-level parallel runs.
@@ -825,7 +813,7 @@ fixed_metric <- function(ic, scenario, metric) {
 }
 ```
 
-The bundled cache reproduces manuscript-era summaries. Its true-negative denominator predates candidate-node-aware accounting, while fresh simulation runs use the current candidate-aware accounting. It is retained for reproducibility rather than silently recomputed.
+The cached preview reproduces manuscript-era summaries. Its true-negative denominator predates candidate-node-aware accounting, while fresh simulation runs use the current candidate-aware accounting. It is retained for reproducibility rather than silently recomputed.
 
 Null and shifted simulations answer different questions, so they are reported separately. The first table shows null false-positive behavior; the second shows recovery only where true shifts are known. This avoids treating an inapplicable recovery metric in a null simulation as a missing result.
 

@@ -1,6 +1,10 @@
 const { test, expect } = require("@playwright/test");
 
 async function stubExternalServices(page) {
+  await page.route(
+    /https:\/\/(?:cdn\.jsdelivr\.net|gc\.zgo\.at|(?:[^/]+\.)?goatcounter\.com|github\.com|raw\.githubusercontent\.com|codecov\.io|www\.r-pkg\.org|cranlogs\.r-pkg\.org|img\.shields\.io|colab\.research\.google\.com|jakeberv\.com|www\.rse\.ox\.ac\.uk)\//,
+    (route) => route.abort()
+  );
   await page.route("**/mermaid.esm.min.mjs*", (route) =>
     route.fulfill({
       contentType: "application/javascript",
@@ -11,10 +15,6 @@ async function stubExternalServices(page) {
           run() { calls.run += 1; }
         };`
     })
-  );
-  await page.route(
-    /https:\/\/(?:gc\.zgo\.at|(?:[^/]+\.)?goatcounter\.com|img\.shields\.io|colab\.research\.google\.com)\//,
-    (route) => route.abort()
   );
 }
 
@@ -48,6 +48,16 @@ test("built home page includes the pkgdown extensions and analytics marker", asy
   await expect(page.locator("script[data-goatcounter]")).toHaveAttribute(
     "data-goatcounter",
     "https://bifrost.goatcounter.com/count"
+  );
+});
+
+test("homepage provenance guide targets the tracked main documentation", async ({ page }) => {
+  await stubExternalServices(page);
+  await page.goto("/");
+
+  await expect(page.getByRole("link", { name: "example-data guide" })).toHaveAttribute(
+    "href",
+    "https://github.com/jakeberv/bifrost/blob/main/data-remote/README.md"
   );
 });
 
