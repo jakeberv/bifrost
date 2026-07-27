@@ -66,7 +66,10 @@ jobs:
             tools/cran-downloads/data/bifrost-cran-downloads.json
             tools/cran-downloads/output/cran-downloads.svg
             tools/cran-downloads/output/cran-downloads.png
+            tools/cran-downloads/output/cran-downloads-dark.svg
+            tools/cran-downloads/output/cran-downloads-dark.png
             man/figures/cran-downloads.png
+            man/figures/cran-downloads-dark.png
           )
 
           if git diff --quiet -- "${paths[@]}"; then

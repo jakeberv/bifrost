@@ -4,6 +4,7 @@ docs
 man/figures/*
 !man/figures/logo.png
 !man/figures/cran-downloads.png
+!man/figures/cran-downloads-dark.png
 .Rhistory
 .Rproj.user/
 .gitignore

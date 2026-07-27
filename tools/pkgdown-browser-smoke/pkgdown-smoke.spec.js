@@ -61,6 +61,28 @@ test("homepage provenance guide targets the tracked main documentation", async (
   );
 });
 
+test("CRAN downloads chart follows the pkgdown color mode", async ({ page }) => {
+  await stubExternalServices(page);
+  await page.goto("/");
+
+  const picture = page.locator("picture.cran-downloads-picture");
+  const darkSource = picture.locator('source[data-theme="dark"]');
+  const lightSource = picture.locator('source[data-theme="light"]');
+  await expect(picture).toHaveCount(1);
+
+  await page.evaluate(() => document.documentElement.setAttribute("data-bs-theme", "dark"));
+  await expect(darkSource).toHaveAttribute("media", "all");
+  await expect(lightSource).toHaveAttribute("media", "not all");
+
+  await page.evaluate(() => document.documentElement.setAttribute("data-bs-theme", "light"));
+  await expect(lightSource).toHaveAttribute("media", "all");
+  await expect(darkSource).toHaveAttribute("media", "not all");
+
+  await page.evaluate(() => document.documentElement.removeAttribute("data-bs-theme"));
+  await expect(darkSource).toHaveAttribute("media", "(prefers-color-scheme: dark)");
+  await expect(lightSource).toHaveAttribute("media", "(prefers-color-scheme: light)");
+});
+
 test("vignette pages expose artifact actions and initialize Mermaid", async ({ page }) => {
   await stubExternalServices(page);
   await page.goto("/articles/quick-start-vignette.html");

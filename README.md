@@ -30,13 +30,23 @@ The method works with fossil tip-dated trees and with a wide range of multivaria
 ## CRAN downloads
 
 <p align="center">
-  <a href="https://raw.githubusercontent.com/jakeberv/bifrost/main/man/figures/cran-downloads.png">
+  <picture class="cran-downloads-picture">
+    <source
+      data-theme="dark"
+      media="(prefers-color-scheme: dark)"
+      srcset="https://raw.githubusercontent.com/jakeberv/bifrost/main/man/figures/cran-downloads-dark.png"
+    />
+    <source
+      data-theme="light"
+      media="(prefers-color-scheme: light)"
+      srcset="https://raw.githubusercontent.com/jakeberv/bifrost/main/man/figures/cran-downloads.png"
+    />
     <img
       src="https://raw.githubusercontent.com/jakeberv/bifrost/main/man/figures/cran-downloads.png"
       alt="Cumulative CRAN downloads for bifrost"
       width="560"
     />
-  </a>
+  </picture>
 </p>
 
 ## Installation
