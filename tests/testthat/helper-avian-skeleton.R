@@ -1,31 +1,14 @@
-.avian_skeleton_extdata_path <- function(filename) {
-  installed_path <- system.file(
-    "extdata",
-    "avian-skeleton",
-    filename,
-    package = "bifrost"
+.avian_skeleton_artifact_path <- function(name, label) {
+  root <- Sys.getenv("BIFROST_ARTIFACT_DIR", unset = "")
+  testthat::skip_if(
+    !nzchar(root) || !dir.exists(root),
+    paste("repository empirical artifact directory unavailable for", label)
   )
-  if (nzchar(installed_path)) {
-    return(installed_path)
-  }
-
-  local_path <- file.path(
-    getwd(),
-    "inst",
-    "extdata",
-    "avian-skeleton",
-    filename
-  )
-  if (file.exists(local_path)) {
-    return(local_path)
-  }
-
-  ""
+  bifrost_example_file(name)
 }
 
-.avian_skeleton_read_compact <- function(filename, label) {
-  path <- .avian_skeleton_extdata_path(filename)
-  testthat::skip_if(!nzchar(path), paste("compact avian skeleton", label, "unavailable"))
+.avian_skeleton_read_compact <- function(name, label) {
+  path <- .avian_skeleton_artifact_path(name, label)
   readRDS(path)
 }
 
@@ -38,7 +21,7 @@
 
 .avian_skeleton_compact_search <- function() {
   search <- .avian_skeleton_read_compact(
-    "passerine_bodyplan_search_compact.RDS",
+    "passerine-search",
     "focal search"
   )
   .avian_skeleton_restore_search_class(search)
@@ -46,14 +29,14 @@
 
 .avian_skeleton_compact_sensitivity <- function() {
   .avian_skeleton_read_compact(
-    "passerine_bodyplan_search_sensitivity_compact.RDS",
+    "passerine-sensitivity",
     "sensitivity bundle"
   )
 }
 
 .avian_skeleton_compact_posthoc <- function() {
   .avian_skeleton_read_compact(
-    "passerine_bodyplan_posthoc_integration_compact.RDS",
+    "passerine-posthoc",
     "post-hoc object"
   )
 }

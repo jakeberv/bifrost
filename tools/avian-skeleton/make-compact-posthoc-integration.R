@@ -8,8 +8,7 @@ source_repo_id <- "jakeberv/passerine-bodyplan-evolution"
 manuscript_script_id <- "TemporalAnalyses.R"
 object_dir <- file.path(source_repo, "my_session_objects")
 output_path <- file.path(
-  "inst",
-  "extdata",
+  "data-remote",
   "avian-skeleton",
   "passerine_bodyplan_posthoc_integration_compact.RDS"
 )

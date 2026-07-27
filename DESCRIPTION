@@ -22,6 +22,7 @@ Depends: R (>= 4.2)
 Imports:
     ape,
     cli (>= 3.6.0),
+    digest,
     future (>= 1.49.0),
     future.apply,
     parallel,
@@ -31,6 +32,7 @@ Imports:
     grDevices,
     graphics,
     grid,
+    jsonlite,
     stats,
     mvMORPH,
     viridis,

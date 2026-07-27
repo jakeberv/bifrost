@@ -215,8 +215,8 @@ approved_generator_source_files <- function() {
     "R/simulation-template.R",
     "R/simulation-tuning.R",
     "R/utils.R",
-    "inst/extdata/avian-skeleton/passerine_bodyplan_tree.tre",
-    "inst/extdata/avian-skeleton/passerine_bodyplan_data.RDS"
+    "data-remote/avian-skeleton/passerine_bodyplan_tree.tre",
+    "data-remote/avian-skeleton/passerine_bodyplan_data.RDS"
   )
 }
 
@@ -627,8 +627,7 @@ build_simulation_cache_main <- function(args = commandArgs(trailingOnly = TRUE))
   ensure_grid_runner_helpers()
   cache <- build_simulation_cache(args[[1L]], args[[2L]])
   out_path <- file.path(
-    "inst",
-    "extdata",
+    "data-remote",
     "simulation-study-cache",
     "passerine_preview_tables.rds"
   )

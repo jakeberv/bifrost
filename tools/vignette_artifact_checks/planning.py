@@ -57,7 +57,7 @@ def make_fixture(source: Path, destination: Path) -> None:
     destination.mkdir()
     for filename in ["DESCRIPTION", "_pkgdown.yml"]:
         shutil.copy2(source / filename, destination / filename)
-    for dirname in ["R", "inst", "vignettes"]:
+    for dirname in ["R", "data-remote", "inst", "vignettes"]:
         shutil.copytree(source / dirname, destination / dirname)
 
     tools = destination / "tools"
@@ -124,13 +124,13 @@ def run_planning_checks(source: Path, all_slugs: list[str]) -> None:
         repo = Path(temp) / "repo"
         make_fixture(source, repo)
 
-        fixture_manifest_path = repo / "inst/extdata/empirical-artifacts.json"
+        fixture_manifest_path = repo / "data-remote/empirical-artifacts.json"
         fixture_manifest = json.loads(fixture_manifest_path.read_text())
         simulation_record = next(
             artifact
             for artifact in fixture_manifest["artifacts"]
             if artifact["path"]
-            == "inst/extdata/simulation-study-cache/passerine_preview_tables.rds"
+            == "data-remote/simulation-study-cache/passerine_preview_tables.rds"
         )
         simulation_record["source_location"] = (
             "Schema-2 cache constructed from validated empirical grids."
@@ -152,7 +152,7 @@ def run_planning_checks(source: Path, all_slugs: list[str]) -> None:
                 "empirical artifact validator must reject stale schema-2 cache metadata"
             )
         shutil.copy2(
-            source / "inst/extdata/empirical-artifacts.json",
+            source / "data-remote/empirical-artifacts.json",
             fixture_manifest_path,
         )
 

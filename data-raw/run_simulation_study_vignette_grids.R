@@ -317,8 +317,7 @@ relevant_source_files <- function(root = ".") {
     "NAMESPACE",
     file.path("R", r_files),
     file.path(
-      "inst",
-      "extdata",
+      "data-remote",
       "avian-skeleton",
       c("passerine_bodyplan_tree.tre", "passerine_bodyplan_data.RDS")
     )
@@ -670,19 +669,17 @@ run_or_resume_grid <- function(output_path, expected_ic, design,
 
 build_bodyplan_template <- function() {
   tree_path <- file.path(
-    "inst",
-    "extdata",
+    "data-remote",
     "avian-skeleton",
     "passerine_bodyplan_tree.tre"
   )
   trait_path <- file.path(
-    "inst",
-    "extdata",
+    "data-remote",
     "avian-skeleton",
     "passerine_bodyplan_data.RDS"
   )
   if (!file.exists(tree_path) || !file.exists(trait_path)) {
-    stop("The packaged passerine tree and body-plan data are required.")
+    stop("The repository data-remote passerine tree and body-plan inputs are required.")
   }
 
   bird_tree <- ape::read.tree(tree_path)
