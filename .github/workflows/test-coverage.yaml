@@ -47,6 +47,7 @@ jobs:
   test-coverage:
     runs-on: ubuntu-latest
     env:
+      BIFROST_ARTIFACT_DIR: ${{ github.workspace }}/data-remote
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
       NOT_CRAN: "true"
 
@@ -61,6 +62,19 @@ jobs:
         with:
           extra-packages: any::covr, any::rstudioapi, any::xml2
           needs: coverage
+
+      - name: Verify repository empirical resolver
+        shell: Rscript {0}
+        run: |
+          pkgload::load_all(export_all = FALSE, helpers = FALSE, quiet = TRUE)
+          ids <- c(
+            "jaw-tree", "jaw-landmarks", "passerine-tree", "passerine-traits",
+            "passerine-search", "passerine-sensitivity", "passerine-posthoc",
+            "simulation-preview-tables"
+          )
+          root <- normalizePath(Sys.getenv("BIFROST_ARTIFACT_DIR"), winslash = "/")
+          paths <- vapply(ids, bifrost_example_file, character(1), quiet = TRUE)
+          stopifnot(all(startsWith(paths, paste0(root, "/"))))
 
       - name: Test coverage
         run: |

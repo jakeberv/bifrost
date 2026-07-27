@@ -19,6 +19,8 @@ jobs:
       group: pkgdown-build-${{ github.event.pull_request.number || github.ref }}
       cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
+    env:
+      BIFROST_ARTIFACT_DIR: ${{ github.workspace }}/data-remote
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -71,7 +73,7 @@ jobs:
         uses: actions/cache/restore@v5
         with:
           path: .cache/vignette-artifacts
-          key: vignette-pdfs-${{ runner.os }}-${{ hashFiles('vignettes/**/*.Rmd', 'vignettes/**/*.png', 'vignettes/**/*.gif', 'vignettes/**/*.jpg', 'vignettes/**/*.jpeg', 'vignettes/**/*.svg', 'vignettes/**/*.csv', 'vignettes/**/*.txt', 'vignettes/**/*.rds', 'vignettes/**/*.RDS', 'vignettes/**/*.R', 'R/**', 'inst/extdata/**', 'DESCRIPTION', '_pkgdown.yml', 'pkgdown/**', '.github/workflows/pkgdown.yml', 'tools/vignette_artifacts.R', 'tools/render-vignette-pdf.R', 'tools/build-colab-notebook.py', 'tools/colab_dependencies.py', 'tools/test-vignette-artifacts.py', 'tools/vignette_artifact_checks/**', 'tools/validate-pkgdown-config.R', 'tools/pkgdown-browser-smoke/**') }}
+          key: vignette-pdfs-${{ runner.os }}-${{ hashFiles('vignettes/**/*.Rmd', 'vignettes/**/*.png', 'vignettes/**/*.gif', 'vignettes/**/*.jpg', 'vignettes/**/*.jpeg', 'vignettes/**/*.svg', 'vignettes/**/*.csv', 'vignettes/**/*.txt', 'vignettes/**/*.rds', 'vignettes/**/*.RDS', 'vignettes/**/*.R', 'R/**', 'data-remote/**', 'DESCRIPTION', '_pkgdown.yml', 'pkgdown/**', '.github/workflows/pkgdown.yml', 'tools/vignette_artifacts.R', 'tools/render-vignette-pdf.R', 'tools/build-colab-notebook.py', 'tools/colab_dependencies.py', 'tools/test-vignette-artifacts.py', 'tools/vignette_artifact_checks/**', 'tools/validate-pkgdown-config.R', 'tools/pkgdown-browser-smoke/**') }}
           restore-keys: |
             vignette-pdfs-${{ runner.os }}-
 
