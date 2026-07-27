@@ -69,6 +69,22 @@ for a stable-versus-development comparison, current caveats, and the website
 article packaging policy; see [NEWS](https://jakeberv.com/bifrost/news/index.html)
 for the complete changelog.
 
+## Example data
+
+The empirical case studies use download-on-demand example data rather than
+packaged datasets. Package installation and core analyses remain offline; data
+are fetched only by explicit calls to `bifrost_example_file()`. Normal calls
+reuse verified cache entries, while `refresh = TRUE` checks GitHub `main` for
+maintained updates. The supported identifiers and their provenance are listed
+in the [example-data guide](https://github.com/jakeberv/bifrost/blob/main/data-remote/README.md).
+
+```r
+tree_path <- bifrost_example_file("jaw-tree")
+landmark_path <- bifrost_example_file("jaw-landmarks")
+fish.tree <- readRDS(tree_path)
+landmarks <- readRDS(landmark_path)
+```
+
 ## Overview
 
 - **Primary goal.** Infer *where*, *when*, and *how* patterns of phenotypic evolution change across a tree using many traits simultaneously.
@@ -98,7 +114,7 @@ for the complete changelog.
 - [Quick Start with bifrost](https://jakeberv.com/bifrost/articles/quick-start-vignette.html)  
   A practical introduction to the core `bifrost` workflow using a minimal simulated example, including setup, key arguments, outputs, and interpretation.
 - [Detecting Evolutionary Shifts in Paleozoic Fish Jaw Shape with bifrost](https://jakeberv.com/bifrost/articles/jaw-shape-vignette.html)  
-  A full empirical case study using the packaged fossil jaw-shape dataset, showing how to run, inspect, and interpret a real `bifrost` analysis end to end.
+  A full empirical case study using download-on-demand fossil jaw-shape example data, showing how to run, inspect, and interpret a real `bifrost` analysis end to end.
 
 ### Rate Mapping
 
