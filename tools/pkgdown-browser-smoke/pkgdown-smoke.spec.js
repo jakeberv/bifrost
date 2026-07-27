@@ -61,7 +61,7 @@ test("homepage provenance guide targets the tracked main documentation", async (
   );
 });
 
-test("CRAN downloads chart keeps automatic switching without exposing color-mode controls", async ({ page }) => {
+test("CRAN downloads chart defaults to light without exposing color-mode controls", async ({ page }) => {
   await stubExternalServices(page);
   await page.goto("/");
 
@@ -70,6 +70,8 @@ test("CRAN downloads chart keeps automatic switching without exposing color-mode
   const lightSource = picture.locator('source[data-theme="light"]');
   await expect(picture).toHaveCount(1);
   await expect(page.locator("#dropdown-lightswitch")).toHaveCount(0);
+  await expect(lightSource).toHaveAttribute("media", "all");
+  await expect(darkSource).toHaveAttribute("media", "not all");
 
   await page.evaluate(() => document.documentElement.setAttribute("data-bs-theme", "dark"));
   await expect(darkSource).toHaveAttribute("media", "all");
@@ -79,9 +81,13 @@ test("CRAN downloads chart keeps automatic switching without exposing color-mode
   await expect(lightSource).toHaveAttribute("media", "all");
   await expect(darkSource).toHaveAttribute("media", "not all");
 
-  await page.evaluate(() => document.documentElement.removeAttribute("data-bs-theme"));
+  await page.evaluate(() => document.documentElement.setAttribute("data-bs-theme", "auto"));
   await expect(darkSource).toHaveAttribute("media", "(prefers-color-scheme: dark)");
   await expect(lightSource).toHaveAttribute("media", "(prefers-color-scheme: light)");
+
+  await page.evaluate(() => document.documentElement.removeAttribute("data-bs-theme"));
+  await expect(lightSource).toHaveAttribute("media", "all");
+  await expect(darkSource).toHaveAttribute("media", "not all");
 });
 
 test("vignette pages expose artifact actions and initialize Mermaid", async ({ page }) => {
