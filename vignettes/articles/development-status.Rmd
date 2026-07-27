@@ -44,6 +44,10 @@ areas:
 - **Expanded worked documentation.** The website includes rate-mapping,
   five-part avian skeleton, and two-part simulation and calibration workflows,
   together with downloadable PDFs and executable Colab notebooks.
+- **On-demand example data.** `bifrost_example_file()` retrieves supported
+  empirical case-study artifacts only when explicitly requested, verifies them
+  against published checksums, and reuses a local cache. The artifacts are not
+  distributed in the CRAN package.
 
 The detailed, itemized record of these changes is maintained in
 [NEWS](../news/index.html).
@@ -60,13 +64,16 @@ Repository automation and generated site assets, including the CRAN downloads
 tracker, support package development and documentation but are not part of the
 core CRAN API.
 
-## Website articles and the package tarball
+## Website articles, example data, and the package tarball
 
-The source files for the website articles are maintained in this repository but
-excluded from the CRAN source-package tarball. This keeps manuscript-scale
-demonstrations, including the five-part avian skeleton workflow, out of routine
-package installation and CRAN checks while preserving the complete rendered
-documentation on the pkgdown website.
+The source files for the website articles and their empirical artifacts are
+maintained in this repository but excluded from the CRAN source-package
+tarball. This keeps manuscript-scale demonstrations, including the five-part
+avian skeleton workflow, out of routine package installation and CRAN checks
+while preserving the complete rendered documentation on the pkgdown website.
+Readers can explicitly request checksum-verified artifacts with
+`bifrost_example_file()`; later calls reuse the verified local cache. Package
+installation, attachment, and routine checks remain network-free.
 
 For stable release information, use the
 [CRAN package page](https://CRAN.R-project.org/package=bifrost). For unreleased
