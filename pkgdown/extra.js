@@ -15,13 +15,15 @@ const ARTICLE_ARTIFACT_SLUGS = new Set([
 ]);
 
 (function syncCranDownloadsTheme() {
+  const defaultTheme = "light";
   const preferredMedia = {
     dark: "(prefers-color-scheme: dark)",
     light: "(prefers-color-scheme: light)"
   };
 
   const sync = () => {
-    const activeTheme = document.documentElement.getAttribute("data-bs-theme");
+    const activeTheme =
+      document.documentElement.getAttribute("data-bs-theme") || defaultTheme;
     document.querySelectorAll("picture.cran-downloads-picture").forEach(picture => {
       picture.querySelectorAll("source[data-theme]").forEach(source => {
         const sourceTheme = source.getAttribute("data-theme");
