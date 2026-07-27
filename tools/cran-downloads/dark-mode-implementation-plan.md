@@ -58,7 +58,7 @@ const themes = [
 - Consumes `.cran-downloads-picture` with `source[data-theme="light|dark"]`.
 - Produces source `media="all"` for the active pkgdown theme and `media="not all"` for the inactive theme.
 
-- [ ] Add a Playwright test that sets `data-bs-theme` to dark and light and asserts the matching source becomes active without reloading.
+- [ ] Add a Playwright test that asserts pkgdown exposes no theme control while retaining light, dark, and automatic source behavior.
 - [ ] Build/serve pkgdown and run the focused smoke test; expect failure because the picture and synchronizer do not exist.
 - [ ] Replace the README image with GitHub's supported markup:
 
@@ -70,9 +70,9 @@ const themes = [
 </picture>
 ```
 
-- [ ] Set `template.light-switch: true` in `_pkgdown.yml`.
+- [ ] Leave pkgdown's `template.light-switch` disabled so the site uses its default light mode.
 - [ ] Add a DOM-ready synchronizer and `MutationObserver` in `pkgdown/extra.js` that updates the two source media attributes from the root `data-bs-theme` value.
-- [ ] Rebuild pkgdown and run the focused smoke test; expect it to pass for light, dark, and auto behavior.
+- [ ] Rebuild pkgdown and run the focused smoke test; expect no visible selector and preserved light, dark, and auto behavior.
 - [ ] Commit the display slice with `git commit -m "Switch CRAN chart with site theme"`.
 
 ### Task 3: Verify and Publish
