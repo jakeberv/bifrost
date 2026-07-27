@@ -61,7 +61,7 @@ test("homepage provenance guide targets the tracked main documentation", async (
   );
 });
 
-test("CRAN downloads chart follows the pkgdown color mode", async ({ page }) => {
+test("CRAN downloads chart keeps automatic switching without exposing color-mode controls", async ({ page }) => {
   await stubExternalServices(page);
   await page.goto("/");
 
@@ -69,6 +69,7 @@ test("CRAN downloads chart follows the pkgdown color mode", async ({ page }) => 
   const darkSource = picture.locator('source[data-theme="dark"]');
   const lightSource = picture.locator('source[data-theme="light"]');
   await expect(picture).toHaveCount(1);
+  await expect(page.locator("#dropdown-lightswitch")).toHaveCount(0);
 
   await page.evaluate(() => document.documentElement.setAttribute("data-bs-theme", "dark"));
   await expect(darkSource).toHaveAttribute("media", "all");

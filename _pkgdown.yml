@@ -36,7 +36,6 @@ articles:
       - simulation-study-part-2
 template:
   bootstrap: 5
-  light-switch: true
   math-rendering: katex
   includes:
     in_header: |
