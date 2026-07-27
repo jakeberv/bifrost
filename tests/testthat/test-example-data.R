@@ -151,7 +151,8 @@ testthat::test_that("the local override verifies all eight artifacts", {
     .bifrost_example_identifiers, bifrost_example_file, character(1)
   )
   testthat::expect_true(all(file.exists(paths)))
-  testthat::expect_true(all(startsWith(paths, normalizePath(root))))
+  normalized_root <- normalizePath(root, winslash = "/", mustWork = TRUE)
+  testthat::expect_true(all(startsWith(paths, normalized_root)))
   testthat::expect_identical(
     read_fixture_bytes(paths[["jaw-tree"]]), "tree bytes"
   )
