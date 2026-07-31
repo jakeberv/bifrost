@@ -1613,7 +1613,66 @@ test_that("rateMap uses progress/workers and plot() draws separately", {
   })
 })
 
-test_that("plot.rateMap getYmult compatibility shim restores global state", {
+test_that("plot.rateMap never writes getYmult in the global environment", {
+  .rate_map_skip_if_missing_deps()
+  global <- .GlobalEnv
+  had_getYmult <- exists("getYmult", envir = global, inherits = FALSE)
+  was_active <- had_getYmult && bindingIsActive("getYmult", global)
+  old_getYmult <- if (was_active) {
+    activeBindingFunction("getYmult", global)
+  } else if (had_getYmult) {
+    get("getYmult", envir = global, inherits = FALSE)
+  } else {
+    NULL
+  }
+  on.exit({
+    if (exists("getYmult", envir = global, inherits = FALSE)) {
+      rm("getYmult", envir = global)
+    }
+    if (had_getYmult) {
+      if (was_active) {
+        makeActiveBinding("getYmult", old_getYmult, global)
+      } else {
+        assign("getYmult", old_getYmult, envir = global)
+      }
+    }
+  }, add = TRUE)
+
+  if (had_getYmult) {
+    rm("getYmult", envir = global)
+  }
+
+  writes <- 0L
+  makeActiveBinding("getYmult", function(value) {
+    if (!missing(value)) {
+      writes <<- writes + 1L
+      stop("plot.rateMap attempted to write global getYmult")
+    }
+    function() 1
+  }, global)
+
+  fx <- .rate_map_fixture()
+  out <- rateMap(
+    list(.rate_map_fit(fx$shifted_a), .rate_map_fit(fx$shifted_b)),
+    progress = FALSE,
+    control = rateMapControl(res = 4)
+  )
+
+  for (layout in c("arc", "fan")) {
+    drawn <- .rate_map_with_pdf(.rate_map_eval_no_error(plot(
+      out,
+      type = layout,
+      legend = FALSE,
+      show_tip_labels = FALSE,
+      hold = FALSE
+    )))
+    testthat::expect_s3_class(drawn, "rateMap")
+  }
+  testthat::expect_equal(writes, 0L)
+})
+
+test_that("plot.rateMap preserves an existing global getYmult binding", {
+  .rate_map_skip_if_missing_deps()
   global <- .GlobalEnv
   had_getYmult <- exists("getYmult", envir = global, inherits = FALSE)
   old_getYmult <- if (had_getYmult) {
@@ -1630,37 +1689,80 @@ test_that("plot.rateMap getYmult compatibility shim restores global state", {
     }
   }, add = TRUE)
 
-  grDevices::graphics.off()
-  no_device <- NULL
-  testthat::expect_warning(
-    no_device <- .rateMap_getYmult(),
-    "No graphics device open"
+  if (exists("getYmult", envir = global, inherits = FALSE)) {
+    rm("getYmult", envir = global)
+  }
+  sentinel <- structure("sentinel", class = "rateMap_getYmult_sentinel")
+  assign("getYmult", sentinel, envir = global)
+
+  fx <- .rate_map_fixture()
+  out <- rateMap(
+    list(.rate_map_fit(fx$shifted_a), .rate_map_fit(fx$shifted_b)),
+    progress = FALSE,
+    control = rateMapControl(res = 4)
   )
-  testthat::expect_equal(no_device, 1)
 
-  .rate_map_with_pdf({
-    graphics::plot.new()
-    graphics::plot.window(xlim = c(0, 2), ylim = c(0, 4))
-    ymult <- .rateMap_getYmult()
-    testthat::expect_true(is.finite(ymult))
-    testthat::expect_gt(ymult, 0)
-  })
+  .rate_map_with_pdf(.rate_map_eval_no_error(plot(
+    out,
+    type = "arc",
+    legend = FALSE,
+    show_tip_labels = FALSE,
+    hold = FALSE
+  )))
+  testthat::expect_identical(
+    get("getYmult", envir = global, inherits = FALSE),
+    sentinel
+  )
 
+  testthat::expect_error(.rate_map_with_pdf(plot(
+    out,
+    type = "arc",
+    arc_height = "invalid",
+    legend = FALSE,
+    hold = FALSE
+  )))
+  testthat::expect_identical(
+    get("getYmult", envir = global, inherits = FALSE),
+    sentinel
+  )
+})
+
+test_that("plot.rateMap errors do not create global getYmult state", {
+  .rate_map_skip_if_missing_deps()
+  global <- .GlobalEnv
+  had_getYmult <- exists("getYmult", envir = global, inherits = FALSE)
+  old_getYmult <- if (had_getYmult) {
+    get("getYmult", envir = global, inherits = FALSE)
+  } else {
+    NULL
+  }
+  on.exit({
+    if (exists("getYmult", envir = global, inherits = FALSE)) {
+      rm("getYmult", envir = global)
+    }
+    if (had_getYmult) {
+      assign("getYmult", old_getYmult, envir = global)
+    }
+  }, add = TRUE)
   if (exists("getYmult", envir = global, inherits = FALSE)) {
     rm("getYmult", envir = global)
   }
 
-  testthat::expect_true(.rateMap_with_plotrix_getYmult(
-    exists("getYmult", envir = global, inherits = FALSE)
-  ))
-  testthat::expect_false(exists("getYmult", envir = global, inherits = FALSE))
-
-  assign("getYmult", "sentinel", envir = global)
-  shimmed <- .rateMap_with_plotrix_getYmult(
-    get("getYmult", envir = global, inherits = FALSE)
+  fx <- .rate_map_fixture()
+  out <- rateMap(
+    list(.rate_map_fit(fx$shifted_a), .rate_map_fit(fx$shifted_b)),
+    progress = FALSE,
+    control = rateMapControl(res = 4)
   )
-  testthat::expect_true(is.function(shimmed))
-  testthat::expect_identical(get("getYmult", envir = global, inherits = FALSE), "sentinel")
+
+  testthat::expect_error(.rate_map_with_pdf(plot(
+    out,
+    type = "arc",
+    arc_height = "invalid",
+    legend = FALSE,
+    hold = FALSE
+  )))
+  testthat::expect_false(exists("getYmult", envir = global, inherits = FALSE))
 })
 
 test_that("plot.rateMap draws rate maps on a graphics device", {

@@ -294,38 +294,6 @@
   invisible(NULL)
 }
 
-.rateMap_getYmult <- function() {
-  if (grDevices::dev.cur() == 1L) {
-    warning("No graphics device open.")
-    return(1)
-  }
-
-  xyasp <- graphics::par("pin")
-  xycr <- diff(graphics::par("usr"))[c(1L, 3L)]
-  xyasp[1L] / xyasp[2L] * xycr[2L] / xycr[1L]
-}
-
-.rateMap_with_plotrix_getYmult <- function(expr) {
-  global <- .GlobalEnv
-  had_getYmult <- exists("getYmult", envir = global, inherits = FALSE)
-  old_getYmult <- if (had_getYmult) {
-    get("getYmult", envir = global, inherits = FALSE)
-  } else {
-    NULL
-  }
-
-  assign("getYmult", .rateMap_getYmult, envir = global)
-  on.exit({
-    if (had_getYmult) {
-      assign("getYmult", old_getYmult, envir = global)
-    } else if (exists("getYmult", envir = global, inherits = FALSE)) {
-      rm("getYmult", envir = global)
-    }
-  }, add = TRUE)
-
-  force(expr)
-}
-
 .rateMap_stored_ncolors <- function(x) {
   ncolors <- x$ncolors
   if (is.numeric(ncolors) && length(ncolors) == 1L &&
@@ -856,7 +824,6 @@ rateMapView <- function(x,
       )
     }
   } else {
-    .rateMap_with_plotrix_getYmult({
       if (isTRUE(outline)) {
         old_col <- graphics::par()$col
         graphics::par(col = "white")
@@ -952,7 +919,6 @@ rateMapView <- function(x,
           )
         }
       }
-    })
   }
 
   invisible(x)
