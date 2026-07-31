@@ -1081,6 +1081,7 @@ rateMapView <- function(x,
 #' )
 #'
 #' @method plot rateMap
+#' @importFrom plotrix getYmult
 #' @export
 plot.rateMap <- function(x,
                          value = "value",
