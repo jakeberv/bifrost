@@ -1031,6 +1031,11 @@ rateMapView <- function(x,
 #' objects should be converted explicitly with [rateMap()] before plotting, for
 #' example `plot(rateMap(search_a), ...)`.
 #'
+#' For fan and arc layouts, `phytools` resolves the `getYmult()` geometry helper
+#' from `plotrix`. *`bifrost`* imports that helper so installed-package plotting
+#' has the required dependency available without creating or modifying a
+#' `getYmult` binding in the user's global environment.
+#'
 #' **Relationship to `phytools` plotting arguments.** `plot.rateMap()` keeps the
 #' tree-layout argument names close to `phytools`: `type`, `fsize`, `ftype`,
 #' `lwd`, `mar`, `direction`, `offset`, `xlim`, `ylim`, `underscore`, and

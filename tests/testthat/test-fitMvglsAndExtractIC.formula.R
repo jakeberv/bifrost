@@ -178,6 +178,23 @@ testthat::test_that("GIC formula wrapper passes through LL method", {
   testthat::expect_true(is.finite(as.numeric(fit$GIC$GIC)))
 })
 
+testthat::test_that("GIC formula wrapper preserves the mvgls default method", {
+  skip_if_ic_formula_deps()
+
+  tree <- make_ic_formula_tree(regimes = "multi", seed = 19)
+  data <- make_ic_formula_data(tree, n_response = 2, seed = 29)
+
+  fit <- suppressWarnings(fitMvglsAndExtractGIC.formula(
+    cbind(y1, y2) ~ size,
+    tree,
+    data
+  ))
+
+  testthat::expect_null(fit$model$call$method)
+  testthat::expect_identical(fit$model$method, "LOOCV")
+  testthat::expect_true(is.finite(as.numeric(fit$GIC$GIC)))
+})
+
 testthat::test_that("BIC formula wrapper defaults to LL when method is omitted", {
   skip_if_ic_formula_deps()
 
@@ -191,6 +208,8 @@ testthat::test_that("BIC formula wrapper defaults to LL when method is omitted",
   ))
 
   testthat::expect_s3_class(fit$model, "mvgls")
+  testthat::expect_identical(fit$model$call$method, "LL")
+  testthat::expect_identical(fit$model$method, "LL")
   testthat::expect_true(is.finite(as.numeric(fit$BIC$BIC)))
 })
 

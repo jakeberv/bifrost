@@ -72,24 +72,27 @@ You may need to install [XQuartz](https://www.xquartz.org/) to build or run pack
 
 ## Development status
 
-Version 0.2.0 is the current release source and requires R 4.2 or newer. While
-CRAN reviews this release, `install.packages("bifrost")` may temporarily return
-the previous 0.1.4 release. See the
+Version 0.2.0 is the current release candidate and requires R 4.2 or newer.
+CRAN currently provides version 0.1.4; `install.packages("bifrost")` will
+continue to install 0.1.4 until CRAN accepts 0.2.0. See the
 [development-status page](https://jakeberv.com/bifrost/articles/development-status.html)
 for release status, current caveats, and the website
 article packaging policy; see [NEWS](https://jakeberv.com/bifrost/news/index.html)
 for the complete changelog.
 
-When upgrading from 0.1.4, replace the removed
-`plot_ic_acceptance_matrix(x)` workflow with `plot(icTrajectory(x))`.
+When upgrading from 0.1.4, replace the removed plotting wrapper with
+`plot(icTrajectory(x))` when `x` is a `bifrost_search` or compatible
+search-result list. See [NEWS](https://jakeberv.com/bifrost/news/index.html)
+for the raw-matrix migration and argument mapping.
 
 ## Example data
 
 The empirical case studies use download-on-demand example data rather than
 packaged datasets. Package installation and core analyses remain offline; data
 are fetched only by explicit calls to `bifrost_example_file()`. The first call
-without a verified cache downloads the checksum-verified manifest and artifact
-currently tracked on GitHub `main`. Later calls reuse the verified cache, while
+without a verified cache downloads and validates the manifest currently tracked
+on GitHub `main`, then verifies the selected artifact against the manifest's
+SHA-256 checksum and byte size. Later calls reuse the verified cache, while
 `refresh = TRUE` checks `main` again for maintained updates. The supported
 identifiers and their provenance are listed in the [example-data guide](https://github.com/jakeberv/bifrost/blob/main/data-remote/README.md).
 

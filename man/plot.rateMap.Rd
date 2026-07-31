@@ -175,6 +175,11 @@ to enough precision to avoid rounding small values to zero. Single fitted
 objects should be converted explicitly with \code{\link[=rateMap]{rateMap()}} before plotting, for
 example \code{plot(rateMap(search_a), ...)}.
 
+For fan and arc layouts, \code{phytools} resolves the \code{getYmult()} geometry helper
+from \code{plotrix}. \emph{\code{bifrost}} imports that helper so installed-package plotting
+has the required dependency available without creating or modifying a
+\code{getYmult} binding in the user's global environment.
+
 \strong{Relationship to \code{phytools} plotting arguments.} \code{plot.rateMap()} keeps the
 tree-layout argument names close to \code{phytools}: \code{type}, \code{fsize}, \code{ftype},
 \code{lwd}, \code{mar}, \code{direction}, \code{offset}, \code{xlim}, \code{ylim}, \code{underscore}, and

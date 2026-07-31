@@ -10,12 +10,12 @@ between the CRAN package and the fuller documentation maintained on GitHub.
 
 | Distribution | Version | Installation | Best for |
 |---|---:|---|---|
-| [CRAN](https://CRAN.R-project.org/package=bifrost) | 0.2.0 | `install.packages("bifrost")` | Reproducible analyses using the public release; CRAN may serve 0.1.4 while 0.2.0 is under review |
-| [GitHub](https://github.com/jakeberv/bifrost) | 0.2.0 | `remotes::install_github("jakeberv/bifrost")` | Release source and the latest website documentation |
+| [CRAN](https://CRAN.R-project.org/package=bifrost) | 0.1.4 | `install.packages("bifrost")` | Current published release |
+| [GitHub](https://github.com/jakeberv/bifrost) | 0.2.0 release candidate | `remotes::install_github("jakeberv/bifrost")` | Candidate source and the latest website documentation |
 
-Version 0.2.0 requires R 4.2 or newer. During CRAN review, GitHub contains the
-release source while `install.packages()` may still install the preceding
-0.1.4 release.
+The 0.2.0 release candidate requires R 4.2 or newer. Until CRAN accepts it,
+GitHub contains the candidate source while `install.packages()` installs the
+published 0.1.4 release.
 
 ## What 0.2.0 adds
 
@@ -25,7 +25,9 @@ Version 0.2.0 extends 0.1.4 in several related areas:
   method expose search histories, while richer stored candidate records retain
   accepted, rejected, and errored fits.
   The former `plot_ic_acceptance_matrix()` wrapper has been removed; use
-  `plot(icTrajectory(x))` instead.
+  `plot(icTrajectory(x))` for a search object. Callers with a raw legacy IC
+  matrix should follow the wrapping and argument-mapping example in
+  [NEWS](../news/index.html).
 - **Branch-rate summaries.** `rateMap()` and its supporting view, control,
   flagging, print, and plot methods summarize branch-rate patterns across
   completed searches.
@@ -41,15 +43,18 @@ Version 0.2.0 extends 0.1.4 in several related areas:
 - **Formula-based searches.** Searches accept formula objects or character
   strings, response-only numeric data frames for intercept-only analyses, and
   named-column formulas such as `cbind(y1, y2) ~ size + grp`.
+- **BIC fitting default.** When `IC = "BIC"` and `method` is omitted, the search
+  uses `method = "LL"`; explicitly supplied methods still take precedence.
 - **Expanded worked documentation.** The website includes rate-mapping,
   five-part avian skeleton, and two-part simulation and calibration workflows,
   together with downloadable PDFs and executable Colab notebooks.
 - **On-demand example data.** `bifrost_example_file()` retrieves supported
   empirical case-study artifacts only when explicitly requested, verifies them
   against published checksums, and reuses a local cache. On the first uncached
-  request it downloads the manifest and artifact currently tracked on GitHub
-  `main`; `refresh = TRUE` checks `main` again. The artifacts are not distributed
-  in the CRAN package.
+  request it downloads and validates the manifest currently tracked on GitHub
+  `main`, then verifies the selected artifact against its recorded checksum and
+  byte size; `refresh = TRUE` checks `main` again. The artifacts are not
+  distributed in the CRAN package.
 
 The detailed, itemized record of these changes is maintained in
 [NEWS](../news/index.html).

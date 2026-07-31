@@ -102,8 +102,11 @@ This is independent of \code{progress}.}
 \code{penalty}, \code{target}, \code{error}, \code{REML}, etc.). In the workflows
 emphasized in the package vignettes, \code{method = "H&L"} is used for
 intercept-only searches on high-dimensional response matrices, whereas
-\code{method = "LL"} is used for formula-based searches with predictors and
-should also be used when \code{IC = "BIC"}. In \pkg{mvMORPH}, \code{method = "H&L"}
+\code{method = "LL"} is used for formula-based searches with predictors.
+When \code{IC = "BIC"} and \code{method} is omitted, \emph{\code{bifrost}}
+supplies \code{method = "LL"}; an explicitly supplied method takes
+precedence. GIC searches continue to use the \code{mvgls()} method default
+when \code{method} is omitted. In \pkg{mvMORPH}, \code{method = "H&L"}
 is restricted to intercept-only models and the \code{"RidgeArch"} penalty.
 Setting \code{error = TRUE} asks \code{mvgls()} to estimate a nuisance
 measurement-error (intraspecific-variance) term from the data.}
@@ -120,7 +123,9 @@ execution.}
 \value{
 A named \code{list} with (at minimum):
 \itemize{
-\item \code{user_input}: captured call (as a list) for reproducibility.
+\item \code{user_input}: captured call (as a list) for reproducibility,
+including the resolved logical \code{progress} setting and flattened
+additional \code{mvgls()} arguments.
 \item \code{tree_no_uncertainty_transformed}: SIMMAP tree from the optimal (no-uncertainty) model
 on the transformed scale used internally by \code{mvgls}.
 \item \code{tree_no_uncertainty_untransformed}: same topology with original edge lengths restored.
@@ -130,8 +135,10 @@ on the transformed scale used internally by \code{mvgls}.
 \item \code{IC_used}: \code{"GIC"} or \code{"BIC"}; \code{num_candidates}: count of candidate one-shift models evaluated;
 \code{candidate_nodes}: integer node identifiers for those candidates.
 \item \code{model_fit_history}: if \code{store_model_fit_history = TRUE}, a list of per-iteration fits
-(loaded from temporary files written during the run) and an \code{ic_acceptance_matrix}
-(IC value and acceptance flag per step).
+(loaded from temporary files written during the run) with proposal
+step, candidate node, regime ID, IC, status, acceptance decision,
+and any error, plus an \code{ic_acceptance_matrix} (IC value and
+acceptance flag per step).
 \item \code{VCVs}: named list of regime-specific VCV matrices extracted from the final model
 (penalized-likelihood estimates if PL was used).
 }
@@ -218,8 +225,10 @@ response matrices (for example, GPA-aligned landmark data), the jaw-shape vignet
 uses \code{method = "H&L"} with the default \code{"RidgeArch"} penalty; in
 \pkg{mvMORPH}, this is a fast approximation to penalized LOOCV and is only available
 for intercept-only models. For formula-based searches with predictors, the avian
-skeleton vignette uses \code{method = "LL"} instead. When \code{IC = "BIC"},
-\code{method = "LL"} should be used. Across empirical workflows, \code{error = TRUE}
+skeleton vignette uses \code{method = "LL"} instead. When \code{IC = "BIC"}
+and no fitting method is supplied, \emph{\code{bifrost}} automatically uses
+\code{method = "LL"}; explicit methods are preserved. GIC searches do not
+override an omitted method. Across empirical workflows, \code{error = TRUE}
 is often a sensible default because it asks \code{mvgls()} to estimate a nuisance
 measurement-error (intraspecific-variance) term from the data. Users should consult
 the \pkg{mvMORPH} documentation for details on available methods and penalties and
