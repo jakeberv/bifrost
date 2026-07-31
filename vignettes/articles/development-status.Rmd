@@ -1,31 +1,31 @@
 ---
-title: "Development Status"
-description: "How the GitHub development version differs from the current CRAN release."
+title: "Release Status"
+description: "Release and packaging status for bifrost 0.2.0."
 ---
 
-`bifrost` is available as a stable CRAN package and as a GitHub development
-version. The development version is where completed features and documentation
-are assembled and tested before the next CRAN release.
+This page describes `bifrost` 0.2.0, its release status, and the relationship
+between the CRAN package and the fuller documentation maintained on GitHub.
 
 ## At a glance
 
 | Distribution | Version | Installation | Best for |
 |---|---:|---|---|
-| [CRAN](https://CRAN.R-project.org/package=bifrost) | 0.1.4 | `install.packages("bifrost")` | Reproducible analyses using the current public release |
-| [GitHub](https://github.com/jakeberv/bifrost) | 0.1.4.9000 | `remotes::install_github("jakeberv/bifrost")` | Evaluating unreleased features and following the latest documentation |
+| [CRAN](https://CRAN.R-project.org/package=bifrost) | 0.2.0 | `install.packages("bifrost")` | Reproducible analyses using the public release; CRAN may serve 0.1.4 while 0.2.0 is under review |
+| [GitHub](https://github.com/jakeberv/bifrost) | 0.2.0 | `remotes::install_github("jakeberv/bifrost")` | Release source and the latest website documentation |
 
-The GitHub development version requires R 4.2 or newer. Because it is
-unreleased, its interfaces and defaults may still change before the next CRAN
-release.
+Version 0.2.0 requires R 4.2 or newer. During CRAN review, GitHub contains the
+release source while `install.packages()` may still install the preceding
+0.1.4 release.
 
-## What the development version adds
+## What 0.2.0 adds
 
-The development version currently extends the CRAN release in several related
-areas:
+Version 0.2.0 extends 0.1.4 in several related areas:
 
 - **Search inspection and diagnostics.** `icTrajectory()` and its `plot()`
   method expose search histories, while richer stored candidate records retain
   accepted, rejected, and errored fits.
+  The former `plot_ic_acceptance_matrix()` wrapper has been removed; use
+  `plot(icTrajectory(x))` instead.
 - **Branch-rate summaries.** `rateMap()` and its supporting view, control,
   flagging, print, and plot methods summarize branch-rate patterns across
   completed searches.
@@ -46,8 +46,10 @@ areas:
   together with downloadable PDFs and executable Colab notebooks.
 - **On-demand example data.** `bifrost_example_file()` retrieves supported
   empirical case-study artifacts only when explicitly requested, verifies them
-  against published checksums, and reuses a local cache. The artifacts are not
-  distributed in the CRAN package.
+  against published checksums, and reuses a local cache. On the first uncached
+  request it downloads the manifest and artifact currently tracked on GitHub
+  `main`; `refresh = TRUE` checks `main` again. The artifacts are not distributed
+  in the CRAN package.
 
 The detailed, itemized record of these changes is maintained in
 [NEWS](../news/index.html).
@@ -75,7 +77,7 @@ Readers can explicitly request checksum-verified artifacts with
 `bifrost_example_file()`; later calls reuse the verified local cache. Package
 installation, attachment, and routine checks remain network-free.
 
-For stable release information, use the
-[CRAN package page](https://CRAN.R-project.org/package=bifrost). For unreleased
-changes, consult [NEWS](../news/index.html) and the
+For public-release information, use the
+[CRAN package page](https://CRAN.R-project.org/package=bifrost). For the full
+0.2.0 change record, consult [NEWS](../news/index.html) and the
 [GitHub repository](https://github.com/jakeberv/bifrost).

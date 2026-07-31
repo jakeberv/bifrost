@@ -60,7 +60,7 @@
       "path": "data-remote/jaw-shape/mrbayes_prune_tree.RDS",
       "sha256": "cdb6307ad86a0655599231ec842020eaf37ba310f2e57b86fc40273762dea791",
       "size_bytes": 3198,
-      "minimum_bifrost_version": "0.1.4.9000",
+      "minimum_bifrost_version": "0.2.0",
       "source_id": "troyer_dryad_2025",
       "source_location": "Dryad R_code.zip analysis materials: mrbayes_prune_tree.RDS",
       "transformation": {
@@ -74,7 +74,7 @@
       "path": "data-remote/jaw-shape/jaws_coords.RDS",
       "sha256": "9ca52446cd109802ae662fcd598320a496acda49ee3f72e5613245019919a44f",
       "size_bytes": 250465,
-      "minimum_bifrost_version": "0.1.4.9000",
+      "minimum_bifrost_version": "0.2.0",
       "source_id": "troyer_dryad_2025",
       "source_location": "Dryad R_code.zip analysis materials: jaws_coords.RDS",
       "transformation": {
@@ -88,7 +88,7 @@
       "path": "data-remote/avian-skeleton/passerine_bodyplan_data.RDS",
       "sha256": "5ebb1a9ca2646f99855c17f0defcb20d8a71197f2dfbb2bfb2a454c419e8cde2",
       "size_bytes": 217263,
-      "minimum_bifrost_version": "0.1.4.9000",
+      "minimum_bifrost_version": "0.2.0",
       "source_id": "berv_archive_v1",
       "source_location": "data/temporal/01_core_inputs/external_skelevision/dat.mvgls.RDS",
       "transformation": {
@@ -102,7 +102,7 @@
       "path": "data-remote/avian-skeleton/passerine_bodyplan_tree.tre",
       "sha256": "4201e5cd533a2b23cf19cc07b457e5ef370a35e9e28ab2f657d4eeb300b6cb25",
       "size_bytes": 82592,
-      "minimum_bifrost_version": "0.1.4.9000",
+      "minimum_bifrost_version": "0.2.0",
       "source_id": "berv_archive_v1",
       "source_location": "data/temporal/01_core_inputs/external_skelevision/ythlida_supertree.rescale.tre",
       "transformation": {
@@ -116,7 +116,7 @@
       "path": "data-remote/avian-skeleton/passerine_bodyplan_search_compact.RDS",
       "sha256": "0cdecdce279c4cc38997dbd4a6442a4a6ec1a20b399077c1634095bb53f57959",
       "size_bytes": 1949464,
-      "minimum_bifrost_version": "0.1.4.9000",
+      "minimum_bifrost_version": "0.2.0",
       "source_id": "berv_archive_v1",
       "source_location": "data/temporal/02_shift_search/new_bifrost/min10.ic20.gic.RDS",
       "transformation": {
@@ -130,7 +130,7 @@
       "path": "data-remote/avian-skeleton/passerine_bodyplan_search_sensitivity_compact.RDS",
       "sha256": "fb39fd5dc42bca202535840511a0dea2b6843453070f7d3bb082606044bb9641",
       "size_bytes": 400948,
-      "minimum_bifrost_version": "0.1.4.9000",
+      "minimum_bifrost_version": "0.2.0",
       "source_id": "berv_archive_v1",
       "source_location": "data/temporal/02_shift_search/new_bifrost (12 named sensitivity-run RDS files)",
       "transformation": {
@@ -144,7 +144,7 @@
       "path": "data-remote/avian-skeleton/passerine_bodyplan_posthoc_integration_compact.RDS",
       "sha256": "87c988e5a368523d8fc8a5d1240d7c3daed5d5a0c32707cc140dd0b050243f38",
       "size_bytes": 135566,
-      "minimum_bifrost_version": "0.1.4.9000",
+      "minimum_bifrost_version": "0.2.0",
       "source_id": "berv_archive_v1",
       "source_location": "runs_with_posthoc, all_vars_cors, and posthoc_integration_pgls objects produced by TemporalAnalyses.R",
       "transformation": {
@@ -158,7 +158,7 @@
       "path": "data-remote/simulation-study-cache/passerine_preview_tables.rds",
       "sha256": "a18dc153778cca1e786557ed0e11cf593a207df4700c76b34db87dfc2254d492",
       "size_bytes": 5176,
-      "minimum_bifrost_version": "0.1.4.9000",
+      "minimum_bifrost_version": "0.2.0",
       "source_id": "berv_archive_v1",
       "source_location": "Schema-3 cache constructed directly by data-raw/build_simulation_study_vignette_cache.R from validated empirical GIC and BIC grid RDS inputs.",
       "transformation": {

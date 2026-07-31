@@ -1,4 +1,4 @@
-# bifrost (development version)
+# bifrost 0.2.0
 
 * Search progress:
   - `searchOptimalConfiguration()` now displays persistent, Future-compatible CLI progress for candidate scoring, greedy shift evaluation, and IC-weight re-estimation by default.
@@ -41,6 +41,9 @@
   - Reduced installed package size by no longer distributing repository/site
     empirical payloads through CRAN. Normal package installation, attachment,
     examples, and checks remain network-free.
+  - Documented that the first uncached `bifrost_example_file()` request uses the
+    checksum-verified artifact currently tracked on GitHub `main`; later calls
+    reuse the verified cache unless `refresh = TRUE` requests a new check.
   - Added small, deterministic, runnable help examples for regime-integration,
     simulation, rate-map, lineage-rate, and tuning workflows; longer model-fitting
     examples now use bounded `\donttest{}` blocks that are exercised in CI.
@@ -55,6 +58,8 @@
   - Added an advisory `checktor` CI audit with downloadable Markdown and CSV
     reports, and made temporary-file cleanup explicit in affected tests.
   - Increased the minimum supported R version from 4.1 to 4.2.
+  - Removed the temporary global-environment compatibility shim from rate-map
+    plotting and declared `plotrix` directly for the required arc geometry.
   - Hardened lineage-rate, regime-integration, simulation, and tuning workflows around malformed inputs, failed fits, reproducible parallel execution, and infeasible selections.
   - Expanded CI coverage for package checks, exact coverage accounting, parallel smoke tests, serialized empirical artifacts, and generated vignette outputs.
   - Added an automated CRAN downloads tracker and generated chart for the README and development website.
