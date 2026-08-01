@@ -72,13 +72,11 @@ You may need to install [XQuartz](https://www.xquartz.org/) to build or run pack
 
 ## Development status
 
-Version 0.2.0 is the current release candidate and requires R 4.2 or newer.
-CRAN currently provides version 0.1.4; `install.packages("bifrost")` will
-continue to install 0.1.4 until CRAN accepts 0.2.0. See the
+Version 0.2.0 requires R 4.2 or newer. See the
 [development-status page](https://jakeberv.com/bifrost/articles/development-status.html)
-for release status, current caveats, and the website
-article packaging policy; see [NEWS](https://jakeberv.com/bifrost/news/index.html)
-for the complete changelog.
+for current CRAN and GitHub availability, release caveats, and the website
+article policy. See [NEWS](https://jakeberv.com/bifrost/news/index.html) for the
+complete changelog.
 
 When upgrading from 0.1.4, replace the removed plotting wrapper with
 `plot(icTrajectory(x))` when `x` is a `bifrost_search` or compatible

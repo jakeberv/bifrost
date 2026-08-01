@@ -84,26 +84,23 @@
   - Added two rate-map jaw-shape workflows and refreshed the existing jaw-shape vignette.
   - Added a five-part avian skeleton case study covering search inspection, lineage rates, shift distributions, magnitude comparisons, and post-hoc covariance and integration analyses.
   - Added a two-part empirically calibrated simulation guide covering performance assessment, search tuning, and empirical application.
-  - Added tooling and CI workflows for generated vignette PDFs and executable Colab notebooks.
-  - Standardized code annotations, figure captions, rendered widget layout, and AI-assistance disclosures across the website articles.
+  - Added downloadable vignette PDFs and executable Colab notebooks to the website articles.
   - Updated Berv et al. (2026) citation metadata and avian skeleton references for the published *Nature Ecology & Evolution* article DOI.
 
 * Maintenance:
-  - Added an advisory `checktor` CI audit with downloadable Markdown and CSV
-    reports, and made temporary-file cleanup explicit in affected tests.
   - Increased the minimum supported R version from 4.1 to 4.2.
   - Added minimum versions `future (>= 1.49.0)` and
     `phytools (>= 2.0-3)`, corrected runtime and optional dependency
     declarations, moved website-only packages to `Config/Needs/website`, and
     removed `VignetteBuilder` because vignettes are not built into the package.
-  - Rate-map arc and fan plotting declares `plotrix` directly for the geometry
-    helper used by `phytools` and does not create compatibility functions in
-    the user's global environment.
+  - Added `plotrix` as a direct dependency for rate-map arc and fan geometry.
+  - Refactored `searchOptimalConfiguration()` into dedicated internal helpers
+    for candidate evaluation, greedy search orchestration, history bookkeeping,
+    and parallel result handling; the public entry point remains unchanged.
   - Parallel search and simulation paths preserve the caller's Future plan and
     reproducible RNG state while avoiding nested worker oversubscription.
   - Hardened lineage-rate, regime-integration, simulation, and tuning workflows around malformed inputs, failed fits, reproducible parallel execution, and infeasible selections.
-  - Expanded CI coverage for package checks, exact coverage accounting, parallel smoke tests, serialized empirical artifacts, and generated vignette outputs.
-  - Added an automated CRAN downloads tracker and generated chart for the README and development website; its renderer tests run before scheduled updates.
+  - Added a CRAN downloads chart to the README and development website.
 
 # bifrost 0.1.4
 
