@@ -1613,6 +1613,149 @@ test_that("rateMap uses progress/workers and plot() draws separately", {
   })
 })
 
+test_that("plot.rateMap preserves active coordinates without leaking plot styles", {
+  .rate_map_skip_if_missing_deps()
+  fx <- .rate_map_fixture()
+  out <- rateMap(
+    list(.rate_map_fit(fx$shifted_a), .rate_map_fit(fx$shifted_b)),
+    progress = FALSE,
+    control = rateMapControl(res = 4)
+  )
+
+  for (layout in c("fan", "arc")) {
+    .rate_map_with_pdf({
+      graphics::par(
+        mar = c(4.1, 3.2, 2.3, 1.4),
+        fg = "navy",
+        col = "magenta",
+        xpd = NA,
+        mgp = c(2.5, 0.75, 0)
+      )
+      before_usr <- graphics::par("usr")
+      before_style <- graphics::par(c("col", "fg", "xpd", "mgp"))
+      drawn <- plot(
+        out,
+        type = layout,
+        outline = TRUE,
+        legend = FALSE,
+        show_tip_labels = FALSE,
+        hold = FALSE
+      )
+      after_usr <- graphics::par("usr")
+      after_style <- graphics::par(c("col", "fg", "xpd", "mgp"))
+      plot_env <- get(".PlotPhyloEnv", envir = asNamespace("ape"))
+      last_plot <- get("last_plot.phylo", envir = plot_env)
+      nodes_inside_plot <-
+        last_plot$xx >= after_usr[1L] &
+        last_plot$xx <= after_usr[2L] &
+        last_plot$yy >= after_usr[3L] &
+        last_plot$yy <= after_usr[4L]
+
+      testthat::expect_s3_class(drawn, "rateMap")
+      testthat::expect_false(identical(after_usr, before_usr))
+      testthat::expect_true(all(nodes_inside_plot))
+      testthat::expect_identical(after_style, before_style)
+    })
+  }
+})
+
+test_that("plot.rateMap supports shift-node overlays on its active tree", {
+  .rate_map_skip_if_missing_deps()
+  fx <- .rate_map_fixture()
+  out <- rateMap(
+    list(.rate_map_fit(fx$shifted_a), .rate_map_fit(fx$shifted_b)),
+    progress = FALSE,
+    control = rateMapControl(res = 4)
+  )
+  marks <- shift_node_marks(data.frame(
+    node = ape::Ntip(out$tree) + 2L,
+    rate_change = "increase",
+    child_state = "1",
+    age = 1,
+    percentage_change = 100
+  ))
+
+  .rate_map_with_pdf({
+    plot(
+      out,
+      type = "arc",
+      outline = TRUE,
+      legend = FALSE,
+      show_tip_labels = FALSE,
+      hold = FALSE
+    )
+    tree_usr <- graphics::par("usr")
+
+    testthat::expect_no_error(plot(
+      marks,
+      rate_changes = "increase",
+      show_low_support = FALSE,
+      show_legend = FALSE
+    ))
+    testthat::expect_identical(graphics::par("usr"), tree_usr)
+  })
+})
+
+test_that("plot.rateMap restores graphical parameters after plotting errors", {
+  .rate_map_skip_if_missing_deps()
+  fx <- .rate_map_fixture()
+  out <- rateMap(
+    list(.rate_map_fit(fx$shifted_a), .rate_map_fit(fx$shifted_b)),
+    progress = FALSE,
+    control = rateMapControl(res = 4)
+  )
+
+  .rate_map_with_pdf({
+    graphics::par(
+      mar = c(4.1, 3.2, 2.3, 1.4),
+      fg = "navy",
+      col = "magenta",
+      xpd = NA,
+      mgp = c(2.5, 0.75, 0)
+    )
+    before <- graphics::par(no.readonly = TRUE)
+
+    testthat::expect_error(plot(
+      out,
+      type = "arc",
+      outline = TRUE,
+      xlim = "invalid",
+      legend = FALSE,
+      show_tip_labels = FALSE,
+      hold = FALSE
+    ))
+
+    testthat::expect_identical(graphics::par(no.readonly = TRUE), before)
+  })
+
+  .rate_map_with_pdf({
+    graphics::par(
+      mar = c(4.1, 3.2, 2.3, 1.4),
+      fg = "navy",
+      col = "magenta",
+      xpd = NA,
+      mgp = c(2.5, 0.75, 0)
+    )
+    before <- graphics::par(no.readonly = TRUE)
+
+    testthat::expect_error(
+      plot(
+        out,
+        type = "arc",
+        outline = TRUE,
+        arc_height = "invalid",
+        legend = FALSE,
+        show_tip_labels = FALSE,
+        hold = FALSE
+      ),
+      "'arc_height' must be a finite numeric scalar for arc plots",
+      fixed = TRUE
+    )
+
+    testthat::expect_identical(graphics::par(no.readonly = TRUE), before)
+  })
+})
+
 test_that("plot.rateMap never writes getYmult in the global environment", {
   .rate_map_skip_if_missing_deps()
   global <- .GlobalEnv

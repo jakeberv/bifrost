@@ -96,7 +96,9 @@
   - Added `plotrix` as a direct dependency for rate-map arc and fan geometry.
   - Refactored `searchOptimalConfiguration()` into dedicated internal helpers
     for candidate evaluation, greedy search orchestration, history bookkeeping,
-    and parallel result handling; the public entry point remains unchanged.
+    and parallel result handling; the public entry point remains
+    `searchOptimalConfiguration()`, and existing positional arguments remain
+    compatible.
   - Parallel search and simulation paths preserve the caller's Future plan and
     reproducible RNG state while avoiding nested worker oversubscription.
   - Hardened lineage-rate, regime-integration, simulation, and tuning workflows around malformed inputs, failed fits, reproducible parallel execution, and infeasible selections.

@@ -689,6 +689,11 @@ rateMapView <- function(x,
   legend_digits <- as.integer(legend_digits)
 
   type <- match.arg(type, c("phylogram", "fan", "arc"))
+  if (identical(type, "arc") &&
+      (!is.numeric(arc_height) || length(arc_height) != 1L ||
+       is.na(arc_height) || !is.finite(arc_height))) {
+    stop("'arc_height' must be a finite numeric scalar for arc plots.")
+  }
 
   if (length(lwd) == 1L) {
     lwd <- rep(lwd, 2L)
@@ -1118,7 +1123,26 @@ plot.rateMap <- function(x,
                          arc_height = 2,
                          legend_digits = NULL,
                          ...) {
-  .plot_rate_map(
+  type <- match.arg(type)
+  if (identical(type, "arc") &&
+      (!is.numeric(arc_height) || length(arc_height) != 1L ||
+       is.na(arc_height) || !is.finite(arc_height))) {
+    stop("'arc_height' must be a finite numeric scalar for arc plots.")
+  }
+
+  oldpar <- graphics::par(no.readonly = TRUE)
+  plot_completed <- FALSE
+  # Keep a successful high-level plot active so callers can add overlays.
+  # A failed plot has no usable coordinate system, so restore its full state.
+  on.exit({
+    if (!plot_completed) {
+      graphics::par(oldpar)
+      graphics::par(col = oldpar$col)
+      graphics::par(new = oldpar$new)
+    }
+  }, add = TRUE)
+
+  plotted <- .plot_rate_map(
     x,
     value = value,
     palette = palette,
@@ -1150,6 +1174,8 @@ plot.rateMap <- function(x,
     legend_digits = legend_digits,
     ...
   )
+  plot_completed <- TRUE
+  plotted
 }
 
 #' Print a `rateMap` Object
