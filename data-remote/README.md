@@ -14,10 +14,11 @@ It exposes exactly these eight public identifiers:
 - `simulation-preview-tables`
 
 `bifrost_example_file()` resolves these names to checksum- and size-verified
-files. By default, a valid package-owned cache hit works offline; otherwise the
-function retrieves the manifest and artifact tracked on the repository's
-`main` branch. `refresh = TRUE` bypasses the cached manifest and checks `main`
-for the current entry. A verified local mirror supplied through
+files. On the first request without a valid cache entry, the function retrieves
+the manifest and artifact currently tracked on the repository's `main` branch.
+Subsequent calls reuse that verified cache and work offline. `refresh = TRUE`
+bypasses the cached manifest and checks `main` for the current entry. A verified
+local mirror supplied through
 `BIFROST_ARTIFACT_DIR` always takes precedence, including during refreshes.
 
 Repository maintainers must update ordinary empirical artifacts on tracked

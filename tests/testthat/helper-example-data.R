@@ -14,7 +14,7 @@ example_data_fixture_contents <- function() {
 write_example_data_fixture <- function(
     root,
     contents = example_data_fixture_contents(),
-    minimum_version = "0.1.4.9000") {
+    minimum_version = "0.2.0") {
   dir.create(file.path(root, "fixtures"), recursive = TRUE, showWarnings = FALSE)
   artifacts <- lapply(names(contents), function(id) {
     filename <- paste0(id, ".rds")

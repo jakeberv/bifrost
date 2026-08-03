@@ -294,38 +294,6 @@
   invisible(NULL)
 }
 
-.rateMap_getYmult <- function() {
-  if (grDevices::dev.cur() == 1L) {
-    warning("No graphics device open.")
-    return(1)
-  }
-
-  xyasp <- graphics::par("pin")
-  xycr <- diff(graphics::par("usr"))[c(1L, 3L)]
-  xyasp[1L] / xyasp[2L] * xycr[2L] / xycr[1L]
-}
-
-.rateMap_with_plotrix_getYmult <- function(expr) {
-  global <- .GlobalEnv
-  had_getYmult <- exists("getYmult", envir = global, inherits = FALSE)
-  old_getYmult <- if (had_getYmult) {
-    get("getYmult", envir = global, inherits = FALSE)
-  } else {
-    NULL
-  }
-
-  assign("getYmult", .rateMap_getYmult, envir = global)
-  on.exit({
-    if (had_getYmult) {
-      assign("getYmult", old_getYmult, envir = global)
-    } else if (exists("getYmult", envir = global, inherits = FALSE)) {
-      rm("getYmult", envir = global)
-    }
-  }, add = TRUE)
-
-  force(expr)
-}
-
 .rateMap_stored_ncolors <- function(x) {
   ncolors <- x$ncolors
   if (is.numeric(ncolors) && length(ncolors) == 1L &&
@@ -721,6 +689,11 @@ rateMapView <- function(x,
   legend_digits <- as.integer(legend_digits)
 
   type <- match.arg(type, c("phylogram", "fan", "arc"))
+  if (identical(type, "arc") &&
+      (!is.numeric(arc_height) || length(arc_height) != 1L ||
+       is.na(arc_height) || !is.finite(arc_height))) {
+    stop("'arc_height' must be a finite numeric scalar for arc plots.")
+  }
 
   if (length(lwd) == 1L) {
     lwd <- rep(lwd, 2L)
@@ -856,7 +829,6 @@ rateMapView <- function(x,
       )
     }
   } else {
-    .rateMap_with_plotrix_getYmult({
       if (isTRUE(outline)) {
         old_col <- graphics::par()$col
         graphics::par(col = "white")
@@ -952,7 +924,6 @@ rateMapView <- function(x,
           )
         }
       }
-    })
   }
 
   invisible(x)
@@ -1065,6 +1036,11 @@ rateMapView <- function(x,
 #' objects should be converted explicitly with [rateMap()] before plotting, for
 #' example `plot(rateMap(search_a), ...)`.
 #'
+#' For fan and arc layouts, `phytools` resolves the `getYmult()` geometry helper
+#' from `plotrix`. *`bifrost`* imports that helper so installed-package plotting
+#' has the required dependency available without creating or modifying a
+#' `getYmult` binding in the user's global environment.
+#'
 #' **Relationship to `phytools` plotting arguments.** `plot.rateMap()` keeps the
 #' tree-layout argument names close to `phytools`: `type`, `fsize`, `ftype`,
 #' `lwd`, `mar`, `direction`, `offset`, `xlim`, `ylim`, `underscore`, and
@@ -1115,6 +1091,7 @@ rateMapView <- function(x,
 #' )
 #'
 #' @method plot rateMap
+#' @importFrom plotrix getYmult
 #' @export
 plot.rateMap <- function(x,
                          value = "value",
@@ -1146,7 +1123,26 @@ plot.rateMap <- function(x,
                          arc_height = 2,
                          legend_digits = NULL,
                          ...) {
-  .plot_rate_map(
+  type <- match.arg(type)
+  if (identical(type, "arc") &&
+      (!is.numeric(arc_height) || length(arc_height) != 1L ||
+       is.na(arc_height) || !is.finite(arc_height))) {
+    stop("'arc_height' must be a finite numeric scalar for arc plots.")
+  }
+
+  oldpar <- graphics::par(no.readonly = TRUE)
+  plot_completed <- FALSE
+  # Keep a successful high-level plot active so callers can add overlays.
+  # A failed plot has no usable coordinate system, so restore its full state.
+  on.exit({
+    if (!plot_completed) {
+      graphics::par(oldpar)
+      graphics::par(col = oldpar$col)
+      graphics::par(new = oldpar$new)
+    }
+  }, add = TRUE)
+
+  plotted <- .plot_rate_map(
     x,
     value = value,
     palette = palette,
@@ -1178,6 +1174,8 @@ plot.rateMap <- function(x,
     legend_digits = legend_digits,
     ...
   )
+  plot_completed <- TRUE
+  plotted
 }
 
 #' Print a `rateMap` Object

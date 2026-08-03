@@ -558,9 +558,10 @@
 #'
 #' Resolves a named empirical artifact to a locally verified file. A directory
 #' supplied through `BIFROST_ARTIFACT_DIR` always takes precedence, including
-#' when `refresh = TRUE`. Ordinary cache hits work offline. Artifacts may change
-#' between package releases, so use `refresh = TRUE` to retrieve the latest
-#' manifest. The returned value is a path; this function does not deserialize
+#' when `refresh = TRUE`. With no verified cache entry, the first request uses
+#' the manifest and artifact currently tracked on GitHub `main`. Later calls
+#' reuse the verified cache and work offline; use `refresh = TRUE` to check
+#' `main` again. The returned value is a path; this function does not deserialize
 #' the file.
 #'
 #' @param name A registered example-data identifier.

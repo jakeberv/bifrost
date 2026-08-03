@@ -52,6 +52,10 @@ jobs:
         working-directory: tools/cran-downloads
         run: pnpm install --frozen-lockfile
 
+      - name: Test chart renderer
+        working-directory: tools/cran-downloads
+        run: pnpm test
+
       - name: Update stored CRAN data and chart
         working-directory: tools/cran-downloads
         run: pnpm run update

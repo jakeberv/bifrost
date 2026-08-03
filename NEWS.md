@@ -1,4 +1,4 @@
-# bifrost (development version)
+# bifrost 0.2.0
 
 * Search progress:
   - `searchOptimalConfiguration()` now displays persistent, Future-compatible CLI progress for candidate scoring, greedy shift evaluation, and IC-weight re-estimation by default.
@@ -9,13 +9,44 @@
 
 * Search inputs and diagnostics:
   - Formula-based searches now accept formula objects as well as character strings, numeric response-only data frames for intercept-only searches, and named-column data-frame formulas for pGLS-style workflows.
+  - When `IC = "BIC"` and `method` is omitted, searches now use
+    `method = "LL"`; an explicitly supplied method still takes precedence.
+    GIC searches continue to use the `mvgls()` fitting-method default when
+    `method` is omitted.
   - Added `icTrajectory()` and its `plot()` method for inspecting stored search histories.
-  - Removed the superseded `plot_ic_acceptance_matrix()` wrapper; migrate to `plot(icTrajectory(x))`.
-  - Stored model-fit histories now retain richer accepted, rejected, and errored candidate records.
+  - Removed the superseded `plot_ic_acceptance_matrix()` wrapper. For a
+    `bifrost_search` or compatible search-result list, migrate to
+    `plot(icTrajectory(x))`.
+  - Legacy callers that passed a raw two-column `matrix_data` object must wrap
+    it as a search-like list before plotting:
+
+    ```r
+    legacy <- list(
+      baseline_ic = baseline_ic,
+      IC_used = "GIC",
+      model_fit_history = list(ic_acceptance_matrix = matrix_data)
+    )
+    plot(icTrajectory(legacy))
+    ```
+
+    The former plotting arguments map as follows: `plot_title` to `main`,
+    `plot_rate_of_improvement` to `show_delta`, `rate_limits` to
+    `delta_limits`, and `baseline_ic` to the `icTrajectory()` call.
+  - Search results now include `candidate_nodes`, and `user_input` records the
+    resolved `progress` setting. Stored model-fit histories retain proposal
+    step, node, regime, IC, status, and explicit accepted, rejected, and
+    errored records.
+  - Search input validation now requires a positive integer
+    `min_descendant_tips` and rejects simultaneous `uncertaintyweights = TRUE`
+    and `uncertaintyweights_par = TRUE` before fitting begins.
 
 * Branch-rate summaries:
   - Added the `rateMap()` workflow and supporting view, control, flagging, print, and plot methods for summarizing branch-rate patterns across completed searches.
-  - Improved category legends for uneven rate breaks and strengthened validation of category colors.
+  - Category legends represent uneven rate breaks proportionally, with
+    strengthened validation of category-color counts.
+  - `generateViridisColorScale()` now explicitly requires numeric input, and
+    its documentation clarifies that colors encode sorted rank rather than
+    numeric magnitude or distance.
 
 * Lineage-rate and shift-distribution analyses:
   - Added `lineage_rates()` for tip-level summaries of inherited rate histories and associated branch and shift diagnostics.
@@ -28,11 +59,14 @@
 * Simulation studies and tuning:
   - Added reproducible simulation templates, null and shifted dataset generators, false-positive and shift-recovery studies, recovery evaluation, and fixed-IC tuning grids.
   - Added empirical null, proportional-shift, and integration-rate robustness workflows centered on fitted residual covariance, with `simulation_generator = c("original", "empirical")` for explicit generator selection.
-  - Simulation generators now default to `"original"` for exact reproduction of the published operations; the full-covariance Wishart/spectral generator remains available explicitly as `simulation_generator = "empirical"`.
+  - The new simulation generators default to `"original"` for exact reproduction of the published operations; the full-covariance Wishart/spectral generator remains available explicitly as `simulation_generator = "empirical"`.
   - `selectTunedSearchParameters()` filters settings using null false-positive and evaluability safeguards, then ranks feasible settings by fuzzy balanced accuracy by default.
   - Reduced multisession transfer size by using compact namespace-level workers and by avoiding a complete calibration template inside every replicate's call record.
 
 * Documentation / vignettes:
+  - All vignettes are now website-only. The source package and installed
+    package no longer include `vignettes/` or built `inst/doc` articles; the
+    complete worked documentation remains available on the package website.
   - Removed all former `system.file("extdata", ...)` empirical paths intentionally.
     Use `bifrost_example_file()` instead for the eight named artifacts:
     `jaw-tree`, `jaw-landmarks`, `passerine-tree`, `passerine-traits`,
@@ -41,23 +75,34 @@
   - Reduced installed package size by no longer distributing repository/site
     empirical payloads through CRAN. Normal package installation, attachment,
     examples, and checks remain network-free.
+  - Documented that the first uncached `bifrost_example_file()` request uses the
+    checksum-verified artifact currently tracked on GitHub `main`; later calls
+    reuse the verified cache unless `refresh = TRUE` requests a new check.
   - Added small, deterministic, runnable help examples for regime-integration,
     simulation, rate-map, lineage-rate, and tuning workflows; longer model-fitting
     examples now use bounded `\donttest{}` blocks that are exercised in CI.
   - Added two rate-map jaw-shape workflows and refreshed the existing jaw-shape vignette.
   - Added a five-part avian skeleton case study covering search inspection, lineage rates, shift distributions, magnitude comparisons, and post-hoc covariance and integration analyses.
   - Added a two-part empirically calibrated simulation guide covering performance assessment, search tuning, and empirical application.
-  - Added tooling and CI workflows for generated vignette PDFs and executable Colab notebooks.
-  - Standardized code annotations, figure captions, rendered widget layout, and AI-assistance disclosures across the website articles.
+  - Added downloadable vignette PDFs and executable Colab notebooks to the website articles.
   - Updated Berv et al. (2026) citation metadata and avian skeleton references for the published *Nature Ecology & Evolution* article DOI.
 
 * Maintenance:
-  - Added an advisory `checktor` CI audit with downloadable Markdown and CSV
-    reports, and made temporary-file cleanup explicit in affected tests.
   - Increased the minimum supported R version from 4.1 to 4.2.
+  - Added minimum versions `future (>= 1.49.0)` and
+    `phytools (>= 2.0-3)`, corrected runtime and optional dependency
+    declarations, moved website-only packages to `Config/Needs/website`, and
+    removed `VignetteBuilder` because vignettes are not built into the package.
+  - Added `plotrix` as a direct dependency for rate-map arc and fan geometry.
+  - Refactored `searchOptimalConfiguration()` into dedicated internal helpers
+    for candidate evaluation, greedy search orchestration, history bookkeeping,
+    and parallel result handling; the public entry point remains
+    `searchOptimalConfiguration()`, and existing positional arguments remain
+    compatible.
+  - Parallel search and simulation paths preserve the caller's Future plan and
+    reproducible RNG state while avoiding nested worker oversubscription.
   - Hardened lineage-rate, regime-integration, simulation, and tuning workflows around malformed inputs, failed fits, reproducible parallel execution, and infeasible selections.
-  - Expanded CI coverage for package checks, exact coverage accounting, parallel smoke tests, serialized empirical artifacts, and generated vignette outputs.
-  - Added an automated CRAN downloads tracker and generated chart for the README and development website.
+  - Added a CRAN downloads chart to the README and development website.
 
 # bifrost 0.1.4
 

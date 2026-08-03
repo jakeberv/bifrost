@@ -20,9 +20,10 @@ A normalized path to the checksum-verified artifact.
 \description{
 Resolves a named empirical artifact to a locally verified file. A directory
 supplied through \code{BIFROST_ARTIFACT_DIR} always takes precedence, including
-when \code{refresh = TRUE}. Ordinary cache hits work offline. Artifacts may change
-between package releases, so use \code{refresh = TRUE} to retrieve the latest
-manifest. The returned value is a path; this function does not deserialize
+when \code{refresh = TRUE}. With no verified cache entry, the first request uses
+the manifest and artifact currently tracked on GitHub \code{main}. Later calls
+reuse the verified cache and work offline; use \code{refresh = TRUE} to check
+\code{main} again. The returned value is a path; this function does not deserialize
 the file.
 }
 \examples{

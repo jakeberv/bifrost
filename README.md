@@ -72,21 +72,27 @@ You may need to install [XQuartz](https://www.xquartz.org/) to build or run pack
 
 ## Development status
 
-CRAN provides `bifrost` 0.1.4. The GitHub development version contains
-unreleased features and documentation and requires R 4.2 or newer. See the
+Version 0.2.0 requires R 4.2 or newer. See the
 [development-status page](https://jakeberv.com/bifrost/articles/development-status.html)
-for a stable-versus-development comparison, current caveats, and the website
-article packaging policy; see [NEWS](https://jakeberv.com/bifrost/news/index.html)
-for the complete changelog.
+for current CRAN and GitHub availability, release caveats, and the website
+article policy. See [NEWS](https://jakeberv.com/bifrost/news/index.html) for the
+complete changelog.
+
+When upgrading from 0.1.4, replace the removed plotting wrapper with
+`plot(icTrajectory(x))` when `x` is a `bifrost_search` or compatible
+search-result list. See [NEWS](https://jakeberv.com/bifrost/news/index.html)
+for the raw-matrix migration and argument mapping.
 
 ## Example data
 
 The empirical case studies use download-on-demand example data rather than
 packaged datasets. Package installation and core analyses remain offline; data
-are fetched only by explicit calls to `bifrost_example_file()`. Normal calls
-reuse verified cache entries, while `refresh = TRUE` checks GitHub `main` for
-maintained updates. The supported identifiers and their provenance are listed
-in the [example-data guide](https://github.com/jakeberv/bifrost/blob/main/data-remote/README.md).
+are fetched only by explicit calls to `bifrost_example_file()`. The first call
+without a verified cache downloads and validates the manifest currently tracked
+on GitHub `main`, then verifies the selected artifact against the manifest's
+SHA-256 checksum and byte size. Later calls reuse the verified cache, while
+`refresh = TRUE` checks `main` again for maintained updates. The supported
+identifiers and their provenance are listed in the [example-data guide](https://github.com/jakeberv/bifrost/blob/main/data-remote/README.md).
 
 ```r
 tree_path <- bifrost_example_file("jaw-tree")
@@ -111,6 +117,11 @@ landmarks <- readRDS(landmark_path)
 - Output includes estimated VCV per regime, shift weights, and SIMMAP-style mappings for downstream visualization and analysis.
 
 ## Documentation
+
+The complete worked articles are maintained on the package website. Their
+sources and generated artifacts are intentionally excluded from the CRAN source
+package, so installing `bifrost` does not install vignettes or their empirical
+payloads.
 
 ### Background and theory
 
@@ -174,7 +185,7 @@ citation("bifrost")
    Berv JS, Fox N, Thorstensen MJ, Lloyd-Laney H, Troyer EM, Rivero-Vega RA, Smith SA, Friedman M, Fouhey DF, Weeks BC (2026). *bifrost: an R package for scalable inference of phylogenetic shifts in multivariate evolutionary dynamics*. *bioRxiv*. [https://doi.org/10.64898/2026.04.12.718036](https://doi.org/10.64898/2026.04.12.718036)
 
 3. `bifrost` software citation  
-   Berv JS, Fox N, Thorstensen MJ, Lloyd-Laney H, Troyer EM, Rivero-Vega RA, Smith SA, Friedman M, Fouhey DF, Weeks BC (2026). *Branch-Level Inference Framework for Recognizing Optimal Shifts in Traits*. R package version 0.1.4. [https://CRAN.R-project.org/package=bifrost](https://CRAN.R-project.org/package=bifrost)
+   Berv JS, Fox N, Thorstensen MJ, Lloyd-Laney H, Troyer EM, Rivero-Vega RA, Smith SA, Friedman M, Fouhey DF, Weeks BC (2026). *Branch-Level Inference Framework for Recognizing Optimal Shifts in Traits*. R package version 0.2.0. [https://CRAN.R-project.org/package=bifrost](https://CRAN.R-project.org/package=bifrost)
 
 4. `mvMORPH` package paper  
    Clavel J, Escarguel G, Merceron G (2015). *mvmorph: an R package for fitting multivariate evolutionary models to morphometric data*. *Methods in Ecology and Evolution*, 6(11), 1311-1319. [https://doi.org/10.1111/2041-210X.12420](https://doi.org/10.1111/2041-210X.12420)
