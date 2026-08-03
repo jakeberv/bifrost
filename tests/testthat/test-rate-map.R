@@ -1705,6 +1705,12 @@ test_that("plot.rateMap restores graphical parameters after plotting errors", {
     control = rateMapControl(res = 4)
   )
 
+  testthat::expect_error(
+    .plot_rate_map(out, type = "arc", arc_height = Inf),
+    "'arc_height' must be a finite numeric scalar for arc plots",
+    fixed = TRUE
+  )
+
   .rate_map_with_pdf({
     graphics::par(
       mar = c(4.1, 3.2, 2.3, 1.4),
