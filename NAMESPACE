@@ -70,42 +70,56 @@ export(simulateNullDataset)
 export(simulateShiftedDataset)
 export(summarize_regime_covariance_runs)
 export(summarize_regime_covariances)
-importFrom(ape,Nnode)
-importFrom(ape,Ntip)
-importFrom(ape,as.phylo)
-importFrom(ape,compute.brlen)
-importFrom(ape,getMRCA)
-importFrom(ape,is.rooted)
-importFrom(ape,nodelabels)
-importFrom(ape,root)
-importFrom(future,multicore)
-importFrom(future,multisession)
-importFrom(future,plan)
-importFrom(future,sequential)
+importFrom(ape,
+  Nnode,
+  Ntip,
+  as.phylo,
+  compute.brlen,
+  getMRCA,
+  is.rooted,
+  nodelabels,
+  root
+)
+importFrom(future,
+  multicore,
+  multisession,
+  plan,
+  sequential
+)
 importFrom(future.apply,future_lapply)
-importFrom(grDevices,rainbow)
-importFrom(grDevices,rgb)
-importFrom(graphics,axis)
-importFrom(graphics,layout)
-importFrom(graphics,legend)
-importFrom(graphics,lines)
-importFrom(graphics,mtext)
-importFrom(graphics,par)
-importFrom(graphics,plot)
-importFrom(graphics,points)
-importFrom(graphics,segments)
-importFrom(graphics,text)
-importFrom(graphics,title)
-importFrom(mvMORPH,GIC)
-importFrom(mvMORPH,aicw)
-importFrom(mvMORPH,mvgls)
-importFrom(phytools,getDescendants)
-importFrom(phytools,getParent)
-importFrom(phytools,getStates)
-importFrom(phytools,paintSubTree)
-importFrom(phytools,plotSimmap)
+importFrom(grDevices,
+  rainbow,
+  rgb
+)
+importFrom(graphics,
+  axis,
+  layout,
+  legend,
+  lines,
+  mtext,
+  par,
+  plot,
+  points,
+  segments,
+  text,
+  title
+)
+importFrom(mvMORPH,
+  GIC,
+  aicw,
+  mvgls
+)
+importFrom(phytools,
+  getDescendants,
+  getParent,
+  getStates,
+  paintSubTree,
+  plotSimmap
+)
 importFrom(plotrix,getYmult)
-importFrom(stats,BIC)
-importFrom(stats,as.formula)
-importFrom(stats,setNames)
+importFrom(stats,
+  BIC,
+  as.formula,
+  setNames
+)
 importFrom(viridis,viridis)
