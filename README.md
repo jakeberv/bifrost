@@ -5,7 +5,7 @@
 [![Codecov test coverage](https://codecov.io/gh/jakeberv/bifrost/graph/badge.svg)](https://app.codecov.io/gh/jakeberv/bifrost)
 [![CRAN status](https://www.r-pkg.org/badges/version/bifrost)](https://CRAN.R-project.org/package=bifrost)
 [![CRAN downloads](https://cranlogs.r-pkg.org/badges/grand-total/bifrost)](https://cran.r-project.org/package=bifrost)
-[![Paper: Nature Ecology & Evolution](https://img.shields.io/badge/paper-Nature%20Ecology%20%26%20Evolution-000000.svg)](https://rdcu.be/fuxB1)
+[![Paper: Nature Ecology & Evolution](https://img.shields.io/badge/paper-Nature%20Ecology%20%26%20Evolution-000000.svg)](https://www.nature.com/articles/s41559-026-03110-5.epdf?sharing_token=PNALt0fkwK7zWng8AcHUw9RgN0jAjWel9jnR3ZoTv0MY7RbzUNNAnMQsco3ST9ehysSF4OiMNSc7ku-ywR1G5HC7BVOhY0inuNGDXiP16Z26oaZtwiblA-f61S2M-2llNRsRbegpuTeyhziEWzMipUgtyZKBEe3dsZlBVa67S4c%3D)
 [![bioRxiv preprint](https://img.shields.io/endpoint?url=https%3A%2F%2Fjakeberv.github.io%2Fbiorxiv-badge%2Fbadges%2F10.64898__2026.04.12.718036.json)](https://doi.org/10.64898/2026.04.12.718036)
 [![License: GPL (>= 2)](https://img.shields.io/badge/license-GPL%20(%E2%89%A5%202)-blue.svg)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html)
 [![Lifecycle: maturing](https://img.shields.io/badge/lifecycle-maturing-blue.svg)](https://lifecycle.r-lib.org/articles/stages.html)
