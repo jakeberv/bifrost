@@ -195,6 +195,14 @@ test_that("search warns at the acceptance threshold evaluated in simulations", {
     conditionMessage(captured$warnings[[1L]]),
     "focal analysis used ΔGIC = 20"
   )
+  testthat::expect_match(
+    conditionMessage(captured$warnings[[1L]]),
+    paste0(
+      "Recommendation: examine per-shift IC weights and assess ",
+      "dataset-specific performance."
+    ),
+    fixed = TRUE
+  )
   testthat::expect_false(grepl(
     "min_descendant_tips",
     conditionMessage(captured$warnings[[1L]]),

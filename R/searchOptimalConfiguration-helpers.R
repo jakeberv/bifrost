@@ -594,8 +594,9 @@
     "Permissive search settings: ",
     paste(details, collapse = " and "),
     ". Berv et al. (2026) evaluated model performance at \u0394IC = 10 in ",
-    "simulations, while their focal analysis used \u0394GIC = 20. Examine ",
-    "per-shift IC weights and assess dataset-specific performance."
+    "simulations, while their focal analysis used \u0394GIC = 20. ",
+    "Recommendation: examine per-shift IC weights and assess dataset-specific ",
+    "performance."
   )
   condition <- simpleWarning(message, call = NULL)
   class(condition) <- c("bifrost_search_settings_warning", class(condition))
