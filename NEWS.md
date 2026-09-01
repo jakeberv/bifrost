@@ -45,6 +45,9 @@
     and reject descendant-tip cutoffs larger than the tree. Repeated simulation
     searches muffle only the classed settings advisory while preserving fitting
     and optimizer warnings.
+  - Search controls now default to `min_descendant_tips = 10` and
+    `shift_acceptance_threshold = 20`, matching the focal settings of Berv et al.
+    (2026) and providing conservative empirical starting points.
 
 * Branch-rate summaries:
   - Added the `rateMap()` workflow and supporting view, control, flagging, print, and plot methods for summarizing branch-rate patterns across completed searches.

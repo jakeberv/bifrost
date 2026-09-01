@@ -43,11 +43,10 @@
 #'   indexed predictor, or \code{cbind(y1, y2) ~ size + grp} to fit a named-column
 #'   pGLS with numeric or factor predictors.
 #' @param min_descendant_tips Integer (\eqn{\ge}1). Minimum number of tips required for an internal node
-#'   to be considered as a candidate shift (forwarded to \code{generatePaintedTrees}). Larger values
-#'   reduce the number of candidate shifts by excluding very small clades. For empirical datasets,
-#'   Berv et al. (2026) evaluated \code{10} as the minimum clade size in simulations and used
-#'   that value in their focal analysis. Smaller values trigger a runtime advisory and should
-#'   be assessed for the dataset at hand.
+#'   to be considered as a candidate shift (forwarded to \code{generatePaintedTrees}). Defaults
+#'   to \code{10}, the value evaluated and used in the focal analysis of Berv et al. (2026).
+#'   Larger values reduce the number of candidate shifts by excluding very small clades. Smaller
+#'   values trigger a runtime advisory and should be assessed for the dataset at hand.
 #' @param num_cores Integer. Maximum number of concurrent model fits during candidate
 #'   scoring and parallel IC-weight re-estimation. With \code{progress = FALSE}, uses plain
 #'   serial evaluation when \code{num_cores = 1}. For \code{num_cores > 1}, uses
@@ -59,11 +58,11 @@
 #'   \code{searchOptimalConfiguration()}.
 #' @param shift_acceptance_threshold Numeric (\eqn{\ge}0). Minimum IC improvement
 #'   (baseline - new) required to accept a candidate shift during the forward search.
-#'   Larger values yield more conservative models. Berv et al. (2026) evaluated a
-#'   \eqn{\Delta}IC threshold of \code{10} in GIC and BIC simulations and used the more
-#'   conservative \eqn{\Delta}GIC threshold of \code{20} in their focal analysis. Values at
-#'   or below \code{10} trigger a runtime advisory. These settings are not universal validity
-#'   boundaries; users should explore alternative thresholds for their own datasets.
+#'   Larger values yield more conservative models. Defaults to \code{20}, matching the focal
+#'   \eqn{\Delta}GIC setting of Berv et al. (2026); their GIC and BIC simulations also evaluated
+#'   \eqn{\Delta}IC = \code{10}. Values at or below \code{10} trigger a runtime advisory. These
+#'   settings are not universal validity boundaries; users should explore alternative thresholds
+#'   for their own datasets.
 #' @param uncertaintyweights Logical. If \code{TRUE}, compute per-shift IC weights serially by
 #'   refitting the optimized model with each shift removed in turn. Exactly one of
 #'   \code{uncertaintyweights} or \code{uncertaintyweights_par} must be \code{TRUE} to trigger
@@ -352,10 +351,10 @@ searchOptimalConfiguration <-
   function(baseline_tree,
            trait_data,
            formula = "trait_data ~ 1",
-           min_descendant_tips,
+           min_descendant_tips = 10,
            num_cores = 2,
            ic_uncertainty_threshold = 1.0,
-           shift_acceptance_threshold = 1.0,
+           shift_acceptance_threshold = 20,
            #uncertainty = FALSE,
            uncertaintyweights = FALSE,
            uncertaintyweights_par = FALSE,

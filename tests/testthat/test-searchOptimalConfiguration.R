@@ -15,6 +15,13 @@ test_that("the internal search fixture contains one simulation", {
   testthat::expect_length(fixture, 1L)
 })
 
+test_that("search defaults use the evaluated conservative starting settings", {
+  search_formals <- formals(searchOptimalConfiguration)
+
+  testthat::expect_identical(search_formals$min_descendant_tips, 10)
+  testthat::expect_identical(search_formals$shift_acceptance_threshold, 20)
+})
+
 # ---- locate and load fixture -------------------------------------------------
 load_simdata_fixture <- function() {
   # Expect the file at tests/testthat/fixtures/simdata.RDS
