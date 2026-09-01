@@ -49,7 +49,9 @@ pGLS with numeric or factor predictors.}
 \item{min_descendant_tips}{Integer (\eqn{\ge}1). Minimum number of tips required for an internal node
 to be considered as a candidate shift (forwarded to \code{generatePaintedTrees}). Larger values
 reduce the number of candidate shifts by excluding very small clades. For empirical datasets,
-values around \code{10} are a reasonable starting choice and can be tuned in sensitivity analyses.}
+Berv et al. (2026) evaluated \code{10} as the minimum clade size in simulations and used
+that value in their focal analysis. Smaller values trigger a runtime advisory and should
+be assessed for the dataset at hand.}
 
 \item{num_cores}{Integer. Maximum number of concurrent model fits during candidate
 scoring and parallel IC-weight re-estimation. With \code{progress = FALSE}, uses plain
@@ -64,12 +66,11 @@ in post-search pruning and uncertainty analysis; currently not used by
 
 \item{shift_acceptance_threshold}{Numeric (\eqn{\ge}0). Minimum IC improvement
 (baseline - new) required to accept a candidate shift during the forward search.
-Larger values yield more conservative models. For analyses based on the Generalized
-Information Criterion (\code{"GIC"}), a threshold on the order of \code{20} units is a
-conservative choice that tends to admit only strongly supported shifts. Simulation
-studies in Berv et al. (2026) suggest that this choice yields good balanced
-accuracy between detecting true shifts and avoiding false positives, but users should
-explore alternative thresholds in sensitivity analyses for their own datasets.}
+Larger values yield more conservative models. Berv et al. (2026) evaluated a
+\eqn{\Delta}IC threshold of \code{10} in GIC and BIC simulations and used the more
+conservative \eqn{\Delta}GIC threshold of \code{20} in their focal analysis. Values at
+or below \code{10} trigger a runtime advisory. These settings are not universal validity
+boundaries; users should explore alternative thresholds for their own datasets.}
 
 \item{uncertaintyweights}{Logical. If \code{TRUE}, compute per-shift IC weights serially by
 refitting the optimized model with each shift removed in turn. Exactly one of
@@ -201,6 +202,16 @@ penalized-likelihood \code{mvgls()} fits.
 is \code{TRUE}, compute an IC weight for each accepted shift by refitting the final model with that
 shift removed and comparing the two ICs via \code{\link[mvMORPH]{aicw}}.
 }
+
+\strong{Search-setting diagnostics.}
+A clade smaller than \code{min_descendant_tips} is not tested. An eligible small clade is
+evaluated like any other candidate and must pass \code{shift_acceptance_threshold}.
+Under Brownian motion, high trait disparity concentrated on short branches implies a high
+evolutionary-rate estimate, but a runtime rule cannot determine whether that pattern is
+biological or unstable. The permissive-settings advisory is therefore a guardrail rather
+than a power calculation. Examine per-shift IC weights by enabling \code{uncertaintyweights}
+or \code{uncertaintyweights_par}, repeat searches across plausible settings, and use
+dataset-specific simulations when conclusions depend on individual shifts.
 
 \strong{Parallelization.} \code{num_cores} caps simultaneous model fits: candidate scoring
 and parallel IC-weight re-estimation may use all requested workers, while the greedy
@@ -357,6 +368,11 @@ res_ll <- searchOptimalConfiguration(
   progress                   = FALSE
 )
 }
+}
+\references{
+Berv, J. S. et al. (2026). Rates of passerine body plan evolution in time
+and space. \emph{Nature Ecology & Evolution}.
+doi:10.1038/s41559-026-03110-5.
 }
 \seealso{
 \code{\link[mvMORPH]{mvgls}}, \code{\link[mvMORPH]{GIC}}, \code{\link[stats]{BIC}},

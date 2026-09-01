@@ -566,6 +566,44 @@
   invisible(IC)
 }
 
+.bifrost_search_warn_permissive_settings <- function(min_descendant_tips,
+                                                     shift_acceptance_threshold) {
+  details <- character()
+
+  if (min_descendant_tips < 10L) {
+    details <- c(
+      details,
+      sprintf("`min_descendant_tips = %d` is below 10", min_descendant_tips)
+    )
+  }
+  if (isTRUE(shift_acceptance_threshold <= 10)) {
+    details <- c(
+      details,
+      sprintf(
+        "`shift_acceptance_threshold = %s` is at or below \u0394IC = 10",
+        format(shift_acceptance_threshold, trim = TRUE)
+      )
+    )
+  }
+
+  if (length(details) == 0L) {
+    return(invisible(NULL))
+  }
+
+  message <- paste0(
+    "Permissive search settings: ",
+    paste(details, collapse = " and "),
+    ". Berv et al. (2026) evaluated model performance at \u0394IC = 10 in ",
+    "simulations, while their focal analysis used \u0394GIC = 20. Examine ",
+    "per-shift IC weights and assess dataset-specific performance."
+  )
+  condition <- simpleWarning(message, call = NULL)
+  class(condition) <- c("bifrost_search_settings_warning", class(condition))
+  warning(condition)
+
+  invisible(NULL)
+}
+
 .bifrost_search_model_fun <- function(IC) {
   .bifrost_search_validate_ic(IC)
 
