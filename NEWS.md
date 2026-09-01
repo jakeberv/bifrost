@@ -39,6 +39,12 @@
   - Search input validation now requires a positive integer
     `min_descendant_tips` and rejects simultaneous `uncertaintyweights = TRUE`
     and `uncertaintyweights_par = TRUE` before fitting begins.
+  - Search diagnostics now flag minimum clade sizes below 10 and IC acceptance
+    thresholds at or below 10, contextualize the simulation and focal settings
+    from Berv et al. (2026), report when no non-root candidates are eligible,
+    and reject descendant-tip cutoffs larger than the tree. Repeated simulation
+    searches muffle only the classed settings advisory while preserving fitting
+    and optimizer warnings.
 
 * Branch-rate summaries:
   - Added the `rateMap()` workflow and supporting view, control, flagging, print, and plot methods for summarizing branch-rate patterns across completed searches.

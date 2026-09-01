@@ -85,7 +85,12 @@
   with_replicate_seed(
     replicate$seed,
     tryCatch(
-      do.call(search_optimal_configuration, search_args),
+      withCallingHandlers(
+        do.call(search_optimal_configuration, search_args),
+        bifrost_search_settings_warning = function(w) {
+          invokeRestart("muffleWarning")
+        }
+      ),
       error = function(e) {
         candidate_trees <- generate_painted_trees(
           ape::as.phylo(sim[[tree_component]]),
