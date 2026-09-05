@@ -40,7 +40,7 @@
     `min_descendant_tips` and rejects simultaneous `uncertaintyweights = TRUE`
     and `uncertaintyweights_par = TRUE` before fitting begins.
   - Search diagnostics now flag minimum clade sizes below 10 and IC acceptance
-    thresholds at or below 10, contextualize the simulation and focal settings
+    thresholds below 10, contextualize the simulation and focal settings
     from Berv et al. (2026), report when no non-root candidates are eligible,
     and reject descendant-tip cutoffs larger than the tree. Repeated simulation
     searches muffle only the classed settings advisory while preserving fitting

@@ -60,9 +60,9 @@
 #'   (baseline - new) required to accept a candidate shift during the forward search.
 #'   Larger values yield more conservative models. Defaults to \code{20}, matching the focal
 #'   \eqn{\Delta}GIC setting of Berv et al. (2026); their GIC and BIC simulations also evaluated
-#'   \eqn{\Delta}IC = \code{10}. Values at or below \code{10} trigger a runtime advisory. These
-#'   settings are not universal validity boundaries; users should explore alternative thresholds
-#'   for their own datasets.
+#'   \eqn{\Delta}IC = \code{10}. Values below \code{10} trigger a runtime advisory. These
+#'   values are empirical reference points; users should explore alternative thresholds for their
+#'   own datasets.
 #' @param uncertaintyweights Logical. If \code{TRUE}, compute per-shift IC weights serially by
 #'   refitting the optimized model with each shift removed in turn. Exactly one of
 #'   \code{uncertaintyweights} or \code{uncertaintyweights_par} must be \code{TRUE} to trigger

@@ -171,6 +171,24 @@ test_that("search warns when min_descendant_tips is below the evaluated setting"
     conditionMessage(captured$warnings[[1L]]),
     "`min_descendant_tips = 9` is below 10"
   )
+  testthat::expect_match(
+    conditionMessage(captured$warnings[[1L]]),
+    paste0(
+      "Choose `min_descendant_tips` so that candidate clades contain enough ",
+      "terminal taxa to support stable estimation of evolutionary parameters, ",
+      "while retaining a meaningful set of candidate shifts."
+    ),
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    conditionMessage(captured$warnings[[1L]]),
+    paste0(
+      "No single default guarantees reliable estimation; appropriate settings ",
+      "depend on dataset characteristics, including trait dimensionality and ",
+      "phylogenetic structure."
+    ),
+    fixed = TRUE
+  )
   testthat::expect_false(grepl(
     "shift_acceptance_threshold",
     conditionMessage(captured$warnings[[1L]]),
@@ -178,13 +196,13 @@ test_that("search warns when min_descendant_tips is below the evaluated setting"
   ))
 })
 
-test_that("search warns at the acceptance threshold evaluated in simulations", {
+test_that("search warns below the acceptance threshold evaluated in simulations", {
   skip_if_missing_deps()
 
   captured <- collect_search_settings_warnings(
     run_fast_diagnostic_search(
       min_descendant_tips = 10L,
-      shift_acceptance_threshold = 10,
+      shift_acceptance_threshold = 9,
       IC = "GIC"
     )
   )
@@ -192,11 +210,11 @@ test_that("search warns at the acceptance threshold evaluated in simulations", {
   testthat::expect_length(captured$warnings, 1L)
   testthat::expect_match(
     conditionMessage(captured$warnings[[1L]]),
-    "`shift_acceptance_threshold = 10` is at or below ΔIC = 10"
-  )
-  testthat::expect_match(
-    conditionMessage(captured$warnings[[1L]]),
-    "evaluated model performance at ΔIC = 10"
+    paste0(
+      "`shift_acceptance_threshold = 9` is below the ΔIC = 10 value ",
+      "evaluated by Berv et al. (2026)"
+    ),
+    fixed = TRUE
   )
   testthat::expect_match(
     conditionMessage(captured$warnings[[1L]]),
@@ -204,9 +222,13 @@ test_that("search warns at the acceptance threshold evaluated in simulations", {
   )
   testthat::expect_match(
     conditionMessage(captured$warnings[[1L]]),
+    "Low acceptance thresholds may admit marginally supported shifts."
+  )
+  testthat::expect_match(
+    conditionMessage(captured$warnings[[1L]]),
     paste0(
       "Recommendation: examine per-shift IC weights and assess ",
-      "dataset-specific performance."
+      "dataset-specific sensitivity or model performance."
     ),
     fixed = TRUE
   )
@@ -222,25 +244,41 @@ test_that("search emits one advisory when both permissive conditions apply", {
 
   captured <- collect_search_settings_warnings(
     run_fast_diagnostic_search(
-      min_descendant_tips = 9L,
-      shift_acceptance_threshold = 10,
+      min_descendant_tips = 5L,
+      shift_acceptance_threshold = 5,
       IC = "GIC"
     )
   )
 
   testthat::expect_length(captured$warnings, 1L)
   message <- conditionMessage(captured$warnings[[1L]])
-  testthat::expect_match(message, "min_descendant_tips", fixed = TRUE)
-  testthat::expect_match(message, "shift_acceptance_threshold", fixed = TRUE)
+  testthat::expect_identical(
+    message,
+    paste0(
+      "Potentially permissive search settings: ",
+      "`min_descendant_tips = 5` is below 10. Choose `min_descendant_tips` so ",
+      "that candidate clades contain enough terminal taxa to support stable ",
+      "estimation of evolutionary parameters, while retaining a ",
+      "meaningful set of candidate shifts. No single default guarantees ",
+      "reliable estimation; appropriate settings depend on dataset ",
+      "characteristics, ",
+      "including trait dimensionality and phylogenetic structure. ",
+      "`shift_acceptance_threshold = 5` is below the ΔIC = 10 value ",
+      "evaluated by Berv et al. (2026); their focal analysis used ΔGIC = 20. ",
+      "Low acceptance thresholds may admit marginally supported shifts. ",
+      "Recommendation: examine per-shift IC weights and ",
+      "assess dataset-specific sensitivity or model performance."
+    )
+  )
 })
 
-test_that("search emits no advisory above the simulation acceptance threshold", {
+test_that("search emits no advisory at the simulation acceptance threshold", {
   skip_if_missing_deps()
 
   captured <- collect_search_settings_warnings(
     run_fast_diagnostic_search(
       min_descendant_tips = 10L,
-      shift_acceptance_threshold = 11,
+      shift_acceptance_threshold = 10,
       IC = "GIC"
     )
   )
@@ -248,13 +286,13 @@ test_that("search emits no advisory above the simulation acceptance threshold", 
   testthat::expect_length(captured$warnings, 0L)
 })
 
-test_that("BIC searches receive the acceptance-threshold advisory at 10", {
+test_that("BIC searches receive the acceptance-threshold advisory below 10", {
   skip_if_missing_deps()
 
   captured <- collect_search_settings_warnings(
     run_fast_diagnostic_search(
       min_descendant_tips = 10L,
-      shift_acceptance_threshold = 10,
+      shift_acceptance_threshold = 9,
       IC = "BIC"
     )
   )
@@ -262,17 +300,21 @@ test_that("BIC searches receive the acceptance-threshold advisory at 10", {
   testthat::expect_length(captured$warnings, 1L)
   testthat::expect_match(
     conditionMessage(captured$warnings[[1L]]),
-    "`shift_acceptance_threshold = 10` is at or below ΔIC = 10"
+    paste0(
+      "`shift_acceptance_threshold = 9` is below the ΔIC = 10 value ",
+      "evaluated by Berv et al. (2026)"
+    ),
+    fixed = TRUE
   )
 })
 
-test_that("BIC searches receive no acceptance-threshold advisory above 10", {
+test_that("BIC searches receive no acceptance-threshold advisory at 10", {
   skip_if_missing_deps()
 
   captured <- collect_search_settings_warnings(
     run_fast_diagnostic_search(
       min_descendant_tips = 10L,
-      shift_acceptance_threshold = 11,
+      shift_acceptance_threshold = 10,
       IC = "BIC"
     )
   )
