@@ -175,7 +175,7 @@ are forwarded to \code{\link[mvMORPH]{mvgls}}. In practice, \code{method} and
 \strong{Input requirements.}
 \itemize{
 \item \emph{Tree:} \code{baseline_tree} should be a rooted \code{phylo} tree
-with branch lengths interpreted in units of time. An ultrametric tree is not required.
+with branch lengths expressed on a common scale. An ultrametric tree is not required.
 The starting tree does not need to already be painted; \code{searchOptimalConfiguration()}
 paints a single baseline regime internally before building shifted candidates.
 \item \emph{Trait data alignment:} \code{rownames(trait_data)} must match
