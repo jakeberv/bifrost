@@ -70,6 +70,67 @@ make_fp_template_with_error <- function() {
   })
 }
 
+test_that("simulation searches muffle only the repeated settings advisory", {
+  skip_if_fp_study_deps()
+
+  tree <- ape::rtree(12)
+  trait_data <- matrix(
+    rnorm(24),
+    nrow = 12,
+    dimnames = list(tree$tip.label, c("trait_1", "trait_2"))
+  )
+  settings_warning <- simpleWarning("repeated settings advisory", call = NULL)
+  class(settings_warning) <- c(
+    "bifrost_search_settings_warning",
+    class(settings_warning)
+  )
+  search <- function(...) {
+    warning(settings_warning)
+    warning("genuine fitting warning", call. = FALSE)
+    list(
+      shift_nodes_no_uncertainty = integer(0),
+      num_candidates = 1L,
+      candidate_nodes = ape::Ntip(tree) + 2L
+    )
+  }
+  replicate <- list(
+    sim = list(tree = tree, data = trait_data),
+    seed = NULL
+  )
+  warning_classes <- list()
+  warning_messages <- character()
+
+  results <- withCallingHandlers(
+    lapply(seq_len(3L), function(i) {
+      bifrost:::.simulation_study_search(
+        replicate = replicate,
+        search_options = list(min_descendant_tips = 2L),
+        tree_component = "tree",
+        data_components = "data",
+        search_optimal_configuration = search,
+        generate_painted_trees = generatePaintedTrees,
+        with_replicate_seed = function(seed, code) force(code)
+      )
+    }),
+    warning = function(w) {
+      warning_classes[[length(warning_classes) + 1L]] <<- class(w)
+      warning_messages[[length(warning_messages) + 1L]] <<- conditionMessage(w)
+      invokeRestart("muffleWarning")
+    }
+  )
+
+  testthat::expect_length(results, 3L)
+  testthat::expect_false(any(vapply(
+    warning_classes,
+    function(classes) "bifrost_search_settings_warning" %in% classes,
+    logical(1)
+  )))
+  testthat::expect_identical(
+    warning_messages,
+    rep("genuine fitting warning", 3L)
+  )
+})
+
 test_that("runFalsePositiveSimulationStudy returns study summaries", {
   testthat::skip_on_cran()
   skip_if_fp_study_deps()

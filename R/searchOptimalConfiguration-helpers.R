@@ -566,6 +566,59 @@
   invisible(IC)
 }
 
+.bifrost_search_warn_permissive_settings <- function(min_descendant_tips,
+                                                     shift_acceptance_threshold) {
+  details <- character()
+
+  if (min_descendant_tips < 10L) {
+    details <- c(
+      details,
+      sprintf(
+        paste0(
+          "`min_descendant_tips = %d` is below 10. Choose ",
+          "`min_descendant_tips` so that candidate clades contain enough ",
+          "terminal taxa to support stable estimation of evolutionary ",
+          "parameters, while retaining a meaningful set of candidate shifts. ",
+          "No single default guarantees reliable estimation; appropriate ",
+          "settings depend on dataset characteristics, including trait ",
+          "dimensionality and phylogenetic structure."
+        ),
+        min_descendant_tips
+      )
+    )
+  }
+  if (isTRUE(shift_acceptance_threshold < 10)) {
+    details <- c(
+      details,
+      sprintf(
+        paste0(
+          "`shift_acceptance_threshold = %s` is below the \u0394IC = 10 value ",
+          "evaluated by Berv et al. (2026); their focal analysis used ",
+          "\u0394GIC = 20. Low acceptance thresholds may admit marginally ",
+          "supported shifts."
+        ),
+        format(shift_acceptance_threshold, trim = TRUE)
+      )
+    )
+  }
+
+  if (length(details) == 0L) {
+    return(invisible(NULL))
+  }
+
+  message <- paste0(
+    "Potentially permissive search settings: ",
+    paste(details, collapse = " "),
+    " Recommendation: examine per-shift IC weights and ",
+    "assess dataset-specific sensitivity or model performance."
+  )
+  condition <- simpleWarning(message, call = NULL)
+  class(condition) <- c("bifrost_search_settings_warning", class(condition))
+  warning(condition)
+
+  invisible(NULL)
+}
+
 .bifrost_search_model_fun <- function(IC) {
   .bifrost_search_validate_ic(IC)
 

@@ -9,7 +9,7 @@
 #' outgroup (`ape::root(..., resolve.root = TRUE)`).
 #'
 #' @param tree An object of class \code{phylo}. If unrooted, it is rooted internally.
-#' @param min_tips Integer (\eqn{\ge}1). Minimum number of descendant tips required for an
+#' @param min_tips Integer (\eqn{\ge}2). Minimum number of descendant tips required for an
 #'   internal node to be considered eligible.
 #' @param state Character scalar. The regime label to paint on each eligible subtree.
 #'   Defaults to \code{"shift"}.
@@ -52,7 +52,7 @@ generatePaintedTrees <- function(tree, min_tips, state = "shift") {
   min_tips <- .bifrost_check_integer_scalar(
     min_tips,
     "min_tips",
-    minimum = 1L
+    minimum = 2L
   )
   if (!is.character(state) || length(state) != 1L || is.na(state) || !nzchar(state)) {
     stop("`state` must be a single non-empty character string.", call. = FALSE)

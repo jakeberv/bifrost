@@ -97,13 +97,13 @@ What to expect from this example:
 
 At minimum, provide:
 
-1. A rooted phylogeny with branch lengths interpreted in units of time.
+1. A rooted phylogeny with branch lengths expressed on a common scale.
 2. A multivariate trait matrix or data frame with taxa as row names.
 
 Important checks before fitting:
 
 - **Tree and data alignment.** `rownames(trait_data)` must match `tree$tip.label` exactly, including both names and order.
-- **Branch lengths.** Branch lengths are interpreted in units of time; ultrametricity is not required.
+- **Branch lengths.** Branch lengths should be expressed on a common scale; ultrametricity is not required.
 - **Starting tree format.** The input can be a rooted `phylo` tree; it does not need to already be a `simmap` object. Internally, *`bifrost`* paints a single baseline regime `"0"` and stores inferred regimes using SIMMAP conventions.
 - **Multi-dimensional traits.** *`bifrost`* works directly in trait space. For high-dimensional settings, tune `mvMORPH::mvgls` arguments such as `method`, `penalty`, `target`, and `error` to match your data structure.
 - **Formulas.** The default `formula = "trait_data ~ 1"` fits an intercept-only multivariate model, but more general formulas are also supported when needed.

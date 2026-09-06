@@ -1068,19 +1068,24 @@ test_that("public search shares progress rows with verbose output", {
   rownames(traits) <- tree$tip.label
 
   skipped <- testthat::capture_messages(
-    result <- searchOptimalConfiguration(
-      baseline_tree = tree,
-      trait_data = traits,
-      min_descendant_tips = 4,
-      num_cores = 1,
-      shift_acceptance_threshold = 1e9,
-      uncertaintyweights = FALSE,
-      uncertaintyweights_par = FALSE,
-      plot = FALSE,
-      IC = "GIC",
-      store_model_fit_history = FALSE,
-      verbose = TRUE,
-      method = "LL"
+    result <- withCallingHandlers(
+      searchOptimalConfiguration(
+        baseline_tree = tree,
+        trait_data = traits,
+        min_descendant_tips = 4,
+        num_cores = 1,
+        shift_acceptance_threshold = 1e9,
+        uncertaintyweights = FALSE,
+        uncertaintyweights_par = FALSE,
+        plot = FALSE,
+        IC = "GIC",
+        store_model_fit_history = FALSE,
+        verbose = TRUE,
+        method = "LL"
+      ),
+      bifrost_search_settings_warning = function(w) {
+        invokeRestart("muffleWarning")
+      }
     )
   )
 
@@ -1357,7 +1362,7 @@ test_that("public search renders progress through accepted-shift weight re-estim
     trait_data = traits,
     min_descendant_tips = 3,
     num_cores = 1,
-    shift_acceptance_threshold = -Inf,
+    shift_acceptance_threshold = 0,
     uncertaintyweights = TRUE,
     uncertaintyweights_par = FALSE,
     plot = FALSE,

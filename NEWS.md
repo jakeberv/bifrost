@@ -36,9 +36,21 @@
     resolved `progress` setting. Stored model-fit histories retain proposal
     step, node, regime, IC, status, and explicit accepted, rejected, and
     errored records.
-  - Search input validation now requires a positive integer
+  - Search input validation now requires an integer of at least 2 for
     `min_descendant_tips` and rejects simultaneous `uncertaintyweights = TRUE`
     and `uncertaintyweights_par = TRUE` before fitting begins.
+  - Search input validation now also rejects missing, nonscalar, nonnumeric,
+    nonfinite, and negative `shift_acceptance_threshold` values before fitting
+    begins.
+  - Search diagnostics now flag minimum clade sizes below 10 and IC acceptance
+    thresholds below 10, contextualize the simulation and focal settings
+    from Berv et al. (2026), report when no non-root candidates are eligible,
+    and reject descendant-tip cutoffs larger than the tree. Repeated simulation
+    searches muffle only the classed settings advisory while preserving fitting
+    and optimizer warnings.
+  - Search controls now default to `min_descendant_tips = 10` and
+    `shift_acceptance_threshold = 20`, matching the focal settings of Berv et al.
+    (2026) and providing conservative empirical starting points.
 
 * Branch-rate summaries:
   - Added the `rateMap()` workflow and supporting view, control, flagging, print, and plot methods for summarizing branch-rate patterns across completed searches.
