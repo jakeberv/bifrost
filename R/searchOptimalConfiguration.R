@@ -42,7 +42,7 @@
 #'   \code{"trait_data[, 1:5] ~ trait_data[, 6]"} to fit a multivariate pGLS with an
 #'   indexed predictor, or \code{cbind(y1, y2) ~ size + grp} to fit a named-column
 #'   pGLS with numeric or factor predictors.
-#' @param min_descendant_tips Integer (\eqn{\ge}1). Minimum number of tips required for an internal node
+#' @param min_descendant_tips Integer (\eqn{\ge}2). Minimum number of tips required for an internal node
 #'   to be considered as a candidate shift (forwarded to \code{generatePaintedTrees}). Defaults
 #'   to \code{10}, the value evaluated and used in the focal analysis of Berv et al. (2026).
 #'   Larger values reduce the number of candidate shifts by excluding very small clades. Smaller
@@ -414,7 +414,7 @@ searchOptimalConfiguration <-
     min_descendant_tips <- .bifrost_check_integer_scalar(
       min_descendant_tips,
       "min_descendant_tips",
-      minimum = 1L
+      minimum = 2L
     )
     .bifrost_search_validate_ic(IC)
 

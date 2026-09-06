@@ -36,7 +36,7 @@
     resolved `progress` setting. Stored model-fit histories retain proposal
     step, node, regime, IC, status, and explicit accepted, rejected, and
     errored records.
-  - Search input validation now requires a positive integer
+  - Search input validation now requires an integer of at least 2 for
     `min_descendant_tips` and rejects simultaneous `uncertaintyweights = TRUE`
     and `uncertaintyweights_par = TRUE` before fitting begins.
   - Search diagnostics now flag minimum clade sizes below 10 and IC acceptance

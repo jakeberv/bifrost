@@ -22,6 +22,28 @@ test_that("search defaults use the evaluated conservative starting settings", {
   testthat::expect_identical(search_formals$shift_acceptance_threshold, 20)
 })
 
+test_that("search rejects descendant-tip cutoffs below two tips", {
+  skip_if_missing_deps()
+
+  tree <- ape::rtree(4L)
+  trait_data <- matrix(
+    seq_len(ape::Ntip(tree) * 2L),
+    nrow = ape::Ntip(tree),
+    dimnames = list(tree$tip.label, c("trait_1", "trait_2"))
+  )
+
+  testthat::expect_error(
+    searchOptimalConfiguration(
+      baseline_tree = tree,
+      trait_data = trait_data,
+      min_descendant_tips = 1L,
+      progress = FALSE
+    ),
+    "`min_descendant_tips` must be a single finite integer >= 2",
+    fixed = TRUE
+  )
+})
+
 # ---- locate and load fixture -------------------------------------------------
 load_simdata_fixture <- function() {
   # Expect the file at tests/testthat/fixtures/simdata.RDS
@@ -389,7 +411,7 @@ test_that("search tree initialization discards incoming within-edge SIMMAP segme
   testthat::expect_true(all(lengths(normalized$maps) == 1L))
   testthat::expect_true(all(unlist(lapply(normalized$maps, names)) == "0"))
 
-  candidates <- generatePaintedTrees(normalized, min_tips = 1L)
+  candidates <- generatePaintedTrees(normalized, min_tips = 2L)
   testthat::expect_true(all(vapply(
     candidates,
     function(candidate) all(lengths(candidate$maps) == 1L),

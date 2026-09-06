@@ -77,6 +77,11 @@ test_that("generatePaintedTrees validates user-facing arguments", {
     "`min_tips` must be a single finite integer"
   )
   testthat::expect_error(
+    generatePaintedTrees(tree, min_tips = 1),
+    "`min_tips` must be a single finite integer >= 2",
+    fixed = TRUE
+  )
+  testthat::expect_error(
     generatePaintedTrees(tree, min_tips = 2.5),
     "`min_tips` must be a single finite integer"
   )

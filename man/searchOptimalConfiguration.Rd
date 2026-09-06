@@ -46,7 +46,7 @@ morphometric data where there are no predictor variables. For more general model
 indexed predictor, or \code{cbind(y1, y2) ~ size + grp} to fit a named-column
 pGLS with numeric or factor predictors.}
 
-\item{min_descendant_tips}{Integer (\eqn{\ge}1). Minimum number of tips required for an internal node
+\item{min_descendant_tips}{Integer (\eqn{\ge}2). Minimum number of tips required for an internal node
 to be considered as a candidate shift (forwarded to \code{generatePaintedTrees}). Defaults
 to \code{10}, the value evaluated and used in the focal analysis of Berv et al. (2026).
 Larger values reduce the number of candidate shifts by excluding very small clades. Smaller
