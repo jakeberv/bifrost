@@ -207,7 +207,14 @@ plot(
 ```
 
 ```{r ic_weighted_branch_category_ratemap_static, echo = FALSE, eval = TRUE, fig.align = "center", out.width = "100%", fig.cap = "**Figure 1. IC-weighted branch-category rate map after near-zero flagging.** This arc tree summarizes the same threshold sweep after weighting each completed search by its relative GIC support. Branches in the separated lower log-rate cluster are shown as a separate grey category; remaining regular branches are colored by ordered categories of the IC-weighted mean fitted log-rate.", fig.alt = "Arc-style phylogenetic tree with grey near-zero branches and colored IC-weighted branch log-rate categories across the jaw-shape threshold sweep."}
-knitr::include_graphics(rate_map_artifact("ic_weighted_branch_category_ratemap.png"))
+knitr::include_graphics(
+  normalizePath(
+    rate_map_artifact("ic_weighted_branch_category_ratemap.png"),
+    winslash = "/",
+    mustWork = TRUE
+  ),
+  rel_path = FALSE
+)
 ```
 
 Here the IC weights concentrate on thresholds `20` and `30`, with threshold
@@ -269,7 +276,14 @@ plot(
 ```
 
 ```{r plot_rate_sd_static, echo = FALSE, eval = TRUE, fig.align = "center", out.width = "100%", fig.cap = "**Figure 2. Across-threshold standard deviation.** This uncertainty map recolors the equal-weight `rateMap()` object by the standard deviation of fitted branch log-rates across the six threshold searches. Larger values mark branches whose inferred rates change more across the threshold sweep, while smaller values mark branches with more stable rate assignments.", fig.alt = "Arc-style phylogenetic tree with branches colored by across-threshold standard deviation in fitted log-rate."}
-knitr::include_graphics(rate_map_artifact("rate_sd_ratemap.png"))
+knitr::include_graphics(
+  normalizePath(
+    rate_map_artifact("rate_sd_ratemap.png"),
+    winslash = "/",
+    mustWork = TRUE
+  ),
+  rel_path = FALSE
+)
 ```
 
 Or plot the highest-density, or shortest weighted, interval width:
@@ -289,7 +303,14 @@ plot(
 ```
 
 ```{r plot_rate_highest_density_interval_width_static, echo = FALSE, eval = TRUE, fig.align = "center", out.width = "100%", fig.cap = "**Figure 3. Across-threshold 95% shortest-interval width.** This uncertainty map recolors the equal-weight `rateMap()` object by the width of the highest-density, or shortest weighted, interval containing 95% of the run-level log-rate values for each branch. Wider intervals indicate less stable fitted rate assignments across threshold searches; narrower intervals indicate stronger agreement among runs.", fig.alt = "Arc-style phylogenetic tree with branches colored by the width of the across-threshold highest-density interval in fitted log-rate."}
-knitr::include_graphics(rate_map_artifact("rate_highest_density_interval_width_ratemap.png"))
+knitr::include_graphics(
+  normalizePath(
+    rate_map_artifact("rate_highest_density_interval_width_ratemap.png"),
+    winslash = "/",
+    mustWork = TRUE
+  ),
+  rel_path = FALSE
+)
 ```
 
 In this example dataset, the strongest uncertainty signal partly overlaps the
