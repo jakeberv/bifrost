@@ -113,7 +113,14 @@ The public example-data resolver supplies the lightweight inputs used in each pa
 <br>
 
 ```{r bodyplan_fig1, echo=FALSE, fig.align="center", out.width="100%", fig.alt="Figure 1 from Berv et al. (2026), showing the focal phylogenetic rate-shift analysis and associated spatial summaries.", fig.cap=vignette_figure_caption("**Figure 1 from Berv et al. (2026), *Nature Ecology & Evolution*.** The published figure anchors the workflow: panel A shows the focal temporal branch-rate analysis revisited across these vignettes, while panels B-E show the spatial summaries and species-richness context from the paper.", "Berv et al. (2026), Nature Ecology \\& Evolution. The published figure anchors the workflow: panel A shows the focal temporal branch-rate analysis revisited across these vignettes, while panels B-E show the spatial summaries and species-richness context from the paper.")}
-knitr::include_graphics("avian-skeleton/bodyplan_figure1.png")
+knitr::include_graphics(
+  normalizePath(
+    "avian-skeleton/bodyplan_figure1.png",
+    winslash = "/",
+    mustWork = TRUE
+  ),
+  rel_path = FALSE
+)
 ```
 
 ## Setup
@@ -405,7 +412,14 @@ plot(
 Because this vignette does not re-run the full Berv et al. (2026)-scale search during build, we include a precomputed example of the IC trajectory plot that the API call above generated for the focal passerine analysis. The gray overlay shows proposal-level delta IC on the secondary axis, while the blue step line shows the running-best GIC trajectory.
 
 ```{r focal_ic_trajectory_example, echo=FALSE, fig.align="center", out.width="100%", fig.alt="Precomputed IC trajectory plot for the focal passerine body-plan analysis, showing GIC score, running best GIC, and overlaid proposal-level delta IC across sub-models.", fig.cap=vignette_figure_caption("**Figure 2. IC trajectory for the focal passerine body-plan search.** Blue points mark accepted proposals, red crosses mark rejected proposals, and the blue step line follows the running-best GIC score. The gray overlay shows proposal-level delta IC on the secondary axis.", "IC trajectory for the focal passerine body-plan search. Blue points mark accepted proposals, red crosses mark rejected proposals, and the blue step line follows the running-best GIC score. The gray overlay shows proposal-level delta IC on the secondary axis.")}
-knitr::include_graphics("avian-skeleton/ic_trajectory.png")
+knitr::include_graphics(
+  normalizePath(
+    "avian-skeleton/ic_trajectory.png",
+    winslash = "/",
+    mustWork = TRUE
+  ),
+  rel_path = FALSE
+)
 ```
 
 Use this trajectory to compare sensitivity analyses across different thresholds or minimum clade sizes when you have run those searches or loaded the full archived search objects. The compact sensitivity bundle used in Part 4 keeps mapped trees, BMM regime rates, and compact IC acceptance matrices, but omits individual candidate fits and proposal-level details.
@@ -461,7 +475,14 @@ plot(
 ```
 
 ```{r bodyplan_rate_map_arc_tree, echo=FALSE, fig.align="center", out.width="100%", fig.alt="Arc-style passerine phylogeny with no tip labels. Branches are colored from blue through pale yellow to red according to Fisher-binned log fitted BMM rates.", fig.cap=vignette_figure_caption("**Figure 3. Berv et al. branch-rate arc tree for the focal passerine body-plan search.** Branches are colored with `rateMap()` from the fitted BMM regime rates in the compact `bifrost_search` object. Colors use the same 10 Fisher natural-break bins on log fitted BMM regime rates and reversed `RdYlBu` palette used for the Berv et al. (2026) branch-rate display. Part 3 uses `shift_node_marks()` and `plot()` to add only the rate-increase node layer.", "Berv et al. branch-rate arc tree for the focal passerine body-plan search. Branches are colored with rateMap() from the fitted BMM regime rates in the compact bifrost\\_search object. Colors use the same 10 Fisher natural-break bins on log fitted BMM regime rates and reversed RdYlBu palette used for the Berv et al. (2026) branch-rate display. Part 3 uses shift\\_node\\_marks() and plot() to add only the rate-increase node layer.")}
-knitr::include_graphics("avian-skeleton/bodyplan_rate_map_arc_tree.png")
+knitr::include_graphics(
+  normalizePath(
+    "avian-skeleton/bodyplan_rate_map_arc_tree.png",
+    winslash = "/",
+    mustWork = TRUE
+  ),
+  rel_path = FALSE
+)
 ```
 
 ## Practical Takeaways
