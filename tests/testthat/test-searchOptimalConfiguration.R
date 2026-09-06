@@ -173,6 +173,37 @@ muffle_search_settings_warning <- function(code) {
   )
 }
 
+test_that("search rejects invalid acceptance thresholds before fitting", {
+  skip_if_missing_deps()
+
+  tree <- ape::rtree(4L)
+  # Missing row names would fail during fitting, proving these errors occur first.
+  trait_data <- matrix(seq_len(8L), nrow = 4L)
+  invalid_thresholds <- list(
+    NA_real_,
+    numeric(),
+    c(10, 20),
+    "20",
+    -1,
+    Inf,
+    -Inf
+  )
+
+  for (threshold in invalid_thresholds) {
+    testthat::expect_error(
+      searchOptimalConfiguration(
+        baseline_tree = tree,
+        trait_data = trait_data,
+        min_descendant_tips = 4L,
+        shift_acceptance_threshold = threshold,
+        progress = FALSE
+      ),
+      "`shift_acceptance_threshold` must be one finite nonnegative number.",
+      fixed = TRUE
+    )
+  }
+})
+
 test_that("search warns when min_descendant_tips is below the evaluated setting", {
   skip_if_missing_deps()
 
@@ -575,7 +606,7 @@ test_that("searchOptimalConfiguration accepts formula objects and mixed-type nam
 })
 
 # Group: ic_weights correctness
-# Test: ic_weights are internally consistent when present (rtree(40) with threshold=-Inf; checks delta/evidence_ratio)
+# Test: ic_weights are internally consistent when present (rtree(40) with threshold=0; checks delta/evidence_ratio)
 test_that("ic_weights are internally consistent when present", {
   skip_if_missing_deps()
 
@@ -590,7 +621,7 @@ test_that("ic_weights are internally consistent when present", {
     formula                    = "trait_data ~ 1",
     min_descendant_tips        = 5,
     num_cores                  = 1,
-    shift_acceptance_threshold = -Inf,   # encourage accepting shifts
+    shift_acceptance_threshold = 0,
     plot                       = FALSE,
     store_model_fit_history    = FALSE,
     method                     = "LL",
@@ -730,7 +761,7 @@ test_that("searchOptimalConfiguration returns sensible output when no shifts are
   }
 })
 
-# Test: searchOptimalConfiguration records accepted steps with history (and covers plot/postorder) (threshold=-Inf; plot=TRUE; store_model_fit_history=TRUE)
+# Test: searchOptimalConfiguration records accepted steps with history (and covers plot/postorder) (threshold=0; plot=TRUE; store_model_fit_history=TRUE)
 test_that("searchOptimalConfiguration records accepted steps with history (and covers plot/postorder)", {
   skip_if_missing_deps()
   simdata <- load_simdata_fixture()
@@ -751,7 +782,7 @@ test_that("searchOptimalConfiguration records accepted steps with history (and c
     formula                    = "trait_data ~ 1",
     min_descendant_tips        = 10,      # broader candidate set
     num_cores                  = 1,
-    shift_acceptance_threshold = -Inf,   # force acceptance of the first candidate evaluated
+    shift_acceptance_threshold = 0,
     plot                       = TRUE,   # hit plotSimmap/nodelabels branches
     #postorder_traversal        = TRUE,   # hit postorder switch
     IC                         = "GIC",
@@ -760,7 +791,7 @@ test_that("searchOptimalConfiguration records accepted steps with history (and c
     progress                   = FALSE
   ))
 
-  # We expect at least one shift to be recorded/accepted under -Inf threshold
+  # This fixture produces at least one improving shift at threshold 0.
   testthat::expect_type(res, "list")
   testthat::expect_true(length(res$shift_nodes_no_uncertainty) >= 1L)
 
@@ -1125,7 +1156,7 @@ test_that("searchOptimalConfiguration returns consistent ic_weights for serial v
     formula                    = "trait_data ~ 1",
     min_descendant_tips        = 5,
     num_cores                  = 1,
-    shift_acceptance_threshold = -Inf,
+    shift_acceptance_threshold = 0,
     plot                       = FALSE,
     store_model_fit_history    = FALSE,
     method                     = "LL",
@@ -1143,7 +1174,7 @@ test_that("searchOptimalConfiguration returns consistent ic_weights for serial v
     formula                    = "trait_data ~ 1",
     min_descendant_tips        = 5,
     num_cores                  = 1,
-    shift_acceptance_threshold = -Inf,
+    shift_acceptance_threshold = 0,
     plot                       = FALSE,
     store_model_fit_history    = FALSE,
     method                     = "LL",
@@ -1674,7 +1705,7 @@ test_that("searchOptimalConfiguration serial ic_weights executes BIC branch", {
     formula                    = "trait_data ~ 1",
     min_descendant_tips        = 2,
     num_cores                  = 1,
-    shift_acceptance_threshold = -Inf,   # accept shifts
+    shift_acceptance_threshold = 0,
     plot                       = FALSE,
     store_model_fit_history    = FALSE,
     verbose                    = FALSE,

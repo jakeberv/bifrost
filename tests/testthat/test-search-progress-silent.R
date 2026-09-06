@@ -43,7 +43,7 @@ test_that("public search disables heartbeats throughout all three stages", {
       trait_data = traits,
       min_descendant_tips = 3,
       num_cores = 1,
-      shift_acceptance_threshold = -Inf,
+      shift_acceptance_threshold = 0,
       uncertaintyweights = TRUE,
       uncertaintyweights_par = FALSE,
       plot = FALSE,

@@ -39,6 +39,9 @@
   - Search input validation now requires an integer of at least 2 for
     `min_descendant_tips` and rejects simultaneous `uncertaintyweights = TRUE`
     and `uncertaintyweights_par = TRUE` before fitting begins.
+  - Search input validation now also rejects missing, nonscalar, nonnumeric,
+    nonfinite, and negative `shift_acceptance_threshold` values before fitting
+    begins.
   - Search diagnostics now flag minimum clade sizes below 10 and IC acceptance
     thresholds below 10, contextualize the simulation and focal settings
     from Berv et al. (2026), report when no non-root candidates are eligible,

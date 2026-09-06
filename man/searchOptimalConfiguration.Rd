@@ -69,7 +69,7 @@ Larger values yield more conservative models. Defaults to \code{20}, matching th
 \eqn{\Delta}GIC setting of Berv et al. (2026); their GIC and BIC simulations also evaluated
 \eqn{\Delta}IC = \code{10}. Values below \code{10} trigger a runtime advisory. These
 values are empirical reference points; users should explore alternative thresholds for their
-own datasets.}
+own datasets. The threshold must be a single finite nonnegative numeric value.}
 
 \item{uncertaintyweights}{Logical. If \code{TRUE}, compute per-shift IC weights serially by
 refitting the optimized model with each shift removed in turn. Exactly one of

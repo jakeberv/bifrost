@@ -62,7 +62,7 @@
 #'   \eqn{\Delta}GIC setting of Berv et al. (2026); their GIC and BIC simulations also evaluated
 #'   \eqn{\Delta}IC = \code{10}. Values below \code{10} trigger a runtime advisory. These
 #'   values are empirical reference points; users should explore alternative thresholds for their
-#'   own datasets.
+#'   own datasets. The threshold must be a single finite nonnegative numeric value.
 #' @param uncertaintyweights Logical. If \code{TRUE}, compute per-shift IC weights serially by
 #'   refitting the optimized model with each shift removed in turn. Exactly one of
 #'   \code{uncertaintyweights} or \code{uncertaintyweights_par} must be \code{TRUE} to trigger
@@ -416,6 +416,15 @@ searchOptimalConfiguration <-
       "min_descendant_tips",
       minimum = 2L
     )
+    if (!is.numeric(shift_acceptance_threshold) ||
+        length(shift_acceptance_threshold) != 1L ||
+        !is.finite(shift_acceptance_threshold) ||
+        shift_acceptance_threshold < 0) {
+      stop(
+        "`shift_acceptance_threshold` must be one finite nonnegative number.",
+        call. = FALSE
+      )
+    }
     .bifrost_search_validate_ic(IC)
 
     baseline_tip_count <- Ntip(baseline_tree)
