@@ -6,8 +6,8 @@
   "archive_note": "This file is the repository's canonical CRAN downloads archive. Existing days are preserved; fetched rows overwrite matching days so upstream corrections are retained.",
   "query_start": "1900-01-01",
   "start": "2026-01-21",
-  "end": "2026-08-01",
-  "total_downloads": 3314,
+  "end": "2026-08-30",
+  "total_downloads": 3637,
   "downloads": [
     {
       "day": "2026-01-21",
@@ -780,6 +780,122 @@
     {
       "day": "2026-08-01",
       "downloads": 2
+    },
+    {
+      "day": "2026-08-02",
+      "downloads": 6
+    },
+    {
+      "day": "2026-08-03",
+      "downloads": 1
+    },
+    {
+      "day": "2026-08-04",
+      "downloads": 7
+    },
+    {
+      "day": "2026-08-05",
+      "downloads": 20
+    },
+    {
+      "day": "2026-08-06",
+      "downloads": 5
+    },
+    {
+      "day": "2026-08-07",
+      "downloads": 5
+    },
+    {
+      "day": "2026-08-08",
+      "downloads": 17
+    },
+    {
+      "day": "2026-08-09",
+      "downloads": 25
+    },
+    {
+      "day": "2026-08-10",
+      "downloads": 4
+    },
+    {
+      "day": "2026-08-11",
+      "downloads": 11
+    },
+    {
+      "day": "2026-08-12",
+      "downloads": 24
+    },
+    {
+      "day": "2026-08-13",
+      "downloads": 4
+    },
+    {
+      "day": "2026-08-14",
+      "downloads": 4
+    },
+    {
+      "day": "2026-08-15",
+      "downloads": 20
+    },
+    {
+      "day": "2026-08-16",
+      "downloads": 5
+    },
+    {
+      "day": "2026-08-17",
+      "downloads": 1
+    },
+    {
+      "day": "2026-08-18",
+      "downloads": 22
+    },
+    {
+      "day": "2026-08-19",
+      "downloads": 7
+    },
+    {
+      "day": "2026-08-20",
+      "downloads": 6
+    },
+    {
+      "day": "2026-08-21",
+      "downloads": 27
+    },
+    {
+      "day": "2026-08-22",
+      "downloads": 22
+    },
+    {
+      "day": "2026-08-23",
+      "downloads": 4
+    },
+    {
+      "day": "2026-08-24",
+      "downloads": 3
+    },
+    {
+      "day": "2026-08-25",
+      "downloads": 15
+    },
+    {
+      "day": "2026-08-26",
+      "downloads": 14
+    },
+    {
+      "day": "2026-08-27",
+      "downloads": 10
+    },
+    {
+      "day": "2026-08-28",
+      "downloads": 8
+    },
+    {
+      "day": "2026-08-29",
+      "downloads": 21
+    },
+    {
+      "day": "2026-08-30",
+      "downloads": 5
     }
   ]
 }
