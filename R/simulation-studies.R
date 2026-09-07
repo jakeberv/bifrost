@@ -852,6 +852,10 @@ runShiftRecoverySimulationStudy <- function(template,
 #'
 #' Search results carrying a non-empty `error` field are retained by the study
 #' wrappers for diagnosis but excluded from recovery counts and metrics.
+#' In otherwise complete, successful results, an explicitly present
+#' `shift_nodes_no_uncertainty = NULL` means no inferred shifts and contributes
+#' false negatives for the true shifts. A missing field remains incomplete and
+#' is excluded. Empty integer vectors are handled identically to explicit `NULL`.
 #'
 #' For current search results, true-negative counts are calculated over the
 #' explicit `candidate_nodes` universe. True shifts excluded by the search's
@@ -965,9 +969,16 @@ evaluateShiftRecovery <- function(simdata,
     candidate_nodes <- simresults[[k]]$candidate_nodes
     tree_k <- simdata[[k]]$paintedTree
 
-    if (is.null(true_nodes) || is.null(inferred_nodes) || is.null(candidate_count) ||
+    if (is.null(true_nodes) ||
+        !("shift_nodes_no_uncertainty" %in% names(simresults[[k]])) ||
+        is.null(candidate_count) ||
         is.null(tree_k)) {
       next
+    }
+    # Successful searches can represent zero accepted shifts as explicit NULL.
+    # Normalize locally without changing the stored search result.
+    if (is.null(inferred_nodes)) {
+      inferred_nodes <- integer(0)
     }
     if (!is.null(candidate_nodes)) {
       candidate_count_checked <- .simulation_check_integer_scalar(

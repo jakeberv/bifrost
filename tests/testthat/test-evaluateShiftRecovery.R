@@ -385,6 +385,112 @@ test_that("evaluateShiftRecovery excludes failed search records", {
   testthat::expect_equal(out$fuzzy$recall, 1)
 })
 
+test_that("successful NULL shifts count missed replicates in every recovery summary", {
+  skip_if_eval_shift_deps()
+
+  tr <- ape::read.tree(text = "(((a,b),(c,d)),((e,f),(g,h)));")
+  simdata <- rep(list(list(paintedTree = tr, shiftNodes = 10L)), 100)
+  zero_result <- list(
+    shift_nodes_no_uncertainty = NULL,
+    num_candidates = 5L,
+    candidate_nodes = 10:14,
+    ic_weights = data.frame()
+  )
+  simresults <- rep(list(zero_result), 100)
+  simresults[[1]]$shift_nodes_no_uncertainty <- 10L
+  simresults[[1]]$ic_weights <- data.frame(
+    node = 10L, ic_weight_withshift = 0.8
+  )
+
+  out <- evaluateShiftRecovery(simdata, simresults, verbose = FALSE)
+
+  expect_identical(out$n_evaluable_replicates, 100L)
+  for (matching in c("strict", "fuzzy")) {
+    expect_equal(unname(out$counts[[matching]]), c(1, 0, 99, 400))
+    expect_equal(out[[matching]]$recall, 0.01)
+    expect_equal(out[[matching]]$precision, 1)
+    expect_equal(out[[matching]]$f1, 2 / 101)
+    expect_equal(out[[matching]]$balanced_accuracy, 0.505)
+    expect_equal(out$weighted[[matching]]$recall, 0.008)
+    expect_equal(out$weighted[[matching]]$f1, 2 * 0.008 / 1.008)
+  }
+  expect_identical(simresults[[2]], zero_result)
+
+  normalized <- lapply(simresults, function(result) {
+    if (is.null(result$shift_nodes_no_uncertainty)) {
+      result$shift_nodes_no_uncertainty <- integer(0)
+    }
+    result
+  })
+  expect_identical(
+    out, evaluateShiftRecovery(simdata, normalized, verbose = FALSE)
+  )
+})
+
+test_that("all-NULL recovery retains candidate-aware and legacy accounting", {
+  skip_if_eval_shift_deps()
+
+  tr <- ape::read.tree(text = "(((a,b),(c,d)),((e,f),(g,h)));")
+  simdata <- list(list(paintedTree = tr, shiftNodes = c(10L, 12L)))
+  for (candidates in list(c(10L, 11L), integer(0), NULL)) {
+    # Node 12 is ineligible in the explicit candidate universe.
+    result <- list(
+      shift_nodes_no_uncertainty = NULL,
+      num_candidates = if (is.null(candidates)) 2L else length(candidates),
+      candidate_nodes = candidates,
+      ic_weights = data.frame()
+    )
+    out <- evaluateShiftRecovery(simdata, list(result), verbose = FALSE)
+    expected_tn <- if (length(candidates) > 0) 1 else 0
+    expect_identical(out$n_evaluable_replicates, 1L)
+    for (matching in c("strict", "fuzzy")) {
+      expect_equal(unname(out$counts[[matching]]), c(0, 0, 2, expected_tn))
+      expect_equal(out[[matching]]$recall, 0)
+      expect_equal(out$weighted[[matching]]$recall, 0)
+      expect_true(is.na(out[[matching]]$precision))
+      expect_equal(
+        out[[matching]]$balanced_accuracy,
+        if (expected_tn > 0) 0.5 else NA_real_
+      )
+    }
+    result$shift_nodes_no_uncertainty <- integer(0)
+    expect_identical(
+      out, evaluateShiftRecovery(simdata, list(result), verbose = FALSE)
+    )
+  }
+})
+
+test_that("NULL-shift support does not admit failed or incomplete records", {
+  skip_if_eval_shift_deps()
+
+  tr <- ape::read.tree(text = "(((a,b),(c,d)),((e,f),(g,h)));")
+  sim <- list(paintedTree = tr, shiftNodes = 10L)
+  result <- list(
+    shift_nodes_no_uncertainty = NULL,
+    num_candidates = 2L,
+    candidate_nodes = c(10L, 11L)
+  )
+  failed <- result
+  failed$error <- "model fit failed"
+  missing_shifts <- result
+  missing_shifts$shift_nodes_no_uncertainty <- NULL # Removes the field.
+  partial_name <- missing_shifts
+  partial_name$shift_nodes_no_uncertainty_extra <- 10L
+  missing_count <- result
+  missing_count$num_candidates <- NULL
+
+  out <- evaluateShiftRecovery(
+    list(sim, sim, sim, sim, sim,
+         list(shiftNodes = 10L), list(paintedTree = tr)),
+    list(result, failed, missing_shifts, partial_name, missing_count,
+         result, result),
+    weighted = FALSE, verbose = FALSE
+  )
+  expect_identical(out$n_evaluable_replicates, 1L)
+  expect_equal(unname(out$counts$strict), c(0, 0, 1, 1))
+  expect_equal(unname(out$counts$fuzzy), c(0, 0, 1, 1))
+})
+
 test_that("evaluateShiftRecovery preserves manuscript-greedy fuzzy matching", {
   skip_if_eval_shift_deps()
 

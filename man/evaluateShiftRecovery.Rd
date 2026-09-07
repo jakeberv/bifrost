@@ -68,6 +68,10 @@ the simulation-study implementation.
 
 Search results carrying a non-empty \code{error} field are retained by the study
 wrappers for diagnosis but excluded from recovery counts and metrics.
+In otherwise complete, successful results, an explicitly present
+\code{shift_nodes_no_uncertainty = NULL} means no inferred shifts and contributes
+false negatives for the true shifts. A missing field remains incomplete and
+is excluded. Empty integer vectors are handled identically to explicit \code{NULL}.
 
 For current search results, true-negative counts are calculated over the
 explicit \code{candidate_nodes} universe. True shifts excluded by the search's

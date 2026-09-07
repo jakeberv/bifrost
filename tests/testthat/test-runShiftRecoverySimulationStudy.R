@@ -1233,7 +1233,7 @@ test_that("runShiftRecoverySimulationStudy integrates weighted metrics across mi
   )
   result_stub <- list(
     list(
-      shift_nodes_no_uncertainty = integer(0),
+      shift_nodes_no_uncertainty = NULL,
       num_candidates = 0L,
       ic_weights = data.frame(
         node = integer(0),
@@ -1306,6 +1306,8 @@ test_that("runShiftRecoverySimulationStudy integrates weighted metrics across mi
   )
 
   testthat::expect_equal(study$per_replicate$n_candidates, c(0, 4))
+  testthat::expect_equal(study$per_replicate$n_inferred_shifts, c(0, 1))
+  testthat::expect_identical(study$study_summary$n_evaluable_replicates, 2L)
   testthat::expect_equal(mock_env$seen_trait_data, lapply(sim_stub, `[[`, "simulatedData"))
   testthat::expect_false(is.null(study$evaluation$weighted))
   testthat::expect_equal(study$evaluation$strict$precision, 1)

@@ -69,6 +69,11 @@
   - Added module diagnostics, correlation-matrix PCA, integration-relationship summaries, and `regime_integration_pgls()` for examining regime-specific covariance structure and downstream relationships.
 
 * Simulation studies and tuning:
+  - Fixed recovery evaluation excluding successful searches with an explicitly
+    `NULL` shift-node vector. Zero-shift results now contribute missed shifts
+    to strict, fuzzy, and weighted recovery summaries; saved results can be
+    reassessed without refitting searches. Failed or incomplete records remain
+    excluded.
   - Added reproducible simulation templates, null and shifted dataset generators, false-positive and shift-recovery studies, recovery evaluation, and fixed-IC tuning grids.
   - Added empirical null, proportional-shift, and integration-rate robustness workflows centered on fitted residual covariance, with `simulation_generator = c("original", "empirical")` for explicit generator selection.
   - The new simulation generators default to `"original"` for exact reproduction of the published operations; the full-covariance Wishart/spectral generator remains available explicitly as `simulation_generator = "empirical"`.
