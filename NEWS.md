@@ -1,5 +1,13 @@
 # bifrost 0.2.0
 
+* Simulation tuning:
+  - `runSearchTuningGrid()` now pairs simulated datasets across all settings,
+    using shared scenario seeds consistently in serial and parallel execution.
+    Separate GIC and BIC calls with matching simulation inputs and seeds are
+    also paired. Its arguments are unchanged; returned objects record
+    `paired_settings` and `study_seeds`. Previously seeded grid results will
+    change under this sampling design; existing cached results are not replaced.
+
 * Search progress:
   - `searchOptimalConfiguration()` now displays persistent, Future-compatible CLI progress for candidate scoring, greedy shift evaluation, and IC-weight re-estimation by default.
   - Reached stage rows remain stacked at the bottom while `verbose = TRUE` output streams above them.
