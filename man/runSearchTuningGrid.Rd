@@ -86,9 +86,10 @@ in the output table.}
 forces the dependent study wrappers and search calls to run serially within
 each setting.}
 
-\item{seed}{Optional integer seed used to derive deterministic per-study
-seeds across the entire grid. When supplied, the wrapper restores the
-caller's previous RNG state before returning.}
+\item{seed}{Optional integer seed used to derive shared per-scenario study
+seeds. All grid rows use paired simulated datasets. Matching seeds and
+simulation arguments also pair separate GIC and BIC calls. When supplied,
+the wrapper restores the caller's previous RNG state before returning.}
 
 \item{store_studies}{Logical; if \code{TRUE}, retain the raw study objects for
 every grid row and scenario. If \code{FALSE}, return only the summary table and
@@ -98,6 +99,9 @@ metadata.}
 A list of class \code{bifrost_search_tuning_grid} with components:
 \describe{
 \item{\code{IC}}{The fixed IC family used across the grid.}
+\item{\code{paired_settings}}{Always \code{TRUE}: datasets are paired across settings.}
+\item{\code{study_seeds}}{Named integer vector of the shared null, proportional,
+and correlation study seeds.}
 \item{\code{grid}}{The evaluated combinations of thresholds and minimum clade
 sizes.}
 \item{\code{summary_table}}{A data frame with one row per setting, deterministic
@@ -135,6 +139,18 @@ separate workflows. In typical use, you call it twice, once with
 \code{IC = "GIC"} and once with \code{IC = "BIC"}, then select one recommended setting
 from each grid with \code{\link[=selectTunedSearchParameters]{selectTunedSearchParameters()}}.
 
+Within each scenario, every setting is evaluated on the same simulated
+replicates: trees, traits, and planted shifts are paired across settings,
+while different replicates remain independent simulation draws. The study
+wrappers regenerate these datasets deterministically using shared seeds and
+the L'Ecuyer-CMRG generator, so serial and parallel settings use the same
+datasets. Simulation and search seeds are managed separately. Pairing also
+applies when \code{seed = NULL}, but a new set of study seeds is drawn on each
+call; supply an explicit seed to reproduce a grid or pair separate IC calls.
+Changing grid order or adding thresholds does not change the simulated
+datasets. Matching across calls requires the same template, simulation
+options, replicate counts, and software/RNG configuration.
+
 The template may come from a richer global calibration model, but each grid
 row is still evaluated with an intercept-only shift search on the simulated
 response block. This follows the residual-calibration workflow used by the
@@ -147,10 +163,10 @@ summaries emphasize false-positive behavior, while proportional and
 correlation-scenario summaries emphasize recovery, including fuzzy balanced
 accuracy. The corresponding output columns retain their \code{correlation_}
 prefixes for backward compatibility.
-When \code{seed} is supplied, the
-\code{null_seed}, \code{proportional_seed}, and \code{correlation_seed} columns record the
-deterministic per-study seeds used for each setting; otherwise those columns
-are \code{NA}. Candidate-set availability among completed searches is tracked via
+The \code{null_seed}, \code{proportional_seed}, and \code{correlation_seed} columns record
+the shared study seeds, including when \code{seed = NULL}. These repeat across
+grid rows rather than identifying independent datasets for each setting.
+Candidate-set availability among completed searches is tracked via
 evaluable fractions so that overly strict \code{min_descendant_tips} settings can
 be screened out before choosing a final workflow. Completion and failure
 rates use all attempted replicates and are reported separately. Scientific

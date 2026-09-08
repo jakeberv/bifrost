@@ -1,3 +1,10 @@
+.simulation_tuning_study_seeds <- function(seed) {
+  state <- .simulation_set_seed(seed, kind = "L'Ecuyer-CMRG")
+  on.exit(.simulation_restore_seed(state), add = TRUE)
+  stats::setNames(sample.int(.Machine$integer.max, 3L),
+                  c("null", "proportional", "correlation"))
+}
+
 #' Run a Fixed-IC Search Tuning Grid
 #'
 #' @description
@@ -65,9 +72,10 @@
 #'   `num_cores > 1`, [runSearchTuningGrid()] parallelizes over settings and
 #'   forces the dependent study wrappers and search calls to run serially within
 #'   each setting.
-#' @param seed Optional integer seed used to derive deterministic per-study
-#'   seeds across the entire grid. When supplied, the wrapper restores the
-#'   caller's previous RNG state before returning.
+#' @param seed Optional integer seed used to derive shared per-scenario study
+#'   seeds. All grid rows use paired simulated datasets. Matching seeds and
+#'   simulation arguments also pair separate GIC and BIC calls. When supplied,
+#'   the wrapper restores the caller's previous RNG state before returning.
 #' @param store_studies Logical; if `TRUE`, retain the raw study objects for
 #'   every grid row and scenario. If `FALSE`, return only the summary table and
 #'   metadata.
@@ -78,6 +86,18 @@
 #' separate workflows. In typical use, you call it twice, once with
 #' `IC = "GIC"` and once with `IC = "BIC"`, then select one recommended setting
 #' from each grid with [selectTunedSearchParameters()].
+#'
+#' Within each scenario, every setting is evaluated on the same simulated
+#' replicates: trees, traits, and planted shifts are paired across settings,
+#' while different replicates remain independent simulation draws. The study
+#' wrappers regenerate these datasets deterministically using shared seeds and
+#' the L'Ecuyer-CMRG generator, so serial and parallel settings use the same
+#' datasets. Simulation and search seeds are managed separately. Pairing also
+#' applies when `seed = NULL`, but a new set of study seeds is drawn on each
+#' call; supply an explicit seed to reproduce a grid or pair separate IC calls.
+#' Changing grid order or adding thresholds does not change the simulated
+#' datasets. Matching across calls requires the same template, simulation
+#' options, replicate counts, and software/RNG configuration.
 #'
 #' The template may come from a richer global calibration model, but each grid
 #' row is still evaluated with an intercept-only shift search on the simulated
@@ -91,10 +111,10 @@
 #' correlation-scenario summaries emphasize recovery, including fuzzy balanced
 #' accuracy. The corresponding output columns retain their `correlation_`
 #' prefixes for backward compatibility.
-#' When `seed` is supplied, the
-#' `null_seed`, `proportional_seed`, and `correlation_seed` columns record the
-#' deterministic per-study seeds used for each setting; otherwise those columns
-#' are `NA`. Candidate-set availability among completed searches is tracked via
+#' The `null_seed`, `proportional_seed`, and `correlation_seed` columns record
+#' the shared study seeds, including when `seed = NULL`. These repeat across
+#' grid rows rather than identifying independent datasets for each setting.
+#' Candidate-set availability among completed searches is tracked via
 #' evaluable fractions so that overly strict `min_descendant_tips` settings can
 #' be screened out before choosing a final workflow. Completion and failure
 #' rates use all attempted replicates and are reported separately. Scientific
@@ -110,6 +130,9 @@
 #' @return A list of class `bifrost_search_tuning_grid` with components:
 #' \describe{
 #'   \item{`IC`}{The fixed IC family used across the grid.}
+#'   \item{`paired_settings`}{Always `TRUE`: datasets are paired across settings.}
+#'   \item{`study_seeds`}{Named integer vector of the shared null, proportional,
+#'   and correlation study seeds.}
 #'   \item{`grid`}{The evaluated combinations of thresholds and minimum clade
 #'   sizes.}
 #'   \item{`summary_table`}{A data frame with one row per setting, deterministic
@@ -311,21 +334,16 @@ runSearchTuningGrid <- function(template,
   grid$setting_id <- seq_len(nrow(grid))
   grid <- grid[, c("setting_id", "shift_acceptance_threshold", "min_descendant_tips")]
 
-  setting_seeds <- if (!is.null(seed_state)) {
-    matrix(
-      sample.int(.Machine$integer.max, size = nrow(grid) * 3L),
-      ncol = 3L,
-      byrow = TRUE,
-      dimnames = list(NULL, c("null", "proportional", "correlation"))
-    )
-  } else {
-    NULL
-  }
+  study_seeds <- .simulation_tuning_study_seeds(seed)
 
   run_false_positive_study_fn <- runFalsePositiveSimulationStudy
   run_shift_recovery_study_fn <- runShiftRecoverySimulationStudy
 
   evaluate_setting <- function(i) {
+    # Fix the study-level RNG kind, including in Future workers. The study
+    # wrappers then derive identical simulation and search seeds for every row.
+    study_rng <- .simulation_set_seed(study_seeds[[1L]], kind = "L'Ecuyer-CMRG")
+    on.exit(.simulation_restore_seed(study_rng), add = TRUE)
     tuning_search_options <- utils::modifyList(
       base_search_options,
       list(
@@ -344,7 +362,7 @@ runSearchTuningGrid <- function(template,
       simulation_options = null_simulation_options,
       search_options = tuning_search_options,
       num_cores = 1L,
-      seed = if (is.null(setting_seeds)) NULL else setting_seeds[i, "null"]
+      seed = study_seeds[["null"]]
     )
 
     proportional_study <- run_shift_recovery_study_fn(
@@ -356,7 +374,7 @@ runSearchTuningGrid <- function(template,
       fuzzy_distance = fuzzy_distance,
       weighted = weighted,
       num_cores = 1L,
-      seed = if (is.null(setting_seeds)) NULL else setting_seeds[i, "proportional"]
+      seed = study_seeds[["proportional"]]
     )
 
     correlation_study <- run_shift_recovery_study_fn(
@@ -368,7 +386,7 @@ runSearchTuningGrid <- function(template,
       fuzzy_distance = fuzzy_distance,
       weighted = weighted,
       num_cores = 1L,
-      seed = if (is.null(setting_seeds)) NULL else setting_seeds[i, "correlation"]
+      seed = study_seeds[["correlation"]]
     )
 
     completed_mean <- function(x, status) {
@@ -413,9 +431,9 @@ runSearchTuningGrid <- function(template,
       IC = IC,
       shift_acceptance_threshold = grid$shift_acceptance_threshold[i],
       min_descendant_tips = grid$min_descendant_tips[i],
-      null_seed = if (is.null(setting_seeds)) NA_integer_ else setting_seeds[i, "null"],
-      proportional_seed = if (is.null(setting_seeds)) NA_integer_ else setting_seeds[i, "proportional"],
-      correlation_seed = if (is.null(setting_seeds)) NA_integer_ else setting_seeds[i, "correlation"],
+      null_seed = study_seeds[["null"]],
+      proportional_seed = study_seeds[["proportional"]],
+      correlation_seed = study_seeds[["correlation"]],
       null_mean_false_positive_rate = unname(as.numeric(null_study$study_summary$mean_false_positive_rate)),
       null_fraction_any_false_positive = null_any_fp,
       null_evaluable_fraction = null_evaluable_fraction,
@@ -530,6 +548,8 @@ runSearchTuningGrid <- function(template,
     grid = grid,
     summary_table = summary_table,
     studies = studies,
+    paired_settings = TRUE,
+    study_seeds = study_seeds,
     simulation_generators = simulation_generators,
     base_search_options = base_search_options,
     null_replicates = as.integer(null_replicates),

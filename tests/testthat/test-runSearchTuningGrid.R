@@ -340,10 +340,9 @@ test_that("runSearchTuningGrid propagates fixed IC and scenario-specific options
     grid$summary_table$correlation_seed,
     vapply(mock_env$shift_calls[c(FALSE, TRUE, FALSE, TRUE)], `[[`, numeric(1), "seed")
   )
-  testthat::expect_equal(anyDuplicated(unlist(grid$summary_table[
-    ,
-    c("null_seed", "proportional_seed", "correlation_seed")
-  ])), 0L)
+  testthat::expect_equal(length(unique(unlist(grid$summary_table[
+    , c("null_seed", "proportional_seed", "correlation_seed")
+  ]))), 3L)
   testthat::expect_equal(
     vapply(mock_env$shift_calls[c(FALSE, TRUE, FALSE, TRUE)], `[[`, character(1), "scale_mode"),
     c("correlation", "correlation")
@@ -563,7 +562,7 @@ test_that("runSearchTuningGrid inherits template defaults and can choose multise
   testthat::expect_identical(mock_env$shift_calls[[1]]$formula, "trait_data ~ 1")
   testthat::expect_identical(mock_env$shift_calls[[2]]$scale_mode, "correlation")
   testthat::expect_identical(mock_env$shift_calls[[2]]$max_shift_tips, 9)
-  testthat::expect_null(mock_env$null_calls[[1]]$seed)
+  testthat::expect_true(is.finite(mock_env$null_calls[[1]]$seed))
   testthat::expect_true(any(vapply(plans, function(x) identical(x$strategy, future::multisession), logical(1))))
   testthat::expect_equal(nrow(grid$summary_table), 1)
 
