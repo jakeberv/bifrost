@@ -342,7 +342,7 @@ runSearchTuningGrid <- function(template,
   evaluate_setting <- function(i) {
     # Fix the study-level RNG kind, including in Future workers. The study
     # wrappers then derive identical simulation and search seeds for every row.
-    study_rng <- .simulation_set_seed(study_seeds[[1L]], kind = "L'Ecuyer-CMRG")
+    study_rng <- .simulation_set_seed(study_seeds[["null"]], kind = "L'Ecuyer-CMRG")
     on.exit(.simulation_restore_seed(study_rng), add = TRUE)
     tuning_search_options <- utils::modifyList(
       base_search_options,
