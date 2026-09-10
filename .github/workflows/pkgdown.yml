@@ -58,6 +58,7 @@ jobs:
             new_process = FALSE,
             install = FALSE
           )
+          source("tools/finalize-pkgdown-home.R")
 
       - name: Install pkgdown browser smoke dependencies
         run: npm ci --prefix tools/pkgdown-browser-smoke

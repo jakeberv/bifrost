@@ -103,6 +103,7 @@ def run_repository_contract_checks(source: Path, all_slugs: list[str]) -> None:
         "            new_process = FALSE,\n"
         "            install = FALSE\n"
         "          )\n"
+        "          source(\"tools/finalize-pkgdown-home.R\")\n"
         "\n"
         "      - name: Install pkgdown browser smoke dependencies\n"
         "        run: npm ci --prefix tools/pkgdown-browser-smoke\n"
