@@ -376,9 +376,12 @@ def run_notebook_checks(source: Path, all_slugs: list[str]) -> None:
                 "render_preview_table(\n  gic_preview_table",
                 "render_preview_table(\n  bic_preview_table",
                 "render_preview_table(\n  preview_recommendations",
-                '"Prop. BA"',
-                '"Int.-rate BA"',
-                '"Score"',
+                '`Prop. BA`',
+                '`Int.-rate BA`',
+                '`Null FP (%)`',
+                '`Null any FP (%)`',
+                "Score = score",
+                "Status = status",
             ),
         }
         for required in simulation_notebook_code.get(notebook_path.stem, ()):
@@ -394,13 +397,15 @@ def run_notebook_checks(source: Path, all_slugs: list[str]) -> None:
         if notebook_path.stem == "simulation-study-part-2":
             if body_code.count(
                 "scenario_weights = c(proportional = 0.50, correlation = 0.50)"
-            ) < 4:
+            ) != 1:
                 raise AssertionError(
-                    "Part 2 notebook must execute explicit equal scenario weights"
+                    "Part 2 notebook must define one shared equal-weight policy"
+                )
+            if body_code.count("selectTunedSearchParameters") != 2:
+                raise AssertionError(
+                    "Part 2 notebook must execute exactly one selector call per IC"
                 )
             required_hard_stops = (
-                "!gic_preview_tuned$used_all_settings",
-                "!bic_preview_tuned$used_all_settings",
                 "stopifnot(!gic_tuned$used_all_settings)",
                 "stopifnot(!bic_tuned$used_all_settings)",
             )
@@ -414,7 +419,7 @@ def run_notebook_checks(source: Path, all_slugs: list[str]) -> None:
             "simulation-study-part-1": {
                 "fixture": (
                     "fixed_null_display <- data.frame(\n"
-                    "  IC = 'GIC', `Mean FP` = 0.0123, `Any FP` = 0.04,\n"
+                    "  IC = 'GIC', `Null FP (%)` = 0.123, `Null any FP (%)` = 4.0,\n"
                     "  `Mean shifts` = 0.02, check.names = FALSE\n"
                     ")\n"
                     "fixed_recovery_display <- data.frame(\n"
@@ -429,22 +434,24 @@ def run_notebook_checks(source: Path, all_slugs: list[str]) -> None:
                     "render_preview_table(\n  fixed_recovery_display",
                 ),
                 "expected_output": (
-                    "Mean FP", "Fuzzy rec.", "Fuzzy spec.", "Fuzzy F1",
+                    "Null FP (%)", "Null any FP (%)", "Fuzzy rec.", "Fuzzy spec.", "Fuzzy F1",
                     "Fuzzy BA", "0.731", "0.887", "0.809",
                 ),
             },
             "simulation-study-part-2": {
                 "fixture": (
                     "gic_preview_table <- data.frame(\n"
-                    "  Threshold = 10, `Min clade` = 10, `Null FP` = 0.01,\n"
-                    "  `Prop. BA` = 0.811, `Int.-rate BA` = 0.722, Score = 0.765,\n"
+                    "  Threshold = 10, `Min clade` = 10, `Null FP (%)` = 0.007,\n"
+                    "  `Null any FP (%)` = 0.4, `Prop. BA` = 0.811,\n"
+                    "  `Int.-rate BA` = 0.722, Score = 0.765, Status = 'Selected',\n"
                     "  check.names = FALSE\n"
                     ")\n"
                     "bic_preview_table <- gic_preview_table\n"
                     "preview_recommendations <- data.frame(\n"
                     "  IC = 'GIC', Threshold = 10, `Min clade` = 10,\n"
-                    "  `Null FP` = 0.01, `Prop. BA` = 0.811,\n"
-                    "  `Int.-rate BA` = 0.722, Score = 0.765, check.names = FALSE\n"
+                    "  `Null FP (%)` = 0.007, `Null any FP (%)` = 0.4,\n"
+                    "  `Prop. BA` = 0.811, `Int.-rate BA` = 0.722,\n"
+                    "  Score = 0.765, Status = 'Selected', check.names = FALSE\n"
                     ")"
                 ),
                 "reporting_tokens": (
@@ -453,8 +460,8 @@ def run_notebook_checks(source: Path, all_slugs: list[str]) -> None:
                     "render_preview_table(\n  preview_recommendations",
                 ),
                 "expected_output": (
-                    "Prop. BA", "Int.-rate BA", "Score",
-                    "0.811", "0.722", "0.765",
+                    "Null FP (%)", "Null any FP (%)", "Status",
+                    "0.007", "0.4", "0.811", "0.722", "0.765", "Selected",
                 ),
             },
         }
