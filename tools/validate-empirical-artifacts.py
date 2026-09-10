@@ -179,11 +179,11 @@ def validate(root: Path, manifest: dict, update_checksums: bool) -> tuple[int, i
                     f"{context} references the deleted simulation vignette slug"
                 )
             if (
-                "schema-3" not in source_location.lower()
-                or "schema-3" not in method.lower()
+                "schema-4" not in source_location.lower()
+                or "schema-4" not in method.lower()
             ):
                 raise AssertionError(
-                    f"{context} must describe the simulation vignette cache as schema-3"
+                    f"{context} must describe the simulation vignette cache as schema-4"
                 )
             if "Extract eight named HTML preview tables" in method:
                 raise AssertionError(

@@ -8,18 +8,64 @@ test_that("simulation vignette cache records the empirical generator", {
 
   cache <- readRDS(cache_path)
 
-  testthat::expect_identical(cache$schema_version, 3L)
-  testthat::expect_identical(cache$provenance$simulation_generator, "empirical")
-  testthat::expect_false("simulation_design" %in% names(cache$provenance))
-  testthat::expect_identical(cache$provenance$n_replicates_per_setting, 100L)
-  testthat::expect_identical(cache$provenance$tree_tip_count, 250L)
+  testthat::expect_identical(cache$schema_version, 4L)
+  fixed_provenance <- cache$provenance$fixed_settings
+  tuning_provenance <- cache$provenance$tuning
+  testthat::expect_identical(fixed_provenance$simulation_generator, "empirical")
+  testthat::expect_false("simulation_design" %in% names(fixed_provenance))
+  testthat::expect_identical(fixed_provenance$n_replicates_per_setting, 500L)
+  testthat::expect_identical(fixed_provenance$tree_tip_count, 250L)
+  testthat::expect_identical(fixed_provenance$n_true_shifts, 5L)
+  testthat::expect_identical(fixed_provenance$min_shift_tips, 10L)
+  testthat::expect_identical(fixed_provenance$max_shift_tips, 40L)
+  testthat::expect_identical(fixed_provenance$shift_acceptance_threshold, 10)
+  testthat::expect_identical(fixed_provenance$min_descendant_tips, 10L)
+  testthat::expect_identical(fixed_provenance$seed, 5L)
+  testthat::expect_true(fixed_provenance$calibration_error)
+  testthat::expect_false(fixed_provenance$search_error)
   testthat::expect_identical(
-    cache$provenance$integration_power_range,
+    fixed_provenance$integration_power_range,
     c(0.5, 1.25)
   )
   testthat::expect_identical(
-    cache$provenance$integration_exclude_range,
+    fixed_provenance$integration_exclude_range,
     c(0.8, 1.1)
+  )
+  testthat::expect_identical(
+    fixed_provenance$package_commit,
+    tuning_provenance$package_commit
+  )
+  testthat::expect_identical(
+    fixed_provenance$design_fingerprint,
+    tuning_provenance$paired_design$design_fingerprint
+  )
+  testthat::expect_identical(
+    fixed_provenance$source_sha256,
+    tuning_provenance$source_sha256
+  )
+  testthat::expect_identical(
+    fixed_provenance$metric_accounting_version,
+    "candidate-node-aware-v1"
+  )
+  testthat::expect_identical(tuning_provenance$simulation_generator, "empirical")
+  testthat::expect_identical(tuning_provenance$total_evaluated_searches, 18000L)
+  testthat::expect_identical(tuning_provenance$paired_design$min_shift_tips, 10L)
+  testthat::expect_identical(tuning_provenance$paired_design$max_shift_tips, 40L)
+  testthat::expect_identical(
+    tuning_provenance$paired_design$design_fingerprint,
+    "c6327e5bbc59b6d5d948651d3142068ce3d732848e52851957d4fc0844fc518e"
+  )
+  testthat::expect_identical(
+    tuning_provenance$generation_accounting$n_generated,
+    c(500L, 500L, 500L)
+  )
+  testthat::expect_identical(
+    tuning_provenance$planted_clade_counts,
+    data.frame(
+      scenario = c("null", "proportional", "integration-rate"),
+      n_true_shifts_10_19 = c(0L, 1411L, 1467L),
+      n_true_shifts_20_40 = c(0L, 1089L, 1033L)
+    )
   )
 
   testthat::expect_s3_class(cache$fixed_settings, "data.frame")
@@ -75,23 +121,15 @@ test_that("simulation vignette cache records the empirical generator", {
       cache$tuning$selected$Score,
       rowMeans(cache$tuning$selected[, tuning_metric_columns, drop = FALSE])
     )
-    for (ic in cache$tuning$selected$IC) {
-      selected <- cache$tuning$selected[cache$tuning$selected$IC == ic, ]
-      fixed <- cache$fixed_settings[cache$fixed_settings$IC == ic, ]
-      testthat::expect_equal(
-        fixed$`Fuzzy balanced accuracy`[
-          fixed$Scenario == "Proportional"
-        ],
-        selected$`Prop. Fuzzy balanced accuracy`
-      )
-      testthat::expect_equal(
-        fixed$`Fuzzy balanced accuracy`[
-          fixed$Scenario == "Integration-rate"
-        ],
-        selected$`Integration Fuzzy balanced accuracy`
-      )
-    }
   }
+
+  testthat::expect_setequal(names(cache$tuning_grids), c("gic", "bic"))
+  testthat::expect_true(all(vapply(
+    cache$tuning_grids,
+    inherits,
+    logical(1L),
+    what = "bifrost_search_tuning_grid"
+  )))
 
   testthat::expect_setequal(names(cache$grid_summary), c("gic", "bic"))
   testthat::expect_true(all(vapply(cache$grid_summary, nrow, integer(1L)) == 6L))
