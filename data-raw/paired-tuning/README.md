@@ -127,3 +127,59 @@ search-performance denominators are successfully generated datasets;
 generation success is reported against all attempted datasets. Because the
 campaign log is machine/run-specific, users reproduce this route with the log
 from their own run rather than a repository copy.
+
+## Replicate-level results
+
+The optional [replicate-level RDS](../../data-remote/simulation-study-cache/passerine_replicate_metrics.rds)
+contains 18,000 rows and 47 columns in a `metrics` data frame, plus provenance.
+It is approximately 0.52 MB, xz-compressed, and can be read with base R:
+
+```r
+replicates <- readRDS("data-remote/simulation-study-cache/passerine_replicate_metrics.rds")
+head(replicates$metrics)
+```
+
+This path assumes a repository checkout; otherwise download the file first.
+It is supplementary data, not a `bifrost_example_file()` identifier, and is not
+needed to render either vignette. Its size, checksum, and source description
+are recorded under `supplementary_artifacts` in the existing artifact manifest.
+
+The columns record:
+
+- `scenario`, `replicate`, `dataset_id`, `simulation_hash`, and simulation/search
+  seeds: dataset identity and pairing across the 12 settings.
+- `config_id`, `IC`, `threshold`, and `min_descendant_tips`: search settings.
+- `status`, `n_candidates`, `n_inferred_shifts`, `n_true_shifts`, and the
+  `n_true_shifts_10_19`/`n_true_shifts_20_40` counts: search accounting and planted
+  clade sizes. All searches in this completed campaign have status `ok`.
+- `null_false_positive_rate`: inferred shifts divided by eligible candidates
+  for null datasets; `NA` for shifted datasets.
+- `strict_*` and `fuzzy_*`: TP/FP/FN/TN counts, precision, recall, F1,
+  specificity, false-positive rate, and balanced accuracy. Fuzzy matching uses
+  a maximum node distance of two.
+- `weighted_strict_*` and `weighted_fuzzy_*`: IC-weighted TP/FP contributions,
+  precision, recall, and F1. Weighted recall uses the number of true shifts as
+  its denominator; the weighted contributions are not integer counts.
+
+Undefined ratios retain `NA`, following `evaluateShiftRecovery()`. For paired
+comparisons or bootstrap resampling, keep all settings for each `dataset_id`
+together within a scenario. To reproduce pooled recovery metrics, **sum counts
+first, then calculate ratios**; do not average per-replicate recovery scores.
+Sum weighted TP/FP contributions for weighted metrics. The reported null
+false-positive rate, in contrast, is the mean of per-replicate ratios, and
+"any false positive" is the fraction of null datasets with an inferred shift.
+
+To regenerate the file from a completed campaign, using the recorded package
+commit above:
+
+```sh
+Rscript data-raw/paired-tuning/export-replicate-metrics.R \
+  /path/to/results/full /path/to/passerine_replicate_metrics.rds
+```
+
+The exporter requires the saved `replicates` directory and campaign summaries
+(`summaries-available` when present, otherwise `summaries`). It evaluates saved
+search outputs without simulating data or fitting models, validates pooled
+results against all 36 scenario/setting summaries, and refuses to overwrite an
+existing output. No trees, trait matrices, fitted models, or checkpoints are
+included in this compact file.

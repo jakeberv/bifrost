@@ -330,6 +330,8 @@ In the two scenarios with shifts, we place five shifts in clades containing 10â€
 
 The code below shows how to run this design with the package functions. The saved results were produced with the separate [reproduction scripts](https://github.com/jakeberv/bifrost/tree/main/data-raw/paired-tuning), which add checkpoints for longer runs. Both use master seed 5; the saved summaries also record the derived seeds for each scenario.
 
+[Replicate-level results](https://github.com/jakeberv/bifrost/blob/main/data-remote/simulation-study-cache/passerine_replicate_metrics.rds) are also available for exploring variation and paired comparisons; the [accompanying notes](https://github.com/jakeberv/bifrost/tree/main/data-raw/paired-tuning#replicate-level-results) explain the fields and aggregation.
+
 ```{r full_tuning_grid, eval = FALSE}
 # Define one shared optional grid and run it only after explicit opt-in.
 full_grid_args <- list(

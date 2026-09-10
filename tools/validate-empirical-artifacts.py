@@ -84,6 +84,9 @@ def validate(root: Path, manifest: dict, update_checksums: bool) -> tuple[int, i
         raise AssertionError("manifest requires license records")
     if not isinstance(artifacts, list) or not artifacts:
         raise AssertionError("manifest requires artifact records")
+    supplementary = manifest.get("supplementary_artifacts", [])
+    if not isinstance(supplementary, list):
+        raise AssertionError("supplementary_artifacts must be a list")
 
     for source_id, source in sources.items():
         for key in ("title", "doi", "url", "version"):
@@ -99,8 +102,13 @@ def validate(root: Path, manifest: dict, update_checksums: bool) -> tuple[int, i
 
     paths: list[str] = []
     downloader_ids: list[str] = []
-    for index, artifact in enumerate(artifacts, start=1):
+    # Supplementary records share integrity/provenance checks but are not
+    # public downloader entries. Older packages ignore this optional field.
+    for index, artifact in enumerate(artifacts + supplementary, start=1):
         context = f"artifact #{index}"
+        is_supplementary = index > len(artifacts)
+        if not isinstance(artifact, dict):
+            raise AssertionError(f"{context} must be a record")
         path_text = require_text(artifact, "path", context)
         relative = PurePosixPath(path_text)
         if relative.is_absolute() or ".." in relative.parts:
@@ -115,9 +123,20 @@ def validate(root: Path, manifest: dict, update_checksums: bool) -> tuple[int, i
             "size_bytes",
             "minimum_bifrost_version",
         )
-        is_downloader = path_text.startswith("data-remote/") or any(
-            field in artifact for field in downloader_only_fields
+        is_downloader = not is_supplementary and (
+            path_text.startswith("data-remote/")
+            or any(field in artifact for field in downloader_only_fields)
         )
+        if is_supplementary:
+            if "artifact_id" in artifact or "minimum_bifrost_version" in artifact:
+                raise AssertionError(
+                    f"{context} supplementary record cannot declare downloader fields"
+                )
+            size_bytes = artifact.get("size_bytes")
+            if type(size_bytes) is not int or size_bytes <= 0:
+                raise AssertionError(f"{context} requires a positive whole-number size_bytes")
+            if size_bytes != path.stat().st_size:
+                raise AssertionError(f"byte-size mismatch for {path_text}")
         if is_downloader:
             for field in downloader_only_fields:
                 if field not in artifact:

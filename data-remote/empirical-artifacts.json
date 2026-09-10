@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "description": "Downloader, provenance, and integrity records for the bifrost empirical example-data artifacts and provenance-only vignette images.",
+  "description": "Downloader, provenance, and integrity records for the bifrost empirical example-data artifacts, supplementary simulation results, and provenance-only vignette images.",
   "scope": {
     "directories": [
       "data-remote/avian-skeleton",
@@ -54,6 +54,21 @@
       "reuse_action": "Public-domain reuse is permitted; scholarly citation of the dataset and associated article is recommended."
     }
   },
+  "supplementary_artifacts": [
+    {
+      "path": "data-remote/simulation-study-cache/passerine_replicate_metrics.rds",
+      "sha256": "0575a065d3ad2f4795594f3d3cf098fdfaacf1a2635093193cbf674e9d03cf15",
+      "size_bytes": 524376,
+      "source_id": "berv_archive_v1",
+      "source_location": "New paired simulation campaign calibrated from the archived empirical inputs, not simulation results from the published study. Contains 18,000 search records from 1,500 datasets in the 12-dimensional, 10--40-tip planted-clade campaign.",
+      "transformation": {
+        "method": "Evaluate saved replicate outputs with bifrost commit db18184ddb06a5019123647ce218f9b717f76e49, retaining paired identities, strict/fuzzy and IC-weighted counts and metrics; verify pooled results against campaign summaries. No model fits or simulations are rerun.",
+        "metric_accounting": "candidate-node-aware-v1; fuzzy distance 2; undefined ratios retain NA. Pool recovery counts before calculating ratios; average per-replicate null false-positive rates.",
+        "script": "data-raw/paired-tuning/export-replicate-metrics.R"
+      },
+      "license_id": "zenodo_cc_by_4_0"
+    }
+  ],
   "artifacts": [
     {
       "artifact_id": "jaw-tree",
