@@ -65,7 +65,9 @@ This summary is designed for independent post-hoc matrices. Do not pass
 proportional \code{search$VCVs} from a \code{bifrost_search} object when the question is
 whether regimes differ in phenotypic integration or correlation structure.
 If \code{x} is detectably the same object as \code{search$VCVs}, the function warns and
-still returns the requested descriptive summary.
+still returns the requested descriptive summary. The single global covariance
+from an explicitly identified baseline-only BM fit is exempt from this warning;
+its scalar regime rate remains unavailable (\code{NA}).
 Raw matrix-list inputs must have unique, non-empty regime names. Their
 matrices must be symmetric and positive semidefinite, contain finite entries
 and strictly positive diagonal variances, and, when named, have unique

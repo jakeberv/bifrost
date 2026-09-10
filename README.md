@@ -213,7 +213,7 @@ Development of the `bifrost` R package was supported by the [Oxford Research Sof
   <img src="https://jakeberv.com/images/SchmidtSciencesLogo.png"
        alt="Schmidt Sciences logo"
        style="height:90px !important; width:auto !important; max-width:100%;" />
-  <img src="https://www.rse.ox.ac.uk/sites/default/files/rse/site-logo/2024_oxrse_next_to_oxford.svg"
+  <img src="https://www.rse.ox.ac.uk/sites/g/files/vzsiac2926/files/2026-09/oxrse_logo-1.png"
        alt="Oxford RSE logo"
        style="height:90px !important; width:auto !important; max-width:100%;" />
 </p>

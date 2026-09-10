@@ -89,7 +89,7 @@ str(res$VCVs)
 
 What to expect from this example:
 
-- `res$shift_nodes_no_uncertainty` is typically `integer(0)`,
+- `res$shift_nodes_no_uncertainty` is typically empty (possibly `NULL`),
 - `res$optimal_ic - res$baseline_ic` is typically close to `0`,
 - `res$VCVs` contains a single regime-specific VCV for the baseline regime `"0"`.
 
