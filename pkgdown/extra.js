@@ -14,7 +14,7 @@ const ARTICLE_ARTIFACT_SLUGS = new Set([
   "theoretical-background-vignette"
 ]);
 
-(function syncCranDownloadsTheme() {
+(function syncReadmeImageThemes() {
   const defaultTheme = "light";
   const preferredMedia = {
     dark: "(prefers-color-scheme: dark)",
@@ -24,7 +24,7 @@ const ARTICLE_ARTIFACT_SLUGS = new Set([
   const sync = () => {
     const activeTheme =
       document.documentElement.getAttribute("data-bs-theme") || defaultTheme;
-    document.querySelectorAll("picture.cran-downloads-picture").forEach(picture => {
+    document.querySelectorAll("picture.cran-downloads-picture, picture.schmidt-sciences-picture").forEach(picture => {
       picture.querySelectorAll("source[data-theme]").forEach(source => {
         const sourceTheme = source.getAttribute("data-theme");
         source.media = activeTheme === "dark" || activeTheme === "light"

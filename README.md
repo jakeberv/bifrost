@@ -210,9 +210,15 @@ The name of our R package is inspired by the Bifröst, the rainbow bridge of Nor
 Development of the `bifrost` R package was supported by the [Oxford Research Software Engineering Group](https://www.rse.ox.ac.uk/schmidt-ai-science), with support from [Schmidt Sciences, LLC.](https://www.schmidtsciences.org/ai-in-science/) and the Michigan Institute for Data Science and AI in Society.
 
 <p align="center" style="display:flex; justify-content:center; align-items:center; gap:50px; padding:30px 0;">
-  <img src="https://jakeberv.com/images/SchmidtSciencesLogo.png"
-       alt="Schmidt Sciences logo"
-       style="height:90px !important; width:auto !important; max-width:100%;" />
+  <picture class="schmidt-sciences-picture">
+    <source data-theme="dark" media="(prefers-color-scheme: dark)"
+            srcset="man/figures/schmidt-sciences-dark.png" />
+    <source data-theme="light" media="(prefers-color-scheme: light)"
+            srcset="https://jakeberv.com/images/SchmidtSciencesLogo.png" />
+    <img src="https://jakeberv.com/images/SchmidtSciencesLogo.png"
+         alt="Schmidt Sciences logo" height="90"
+         style="height:90px !important; width:auto !important; max-width:100%;" />
+  </picture>
   <img src="https://www.rse.ox.ac.uk/sites/g/files/vzsiac2926/files/2026-09/oxrse_logo-1.png"
        alt="Oxford RSE logo"
        style="height:90px !important; width:auto !important; max-width:100%;" />
