@@ -61,33 +61,52 @@ test("homepage provenance guide targets the tracked main documentation", async (
   );
 });
 
-test("CRAN downloads chart defaults to light without exposing color-mode controls", async ({ page }) => {
+for (const javaScriptEnabled of [false, true]) {
+  test.describe(`light homepage images with JavaScript ${javaScriptEnabled ? "enabled" : "disabled"}`, () => {
+    test.use({ colorScheme: "dark", javaScriptEnabled });
+
+    test("never requests dark chart or logo variants", async ({ page }) => {
+      const imageRequests = [];
+      page.on("request", request => {
+        if (request.resourceType() === "image") imageRequests.push(request.url());
+      });
+      await stubExternalServices(page);
+      await page.goto("/");
+
+      for (const [selector, imageUrl] of [
+        ["picture.cran-downloads-picture", "https://raw.githubusercontent.com/jakeberv/bifrost/main/man/figures/cran-downloads.png"],
+        ["picture.schmidt-sciences-picture", "https://jakeberv.com/images/SchmidtSciencesLogo.png"]
+      ]) {
+        const picture = page.locator(selector);
+        await expect(picture).toHaveCount(1);
+        await expect(picture.locator('source[data-theme="light"]')).toHaveAttribute("media", "all");
+        await expect(picture.locator('source[data-theme="dark"]')).toHaveAttribute("media", "not all");
+        await expect(picture.locator("img")).toHaveAttribute("src", imageUrl);
+        expect(imageRequests).toContain(imageUrl);
+      }
+      expect(imageRequests.some(url => /(?:cran-downloads-dark|schmidt-sciences-dark)\.png/.test(url))).toBe(false);
+      await expect(page.locator("#dropdown-lightswitch")).toHaveCount(0);
+    });
+  });
+}
+
+test("homepage images still follow page-theme changes", async ({ page }) => {
   await stubExternalServices(page);
   await page.goto("/");
-
-  const picture = page.locator("picture.cran-downloads-picture");
-  const darkSource = picture.locator('source[data-theme="dark"]');
-  const lightSource = picture.locator('source[data-theme="light"]');
-  await expect(picture).toHaveCount(1);
-  await expect(page.locator("#dropdown-lightswitch")).toHaveCount(0);
-  await expect(lightSource).toHaveAttribute("media", "all");
-  await expect(darkSource).toHaveAttribute("media", "not all");
-
-  await page.evaluate(() => document.documentElement.setAttribute("data-bs-theme", "dark"));
-  await expect(darkSource).toHaveAttribute("media", "all");
-  await expect(lightSource).toHaveAttribute("media", "not all");
-
-  await page.evaluate(() => document.documentElement.setAttribute("data-bs-theme", "light"));
-  await expect(lightSource).toHaveAttribute("media", "all");
-  await expect(darkSource).toHaveAttribute("media", "not all");
-
-  await page.evaluate(() => document.documentElement.setAttribute("data-bs-theme", "auto"));
-  await expect(darkSource).toHaveAttribute("media", "(prefers-color-scheme: dark)");
-  await expect(lightSource).toHaveAttribute("media", "(prefers-color-scheme: light)");
-
-  await page.evaluate(() => document.documentElement.removeAttribute("data-bs-theme"));
-  await expect(lightSource).toHaveAttribute("media", "all");
-  await expect(darkSource).toHaveAttribute("media", "not all");
+  for (const theme of ["dark", "light", "auto", null]) {
+    await page.evaluate(theme => {
+      if (theme === null) document.documentElement.removeAttribute("data-bs-theme");
+      else document.documentElement.setAttribute("data-bs-theme", theme);
+    }, theme);
+    for (const selector of ["picture.cran-downloads-picture", "picture.schmidt-sciences-picture"]) {
+      for (const imageTheme of ["light", "dark"]) {
+        const media = theme === "auto"
+          ? `(prefers-color-scheme: ${imageTheme})`
+          : imageTheme === (theme || "light") ? "all" : "not all";
+        await expect(page.locator(`${selector} source[data-theme="${imageTheme}"]`)).toHaveAttribute("media", media);
+      }
+    }
+  }
 });
 
 test("vignette pages expose artifact actions and initialize Mermaid", async ({ page }) => {
