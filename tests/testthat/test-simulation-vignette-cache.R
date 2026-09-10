@@ -8,18 +8,64 @@ test_that("simulation vignette cache records the empirical generator", {
 
   cache <- readRDS(cache_path)
 
-  testthat::expect_identical(cache$schema_version, 3L)
-  testthat::expect_identical(cache$provenance$simulation_generator, "empirical")
-  testthat::expect_false("simulation_design" %in% names(cache$provenance))
-  testthat::expect_identical(cache$provenance$n_replicates_per_setting, 100L)
-  testthat::expect_identical(cache$provenance$tree_tip_count, 250L)
+  testthat::expect_identical(cache$schema_version, 4L)
+  fixed_provenance <- cache$provenance$fixed_settings
+  tuning_provenance <- cache$provenance$tuning
+  testthat::expect_identical(fixed_provenance$simulation_generator, "empirical")
+  testthat::expect_false("simulation_design" %in% names(fixed_provenance))
+  testthat::expect_identical(fixed_provenance$n_replicates_per_setting, 500L)
+  testthat::expect_identical(fixed_provenance$tree_tip_count, 250L)
+  testthat::expect_identical(fixed_provenance$n_true_shifts, 5L)
+  testthat::expect_identical(fixed_provenance$min_shift_tips, 10L)
+  testthat::expect_identical(fixed_provenance$max_shift_tips, 40L)
+  testthat::expect_identical(fixed_provenance$shift_acceptance_threshold, 10)
+  testthat::expect_identical(fixed_provenance$min_descendant_tips, 10L)
+  testthat::expect_identical(fixed_provenance$seed, 5L)
+  testthat::expect_true(fixed_provenance$calibration_error)
+  testthat::expect_false(fixed_provenance$search_error)
   testthat::expect_identical(
-    cache$provenance$integration_power_range,
+    fixed_provenance$integration_power_range,
     c(0.5, 1.25)
   )
   testthat::expect_identical(
-    cache$provenance$integration_exclude_range,
+    fixed_provenance$integration_exclude_range,
     c(0.8, 1.1)
+  )
+  testthat::expect_identical(
+    fixed_provenance$package_commit,
+    tuning_provenance$package_commit
+  )
+  testthat::expect_identical(
+    fixed_provenance$design_fingerprint,
+    tuning_provenance$paired_design$design_fingerprint
+  )
+  testthat::expect_identical(
+    fixed_provenance$source_sha256,
+    tuning_provenance$source_sha256
+  )
+  testthat::expect_identical(
+    fixed_provenance$metric_accounting_version,
+    "candidate-node-aware-v1"
+  )
+  testthat::expect_identical(tuning_provenance$simulation_generator, "empirical")
+  testthat::expect_identical(tuning_provenance$total_evaluated_searches, 18000L)
+  testthat::expect_identical(tuning_provenance$paired_design$min_shift_tips, 10L)
+  testthat::expect_identical(tuning_provenance$paired_design$max_shift_tips, 40L)
+  testthat::expect_identical(
+    tuning_provenance$paired_design$design_fingerprint,
+    "c6327e5bbc59b6d5d948651d3142068ce3d732848e52851957d4fc0844fc518e"
+  )
+  testthat::expect_identical(
+    tuning_provenance$generation_accounting$n_generated,
+    c(500L, 500L, 500L)
+  )
+  testthat::expect_identical(
+    tuning_provenance$planted_clade_counts,
+    data.frame(
+      scenario = c("null", "proportional", "integration-rate"),
+      n_true_shifts_10_19 = c(0L, 1411L, 1467L),
+      n_true_shifts_20_40 = c(0L, 1089L, 1033L)
+    )
   )
 
   testthat::expect_s3_class(cache$fixed_settings, "data.frame")
@@ -75,23 +121,15 @@ test_that("simulation vignette cache records the empirical generator", {
       cache$tuning$selected$Score,
       rowMeans(cache$tuning$selected[, tuning_metric_columns, drop = FALSE])
     )
-    for (ic in cache$tuning$selected$IC) {
-      selected <- cache$tuning$selected[cache$tuning$selected$IC == ic, ]
-      fixed <- cache$fixed_settings[cache$fixed_settings$IC == ic, ]
-      testthat::expect_equal(
-        fixed$`Fuzzy balanced accuracy`[
-          fixed$Scenario == "Proportional"
-        ],
-        selected$`Prop. Fuzzy balanced accuracy`
-      )
-      testthat::expect_equal(
-        fixed$`Fuzzy balanced accuracy`[
-          fixed$Scenario == "Integration-rate"
-        ],
-        selected$`Integration Fuzzy balanced accuracy`
-      )
-    }
   }
+
+  testthat::expect_setequal(names(cache$tuning_grids), c("gic", "bic"))
+  testthat::expect_true(all(vapply(
+    cache$tuning_grids,
+    inherits,
+    logical(1L),
+    what = "bifrost_search_tuning_grid"
+  )))
 
   testthat::expect_setequal(names(cache$grid_summary), c("gic", "bic"))
   testthat::expect_true(all(vapply(cache$grid_summary, nrow, integer(1L)) == 6L))
@@ -801,22 +839,25 @@ test_that("empirical benchmark code pins every scenario explicitly", {
     testthat::test_path("../../vignettes/simulation-study-part-2.Rmd"),
     warn = FALSE
   ), collapse = "\n")
-  combined <- paste(part1, part2)
-
+  for (chunk_name in c("false_positive_study", "proportional_recovery_study",
+                       "integration_recovery_study")) {
+    chunk <- strsplit(part1, paste0("```{r ", chunk_name, ","), fixed = TRUE)[[1L]][2L]
+    chunk <- strsplit(chunk, "```", fixed = TRUE)[[1L]][1L]
+    testthat::expect_match(
+      chunk,
+      'simulation_options = list\\(\\n    simulation_generator = "empirical"'
+    )
+  }
   testthat::expect_match(
-    part1,
-    'simulation_options = list\\(\\n    simulation_generator = "empirical"'
-  )
-  testthat::expect_match(
-    part1,
+    part2,
     'null_simulation_options = list\\(\\n    simulation_generator = "empirical"'
   )
   occurrences <- gregexpr(
     'simulation_generator = "empirical"',
-    combined,
+    part2,
     fixed = TRUE
   )[[1L]]
-  testthat::expect_gte(sum(occurrences > 0L), 8L)
+  testthat::expect_gte(sum(occurrences > 0L), 3L)
 })
 
 test_that("simulation vignette sources use manuscript-aligned reporting", {
@@ -830,12 +871,17 @@ test_that("simulation vignette sources use manuscript-aligned reporting", {
   part1 <- paste(readLines(part1_path, warn = FALSE), collapse = "\n")
   part2 <- paste(readLines(part2_path, warn = FALSE), collapse = "\n")
 
+  testthat::expect_match(
+    part1,
+    "identical(preview_tables$schema_version, 4L)",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    part2,
+    "identical(preview_tables$schema_version, 4L)",
+    fixed = TRUE
+  )
   for (source in list(part1, part2)) {
-    testthat::expect_match(
-      source,
-      "identical(preview_tables$schema_version, 3L)",
-      fixed = TRUE
-    )
     testthat::expect_match(source, "rownames(x) <- NULL", fixed = TRUE)
   }
   testthat::expect_false(grepl(
@@ -843,36 +889,53 @@ test_that("simulation vignette sources use manuscript-aligned reporting", {
     part2,
     fixed = TRUE
   ))
-  testthat::expect_gte(
+  for (shared_policy in c(
+    'primary_metric = "fuzzy_balanced_accuracy"',
+    "scenario_weights = c(proportional = 0.50, correlation = 0.50)"
+  )) {
+    testthat::expect_identical(
+      lengths(regmatches(part2, gregexpr(shared_policy, part2, fixed = TRUE))),
+      1L
+    )
+  }
+  testthat::expect_identical(
     lengths(regmatches(
       part2,
-      gregexpr(
-        'primary_metric = "fuzzy_balanced_accuracy"',
-        part2,
-        fixed = TRUE
-      )
+      gregexpr("selectTunedSearchParameters", part2, fixed = TRUE)
     )),
-    4L
-  )
-  testthat::expect_gte(
-    lengths(regmatches(
-      part2,
-      gregexpr(
-        "scenario_weights = c(proportional = 0.50, correlation = 0.50)",
-        part2,
-        fixed = TRUE
-      )
-    )),
-    4L
+    2L
   )
   for (hard_stop in c(
-    "!gic_preview_tuned$used_all_settings",
-    "!bic_preview_tuned$used_all_settings",
     "stopifnot(!gic_tuned$used_all_settings)",
     "stopifnot(!bic_tuned$used_all_settings)"
   )) {
     testthat::expect_match(part2, hard_stop, fixed = TRUE)
   }
+  for (cached_contract in c(
+    "gic_grid <- preview_tables$tuning_grids$gic",
+    "bic_grid <- preview_tables$tuning_grids$bic",
+    "run_simulations <- FALSE",
+    "run_empirical_search <- FALSE",
+    "tuned$feasible_table",
+    "Null any FP",
+    "Status",
+    "18,000",
+    "500 datasets per scenario"
+  )) {
+    testthat::expect_match(part2, cached_contract, fixed = TRUE)
+  }
+  testthat::expect_match(
+    part2,
+    'identical(names(preview_recommendations), c("IC", names(gic_preview_table)))',
+    fixed = TRUE
+  )
+  testthat::expect_identical(
+    lengths(regmatches(
+      part2,
+      gregexpr("runSearchTuningGrid", part2, fixed = TRUE)
+    )),
+    2L
+  )
 
   testthat::expect_match(part1, "fixed_null_display", fixed = TRUE)
   testthat::expect_match(part1, "fixed_recovery_display", fixed = TRUE)
@@ -885,24 +948,23 @@ test_that("simulation vignette sources use manuscript-aligned reporting", {
   for (compact_label in c("Fuzzy rec.", "Fuzzy spec.", "Fuzzy BA")) {
     testthat::expect_match(part1, compact_label, fixed = TRUE)
   }
-  testthat::expect_match(part1, "class imbalance", ignore.case = TRUE)
+  testthat::expect_match(part1, "unshifted candidate nodes usually outnumber true shifts", fixed = TRUE)
   testthat::expect_match(part1, "near misses", ignore.case = TRUE)
-  testthat::expect_match(part1, "complements", ignore.case = TRUE)
+  testthat::expect_match(part1, "F1 instead combines precision and recall", fixed = TRUE)
 
-  testthat::expect_match(part2, "add_combined_score", fixed = TRUE)
-  testthat::expect_match(part2, "rowMeans", fixed = TRUE)
+  testthat::expect_match(part2, "format_tuning_table", fixed = TRUE)
   testthat::expect_match(
     part2,
-    "Prop. Fuzzy balanced accuracy",
+    "Prop. BA",
     fixed = TRUE
   )
   testthat::expect_match(
     part2,
-    "Integration Fuzzy balanced accuracy",
+    "Int.-rate BA",
     fixed = TRUE
   )
   testthat::expect_match(part2, "Score", fixed = TRUE)
-  testthat::expect_match(part2, "candidate-node universe", fixed = TRUE)
+  testthat::expect_match(part2, "candidate-level false-positive rate", fixed = TRUE)
   for (safeguard in c(
     "max_false_positive_rate", "max_any_false_positive",
     "min_evaluable_fraction"

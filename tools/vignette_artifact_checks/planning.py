@@ -126,6 +126,27 @@ def run_planning_checks(source: Path, all_slugs: list[str]) -> None:
 
         fixture_manifest_path = repo / "data-remote/empirical-artifacts.json"
         fixture_manifest = json.loads(fixture_manifest_path.read_text())
+        # Supplementary files are integrity-checked without extending the
+        # package's fixed downloader identifier contract.
+        run(repo, "python3", "tools/validate-empirical-artifacts.py")
+        for fault in ("checksum", "size", "downloader", "missing", "type"):
+            broken = json.loads(json.dumps(fixture_manifest))
+            records = broken["supplementary_artifacts"]
+            if fault == "checksum":
+                records[0]["sha256"] = "0" * 64
+            elif fault == "size":
+                records[0]["size_bytes"] += 1
+            elif fault == "downloader":
+                records[0]["artifact_id"] = "not-a-downloader-entry"
+            elif fault == "missing":
+                broken["supplementary_artifacts"] = []
+            else:
+                broken["supplementary_artifacts"] = {}
+            fixture_manifest_path.write_text(json.dumps(broken) + "\n")
+            rejected = run(repo, "python3", "tools/validate-empirical-artifacts.py", check=False)
+            if rejected.returncode == 0:
+                raise AssertionError(f"supplementary artifact {fault} corruption was accepted")
+        fixture_manifest_path.write_text(json.dumps(fixture_manifest) + "\n")
         simulation_record = next(
             artifact
             for artifact in fixture_manifest["artifacts"]

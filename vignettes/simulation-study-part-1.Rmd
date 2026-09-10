@@ -430,19 +430,23 @@ table code {
 ")
 ```
 
-This is Part 1 of the empirically calibrated simulation workflow. [Part 2](simulation-study-part-2.html) uses these performance scenarios to tune search settings and apply them to an empirical analysis.
+> **Development note:** This simulation and tuning workflow is under active development and remains somewhat experimental. The interface and recommendations may change as it is evaluated more broadly.
 
-As part of a `bifrost` workflow, it helps to know how the method behaves on datasets that resemble the one you actually care about. A practical way to answer that question is to calibrate simulations to the empirical dataset. Here, calibration means parameterizing simulations to match the empirical tree, trait dimensionality, fitted mean structure, and residual covariance scale.
+This is Part 1 of the empirically calibrated simulation workflow. Here we examine performance at fixed search settings; [Part 2](simulation-study-part-2.html) compares alternative settings on the same simulated datasets and shows how to pass selected settings to an empirical search.
+
+How well does `bifrost` recover shifts in datasets resembling your own? Here we assess performance using simulations calibrated to the empirical tree, trait dimensionality, fitted means, and residual covariance scale.
 
 We then compare search behavior under three scenarios:
 
 1. a null model with no shifts, to estimate expected false positives,
-2. the current generating model, where shifts are proportional covariance scalings, and
-3. a deliberately non-generating robustness scenario coupling reduced integration with faster marginal rates, or increased integration with slower marginal rates.
+2. proportional covariance shifts, which match the fitted model, and
+3. an integration-rate scenario that departs from the fitted model, coupling reduced integration with faster marginal rates, or increased integration with slower marginal rates.
 
-Empirically calibrated simulations can be used before or after an empirical search. Before the final search, they help choose search settings; after a search, they help evaluate whether those settings behave reasonably for the empirical tree, trait dimensionality, fitted mean structure, and residual covariance scale. In both cases, the workflow uses the same ingredients: a global calibration template, null and shifted simulation scenarios, false-positive and recovery summaries, and a way to compare candidate search settings. This is the same broad calibration strategy used in Berv et al. (2026). On large trees, repeated subtree resampling is helpful because it lets simulations vary across many local topologies and parameter draws without requiring a full-tree search on every replicate.
+These simulations can guide search settings before an analysis or assess their performance afterward. Repeated subtree resampling lets us explore different topologies and parameter draws without searching the full tree in every replicate.
 
-The package generator improves on the manuscript implementation for new simulation studies by drawing ancestral covariance structures around the complete fitted empirical covariance and by representing integration-rate shifts in both biological directions. This refinement provides a more direct robustness test and does not alter the manuscript's empirical analyses or conclusions.
+We use the passerine body-plan data from Berv et al. (2026) to calibrate this worked example. The simulations shown here are a new tutorial exercise, not the analyses reported in that study.
+
+The saved summaries reproduce the tables below without fitting models or running simulations; the simulation examples are optional.
 
 Start by loading `bifrost`.
 
@@ -453,7 +457,7 @@ library(bifrost)
 
 This part requests the passerine tree (`passerine-tree`, approximately 81 KB),
 trait matrix (`passerine-traits`, approximately 212 KB), and simulation preview
-tables (`simulation-preview-tables`, approximately 5 KB). First use downloads
+tables (`simulation-preview-tables`, approximately 6 KB). First use downloads
 and verifies each file; later calls reuse the verified cache. The larger tree
 and trait files share that resolver cache with the passerine articles. This
 explicit command checks for an updated preview table:
@@ -496,38 +500,29 @@ c(
 )
 ```
 
-The template comes from a single-regime global fit. That fit provides the empirical variance and covariance scale used to generate a fresh ancestral covariance matrix for each simulation replicate. Here the calibration model is a single-regime multivariate BM fit with `mvMORPH::mvgls()` using `method = "LL"`, following the multivariate phylogenetic GLS framework described by [Clavel, Aristide, and Morlon (2019)](https://doi.org/10.1093/sysbio/syy045) and [Clavel and Morlon (2020)](https://doi.org/10.1093/sysbio/syaa010).
+We fit a single-regime multivariate BM model with `mvMORPH::mvgls()` using `method = "LL"`, following [Clavel, Aristide, and Morlon (2019)](https://doi.org/10.1093/sysbio/syy045) and [Clavel and Morlon (2020)](https://doi.org/10.1093/sysbio/syaa010). The template retains the aligned data, fitted model, means, and covariance summaries used to generate a fresh ancestral covariance matrix for each replicate.
 
 ```{r create_template_code, eval = FALSE}
-# Fit the single-regime model that calibrates means and residual covariance.
-bodyplan_template <- createSimulationTemplate(
-  baseline_tree = bird_tree,
-  trait_data = bodyplan_data,
-  formula = formula_str,
-  response_columns = seq_along(skeletal_cols),
-  predictor_columns = ncol(bodyplan_data),
-  method = "LL",
-  error = TRUE
-)
+# Opt in only when fitting a template and running new simulation studies.
+run_simulations <- FALSE
+if (run_simulations) {
+  set.seed(5, kind = "Mersenne-Twister")
+  bodyplan_template <- createSimulationTemplate(
+    baseline_tree = bird_tree,
+    trait_data = bodyplan_data,
+    formula = formula_str,
+    response_columns = seq_along(skeletal_cols),
+    predictor_columns = ncol(bodyplan_data),
+    method = "LL",
+    error = TRUE
+  )
+  bodyplan_template
+}
 ```
 
-```{r create_template_live, echo = FALSE, message = FALSE, warning = FALSE}
-bodyplan_template_live <- createSimulationTemplate(
-  baseline_tree = bird_tree,
-  trait_data = bodyplan_data,
-  formula = formula_str,
-  response_columns = seq_along(skeletal_cols),
-  predictor_columns = ncol(bodyplan_data),
-  method = "LL",
-  error = TRUE
-)
-```
+You can skip this fit when reading the saved results. To run the individual studies below interactively or in Colab, change `run_simulations` to `TRUE` in the block above before executing it. The empirical calibration uses `error = TRUE`; searches on simulated responses use `error = FALSE`.
 
-```{r create_template_print, echo = FALSE}
-bodyplan_template_live
-```
-
-The template stores the aligned calibration data, the fitted global `mvgls` model, fitted means, and empirical variance/covariance summaries used to generate a fresh ancestral covariance matrix for each simulation replicate. Covariates such as body mass can shape those fitted means and residual covariance, but the simulation studies regenerate only the response block and evaluate intercept-only shift searches on those simulated responses. If no calibration covariates are needed, the same workflow reduces to the simpler `trait_data ~ 1` template. In all cases, response columns must be raw numeric variables that can be regenerated in each replicate.
+Covariates such as body mass shape the calibration fit, but the studies simulate only the response traits and use intercept-only shift searches. Without covariates, use the simpler `trait_data ~ 1` template. Response columns must be raw numeric variables that can be regenerated in each replicate.
 
 The examples below use `simulation_generator = "empirical"`, the recommended option when the fitted full covariance structure should anchor new draws.
 
@@ -550,34 +545,51 @@ build_simulation_scenario_figure(
 
 In the proportional panels, the covariance structure keeps the same shape and simply expands or contracts. In the integration-rate panels, weaker correlation structure is paired with larger marginal variance, so covariance shape and evolutionary rate change together. The shifted passerine examples below use these two simulation styles under repeated subtree resampling from the full tree, alongside a null no-shift baseline.
 
-```{r preview_template_setup, echo = FALSE, message = FALSE, warning = FALSE}
-preview_template <- bodyplan_template_live
-```
-
 ```{r preview_results_setup, echo = FALSE, message = FALSE, warning = FALSE}
 preview_tables_path <- bifrost_example_file("simulation-preview-tables")
 preview_tables <- readRDS(preview_tables_path)
+if (!identical(preview_tables$schema_version, 4L)) {
+  stop(paste0(
+    "The cached simulation preview tables are stale; run ",
+    'bifrost_example_file("simulation-preview-tables", refresh = TRUE).'
+  ))
+}
 stopifnot(
-  identical(preview_tables$schema_version, 3L),
-  identical(preview_tables$provenance$simulation_generator, "empirical"),
-  identical(preview_tables$provenance$integration_power_range, c(0.5, 1.25)),
-  identical(preview_tables$provenance$integration_exclude_range, c(0.8, 1.1))
+  identical(
+    preview_tables$provenance$fixed_settings$simulation_generator,
+    "empirical"
+  ),
+  identical(
+    preview_tables$provenance$fixed_settings$integration_power_range,
+    c(0.5, 1.25)
+  ),
+  identical(
+    preview_tables$provenance$fixed_settings$integration_exclude_range,
+    c(0.8, 1.1)
+  ),
+  identical(preview_tables$provenance$fixed_settings$n_replicates_per_setting, 500L),
+  identical(preview_tables$provenance$fixed_settings$min_shift_tips, 10L),
+  identical(preview_tables$provenance$fixed_settings$max_shift_tips, 40L),
+  identical(preview_tables$provenance$fixed_settings$search_error, FALSE)
 )
 ```
 
-## Calibration guardrails
+## Before running simulations
 
-Before launching a large study, keep four details in mind.
+Keep three practical details in mind.
 
-- Simulation studies regenerate the response block only. Predictors shape the global calibration fit, but they are not re-fit inside each subtree-resampled search replicate.
+- Use the study function's `seed` argument for reproducibility. Do not pass a separate seed inside `simulation_options`; the study functions manage replicate-level seeds.
 
-- Use the wrapper-level `seed` argument for reproducibility. Do not pass a separate seed inside `simulation_options`; the study wrappers manage replicate-level seeds.
+- Study functions inherit template fit settings such as `method` and `error`, so we explicitly override `error` for simulated searches. Parallelize either the study or each search, not both; these examples run replicates in parallel and keep each search serial.
 
-- The wrappers inherit template fit settings such as `method` and `error`, so `search_options` only needs to include deliberate overrides. Parallelize either the study wrapper or each embedded search, not both; the examples parallelize replicates and keep each search serial.
-
-- Check `per_replicate$n_candidates`. The value of `min_descendant_tips` changes the candidate-node universe rather than merely applying a different decision threshold to a fixed set of nodes. If it leaves no candidate shifts, that replicate is treated as unevaluable, and recovery specificity, false-positive rate, and balanced accuracy are reported as `NA`. Lower `min_descendant_tips` if too many replicates are unevaluable.
+- Distinguish a successful search that finds no shifts from one with no eligible candidates or a failed fit. A successful zero-shift search is included in recovery evaluation: its true shifts count as missed. Check `per_replicate$n_candidates`; with no candidates, recall can still be evaluated, but candidate-based specificity and false-positive rate are undefined for that replicate. Fitting failures are reported separately. The cutoff changes which nodes can be tested, not just the support required to accept a shift.
 
 The next three sections show the individual study calls. The fixed-settings comparison then uses cached preview results to show the same logic side by side.
+
+```{r simulation_figure_page, echo = FALSE, results = "asis"}
+# Flush the full-page figure before any simulation code begins.
+if (knitr::is_latex_output()) cat("\\clearpage\n")
+```
 
 ## 1. Estimate False Positives
 
@@ -585,9 +597,9 @@ The null study asks the baseline error question: if the real dataset contained n
 
 ```{r false_positive_study, eval = FALSE}
 # Estimate false positives under an empirical-covariance null model.
-fp_study <- runFalsePositiveSimulationStudy(
+fp_study <- if (run_simulations) runFalsePositiveSimulationStudy(
   template = bodyplan_template,
-  n_replicates = 100,
+  n_replicates = 500,
   tree_tip_count = 250,
   simulation_options = list(
     simulation_generator = "empirical"
@@ -599,7 +611,8 @@ fp_study <- runFalsePositiveSimulationStudy(
     IC = "GIC",
     num_cores = 1,
     method = "LL",
-    error = TRUE,
+    error = FALSE,
+    ic_uncertainty_threshold = 10,
     plot = FALSE,
     store_model_fit_history = FALSE
   ),
@@ -610,9 +623,11 @@ fp_study <- runFalsePositiveSimulationStudy(
 
 ```{r false_positive_inspect, eval = FALSE}
 # Inspect the study object, representative replicates, and aggregate summary.
-fp_study
-head(fp_study$per_replicate)
-fp_study$study_summary
+if (run_simulations) {
+  fp_study
+  head(fp_study$per_replicate)
+  fp_study$study_summary
+}
 ```
 
 Null simulations are useful for screening candidate choices of `shift_acceptance_threshold`, `IC`, and `min_descendant_tips`.
@@ -623,15 +638,15 @@ Recovery under proportional scaling evaluates the scenario that matches the curr
 
 ```{r proportional_recovery_study, eval = FALSE}
 # Measure recovery when simulated shifts match proportional BMM scaling.
-recovery_prop <- runShiftRecoverySimulationStudy(
+recovery_prop <- if (run_simulations) runShiftRecoverySimulationStudy(
   template = bodyplan_template,
-  n_replicates = 100,
+  n_replicates = 500,
   tree_tip_count = 250,
   simulation_options = list(
     simulation_generator = "empirical",
     num_shifts = 5,
     min_shift_tips = 10,
-    max_shift_tips = 20,
+    max_shift_tips = 40,
     scale_mode = "proportional",
     scale_factor_range = c(0.1, 2.0),
     exclude_range = c(0.5, 1.5),
@@ -644,8 +659,8 @@ recovery_prop <- runShiftRecoverySimulationStudy(
     IC = "GIC",
     num_cores = 1,
     method = "LL",
-    error = TRUE,
-    uncertaintyweights_par = TRUE,
+    error = FALSE,
+    ic_uncertainty_threshold = 10,
     plot = FALSE,
     store_model_fit_history = FALSE
   ),
@@ -658,11 +673,13 @@ recovery_prop <- runShiftRecoverySimulationStudy(
 
 ```{r proportional_recovery_inspect, eval = FALSE}
 # Compare strict, fuzzy, and distance-weighted recovery summaries.
-recovery_prop
-recovery_prop$study_summary
-recovery_prop$evaluation$strict
-recovery_prop$evaluation$fuzzy
-recovery_prop$evaluation$weighted
+if (run_simulations) {
+  recovery_prop
+  recovery_prop$study_summary
+  recovery_prop$evaluation$strict
+  recovery_prop$evaluation$fuzzy
+  recovery_prop$evaluation$weighted
+}
 ```
 
 ## 3. Check the Integration-Rate Robustness Scenario
@@ -671,15 +688,15 @@ It is also useful to test a deliberately mismatched scenario in which trait inte
 
 ```{r integration_recovery_study, eval = FALSE}
 # Stress-test the same search under integration-rate model misspecification.
-recovery_integration <- runShiftRecoverySimulationStudy(
+recovery_integration <- if (run_simulations) runShiftRecoverySimulationStudy(
   template = bodyplan_template,
-  n_replicates = 100,
+  n_replicates = 500,
   tree_tip_count = 250,
   simulation_options = list(
     simulation_generator = "empirical",
     num_shifts = 5,
     min_shift_tips = 10,
-    max_shift_tips = 20,
+    max_shift_tips = 40,
     scale_mode = "correlation",
     integration_power_range = c(0.5, 1.25),
     integration_exclude_range = c(0.8, 1.1),
@@ -692,8 +709,8 @@ recovery_integration <- runShiftRecoverySimulationStudy(
     IC = "GIC",
     num_cores = 1,
     method = "LL",
-    error = TRUE,
-    uncertaintyweights_par = TRUE,
+    error = FALSE,
+    ic_uncertainty_threshold = 10,
     plot = FALSE,
     store_model_fit_history = FALSE
   ),
@@ -706,93 +723,38 @@ recovery_integration <- runShiftRecoverySimulationStudy(
 
 ```{r integration_recovery_inspect, eval = FALSE}
 # Review the overall study and the fuzzy recovery result used for reporting.
-recovery_integration
-recovery_integration$study_summary
-recovery_integration$evaluation$fuzzy
+if (run_simulations) {
+  recovery_integration
+  recovery_integration$study_summary
+  recovery_integration$evaluation$fuzzy
+}
 ```
 
-This scenario is not the current generating model for `bifrost`, so the goal is not perfect recovery. It deliberately changes covariance shape while the fitted search model permits only proportional covariance shifts. Lower recovery than in the proportional scenario is therefore expected and measures robustness to biologically motivated model misspecification rather than failure under the model's own assumptions.
+This scenario changes covariance shape while the fitted search model permits only proportional covariance shifts. It therefore explores robustness to model misspecification. Recovery also depends on the magnitudes of the simulated rate changes, which differ between these scenarios; the comparison does not isolate the effect of covariance shape alone.
 
 ## 4. Compare Fixed Settings Across Scenarios
 
-After running each scenario on its own, it helps to put one fixed search configuration side by side across the null, proportional, and integration-rate cases. This worked example uses 100 repeated 250-tip subtree resamples from the passerine tree.
+We now compare GIC and BIC at the same fixed settings across the null, proportional, and integration-rate scenarios. The saved results use 500 datasets per scenario, each based on a freshly resampled 250-tip subtree of the passerine tree with 12 simulated response traits.
 
-The comparison uses one search configuration across all three scenarios: `shift_acceptance_threshold = 10` and `min_descendant_tips = 10`. In the shifted scenarios, each replicate adds five simulated shifts spanning clades with 10 to 20 descendant tips, matching the simulation-performance settings described in Berv et al. (2026). Every scenario uses the explicit empirical generator. The point here is not to optimize yet; it is to compare how null and shifted datasets behave under the same search settings.
+The comparison holds `shift_acceptance_threshold = 10` and `min_descendant_tips = 10`. Each shifted dataset contains five planted shifts in clades with 10 to 40 descendant tips. These settings illustrate performance before tuning; Part 2 compares them with more restrictive settings on the same datasets.
 
-The table below uses cached summaries from the code shown here, so package builds do not rerun the longer simulation studies.
+The individual calls above demonstrate each study separately. The saved tables instead extract the 10/10 settings from the paired grid in [Part 2](simulation-study-part-2.html), where every setting is evaluated on the same datasets. Use that paired workflow and its reproduction scripts to reproduce these results; running the individual studies with their own seeds will generate different draws.
 
-```{r medium_case_study_setup, eval = FALSE}
-# Prevent nested BLAS/OpenMP parallelism during replicate-level parallel runs.
-if (requireNamespace("RhpcBLASctl", quietly = TRUE)) {
-  RhpcBLASctl::blas_set_num_threads(1)
-  RhpcBLASctl::omp_set_num_threads(1)
-}
-
-# Reuse the fitted empirical template for all fixed-setting comparisons.
-medium_case_template <- preview_template
-
-# Define the proportional-shift scenario shared by GIC and BIC.
-fixed_setting_proportional_options <- list(
-  simulation_generator = "empirical",
-  num_shifts = 5,
-  min_shift_tips = 10,
-  max_shift_tips = 20,
-  scale_factor_range = c(0.1, 2.0),
-  exclude_range = c(0.5, 1.5),
-  buffer = 3
-)
-
-# Hold every search and simulation setting fixed except the IC family.
-fixed_setting_args <- list(
-  shift_acceptance_thresholds = 10,
-  min_descendant_tips_values = 10,
-  tree_tip_count = 250,
-  null_replicates = 100,
-  recovery_replicates = 100,
-  null_simulation_options = list(
-    simulation_generator = "empirical"
-  ),
-  proportional_simulation_options = fixed_setting_proportional_options,
-  correlation_simulation_options = list(
-    simulation_generator = "empirical",
-    integration_power_range = c(0.5, 1.25),
-    integration_exclude_range = c(0.8, 1.1)
-  ),
-  base_search_options = list(
-    formula = "trait_data ~ 1",
-    method = "LL",
-    error = TRUE,
-    num_cores = 1,
-    uncertaintyweights_par = TRUE,
-    plot = FALSE,
-    store_model_fit_history = FALSE,
-    progress = FALSE
-  ),
-  fuzzy_distance = 2,
-  weighted = TRUE,
-  num_cores = 8,
-  seed = 5,
-  store_studies = FALSE
-)
-
-# Run the identical comparison once with GIC and once with BIC.
-gic_fixed <- do.call(
-  runSearchTuningGrid,
-  c(list(template = medium_case_template, IC = "GIC"), fixed_setting_args)
-)
-bic_fixed <- do.call(
-  runSearchTuningGrid,
-  c(list(template = medium_case_template, IC = "BIC"), fixed_setting_args)
-)
+```{r fixed_settings_cached}
+# Read the compact summaries without rerunning searches.
+preview_tables <- readRDS(bifrost_example_file("simulation-preview-tables"))
+fixed_settings_table <- preview_tables$fixed_settings
 ```
 
 ```{r medium_case_study_cached, echo = FALSE, message = FALSE, warning = FALSE}
-fixed_settings_table <- preview_tables$fixed_settings
 fixed_null_display <- fixed_settings_table[
   fixed_settings_table$Scenario == "Null",
   c("IC", "Mean FP", "Any FP", "Mean shifts"),
   drop = FALSE
 ]
+fixed_null_display[c("Mean FP", "Any FP")] <-
+  100 * fixed_null_display[c("Mean FP", "Any FP")]
+names(fixed_null_display)[2:3] <- c("Null FP (%)", "Null any FP (%)")
 fixed_recovery_display <- fixed_settings_table[
   fixed_settings_table$Scenario != "Null",
   c(
@@ -813,16 +775,16 @@ fixed_metric <- function(ic, scenario, metric) {
 }
 ```
 
-The cached preview reproduces manuscript-era summaries. Its true-negative denominator predates candidate-node-aware accounting, while fresh simulation runs use the current candidate-aware accounting. It is retained for reproducibility rather than silently recomputed.
+Table 1 summarizes false positives under the null; Table 2 summarizes recovery in datasets with planted shifts.
 
-Null and shifted simulations answer different questions, so they are reported separately. The first table shows null false-positive behavior; the second shows recovery only where true shifts are known. This avoids treating an inapplicable recovery metric in a null simulation as a missing result.
+`Null FP (%)` is the mean percentage of eligible candidate nodes incorrectly assigned a shift. `Null any FP (%)` is the percentage of null datasets with at least one inferred shift. All 500 searches per scenario and IC completed successfully, including searches that inferred no shifts.
 
 ```{r medium_case_null_table, echo = FALSE, results = "asis"}
 render_preview_table(
   fixed_null_display,
-  caption = "Table 1. Null behavior for the fixed GIC and BIC settings across 100 repeated 250-tip subsamples. Mean FP and Any FP directly summarize false-positive control.",
-  col_names = c("IC", "Mean FP", "Any FP", "Mean shifts"),
-  digits = c(0, 4, 3, 2)
+  caption = "Table 1. Null behavior at an acceptance threshold of 10 and minimum clade size of 10 across 500 repeated 250-tip subsamples.",
+  col_names = c("IC", "Null FP (%)", "Null any FP (%)", "Mean shifts"),
+  digits = c(0, 3, 1, 2)
 )
 ```
 
@@ -838,13 +800,13 @@ render_preview_table(
 )
 ```
 
-Candidate nodes without a true shift generally outnumber true-shift nodes, creating class imbalance. Raw accuracy can therefore look strong even when sensitivity is poor. Fuzzy balanced accuracy gives recall and specificity equal influence, while fuzzy matching credits biologically close near misses instead of counting every small node displacement as a complete failure. Balanced accuracy complements rather than replaces F1: balanced accuracy exposes the sensitivity-specificity trade-off, whereas F1 focuses on precision and recall and remains useful when false discoveries among inferred shifts are the main concern.
+Because unshifted candidate nodes usually outnumber true shifts, raw accuracy can look high even when recovery is poor. Balanced accuracy gives recall and specificity equal weight; F1 instead combines precision and recall. Fuzzy scoring credits nearby inferred shifts as matches, allowing for uncertainty in their exact location.
 
-For GIC, the cache reports fuzzy balanced accuracy of `r fixed_metric("GIC", "Proportional", "Fuzzy balanced accuracy")` under proportional shifts and `r fixed_metric("GIC", "Integration-rate", "Fuzzy balanced accuracy")` under the integration-rate trade-off. The corresponding BIC values are `r fixed_metric("BIC", "Proportional", "Fuzzy balanced accuracy")` and `r fixed_metric("BIC", "Integration-rate", "Fuzzy balanced accuracy")`. These cache-derived comparisons describe performance under the fitted generating model and under deliberate covariance-shape misspecification without hard-coding a particular cache result into the narrative.
+For GIC, fuzzy balanced accuracy is `r fixed_metric("GIC", "Proportional", "Fuzzy balanced accuracy")` under proportional shifts and `r fixed_metric("GIC", "Integration-rate", "Fuzzy balanced accuracy")` under the integration-rate trade-off. The corresponding BIC values are `r fixed_metric("BIC", "Proportional", "Fuzzy balanced accuracy")` and `r fixed_metric("BIC", "Integration-rate", "Fuzzy balanced accuracy")`. GIC recovers more shifts at these settings, but also infers shifts more often under the null. Part 2 shows how that trade-off affects the choice of search settings.
 
 ## Performance Summary
 
-These checks establish false-positive behavior under the null, recovery under the proportional generating model, and robustness to the integration-rate trade-off. [Part 2](simulation-study-part-2.html) uses those scenarios to tune search settings and apply them to the empirical analysis.
+These checks illustrate false-positive behavior and shift recovery under the simulated conditions, rather than establishing settings that will work for every dataset. [Part 2](simulation-study-part-2.html) expands this fixed-setting comparison into a paired tuning grid on the same datasets and shows how to use the selected settings in an empirical search.
 
 ## References
 

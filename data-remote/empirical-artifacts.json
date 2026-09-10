@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "description": "Downloader, provenance, and integrity records for the bifrost empirical example-data artifacts and provenance-only vignette images.",
+  "description": "Downloader, provenance, and integrity records for the bifrost empirical example-data artifacts, supplementary simulation results, and provenance-only vignette images.",
   "scope": {
     "directories": [
       "data-remote/avian-skeleton",
@@ -54,6 +54,21 @@
       "reuse_action": "Public-domain reuse is permitted; scholarly citation of the dataset and associated article is recommended."
     }
   },
+  "supplementary_artifacts": [
+    {
+      "path": "data-remote/simulation-study-cache/passerine_replicate_metrics.rds",
+      "sha256": "0575a065d3ad2f4795594f3d3cf098fdfaacf1a2635093193cbf674e9d03cf15",
+      "size_bytes": 524376,
+      "source_id": "berv_archive_v1",
+      "source_location": "New paired simulation campaign calibrated from the archived empirical inputs, not simulation results from the published study. Contains 18,000 search records from 1,500 datasets in the 12-dimensional, 10--40-tip planted-clade campaign.",
+      "transformation": {
+        "method": "Evaluate saved replicate outputs with bifrost commit db18184ddb06a5019123647ce218f9b717f76e49, retaining paired identities, strict/fuzzy and IC-weighted counts and metrics; verify pooled results against campaign summaries. No model fits or simulations are rerun.",
+        "metric_accounting": "candidate-node-aware-v1; fuzzy distance 2; undefined ratios retain NA. Pool recovery counts before calculating ratios; average per-replicate null false-positive rates.",
+        "script": "data-raw/paired-tuning/export-replicate-metrics.R"
+      },
+      "license_id": "zenodo_cc_by_4_0"
+    }
+  ],
   "artifacts": [
     {
       "artifact_id": "jaw-tree",
@@ -156,15 +171,15 @@
     {
       "artifact_id": "simulation-preview-tables",
       "path": "data-remote/simulation-study-cache/passerine_preview_tables.rds",
-      "sha256": "a18dc153778cca1e786557ed0e11cf593a207df4700c76b34db87dfc2254d492",
-      "size_bytes": 5176,
+      "sha256": "3e81c0ffb349f711e74c7fa77d3ec3bed8fb43e4fa50a5ee66d9c3da1b6a078b",
+      "size_bytes": 5928,
       "minimum_bifrost_version": "0.2.0",
       "source_id": "berv_archive_v1",
-      "source_location": "Schema-3 cache constructed directly by data-raw/build_simulation_study_vignette_cache.R from validated empirical GIC and BIC grid RDS inputs.",
+      "source_location": "Schema-4 cache constructed by data-raw/update_simulation_tuning_cache.R from validated paired empirical GIC/BIC campaign summaries.",
       "transformation": {
-        "method": "Construct the schema-3 simulation vignette cache directly from validated empirical GIC and BIC grid RDS inputs, including full recovery metrics and fuzzy-balanced-accuracy tuning summaries.",
-        "metric_accounting": "The bundled historical/manuscript cache uses the original count-only true-negative accounting; candidate-node-aware true-negative accounting applies to newly generated simulation results.",
-        "script": "data-raw/build_simulation_study_vignette_cache.R"
+        "method": "Build the schema-4 simulation vignette cache from paired empirical summaries, deriving fixed-setting rows from the threshold-10/min-clade-10 grid settings and retaining compact paired-grid summaries, selected settings, generation accounting, and sanitized source provenance.",
+        "metric_accounting": "Fixed-setting and paired tuning summaries use candidate-node-aware-v1 accounting across the completed campaign; tuning provenance records 18,000 evaluated searches and realized 10--19-tip and 20--40-tip planted-clade counts.",
+        "script": "data-raw/update_simulation_tuning_cache.R"
       },
       "license_id": "zenodo_cc_by_4_0"
     },
