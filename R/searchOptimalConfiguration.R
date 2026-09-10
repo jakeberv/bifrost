@@ -158,9 +158,13 @@
 #' \strong{Plotting.} If \code{plot = TRUE}, trees are rendered with
 #' \code{\link[phytools]{plotSimmap}()}; shift IDs are labeled with \code{\link[ape]{nodelabels}()}.
 #'
-#' \strong{Regime VCVs.} The returned \code{$VCVs} are extracted from the fitted multi-regime model via
-#' \code{extractRegimeVCVs} and reflect regime-specific covariance
-#' estimates (when \code{mvgls} is fitted under a PL/ML method).
+#' \strong{Regime VCVs.} For a multi-regime model, the returned \code{$VCVs}
+#' contain regime-specific covariance estimates extracted via \code{extractRegimeVCVs}.
+#' When no shifts are accepted, the final model is single-regime \code{"BM"}:
+#' its trees retain baseline label \code{"0"}, and \code{VCVs[["0"]]} contains
+#' the global covariance matrix from \code{model_no_uncertainty$sigma$Pinv},
+#' including regularization when used. This entry does not represent an inferred
+#' shift or an additional fit; the model's \code{param} field remains \code{NA}.
 #'
 #' For high-dimensional trait datasets (p \eqn{\ge} n), penalized-likelihood settings in
 #' \code{mvgls()} are often required for stable estimation. The package vignettes
@@ -187,7 +191,8 @@
 #'         on the transformed scale used internally by \code{mvgls}.
 #'   \item \code{tree_no_uncertainty_untransformed}: same topology with original edge lengths restored.
 #'   \item \code{model_no_uncertainty}: the final \code{mvgls} model object.
-#'   \item \code{shift_nodes_no_uncertainty}: integer vector of accepted shift nodes.
+#'   \item \code{shift_nodes_no_uncertainty}: integer vector of accepted shift nodes;
+#'         empty (possibly \code{NULL}) when no shifts are accepted.
 #'   \item \code{optimal_ic}: final IC value; \code{baseline_ic}: baseline IC.
 #'   \item \code{IC_used}: \code{"GIC"} or \code{"BIC"}; \code{num_candidates}: count of candidate one-shift models evaluated;
 #'     \code{candidate_nodes}: integer node identifiers for those candidates.
@@ -197,7 +202,8 @@
 #'         and any error, plus an \code{ic_acceptance_matrix} (IC value and
 #'         acceptance flag per step).
 #'   \item \code{VCVs}: named list of regime-specific VCV matrices extracted from the final model
-#'         (penalized-likelihood estimates if PL was used).
+#'         (penalized-likelihood estimates if PL was used). For a baseline-only BM
+#'         fit, the sole entry \code{"0"} is its fitted global covariance matrix.
 #' }
 #' Additional components appear conditionally:
 #' \itemize{
@@ -470,7 +476,7 @@ searchOptimalConfiguration <-
     .progress("%s", "Fitting baseline model...")
 
     #select which information criterion to use
-    baseline_model <- .bifrost_search_fit_ic(IC, formula, candidate_trees[[1]], trait_data, ...)
+    baseline_model <- .bifrost_search_fit_ic(IC, formula, baseline_tree, trait_data, ...)
     baseline_ic <- .bifrost_search_ic_value(baseline_model, IC)
     .progress("Baseline %s: %.2f", IC, baseline_ic)
 
@@ -681,7 +687,7 @@ searchOptimalConfiguration <-
         model_with_shift_no_uncertainty = model_with_shift_no_uncertainty,
         best_tree_no_uncertainty = best_tree_no_uncertainty,
         baseline_model = baseline_model,
-        baseline_candidate_tree = candidate_trees[[1]]
+        baseline_candidate_tree = baseline_tree
       )
 
       # Create the main list that will always be returned
@@ -706,7 +712,11 @@ searchOptimalConfiguration <-
 
       # Generate the VCVs per regime from the overall model fit
       model_output <- result_list$model_no_uncertainty
-      result_list$VCVs <- extractRegimeVCVs(model_output)
+      result_list$VCVs <- if (identical(model_output$model, "BM")) {
+        list("0" = model_output$sigma$Pinv)
+      } else {
+        extractRegimeVCVs(model_output)
+      }
 
       # Add the ic_weights to the list conditionally
       if (uncertaintyweights | uncertaintyweights_par) {

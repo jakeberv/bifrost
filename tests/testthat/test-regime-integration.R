@@ -784,6 +784,33 @@ test_that("summarize_regime_covariances warns for proportional search VCVs", {
   testthat::expect_equal(out$regime, c("alpha", "beta"))
 })
 
+test_that("global BM covariance summaries do not imply proportional multi-regime fits", {
+  tree <- ape::read.tree(text = "((a:1,b:1):1,(c:1,d:1):1);")
+  tree <- phytools::paintSubTree(tree, node = 5L, state = "0")
+  covariance <- matrix(c(2, 0.3, 0.3, 1), 2,
+                       dimnames = list(c("x", "y"), c("x", "y")))
+  search <- list(
+    tree_no_uncertainty_untransformed = tree,
+    model_no_uncertainty = list(model = "BM", param = NA),
+    VCVs = list("0" = covariance)
+  )
+  expect_no_warning(
+    out <- summarize_regime_covariances(search$VCVs, search = search)
+  )
+  expect_identical(out$regime, "0")
+  expect_equal(out$tip_count, 4)
+  expect_equal(out$mean_variance, 1.5)
+  expect_true(is.na(out$rate))
+
+  # A model label alone must not bypass the warning for incompatible contents.
+  search$VCVs <- list("0" = covariance, "1" = covariance * 2)
+  expect_warning(summarize_regime_covariances(search$VCVs, search = search),
+                 "proportional `search\\$VCVs`")
+  search$VCVs <- list("0" = NULL)
+  expect_warning(summarize_regime_covariances(search$VCVs, search = search),
+                 "proportional `search\\$VCVs`")
+})
+
 test_that("summarize_regime_covariances can apply manuscript high-correlation filter", {
   mats <- list(
     low = matrix(c(1, 0.5, 0.5, 1), nrow = 2),

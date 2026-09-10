@@ -408,7 +408,9 @@ fit_regime_covariance_runs <- function(x,
 #' proportional `search$VCVs` from a `bifrost_search` object when the question is
 #' whether regimes differ in phenotypic integration or correlation structure.
 #' If `x` is detectably the same object as `search$VCVs`, the function warns and
-#' still returns the requested descriptive summary.
+#' still returns the requested descriptive summary. The single global covariance
+#' from an explicitly identified baseline-only BM fit is exempt from this warning;
+#' its scalar regime rate remains unavailable (\code{NA}).
 #' Raw matrix-list inputs must have unique, non-empty regime names. Their
 #' matrices must be symmetric and positive semidefinite, contain finite entries
 #' and strictly positive diagonal variances, and, when named, have unique
@@ -2261,6 +2263,12 @@ as.data.frame.regime_integration_relationships <- function(x,
   if (is.null(search) ||
       is.null(search$VCVs) ||
       !identical(x, search$VCVs)) {
+    return(invisible(FALSE))
+  }
+
+  # A baseline-only BM fit has one global covariance, not proportional regimes.
+  if (identical(search$model_no_uncertainty$model, "BM") &&
+      length(x) == 1L && is.matrix(x[[1L]])) {
     return(invisible(FALSE))
   }
 

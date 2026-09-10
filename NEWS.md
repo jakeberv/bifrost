@@ -1,5 +1,10 @@
 # bifrost 0.2.0
 
+* Baseline-only search results now consistently retain regime label `"0"` and
+  include the fitted global BM covariance in `VCVs[["0"]]`, without an additional
+  fit. Covariance summaries no longer warn about proportional multi-regime
+  matrices for this single global covariance. Search decisions are unchanged.
+
 * Simulation tuning:
   - `runSearchTuningGrid()` now pairs simulated datasets across all settings,
     using shared scenario seeds consistently in serial and parallel execution.
