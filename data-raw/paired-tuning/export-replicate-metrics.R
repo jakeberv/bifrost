@@ -1,14 +1,47 @@
 # Export replicate-level metrics from the recorded paired campaign.
 # No simulations or model fits are run. Source this file to use the builder,
 # or run Rscript export-replicate-metrics.R <campaign-full-dir> <output.rds>.
+replicate_export_inputs <- function(root, expected_commit) {
+  required <- c("bifrost", "digest", "ape", "phytools")
+  missing <- required[!vapply(required, requireNamespace, logical(1), quietly = TRUE)]
+  if (length(missing)) {
+    stop("Missing or unloadable R packages: ", paste(missing, collapse = ", "),
+         ". Install the exporter dependencies in the active R library; see README.md.",
+         call. = FALSE)
+  }
+  installed <- utils::packageDescription("bifrost")
+  if (!identical(installed$RemoteSha, expected_commit)) {
+    observed <- installed$RemoteSha
+    if (is.null(observed) || length(observed) != 1L || is.na(observed) || !nzchar(observed)) {
+      observed <- "unknown (RemoteSha metadata unavailable)"
+    }
+    stop("This export requires bifrost commit ", expected_commit,
+         "; installed commit: ", observed,
+         ". Install the recorded GitHub commit using the command in README.md.",
+         call. = FALSE)
+  }
+  if (!is.character(root) || length(root) != 1L || is.na(root) || !dir.exists(root)) {
+    stop("Campaign directory does not exist: ", paste(root, collapse = ", "),
+         ". Supply the completed campaign's results/full directory.", call. = FALSE)
+  }
+  replicate_dir <- file.path(root, "replicates")
+  if (!dir.exists(replicate_dir)) {
+    stop("Missing replicate directory: ", replicate_dir,
+         ". Supply the completed campaign's results/full directory.", call. = FALSE)
+  }
+  files <- sort(list.files(replicate_dir, "[.]rds$", recursive = TRUE, full.names = TRUE))
+  if (length(files) != 1500L) {
+    stop("Expected 1500 replicate RDS files in ", replicate_dir,
+         "; found ", length(files), ". Use the complete paired campaign outputs.",
+         call. = FALSE)
+  }
+  files
+}
+
 build_replicate_metrics <- function(root) {
   expected_commit <- "db18184ddb06a5019123647ce218f9b717f76e49"
   expected_design <- "c6327e5bbc59b6d5d948651d3142068ce3d732848e52851957d4fc0844fc518e"
-  installed <- utils::packageDescription("bifrost")
-  stopifnot(identical(installed$RemoteSha, expected_commit))
-  files <- sort(list.files(file.path(root, "replicates"), "[.]rds$",
-                          recursive = TRUE, full.names = TRUE))
-  stopifnot(length(files) == 1500L)
+  files <- replicate_export_inputs(root, expected_commit)
   rows <- vector("list", 18000L)
   hashes <- character(length(files))
   j <- 0L

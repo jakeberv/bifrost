@@ -122,3 +122,46 @@ test_that("the portable metrics exporter refuses invalid CLI calls without overw
   expect_match(paste(refused, collapse = "\n"), "Output already exists")
   expect_identical(digest::digest(file = sentinel, algo = "sha256"), before)
 })
+
+test_that("exporter preflight reports dependencies, commit, directory, and file-count problems", {
+  exporter <- test_path("../../data-raw/paired-tuning/export-replicate-metrics.R")
+  skip_if_not(file.exists(exporter), "development exporter unavailable in package build")
+  namespace <- new.env(parent = globalenv())
+  sys.source(exporter, namespace)
+  expected <- "db18184ddb06a5019123647ce218f9b717f76e49"
+  missing <- c("digest", "ape")
+  namespace$requireNamespace <- function(package, quietly) {
+    stopifnot(isTRUE(quietly))
+    !package %in% missing
+  }
+  installed <- list(RemoteSha = "different-commit")
+  testthat::local_mocked_bindings(
+    packageDescription = function(pkg, ...) {
+      stopifnot(identical(pkg, "bifrost"))
+      installed
+    }, .package = "utils"
+  )
+  root <- withr::local_tempdir()
+  expect_error(namespace$replicate_export_inputs(root, expected),
+               "Missing or unloadable R packages: digest, ape", fixed = TRUE)
+  missing <- character()
+  expect_error(namespace$replicate_export_inputs(root, expected),
+               paste0("requires bifrost commit ", expected, "; installed commit: different-commit"),
+               fixed = TRUE)
+  installed <- list()
+  expect_error(namespace$replicate_export_inputs(root, expected),
+               "unknown (RemoteSha metadata unavailable)", fixed = TRUE)
+  installed <- list(RemoteSha = expected)
+  expect_error(namespace$replicate_export_inputs(file.path(root, "absent"), expected),
+               "Campaign directory does not exist:", fixed = TRUE)
+  expect_error(namespace$replicate_export_inputs(root, expected),
+               "Missing replicate directory:", fixed = TRUE)
+  replicate_dir <- file.path(root, "replicates", "scenario")
+  dir.create(replicate_dir, recursive = TRUE)
+  files <- file.path(replicate_dir, sprintf("replicate-%04d.rds", seq_len(1500L)))
+  expect_true(all(file.create(files[1:2])))
+  expect_error(namespace$replicate_export_inputs(root, expected),
+               "found 2. Use the complete paired campaign outputs.", fixed = TRUE)
+  expect_true(all(file.create(files[-(1:2)])))
+  expect_identical(namespace$replicate_export_inputs(root, expected), sort(files))
+})
