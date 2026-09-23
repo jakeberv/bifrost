@@ -39,6 +39,9 @@ jobs:
           use-public-rspm: ${{ runner.os == 'Linux' }}
 
       - uses: r-lib/actions/setup-r-dependencies@v2
+        id: setup-dependencies
+        # Allow a macOS installation failure to reach the source retry below.
+        continue-on-error: ${{ runner.os == 'macOS' }}
         with:
           cache-version: 2
           # The deprecated vignette-preview step below is disabled, so we no longer
@@ -48,6 +51,19 @@ jobs:
           extra-packages: |
             any::rcmdcheck
             any::roxygen2
+          needs: check
+
+      # Temporary fallback: stable pak cannot unpack the zstd combinat binary
+      # served by mac.cran.dev. Try normal installation first on every run.
+      - name: Retry macOS dependencies with combinat from source
+        if: runner.os == 'macOS' && steps.setup-dependencies.outcome == 'failure'
+        uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          cache-version: 2
+          extra-packages: |
+            any::rcmdcheck
+            any::roxygen2
+            combinat=?source
           needs: check
 
       # Generate NAMESPACE + Rd files from roxygen comments

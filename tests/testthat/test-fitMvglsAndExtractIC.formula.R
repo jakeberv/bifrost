@@ -144,38 +144,44 @@ for (ic_name in names(ic_formula_specs())) {
   })
 }
 
-testthat::test_that("GIC formula wrapper honors non-default mvgls method arguments", {
+testthat::test_that("GIC formula wrapper forwards explicit LL and PL-LOOCV methods", {
   skip_if_ic_formula_deps()
 
-  tree <- make_ic_formula_tree(regimes = "multi", seed = 15)
-  data <- make_ic_formula_data(tree, n_response = 2, seed = 25)
+  # Test method forwarding with enough tips per regime for stable starting
+  # values. A two-tip regime can saturate the local regression used by mvgls.
+  tree <- ape::stree(32, type = "balanced")
+  tree$edge.length <- rep(1, nrow(tree$edge))
+  root <- ape::Ntip(tree) + 1L
+  tree <- phytools::paintSubTree(
+    tree, node = root, state = "0", anc.state = "0", stem = FALSE
+  )
+  root_child <- tree$edge[tree$edge[, 1] == root, 2][1]
+  tree <- phytools::paintSubTree(tree, node = root_child, state = "1", stem = TRUE)
+  testthat::expect_equal(
+    as.integer(table(phytools::getStates(tree, "tips"))), c(16L, 16L)
+  )
 
-  fit <- suppressWarnings(fitMvglsAndExtractGIC.formula(
-    cbind(y1, y2) ~ size,
-    tree,
-    data,
-    method = "PL-LOOCV"
-  ))
+  set.seed(42)
+  size <- rnorm(32)
+  residuals <- t(chol(ape::vcv.phylo(tree))) %*% matrix(rnorm(64), ncol = 2)
+  data <- data.frame(
+    size = size,
+    y1 = 0.5 * size + residuals[, 1],
+    y2 = 0.5 * size + residuals[, 2],
+    row.names = tree$tip.label
+  )
 
-  testthat::expect_s3_class(fit$model, "mvgls")
-  testthat::expect_true(is.finite(as.numeric(fit$GIC$GIC)))
-})
+  expected_methods <- c(LL = "LL", "PL-LOOCV" = "LOOCV")
+  for (method in names(expected_methods)) {
+    fit <- fitMvglsAndExtractGIC.formula(
+      cbind(y1, y2) ~ size, tree, data, method = method
+    )
 
-testthat::test_that("GIC formula wrapper passes through LL method", {
-  skip_if_ic_formula_deps()
-
-  tree <- make_ic_formula_tree(regimes = "multi", seed = 17)
-  data <- make_ic_formula_data(tree, n_response = 2, seed = 27)
-
-  fit <- suppressWarnings(fitMvglsAndExtractGIC.formula(
-    cbind(y1, y2) ~ size,
-    tree,
-    data,
-    method = "LL"
-  ))
-
-  testthat::expect_s3_class(fit$model, "mvgls")
-  testthat::expect_true(is.finite(as.numeric(fit$GIC$GIC)))
+    testthat::expect_s3_class(fit$model, "mvgls")
+    testthat::expect_identical(fit$model$call$method, method)
+    testthat::expect_identical(fit$model$method, unname(expected_methods[[method]]))
+    testthat::expect_true(is.finite(as.numeric(fit$GIC$GIC)))
+  }
 })
 
 testthat::test_that("GIC formula wrapper preserves the mvgls default method", {
