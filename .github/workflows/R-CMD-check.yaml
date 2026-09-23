@@ -45,9 +45,11 @@ jobs:
           # install its helper packages here:
           # any::devtools
           # any::remotes
+          # mac.cran.dev serves combinat as zstd, unsupported by stable pak.
           extra-packages: |
             any::rcmdcheck
             any::roxygen2
+            ${{ runner.os == 'macOS' && 'combinat=?source' || '' }}
           needs: check
 
       # Generate NAMESPACE + Rd files from roxygen comments
