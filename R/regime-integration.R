@@ -415,7 +415,9 @@ fit_regime_covariance_runs <- function(x,
 #' matrices must be symmetric and positive semidefinite, contain finite entries
 #' and strictly positive diagonal variances, and, when named, have unique
 #' matching row and column trait names; violations produce a regime-specific
-#' error. Invalid matrices
+#' error. Symmetry and positive-semidefiniteness checks use a tolerance relative
+#' to the largest absolute matrix entry, independent of an overall change of
+#' units. Validation does not rescale the returned summaries. Invalid matrices
 #' encountered in a `regime_covariances` fit object are instead represented as
 #' failed rows with missing summaries and a diagnostic message.
 #' A one-trait matrix has no pairwise correlations, so its mean absolute
@@ -2351,8 +2353,11 @@ as.data.frame.regime_integration_relationships <- function(x,
       call. = FALSE
     )
   }
-  symmetry_scale <- max(1, max(abs(mat)))
-  if (max(abs(mat - t(mat))) > tolerance * symmetry_scale) {
+  # Validate at unit scale so changing trait units does not change validity.
+  # Normalizing first also avoids overflow in subtraction and symmetrization.
+  matrix_scale <- max(abs(mat))
+  scaled_mat <- if (matrix_scale > 0) mat / matrix_scale else mat
+  if (max(abs(scaled_mat - t(scaled_mat))) > tolerance) {
     stop(
       "Regime `", regime, "` covariance matrix must be symmetric within ",
       "numeric tolerance.",
@@ -2389,13 +2394,13 @@ as.data.frame.regime_integration_relationships <- function(x,
       call. = FALSE
     )
   }
-  symmetric_mat <- (mat + t(mat)) / 2
+  symmetric_mat <- (scaled_mat + t(scaled_mat)) / 2
   eigenvalues <- eigen(
     symmetric_mat,
     symmetric = TRUE,
     only.values = TRUE
   )$values
-  if (min(eigenvalues) < -tolerance * symmetry_scale) {
+  if (min(eigenvalues) < -tolerance) {
     stop(
       "Regime `", regime, "` covariance matrix must be positive semidefinite.",
       call. = FALSE

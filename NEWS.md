@@ -62,6 +62,10 @@
 
 ## Rates, shifts, and regime covariance
 
+* Covariance validation now uses a tolerance relative to matrix scale, so tiny
+  asymmetric or indefinite matrices cannot pass merely because their entries
+  are small. Valid covariance summaries are unchanged.
+
 * Added `rateMap()` and supporting methods for inspecting branch-rate patterns.
   Legends respect uneven category breaks. `generateViridisColorScale()` requires
   numeric input and uses sorted rank rather than numeric distance.

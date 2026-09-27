@@ -72,7 +72,9 @@ Raw matrix-list inputs must have unique, non-empty regime names. Their
 matrices must be symmetric and positive semidefinite, contain finite entries
 and strictly positive diagonal variances, and, when named, have unique
 matching row and column trait names; violations produce a regime-specific
-error. Invalid matrices
+error. Symmetry and positive-semidefiniteness checks use a tolerance relative
+to the largest absolute matrix entry, independent of an overall change of
+units. Validation does not rescale the returned summaries. Invalid matrices
 encountered in a \code{regime_covariances} fit object are instead represented as
 failed rows with missing summaries and a diagnostic message.
 A one-trait matrix has no pairwise correlations, so its mean absolute
