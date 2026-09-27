@@ -867,6 +867,14 @@ runShiftRecoverySimulationStudy <- function(template,
 #' compatibility, result objects that provide only `num_candidates` use the
 #' historical count-only formula.
 #'
+#' F1 is calculated directly from counts as `2 * TP / (2 * TP + FP + FN)`.
+#' It is zero when no true shifts are recovered but false positives or false
+#' negatives exist, including successful searches with no inferred shifts.
+#' It remains `NA` when both true and inferred shifts are absent, or when no
+#' records can be evaluated. Precision and recall retain their own undefined
+#' cases. Weighted F1 uses `2 * weighted_TP / (weighted_TP + weighted_FP +
+#' n_true_shifts)` and is `NA` if inferred-node IC weights are unavailable.
+#'
 #' When a replicate has no evaluable candidate shifts (`num_candidates == 0`),
 #' recall-style quantities can still be computed from the true and inferred
 #' shifts, but specificity, false-positive rate, and balanced accuracy are
@@ -945,14 +953,12 @@ evaluateShiftRecovery <- function(simdata,
   safe_divide <- function(num, den) {
     ifelse(den == 0, NA_real_, num / den)
   }
-  harmonic_mean <- function(p, r) {
-    ifelse(is.na(p + r) || (p + r) == 0, NA_real_, (2 * p * r) / (p + r))
-  }
 
   strict_counts <- c(TP = 0, FP = 0, FN = 0, TN = 0)
   fuzzy_counts <- c(TP = 0, FP = 0, FN = 0, TN = 0)
   weighted_strict <- c(TP = 0, FP = 0)
   weighted_fuzzy <- c(TP = 0, FP = 0)
+  weights_complete <- TRUE
   n_evaluable_replicates <- 0L
 
   for (k in seq_along(simdata)) {
@@ -1017,6 +1023,12 @@ evaluateShiftRecovery <- function(simdata,
         simresults[[k]]$ic_weights$ic_weight_withshift,
         simresults[[k]]$ic_weights$node
       )
+    }
+
+    # Missing IC weights are not evidence of a zero weighted recovery score.
+    if (weighted && length(inferred_nodes) > 0L &&
+        (is.null(weights) || any(!is.finite(weights[as.character(inferred_nodes)])))) {
+      weights_complete <- FALSE
     }
 
     strict_tp_nodes <- intersect(true_nodes, inferred_nodes)
@@ -1123,7 +1135,8 @@ evaluateShiftRecovery <- function(simdata,
   strict_precision <- safe_divide(strict_counts["TP"], strict_counts["TP"] + strict_counts["FP"])
   strict_recall <- safe_divide(strict_counts["TP"], strict_counts["TP"] + strict_counts["FN"])
   strict_specificity <- safe_divide(strict_counts["TN"], strict_counts["TN"] + strict_counts["FP"])
-  strict_f1 <- harmonic_mean(strict_precision, strict_recall)
+  strict_f1 <- safe_divide(2 * strict_counts["TP"],
+    2 * strict_counts["TP"] + strict_counts["FP"] + strict_counts["FN"])
   strict_fpr <- safe_divide(strict_counts["FP"], strict_counts["FP"] + strict_counts["TN"])
   strict_balanced <- if (is.na(strict_recall) || is.na(strict_specificity)) {
     NA_real_
@@ -1134,7 +1147,8 @@ evaluateShiftRecovery <- function(simdata,
   fuzzy_precision <- safe_divide(fuzzy_counts["TP"], fuzzy_counts["TP"] + fuzzy_counts["FP"])
   fuzzy_recall <- safe_divide(fuzzy_counts["TP"], fuzzy_counts["TP"] + fuzzy_counts["FN"])
   fuzzy_specificity <- safe_divide(fuzzy_counts["TN"], fuzzy_counts["TN"] + fuzzy_counts["FP"])
-  fuzzy_f1 <- harmonic_mean(fuzzy_precision, fuzzy_recall)
+  fuzzy_f1 <- safe_divide(2 * fuzzy_counts["TP"],
+    2 * fuzzy_counts["TP"] + fuzzy_counts["FP"] + fuzzy_counts["FN"])
   fuzzy_fpr <- safe_divide(fuzzy_counts["FP"], fuzzy_counts["FP"] + fuzzy_counts["TN"])
   fuzzy_balanced <- if (is.na(fuzzy_recall) || is.na(fuzzy_specificity)) {
     NA_real_
@@ -1170,7 +1184,10 @@ evaluateShiftRecovery <- function(simdata,
       weighted_strict["TP"],
       strict_counts["TP"] + strict_counts["FN"]
     )
-    weighted_f1_strict <- harmonic_mean(weighted_precision_strict, weighted_recall_strict)
+    weighted_f1_strict <- if (weights_complete) {
+      safe_divide(2 * weighted_strict["TP"],
+        sum(weighted_strict) + strict_counts["TP"] + strict_counts["FN"])
+    } else NA_real_
 
     weighted_precision_fuzzy <- safe_divide(
       weighted_fuzzy["TP"],
@@ -1180,7 +1197,10 @@ evaluateShiftRecovery <- function(simdata,
       weighted_fuzzy["TP"],
       fuzzy_counts["TP"] + fuzzy_counts["FN"]
     )
-    weighted_f1_fuzzy <- harmonic_mean(weighted_precision_fuzzy, weighted_recall_fuzzy)
+    weighted_f1_fuzzy <- if (weights_complete) {
+      safe_divide(2 * weighted_fuzzy["TP"],
+        sum(weighted_fuzzy) + fuzzy_counts["TP"] + fuzzy_counts["FN"])
+    } else NA_real_
 
     weighted_precision_strict <- scalar_metric(weighted_precision_strict)
     weighted_recall_strict <- scalar_metric(weighted_recall_strict)

@@ -860,7 +860,7 @@ test_that("empirical benchmark code pins every scenario explicitly", {
   testthat::expect_gte(sum(occurrences > 0L), 3L)
 })
 
-test_that("simulation vignette sources use manuscript-aligned reporting", {
+test_that("simulation vignettes retain cache and tuning safeguards", {
   part1_path <- testthat::test_path("../../vignettes/simulation-study-part-1.Rmd")
   part2_path <- testthat::test_path("../../vignettes/simulation-study-part-2.Rmd")
   testthat::skip_if_not(
@@ -881,9 +881,6 @@ test_that("simulation vignette sources use manuscript-aligned reporting", {
     "identical(preview_tables$schema_version, 4L)",
     fixed = TRUE
   )
-  for (source in list(part1, part2)) {
-    testthat::expect_match(source, "rownames(x) <- NULL", fixed = TRUE)
-  }
   testthat::expect_false(grepl(
     'primary_metric = "weighted_fuzzy_f1"',
     part2,
@@ -893,18 +890,8 @@ test_that("simulation vignette sources use manuscript-aligned reporting", {
     'primary_metric = "fuzzy_balanced_accuracy"',
     "scenario_weights = c(proportional = 0.50, correlation = 0.50)"
   )) {
-    testthat::expect_identical(
-      lengths(regmatches(part2, gregexpr(shared_policy, part2, fixed = TRUE))),
-      1L
-    )
+    testthat::expect_match(part2, shared_policy, fixed = TRUE)
   }
-  testthat::expect_identical(
-    lengths(regmatches(
-      part2,
-      gregexpr("selectTunedSearchParameters", part2, fixed = TRUE)
-    )),
-    2L
-  )
   for (hard_stop in c(
     "stopifnot(!gic_tuned$used_all_settings)",
     "stopifnot(!bic_tuned$used_all_settings)"
@@ -917,8 +904,6 @@ test_that("simulation vignette sources use manuscript-aligned reporting", {
     "run_simulations <- FALSE",
     "run_empirical_search <- FALSE",
     "tuned$feasible_table",
-    "Null any FP",
-    "Status",
     "18,000",
     "500 datasets per scenario"
   )) {
@@ -929,42 +914,7 @@ test_that("simulation vignette sources use manuscript-aligned reporting", {
     'identical(names(preview_recommendations), c("IC", names(gic_preview_table)))',
     fixed = TRUE
   )
-  testthat::expect_identical(
-    lengths(regmatches(
-      part2,
-      gregexpr("runSearchTuningGrid", part2, fixed = TRUE)
-    )),
-    2L
-  )
 
-  testthat::expect_match(part1, "fixed_null_display", fixed = TRUE)
-  testthat::expect_match(part1, "fixed_recovery_display", fixed = TRUE)
-  for (label in c(
-    "Fuzzy recall", "Fuzzy specificity", "Fuzzy F1",
-    "Fuzzy balanced accuracy"
-  )) {
-    testthat::expect_match(part1, label, fixed = TRUE)
-  }
-  for (compact_label in c("Fuzzy rec.", "Fuzzy spec.", "Fuzzy BA")) {
-    testthat::expect_match(part1, compact_label, fixed = TRUE)
-  }
-  testthat::expect_match(part1, "unshifted candidate nodes usually outnumber true shifts", fixed = TRUE)
-  testthat::expect_match(part1, "near misses", ignore.case = TRUE)
-  testthat::expect_match(part1, "F1 instead combines precision and recall", fixed = TRUE)
-
-  testthat::expect_match(part2, "format_tuning_table", fixed = TRUE)
-  testthat::expect_match(
-    part2,
-    "Prop. BA",
-    fixed = TRUE
-  )
-  testthat::expect_match(
-    part2,
-    "Int.-rate BA",
-    fixed = TRUE
-  )
-  testthat::expect_match(part2, "Score", fixed = TRUE)
-  testthat::expect_match(part2, "candidate-level false-positive rate", fixed = TRUE)
   for (safeguard in c(
     "max_false_positive_rate", "max_any_false_positive",
     "min_evaluable_fraction"

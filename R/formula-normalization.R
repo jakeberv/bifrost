@@ -201,7 +201,11 @@ rewriteLegacyTraitDataExpr <- function(expr, data_names, side = c("lhs", "rhs"))
     cols <- resolveLegacyTraitDataColumns(expr, data_names)
     names <- data_names[cols]
     if (side == "rhs" && length(names) != 1L) {
-      stop("Legacy indexed predictors must resolve to single raw columns.")
+      stop(
+        "Legacy indexed predictors must resolve to single raw columns. ",
+        "Write each predictor explicitly, e.g. x1 + x2 or ",
+        "trait_data[, 3] + trait_data[, 4]."
+      )
     }
     if (length(names) == 1L) {
       return(as.name(names))
@@ -560,6 +564,7 @@ normalizeMvglsFormulaCall <- function(formula, trait_data, args_list, allow_sing
   }
 
   rhs_terms <- stats::delete.response(attr(mf, "terms"))
+  has_intercept <- identical(attr(rhs_terms, "intercept"), 1L)
   xmat <- stats::model.matrix(rhs_terms, mf)
   if ("(Intercept)" %in% colnames(xmat)) {
     xmat <- xmat[, colnames(xmat) != "(Intercept)", drop = FALSE]
@@ -579,7 +584,8 @@ normalizeMvglsFormulaCall <- function(formula, trait_data, args_list, allow_sing
         "cbind(",
         paste(response_names, collapse = ", "),
         ") ~ ",
-        paste(predictor_names, collapse = " + ")
+        paste(predictor_names, collapse = " + "),
+        if (has_intercept) "" else " + 0"
       )
     )
   } else {
@@ -589,7 +595,8 @@ normalizeMvglsFormulaCall <- function(formula, trait_data, args_list, allow_sing
       stringsAsFactors = FALSE
     )
     formula_fit <- as.formula(
-      paste0("cbind(", paste(response_names, collapse = ", "), ") ~ 1")
+      paste0("cbind(", paste(response_names, collapse = ", "), ") ~ ",
+             as.integer(has_intercept))
     )
   }
 

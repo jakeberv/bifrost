@@ -72,7 +72,10 @@ grid rows. The tuning helper overwrites \code{IC}, \code{shift_acceptance_thresh
 and \code{min_descendant_tips} for each row. Simulation-grid searches are
 intentionally intercept-only, so \code{formula} should remain \code{"trait_data ~ 1"}
 (or an equivalent intercept-only response formula). If omitted, the helper
-inherits \code{template$search_formula}.}
+inherits \code{template$search_formula}. Fitting options \code{method} and \code{error}
+inherit the template's settings unless explicitly overridden here; for
+example, \code{error = FALSE} can be used for searches on simulated data even
+when the template was fitted with \code{error = TRUE}.}
 
 \item{fuzzy_distance}{Integer node distance passed to
 \code{\link[=evaluateShiftRecovery]{evaluateShiftRecovery()}} inside the shifted-study wrappers.}
@@ -112,7 +115,8 @@ proportional, and non-proportional simulation generators.}
 \item{\code{studies}}{Either \code{NULL} or a list of raw study objects for each grid
 row and scenario, depending on \code{store_studies}.}
 \item{\code{base_search_options}}{The shared search options used before the
-tuned grid parameters were injected.}
+tuned grid parameters were injected, including inherited \code{method} and
+\code{error} settings.}
 }
 }
 \description{

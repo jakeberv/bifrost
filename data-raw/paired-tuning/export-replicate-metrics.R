@@ -1,6 +1,66 @@
+# Recalculate only F1, preserving the recorded counts and simulation identity.
+# The original package remains pinned for reproducing node matching and counts;
+# this explicit post-processing step corrects its historical F1 calculation.
+replicate_count_f1 <- function(tp, fp, n_true) {
+  denominator <- tp + fp + n_true
+  ifelse(denominator == 0, NA_real_, 2 * tp / denominator)
+}
+
+recalculate_replicate_f1 <- function(x) {
+  if (!is.list(x) || !(identical(x$schema_version, 1L) || identical(x$schema_version, 2L)) ||
+      !is.list(x$provenance) || !is.data.frame(x$metrics)) {
+    stop("Expected a schema-1 or schema-2 replicate metrics artifact.")
+  }
+  d <- x$metrics
+  required <- c("status", "n_true_shifts", unlist(lapply(c("strict", "fuzzy"), function(mode) {
+    c(paste0(mode, c("_TP", "_FP", "_FN", "_f1")),
+      paste0("weighted_", mode, c("_TP", "_FP", "_f1")))
+  })))
+  if (!all(required %in% names(d))) stop("Missing recovery counts or F1 columns.")
+  if (anyNA(d$status) || any(d$status != "ok")) {
+    stop("Recalculation requires successful search records with saved counts.")
+  }
+  count_columns <- c("n_true_shifts", grep("_(TP|FP|FN)$", required, value = TRUE))
+  valid <- vapply(d[count_columns], function(v) {
+    is.numeric(v) && all(is.finite(v)) && all(v >= -1e-12)
+  }, logical(1))
+  if (!all(valid)) stop("Recovery counts must be finite and non-negative (within roundoff).")
+  for (mode in c("strict", "fuzzy")) {
+    tp <- d[[paste0(mode, "_TP")]]; fp <- d[[paste0(mode, "_FP")]]
+    fn <- d[[paste0(mode, "_FN")]]
+    if (any(tp + fn != d$n_true_shifts)) stop("Recovery counts disagree with n_true_shifts.")
+    d[[paste0(mode, "_f1")]] <- replicate_count_f1(tp, fp, d$n_true_shifts)
+    d[[paste0("weighted_", mode, "_f1")]] <- replicate_count_f1(
+      d[[paste0("weighted_", mode, "_TP")]],
+      d[[paste0("weighted_", mode, "_FP")]], d$n_true_shifts)
+  }
+  x$metrics <- d
+  x$schema_version <- 2L
+  x$provenance$f1_definition <- "count-based-v1: 2*TP/(2*TP+FP+FN); weighted: 2*wTP/(wTP+wFP+n_true); zero denominator retains NA."
+  x$provenance$missing_metrics <- "Each ratio retains NA only for its own zero denominator; valid zero F1 scores are retained."
+  x
+}
+
 # Export replicate-level metrics from the recorded paired campaign.
 # No simulations or model fits are run. Source this file to use the builder,
 # or run Rscript export-replicate-metrics.R <campaign-full-dir> <output.rds>.
+check_replicate_export_weights <- function(sim, result) {
+  nodes <- result$shift_nodes_no_uncertainty
+  if (!length(nodes)) return(invisible(NULL))
+  weights <- result$ic_weights
+  # Historical null fits omit IC weights altogether. Their saved weighted
+  # counts are zero and weighted F1 remains undefined (zero denominator).
+  if (!length(sim$shiftNodes) && (is.null(weights) || !nrow(weights))) {
+    return(invisible(NULL))
+  }
+  if (is.null(weights) || !all(c("node", "ic_weight_withshift") %in% names(weights)) ||
+      anyDuplicated(weights$node) ||
+      any(!is.finite(weights$ic_weight_withshift[match(nodes, weights$node)]))) {
+    stop("Cannot export weighted F1: finite IC weights are required for every inferred node.")
+  }
+  invisible(NULL)
+}
+
 replicate_export_inputs <- function(root, expected_commit) {
   required <- c("bifrost", "digest", "ape", "phytools")
   missing <- required[!vapply(required, requireNamespace, logical(1), quietly = TRUE)]
@@ -73,6 +133,7 @@ build_replicate_metrics <- function(root) {
                 length(result$candidate_nodes) == result$num_candidates,
                 !anyDuplicated(result$candidate_nodes),
                 all(result$shift_nodes_no_uncertainty %in% result$candidate_nodes))
+      check_replicate_export_weights(sim, result)
       e <- bifrost::evaluateShiftRecovery(list(sim), list(result),
                                           fuzzy_distance = 2L, weighted = TRUE,
                                           verbose = FALSE)
@@ -121,7 +182,6 @@ build_replicate_metrics <- function(root) {
             !anyDuplicated(rows[c("dataset_id", "config_id")]))
   equal <- function(a, b) stopifnot(isTRUE(all.equal(unname(a), unname(b), tolerance = 1e-12)))
   divide <- function(a, b) if (b == 0) NA_real_ else a / b
-  f1 <- function(p, r) if (is.na(p + r) || p + r == 0) NA_real_ else 2 * p * r / (p + r)
   # Reproduce published pooled metrics from sums of counts, NOT means of
   # per-replicate ratios. Null node-level FPR is the mean of replicate ratios.
   for (id in unique(rows$config_id)) {
@@ -146,36 +206,42 @@ build_replicate_metrics <- function(root) {
       equal(counts, reference$evaluation$counts[[mode]])
       tp <- counts[1]; fp <- counts[2]; fn <- counts[3]; tn <- counts[4]
       p <- divide(tp, tp + fp); r <- divide(tp, tp + fn); s <- divide(tn, tn + fp)
-      metrics <- list(precision = p, recall = r, f1 = f1(p, r), specificity = s,
+      metrics <- list(precision = p, recall = r, f1 = replicate_count_f1(tp, fp, tp + fn), specificity = s,
                       fpr = divide(fp, fp + tn), balanced_accuracy = (r + s) / 2)
       for (name in names(metrics)) equal(metrics[[name]], reference$evaluation[[mode]][[name]])
       wtp <- sum(d[[paste0("weighted_", mode, "_TP")]])
       wfp <- sum(d[[paste0("weighted_", mode, "_FP")]])
       wp <- divide(wtp, wtp + wfp); wr <- divide(wtp, tp + fn)
       for (name in c("precision", "recall", "f1")) {
-        equal(list(precision = wp, recall = wr, f1 = f1(wp, wr))[[name]],
+        equal(list(precision = wp, recall = wr, f1 = replicate_count_f1(wtp, wfp, tp + fn))[[name]],
               reference$evaluation$weighted[[mode]][[name]])
       }
     }
   }
   message("Validated all 36 scenario/settings summaries against saved campaign summaries.")
-  list(schema_version = 1L, provenance = list(
+  recalculate_replicate_f1(list(schema_version = 1L, provenance = list(
     package_commit = expected_commit, design_fingerprint = expected_design,
     metric_accounting_version = "candidate-node-aware-v1", fuzzy_distance = 2L,
     replicate_files_sha256 = stats::setNames(hashes, basename(files)),
     aggregation = "Pool strict/fuzzy counts and weighted TP/FP before computing recovery metrics; average replicate FPR for null scenarios.",
     missing_metrics = "Undefined ratios retain NA, following evaluateShiftRecovery()."
-  ), metrics = rows)
+  ), metrics = rows))
 }
 
 
 if (sys.nframe() == 0L) {
   args <- commandArgs(trailingOnly = TRUE)
-  if (length(args) != 2L) {
-    stop("Usage: Rscript export-replicate-metrics.R <campaign-full-dir> <output.rds>")
+  recalculate <- length(args) == 3L && identical(args[1], "--recalculate-f1")
+  if (!recalculate && length(args) != 2L) {
+    stop("Usage: Rscript export-replicate-metrics.R [--recalculate-f1] <campaign-dir-or-metrics.rds> <output.rds>")
   }
+  if (recalculate) args <- args[-1L]
   if (file.exists(args[2])) stop("Output already exists: ", args[2])
-  result <- build_replicate_metrics(args[1])
+  result <- if (recalculate) {
+    x <- recalculate_replicate_f1(readRDS(args[1]))
+    x$provenance$f1_source_sha256 <- digest::digest(file = args[1], algo = "sha256")
+    x
+  } else build_replicate_metrics(args[1])
   dir.create(dirname(args[2]), recursive = TRUE, showWarnings = FALSE)
   temporary <- tempfile("replicate-metrics-", tmpdir = dirname(args[2]))
   tryCatch({
