@@ -201,7 +201,11 @@ rewriteLegacyTraitDataExpr <- function(expr, data_names, side = c("lhs", "rhs"))
     cols <- resolveLegacyTraitDataColumns(expr, data_names)
     names <- data_names[cols]
     if (side == "rhs" && length(names) != 1L) {
-      stop("Legacy indexed predictors must resolve to single raw columns.")
+      stop(
+        "Legacy indexed predictors must resolve to single raw columns. ",
+        "Write each predictor explicitly, e.g. x1 + x2 or ",
+        "trait_data[, 3] + trait_data[, 4]."
+      )
     }
     if (length(names) == 1L) {
       return(as.name(names))

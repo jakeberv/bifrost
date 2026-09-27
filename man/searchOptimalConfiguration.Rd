@@ -44,7 +44,11 @@ morphometric data where there are no predictor variables. For more general model
 \code{"trait_data[, 1:5] ~ 1"} to treat columns 1-5 as a multivariate response,
 \code{"trait_data[, 1:5] ~ trait_data[, 6]"} to fit a multivariate pGLS with an
 indexed predictor, or \code{cbind(y1, y2) ~ size + grp} to fit a named-column
-pGLS with numeric or factor predictors. An intercept is included by default;
+pGLS with numeric or factor predictors. Indexed predictor terms must each
+select one column: use \code{trait_data[, 3] + trait_data[, 4]} rather than
+\code{trait_data[, 3:4]}. Named formulas such as
+\code{cbind(y1, y2) ~ x1 + x2} are preferred for multiple predictors.
+An intercept is included by default;
 use \code{cbind(y1, y2) ~ 0 + size} or \code{cbind(y1, y2) ~ size - 1}
 to omit it. With a factor predictor, \code{cbind(y1, y2) ~ 0 + grp}
 estimates a separate mean for each group rather than fixing group means

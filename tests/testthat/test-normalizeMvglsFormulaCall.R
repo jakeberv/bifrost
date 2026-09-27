@@ -283,3 +283,23 @@ test_that("normalizeMvglsFormulaCall can synthesize names for unnamed single res
   testthat::expect_true(is.data.frame(normalized$args_list$data))
   testthat::expect_identical(colnames(normalized$args_list$data), c("Y1", "mass"))
 })
+
+test_that("multiple predictors are explicit and indexed blocks give migration guidance", {
+  dat <- data.frame(y1 = c(2, 1, 4, 3), y2 = c(4, 6, 5, 8),
+                    x1 = c(0, 1, 0, 1), x2 = c(1, 1, 2, 2))
+  testthat::expect_error(
+    normalizeMvglsFormulaCall("trait_data[, 1:2] ~ trait_data[, 3:4]", dat, list()),
+    "trait_data[, 3] + trait_data[, 4]", fixed = TRUE
+  )
+  expected_design <- cbind(`(Intercept)` = 1, x1 = dat$x1, x2 = dat$x2)
+  rownames(expected_design) <- rownames(dat)
+  for (formula in c("cbind(y1, y2) ~ x1 + x2",
+                    "trait_data[, 1:2] ~ trait_data[, 3] + trait_data[, 4]")) {
+    normalized <- normalizeMvglsFormulaCall(formula, dat, list())
+    frame <- stats::model.frame(normalized$formula, normalized$args_list$data)
+    testthat::expect_equal(stats::model.matrix(normalized$formula, frame),
+                          expected_design, ignore_attr = TRUE)
+    testthat::expect_equal(unname(stats::model.response(frame)),
+                          unname(as.matrix(dat[c("y1", "y2")])))
+  }
+})

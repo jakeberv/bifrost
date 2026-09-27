@@ -2,6 +2,11 @@
 
 ## Changes for existing users
 
+* Indexed predictor terms now require one column each. The previously working
+  `trait_data[, 1:2] ~ trait_data[, 3:4]` shorthand is rejected. Use
+  `trait_data[, 1:2] ~ trait_data[, 3] + trait_data[, 4]`, or preferably named
+  columns: `cbind(y1, y2) ~ x1 + x2`. Multiple predictors remain supported.
+
 * Increased the minimum supported R version from 4.1 to 4.2.
 * Search defaults are now `min_descendant_tips = 10` and
   `shift_acceptance_threshold = 20`, matching the focal settings of Berv et al.
