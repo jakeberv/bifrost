@@ -62,7 +62,10 @@
 #'   and `min_descendant_tips` for each row. Simulation-grid searches are
 #'   intentionally intercept-only, so `formula` should remain `"trait_data ~ 1"`
 #'   (or an equivalent intercept-only response formula). If omitted, the helper
-#'   inherits `template$search_formula`.
+#'   inherits `template$search_formula`. Fitting options `method` and `error`
+#'   inherit the template's settings unless explicitly overridden here; for
+#'   example, `error = FALSE` can be used for searches on simulated data even
+#'   when the template was fitted with `error = TRUE`.
 #' @param fuzzy_distance Integer node distance passed to
 #'   [evaluateShiftRecovery()] inside the shifted-study wrappers.
 #' @param weighted Logical; if `TRUE`, request weighted recovery summaries from
@@ -143,7 +146,8 @@
 #'   \item{`studies`}{Either `NULL` or a list of raw study objects for each grid
 #'   row and scenario, depending on `store_studies`.}
 #'   \item{`base_search_options`}{The shared search options used before the
-#'   tuned grid parameters were injected.}
+#'   tuned grid parameters were injected, including inherited `method` and
+#'   `error` settings.}
 #' }
 #'
 #' @seealso [runFalsePositiveSimulationStudy()],
@@ -542,6 +546,12 @@ runSearchTuningGrid <- function(template,
   summary_table <- do.call(rbind, lapply(setting_results, `[[`, "summary_row"))
   rownames(summary_table) <- NULL
 
+  # Record the same fitting defaults used by the study wrappers, without
+  # changing their inputs or overriding explicit choices (including NULL).
+  fit_settings <- .simulation_template_fit_settings(template)
+  fit_settings <- fit_settings[!vapply(fit_settings, is.null, logical(1))]
+  resolved_search_options <- utils::modifyList(fit_settings, base_search_options)
+
   out <- list(
     user_input = as.list(match.call()),
     IC = IC,
@@ -551,7 +561,7 @@ runSearchTuningGrid <- function(template,
     paired_settings = TRUE,
     study_seeds = study_seeds,
     simulation_generators = simulation_generators,
-    base_search_options = base_search_options,
+    base_search_options = resolved_search_options,
     null_replicates = as.integer(null_replicates),
     recovery_replicates = as.integer(recovery_replicates),
     fuzzy_distance = fuzzy_distance,
@@ -621,10 +631,13 @@ runSearchTuningGrid <- function(template,
 #'   \item{`selected_row`}{The chosen row from `tuning_grid$summary_table`,
 #'   augmented with a ranking score.}
 #'   \item{`recommended_search_options`}{A search-options list containing the
-#'   tuned controls from the simulation grid. For response-only empirical
+#'   tuned controls and fitting settings recorded by the simulation grid.
+#'   For response-only empirical
 #'   searches, the inherited intercept-only formula can usually be used directly.
 #'   For empirical analyses with covariates, carry over the tuned controls but set
-#'   `formula` to the empirical analysis formula.}
+#'   `formula` to the empirical analysis formula. Other fitting options can
+#'   also be explicitly changed for the empirical analysis, such as restoring
+#'   `error = TRUE` after tuning with `error = FALSE`.}
 #'   \item{`feasible_table`}{The filtered and ranked table used for selection.}
 #'   \item{`n_feasible_settings`}{The number of settings that passed the
 #'   supplied constraints.}

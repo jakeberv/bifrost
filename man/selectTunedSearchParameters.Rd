@@ -57,10 +57,13 @@ A list of class \code{bifrost_search_tuning_selection} with components:
 \item{\code{selected_row}}{The chosen row from \code{tuning_grid$summary_table},
 augmented with a ranking score.}
 \item{\code{recommended_search_options}}{A search-options list containing the
-tuned controls from the simulation grid. For response-only empirical
+tuned controls and fitting settings recorded by the simulation grid.
+For response-only empirical
 searches, the inherited intercept-only formula can usually be used directly.
 For empirical analyses with covariates, carry over the tuned controls but set
-\code{formula} to the empirical analysis formula.}
+\code{formula} to the empirical analysis formula. Other fitting options can
+also be explicitly changed for the empirical analysis, such as restoring
+\code{error = TRUE} after tuning with \code{error = FALSE}.}
 \item{\code{feasible_table}}{The filtered and ranked table used for selection.}
 \item{\code{n_feasible_settings}}{The number of settings that passed the
 supplied constraints.}

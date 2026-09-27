@@ -74,6 +74,9 @@
 
 ## Simulation and tuning
 
+* Tuning recommendations now retain `method` and `error` settings inherited
+  from the simulation template. Explicit search overrides remain authoritative;
+  simulation fits, scores, and the selection rule are unchanged.
 * Added reproducible simulation templates, null and shifted datasets,
   false-positive and shift-recovery studies, recovery evaluation, and fixed-IC
   tuning grids.
