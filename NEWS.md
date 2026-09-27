@@ -6,7 +6,6 @@
   `trait_data[, 1:2] ~ trait_data[, 3:4]` shorthand is rejected. Use
   `trait_data[, 1:2] ~ trait_data[, 3] + trait_data[, 4]`, or preferably named
   columns: `cbind(y1, y2) ~ x1 + x2`. Multiple predictors remain supported.
-
 * Increased the minimum supported R version from 4.1 to 4.2.
 * Search defaults are now `min_descendant_tips = 10` and
   `shift_acceptance_threshold = 20`, matching the focal settings of Berv et al.
@@ -67,10 +66,6 @@
 
 ## Rates, shifts, and regime covariance
 
-* Covariance validation now uses a tolerance relative to matrix scale, so tiny
-  asymmetric or indefinite matrices cannot pass merely because their entries
-  are small. Valid covariance summaries are unchanged.
-
 * Added `rateMap()` and supporting methods for inspecting branch-rate patterns.
   Legends respect uneven category breaks. `generateViridisColorScale()` requires
   numeric input and uses sorted rank rather than numeric distance.
@@ -80,17 +75,12 @@
 * Added `fit_regime_covariances()`, `fit_regime_covariance_runs()`, module
   diagnostics, correlation-matrix PCA, integration summaries, and
   `regime_integration_pgls()` for post-hoc analyses of fitted regimes.
+* Covariance validation now uses a tolerance relative to matrix scale, so tiny
+  asymmetric or indefinite matrices cannot pass merely because their entries
+  are small. Valid covariance summaries are unchanged.
 
 ## Simulation and tuning
 
-* Fixed F1 scores incorrectly reported as `NA` when recovery is zero, including
-  searches that miss every true shift. Undefined cases retain `NA`. Corrected
-  the supplementary replicate metrics and their export pipeline; pooled
-  vignette summaries and selected settings are unchanged.
-
-* Tuning recommendations now retain `method` and `error` settings inherited
-  from the simulation template. Explicit search overrides remain authoritative;
-  simulation fits, scores, and the selection rule are unchanged.
 * Added reproducible simulation templates, null and shifted datasets,
   false-positive and shift-recovery studies, recovery evaluation, and fixed-IC
   tuning grids.
@@ -101,10 +91,16 @@
 * Added `selectTunedSearchParameters()` to filter settings using false-positive
   and evaluability safeguards and rank feasible settings by fuzzy balanced
   accuracy by default.
+* Tuning recommendations now retain `method` and `error` settings inherited
+  from the simulation template. Explicit search overrides remain authoritative;
+  simulation fits, scores, and the selection rule are unchanged.
 * Fixed recovery evaluation for successful searches with a `NULL` shift-node
   vector. Zero-shift results now contribute missed shifts to strict, fuzzy,
   and weighted summaries. Saved results can be reassessed without refitting;
   failed or incomplete records remain excluded.
+* Fixed F1 scores incorrectly reported as `NA` when recovery is zero. Undefined
+  cases retain `NA`. Corrected the supplementary replicate metrics and their
+  export pipeline; pooled vignette summaries and selected settings are unchanged.
 * Reduced data transfer to parallel workers. Parallel search and simulation
   preserve the caller's Future plan and reproducible RNG state while avoiding
   nested worker oversubscription.

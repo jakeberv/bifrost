@@ -8,8 +8,8 @@ This is a resubmission of the `bifrost` 0.2.0 release, updating CRAN version
 This release addresses the test failure reported for CRAN bifrost 0.1.4
 with mvMORPH 1.2.2, with a correction deadline of 2026-10-16. The old
 method-forwarding test used a BMM fit with only two tips in one regime and
-produced a nonfinite GIC. The mvMORPH maintainer has confirmed an unintended
-change in its starting-value calculation and is preparing an upstream fix.
+produced a nonfinite GIC. The mvMORPH maintainer confirmed an unintended
+change in its starting-value calculation.
 
 The development version of bifrost had already replaced that test. Its
 current method-forwarding tests now use balanced, better-supported examples
@@ -35,38 +35,22 @@ source package. `bifrost_example_file()` accesses the network only after an
 explicit user request, verifies artifact SHA-256 and byte size, and fails
 gracefully. Installation, attachment, examples, and checks remain network-free.
 
-## Test environments
+## Test environment
 
-- macOS Sequoia 15.7.9, aarch64, R 4.4.2, checked on 2026-09-26
-  using mvMORPH 1.2.2 installed from the official CRAN source tarball.
-- GitHub Actions for main before the final CRAN-preparation fixes: macOS and Windows R release;
-  Ubuntu R release, devel, and oldrel-1. All five jobs passed. These CI runs
-  preceded the CRAN publication of mvMORPH 1.2.2; the local check above used
-  that published version explicitly.
+macOS Sequoia 15.7.9, aarch64, R 4.4.2, using mvMORPH 1.2.2 installed
+from the official CRAN source tarball. Checked on 2026-09-27.
 
-## Baseline R CMD check results
+## R CMD check results
 
-These results precede the final formula-intercept, tuning-recommendation, and
-F1 calculation and covariance-validation fixes. Rebuild and check the final release tarball before submission.
-
-`R CMD check --as-cran --run-donttest`:
+`R CMD check --as-cran --run-donttest` on the 2026-09-27 source tarball:
 
 0 errors | 0 warnings | 1 note
 
 The note is the local environment's inability to verify the current time.
-Examples (including `\donttest`), tests, and the PDF manual all passed.
-The CRAN-mode test suite reported 2393 passes, no failures or warnings, and
-141 skips for CRAN-excluded tests and unavailable development-only, optional,
-or website-only inputs. The revised method-forwarding tests passed.
+Examples (including `\donttest`), tests, and the PDF and HTML manuals passed.
+The CRAN-mode test suite reported 2561 passing expectations, no failures or
+warnings, and 143 skips for CRAN-excluded tests and unavailable development-only,
+optional, or website-only inputs. The revised method-forwarding tests passed.
 
-## Checks after the final preparation fixes
-
-On 2026-09-27, the development test suite with CRAN mvMORPH 1.2.2 and
-local website artifacts reports 4798 passing expectations across 539 tests,
-with no failures, warnings, or skips. The
-`runSearchTuningGrid()` and `selectTunedSearchParameters()` help examples pass.
-The formula-intercept, tuning-recommendation, F1, and covariance-validation
-fixes have regression tests.
-The supplementary replicate metrics were corrected from saved counts; all
-non-F1 data and the pooled vignette cache are unchanged. Other findings from
-the release review remain to be resolved before submission.
+This check preceded removal of editorial-only documentation checks.
+Rebuild and check the submission tarball after the final changes.
