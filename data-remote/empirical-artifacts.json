@@ -57,13 +57,13 @@
   "supplementary_artifacts": [
     {
       "path": "data-remote/simulation-study-cache/passerine_replicate_metrics.rds",
-      "sha256": "0575a065d3ad2f4795594f3d3cf098fdfaacf1a2635093193cbf674e9d03cf15",
-      "size_bytes": 524376,
+      "sha256": "92abb609ca0be96899c624aa07ce64043606973f7407067a0ba0920cfd8dd0d5",
+      "size_bytes": 523944,
       "source_id": "berv_archive_v1",
       "source_location": "New paired simulation campaign calibrated from the archived empirical inputs, not simulation results from the published study. Contains 18,000 search records from 1,500 datasets in the 12-dimensional, 10--40-tip planted-clade campaign.",
       "transformation": {
-        "method": "Evaluate saved replicate outputs with bifrost commit db18184ddb06a5019123647ce218f9b717f76e49, retaining paired identities, strict/fuzzy and IC-weighted counts and metrics; verify pooled results against campaign summaries. No model fits or simulations are rerun.",
-        "metric_accounting": "candidate-node-aware-v1; fuzzy distance 2; undefined ratios retain NA. Pool recovery counts before calculating ratios; average per-replicate null false-positive rates.",
+        "method": "Evaluate saved replicate outputs with bifrost commit db18184ddb06a5019123647ce218f9b717f76e49, retaining paired identities, strict/fuzzy and IC-weighted counts and metrics; verify pooled results against campaign summaries. No model fits or simulations are rerun. Recalculate F1 from saved counts with the count-based-v1 correction; the recorded package commit identifies the original matching and search results.",
+        "metric_accounting": "candidate-node-aware-v1; fuzzy distance 2; count-based-v1 F1 correction (schema 2). F1 is zero when TP is zero and FP or FN is positive; zero denominators retain NA. Pool recovery counts before calculating ratios; average per-replicate null false-positive rates.",
         "script": "data-raw/paired-tuning/export-replicate-metrics.R"
       },
       "license_id": "zenodo_cc_by_4_0"

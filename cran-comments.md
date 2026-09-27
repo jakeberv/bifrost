@@ -46,8 +46,8 @@ gracefully. Installation, attachment, examples, and checks remain network-free.
 
 ## Baseline R CMD check results
 
-These results precede the final formula-intercept and tuning-recommendation
-fixes. Rebuild and check the final release tarball before submission.
+These results precede the final formula-intercept, tuning-recommendation, and
+F1 calculation fixes. Rebuild and check the final release tarball before submission.
 
 `R CMD check --as-cran --run-donttest`:
 
@@ -61,8 +61,11 @@ or website-only inputs. The revised method-forwarding tests passed.
 
 ## Checks after the final preparation fixes
 
-The development test suite with CRAN mvMORPH 1.2.2 reports 4135 passing
-expectations, no failures or warnings, and 12 optional-data skips. The
+On 2026-09-27, the development test suite with CRAN mvMORPH 1.2.2 and
+local website artifacts reports 4754 passing expectations across 537 tests,
+with no failures, warnings, or skips. The
 `runSearchTuningGrid()` and `selectTunedSearchParameters()` help examples pass.
-The formula-intercept and tuning-recommendation fixes have regression tests;
-other findings from the release review remain to be resolved before submission.
+The formula-intercept, tuning-recommendation, and F1 fixes have regression tests.
+The supplementary replicate metrics were corrected from saved counts; all
+non-F1 data and the pooled vignette cache are unchanged. Other findings from
+the release review remain to be resolved before submission.

@@ -131,7 +131,7 @@ from their own run rather than a repository copy.
 ## Replicate-level results
 
 The optional [replicate-level RDS](../../data-remote/simulation-study-cache/passerine_replicate_metrics.rds)
-contains 18,000 rows and 47 columns in a `metrics` data frame, plus provenance.
+uses schema 2 and contains 18,000 rows and 47 columns in a `metrics` data frame, plus provenance.
 It is approximately 0.52 MB, xz-compressed, and can be read with base R:
 
 ```r
@@ -161,7 +161,17 @@ The columns record:
   precision, recall, and F1. Weighted recall uses the number of true shifts as
   its denominator; the weighted contributions are not integer counts.
 
-Undefined ratios retain `NA`, following `evaluateShiftRecovery()`. For paired
+F1 is calculated from counts as `2*TP / (2*TP + FP + FN)`. It is zero when
+there are missed or incorrectly inferred shifts but no correct matches, including
+searches with no predictions despite true shifts. Weighted F1 is
+`2*wTP / (wTP + wFP + n_true_shifts)`. F1 retains `NA` only for a zero
+denominator (no true shifts and no inferred shifts or, for weighted F1, no
+inferred weight); other ratios keep their own
+undefined cases. Schema 2 corrects the schema-1 zero-F1 bug while preserving all
+counts, non-F1 metrics, paired identities, and original simulation provenance.
+The pooled vignette summaries and selected settings are unchanged.
+
+For paired
 comparisons or bootstrap resampling, keep all settings for each `dataset_id`
 together within a scenario. To reproduce pooled recovery metrics, **sum counts
 first, then calculate ratios**; do not average per-replicate recovery scores.
@@ -170,7 +180,9 @@ false-positive rate, in contrast, is the mean of per-replicate ratios, and
 "any false positive" is the fraction of null datasets with an inferred shift.
 
 To regenerate the file from a completed campaign, using the recorded package
-commit above:
+commit above for the original node matching and counts. The exporter then
+applies the count-based F1 correction explicitly, so it does not inherit the
+old package's F1 behavior:
 
 ```sh
 Rscript data-raw/paired-tuning/export-replicate-metrics.R \
@@ -183,3 +195,28 @@ search outputs without simulating data or fitting models, validates pooled
 results against all 36 scenario/setting summaries, and refuses to overwrite an
 existing output. No trees, trait matrices, fitted models, or checkpoints are
 included in this compact file.
+
+An existing schema-1 download can instead be corrected directly from its saved
+counts, without the campaign files or the original package installation:
+
+```sh
+Rscript data-raw/paired-tuning/export-replicate-metrics.R --recalculate-f1 \
+  /path/to/original-metrics.rds /path/to/corrected-metrics.rds
+```
+
+This requires `digest` for source-file provenance. It changes only the four F1
+columns and artifact metadata, records the input file's SHA-256, and refuses to
+overwrite an existing output. Finite scores can differ at machine precision
+because the formula is evaluated directly from counts. The published schema-2
+file was produced this way from the original download. The recorded package
+commit still identifies the original simulations and node matching, not the
+later F1 correction. The three historical campaign runners remain unchanged.
+
+Fresh exports validate that every inferred node in a shifted search has a finite
+IC weight before calculating weighted F1. Historical null searches can omit all
+IC weights; their weighted counts are zero and weighted F1 remains `NA`.
+Schema-1 migration operates on the recorded aggregate counts. It cannot recover
+or verify individual weight availability from those counts, so it corrects the
+F1 formula conditional on the original counts rather than re-evaluating weights.
+Use the full campaign export to validate individual weights when raw outputs
+are available.

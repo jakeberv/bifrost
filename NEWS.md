@@ -74,6 +74,11 @@
 
 ## Simulation and tuning
 
+* Fixed F1 scores incorrectly reported as `NA` when recovery is zero, including
+  searches that miss every true shift. Undefined cases retain `NA`. Corrected
+  the supplementary replicate metrics and their export pipeline; pooled
+  vignette summaries and selected settings are unchanged.
+
 * Tuning recommendations now retain `method` and `error` settings inherited
   from the simulation template. Explicit search overrides remain authoritative;
   simulation fits, scores, and the selection rule are unchanged.

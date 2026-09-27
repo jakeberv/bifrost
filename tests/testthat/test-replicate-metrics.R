@@ -5,7 +5,7 @@ test_that("replicate metrics preserve pairing and reconstruct the vignette cache
   x <- readRDS(path)
   cache <- readRDS(file.path(root, "simulation-study-cache/passerine_preview_tables.rds"))
   d <- x$metrics
-  expect_identical(x$schema_version, 1L)
+  expect_identical(x$schema_version, 2L)
   expect_identical(x$provenance$package_commit, cache$provenance$tuning$package_commit)
   expect_identical(x$provenance$design_fingerprint,
                    cache$provenance$tuning$paired_design$design_fingerprint)
@@ -35,6 +35,7 @@ test_that("replicate metrics preserve pairing and reconstruct the vignette cache
   expect_true(all(d$fuzzy_FN[zero_shifted] == d$n_true_shifts[zero_shifted]))
   expect_true(all(d$strict_recall[zero_shifted] == 0))
   for (mode in c("strict", "fuzzy")) {
+    expect_true(all(d[[paste0(mode, "_f1")]][zero_shifted] == 0))
     counts <- d[paste0(mode, "_", c("TP", "FP", "FN", "TN"))]
     expect_true(all(as.matrix(counts) >= 0))
     expect_true(all(as.matrix(counts) == floor(as.matrix(counts))))
@@ -43,11 +44,10 @@ test_that("replicate metrics preserve pairing and reconstruct the vignette cache
     expect_true(all(counts[[2]] + counts[[4]] <= d$n_candidates))
     expect_true(all(is.na(d[[paste0(mode, "_recall")]][d$n_true_shifts == 0])))
     divide <- function(a, b) ifelse(b == 0, NA_real_, a / b)
-    harmonic <- function(p, r) ifelse(is.na(p + r) | p + r == 0, NA_real_, 2 * p * r / (p + r))
     p <- divide(counts[[1]], counts[[1]] + counts[[2]])
     r <- divide(counts[[1]], counts[[1]] + counts[[3]])
     s <- divide(counts[[4]], counts[[4]] + counts[[2]])
-    expected <- list(precision = p, recall = r, f1 = harmonic(p, r),
+    expected <- list(precision = p, recall = r, f1 = divide(2 * counts[[1]], 2 * counts[[1]] + counts[[2]] + counts[[3]]),
                      specificity = s, fpr = divide(counts[[2]], counts[[2]] + counts[[4]]),
                      balanced_accuracy = (r + s) / 2)
     for (name in names(expected)) {
@@ -60,7 +60,7 @@ test_that("replicate metrics preserve pairing and reconstruct the vignette cache
     wp <- divide(tp, tp + fp); wr <- divide(tp, d$n_true_shifts)
     for (name in c("precision", "recall", "f1")) {
       expect_equal(d[[paste("weighted", mode, name, sep = "_")]],
-                   list(precision = wp, recall = wr, f1 = harmonic(wp, wr))[[name]],
+                   list(precision = wp, recall = wr, f1 = divide(2 * tp, tp + fp + d$n_true_shifts))[[name]],
                    tolerance = 1e-12)
     }
   }
@@ -68,7 +68,6 @@ test_that("replicate metrics preserve pairing and reconstruct the vignette cache
     expect_equal(unname(a), unname(b), tolerance = 1e-12)
   }
   ratio <- function(a, b) if (b == 0) NA_real_ else a / b
-  f1 <- function(p, r) if (is.na(p + r) || p + r == 0) NA_real_ else 2 * p * r / (p + r)
   for (ic in c("GIC", "BIC")) {
     grid <- cache$grid_summary[[tolower(ic)]]
     for (i in seq_len(nrow(grid))) {
@@ -87,14 +86,14 @@ test_that("replicate metrics preserve pairing and reconstruct the vignette cache
           counts <- colSums(a[paste0(mode, "_", c("TP", "FP", "FN", "TN"))])
           tp <- counts[1]; fp <- counts[2]; fn <- counts[3]; tn <- counts[4]
           p <- ratio(tp, tp + fp); r <- ratio(tp, tp + fn); s <- ratio(tn, tn + fp)
-          metrics <- list(precision = p, recall = r, f1 = f1(p, r), specificity = s,
+          metrics <- list(precision = p, recall = r, f1 = ratio(2 * tp, 2 * tp + fp + fn), specificity = s,
                           fpr = ratio(fp, fp + tn), balanced_accuracy = (r + s) / 2)
           for (name in names(metrics)) {
             equal(metrics[[name]], g[[paste(prefix, mode, name, sep = "_")]])
           }
         }
         tp <- sum(a$weighted_fuzzy_TP); fp <- sum(a$weighted_fuzzy_FP)
-        equal(f1(ratio(tp, tp + fp), ratio(tp, sum(a$n_true_shifts))),
+        equal(ratio(2 * tp, tp + fp + sum(a$n_true_shifts)),
               g[[paste0(prefix, "_weighted_fuzzy_f1")]])
       }
     }
@@ -164,4 +163,69 @@ test_that("exporter preflight reports dependencies, commit, directory, and file-
                "found 2. Use the complete paired campaign outputs.", fixed = TRUE)
   expect_true(all(file.create(files[-(1:2)])))
   expect_identical(namespace$replicate_export_inputs(root, expected), sort(files))
+})
+
+test_that("replicate export correction repairs zero scores and preserves other data", {
+  exporter <- test_path("../../data-raw/paired-tuning/export-replicate-metrics.R")
+  skip_if_not(file.exists(exporter), "development exporter unavailable")
+  env <- new.env(parent = globalenv()); sys.source(exporter, env)
+  # Wrong prediction; no predictions; null false positive; empty null; partial hit.
+  d <- data.frame(status = "ok", n_true_shifts = c(1,1,0,0,2), other = letters[1:5])
+  for (mode in c("strict", "fuzzy")) {
+    d[[paste0(mode,"_TP")]] <- c(0,0,0,0,1)
+    d[[paste0(mode,"_FP")]] <- c(1,0,1,0,0)
+    d[[paste0(mode,"_FN")]] <- c(1,1,0,0,1)
+    d[[paste0(mode,"_f1")]] <- c(NA,NA,NA,NA,2/3)
+    d[[paste0("weighted_",mode,"_TP")]] <- c(0,0,0,0,0.8)
+    d[[paste0("weighted_",mode,"_FP")]] <- c(0.8,0,0.8,0,0)
+    d[[paste0("weighted_",mode,"_f1")]] <- c(NA,NA,NA,NA,4/7)
+  }
+  old <- list(schema_version = 1L, provenance = list(package_commit = "original"), metrics = d)
+  fixed <- env$recalculate_replicate_f1(old)
+  for (prefix in c("strict", "fuzzy")) {
+    expect_equal(fixed$metrics[[paste0(prefix,"_f1")]], c(0,0,0,NA,2/3))
+    expect_equal(fixed$metrics[[paste0("weighted_",prefix,"_f1")]], c(0,0,0,NA,4/7))
+  }
+  other <- !grepl("_f1$", names(d))
+  expect_identical(fixed$metrics[other], d[other])
+  expect_identical(fixed$provenance$package_commit, "original")
+  expect_identical(env$recalculate_replicate_f1(fixed), fixed)
+  bad <- old; bad$metrics$strict_FP[1] <- NA_real_
+  expect_error(env$recalculate_replicate_f1(bad), "counts")
+  bad <- old; bad$metrics$status[1] <- "error"
+  expect_error(env$recalculate_replicate_f1(bad), "successful")
+
+  input <- withr::local_tempfile(fileext = ".rds")
+  output <- withr::local_tempfile(fileext = ".rds")
+  saveRDS(old, input)
+  before <- digest::digest(file = input, algo = "sha256")
+  rscript <- file.path(R.home("bin"), "Rscript")
+  if (.Platform$OS.type == "windows") rscript <- paste0(rscript, ".exe")
+  log <- system2(rscript, c(shQuote(exporter), "--recalculate-f1", shQuote(input), shQuote(output)), stdout = TRUE, stderr = TRUE)
+  expect_null(attr(log, "status"))
+  actual <- readRDS(output)
+  expect_equal(actual$metrics, fixed$metrics)
+  expect_identical(actual$provenance$f1_source_sha256, before)
+  expect_identical(digest::digest(file = input, algo = "sha256"), before)
+})
+
+test_that("fresh replicate exports reject incomplete inferred-node weights", {
+  exporter <- test_path("../../data-raw/paired-tuning/export-replicate-metrics.R")
+  skip_if_not(file.exists(exporter), "development exporter unavailable")
+  env <- new.env(parent = globalenv()); sys.source(exporter, env)
+  sim <- list(shiftNodes = 6L)
+  result <- list(shift_nodes_no_uncertainty = 6:7,
+                 ic_weights = data.frame(node = 6L, ic_weight_withshift = 0.8))
+  expect_error(env$check_replicate_export_weights(sim, result), "weights")
+  result$ic_weights <- NULL
+  expect_error(env$check_replicate_export_weights(sim, result), "weights")
+  result$ic_weights <- data.frame(node = 6:7, ic_weight_withshift = c(0.8, NA))
+  expect_error(env$check_replicate_export_weights(sim, result), "weights")
+  result$ic_weights$ic_weight_withshift[2] <- 0
+  expect_no_error(env$check_replicate_export_weights(sim, result))
+  # Historical null searches can omit all weights; their weighted F1 stays NA.
+  result$ic_weights <- NULL
+  expect_no_error(env$check_replicate_export_weights(list(shiftNodes = integer()), result))
+  result$shift_nodes_no_uncertainty <- integer()
+  expect_no_error(env$check_replicate_export_weights(sim, result))
 })

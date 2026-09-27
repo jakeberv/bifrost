@@ -83,6 +83,13 @@ unique, valid whole-number node IDs and agree with \code{num_candidates}. For
 compatibility, result objects that provide only \code{num_candidates} use the
 historical count-only formula.
 
+F1 is calculated directly from counts as \code{2 * TP / (2 * TP + FP + FN)}.
+It is zero when no true shifts are recovered but false positives or false
+negatives exist, including successful searches with no inferred shifts.
+It remains \code{NA} when both true and inferred shifts are absent, or when no
+records can be evaluated. Precision and recall retain their own undefined
+cases. Weighted F1 uses \code{2 * weighted_TP / (weighted_TP + weighted_FP + n_true_shifts)} and is \code{NA} if inferred-node IC weights are unavailable.
+
 When a replicate has no evaluable candidate shifts (\code{num_candidates == 0}),
 recall-style quantities can still be computed from the true and inferred
 shifts, but specificity, false-positive rate, and balanced accuracy are
