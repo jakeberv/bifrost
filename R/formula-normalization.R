@@ -560,6 +560,7 @@ normalizeMvglsFormulaCall <- function(formula, trait_data, args_list, allow_sing
   }
 
   rhs_terms <- stats::delete.response(attr(mf, "terms"))
+  has_intercept <- identical(attr(rhs_terms, "intercept"), 1L)
   xmat <- stats::model.matrix(rhs_terms, mf)
   if ("(Intercept)" %in% colnames(xmat)) {
     xmat <- xmat[, colnames(xmat) != "(Intercept)", drop = FALSE]
@@ -579,7 +580,8 @@ normalizeMvglsFormulaCall <- function(formula, trait_data, args_list, allow_sing
         "cbind(",
         paste(response_names, collapse = ", "),
         ") ~ ",
-        paste(predictor_names, collapse = " + ")
+        paste(predictor_names, collapse = " + "),
+        if (has_intercept) "" else " + 0"
       )
     )
   } else {
@@ -589,7 +591,8 @@ normalizeMvglsFormulaCall <- function(formula, trait_data, args_list, allow_sing
       stringsAsFactors = FALSE
     )
     formula_fit <- as.formula(
-      paste0("cbind(", paste(response_names, collapse = ", "), ") ~ 1")
+      paste0("cbind(", paste(response_names, collapse = ", "), ") ~ ",
+             as.integer(has_intercept))
     )
   }
 

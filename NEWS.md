@@ -38,6 +38,9 @@
 
 ## Search and result inspection
 
+* Fixed a regression in formula normalization that added an intercept to
+  formulas explicitly using `0 +` or `- 1`. Searches now preserve the requested
+  intercept setting for numeric and factor predictors.
 * Expanded formula support to accept formula objects, numeric response-only
   data frames for intercept-only searches, and named-column data-frame formulas
   for pGLS-style workflows.

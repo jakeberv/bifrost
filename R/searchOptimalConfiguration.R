@@ -41,7 +41,11 @@
 #'   \code{"trait_data[, 1:5] ~ 1"} to treat columns 1-5 as a multivariate response,
 #'   \code{"trait_data[, 1:5] ~ trait_data[, 6]"} to fit a multivariate pGLS with an
 #'   indexed predictor, or \code{cbind(y1, y2) ~ size + grp} to fit a named-column
-#'   pGLS with numeric or factor predictors.
+#'   pGLS with numeric or factor predictors. An intercept is included by default;
+#'   use \code{cbind(y1, y2) ~ 0 + size} or \code{cbind(y1, y2) ~ size - 1}
+#'   to omit it. With a factor predictor, \code{cbind(y1, y2) ~ 0 + grp}
+#'   estimates a separate mean for each group rather than fixing group means
+#'   at zero.
 #' @param min_descendant_tips Integer (\eqn{\ge}2). Minimum number of tips required for an internal node
 #'   to be considered as a candidate shift (forwarded to \code{generatePaintedTrees}). Defaults
 #'   to \code{10}, the value evaluated and used in the focal analysis of Berv et al. (2026).
