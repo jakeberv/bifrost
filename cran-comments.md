@@ -1,56 +1,52 @@
-# Resubmission
+# CRAN submission
 
-This is a resubmission of the `bifrost` 0.2.0 release, updating CRAN version
-0.1.4.
+This submission updates bifrost from CRAN version 0.1.4 to 0.2.0.
 
-## Changes in this resubmission
+## CRAN check failure
 
-This release addresses the test failure reported for CRAN bifrost 0.1.4
-with mvMORPH 1.2.2, with a correction deadline of 2026-10-16. The old
-method-forwarding test used a BMM fit with only two tips in one regime and
-produced a nonfinite GIC. The mvMORPH maintainer confirmed an unintended
-change in its starting-value calculation.
+This release addresses the test failure reported with mvMORPH 1.2.2, with a
+correction deadline of 2026-10-16. The old method-forwarding test used a BMM
+fit with only two tips in one regime and produced a nonfinite GIC. It has
+been replaced with balanced examples that verify the requested fitting method
+and a finite GIC. These tests pass with CRAN mvMORPH 1.2.2.
 
-The development version of bifrost had already replaced that test. Its
-current method-forwarding tests now use balanced, better-supported examples
-and check both the requested fitting method and a finite GIC. No workaround
-for mvMORPH's starting-value calculation is included in bifrost.
+The redirecting SharedIt URL flagged by incoming pretests has also been
+replaced in README.md with the publisher's direct SharedIt ePDF URL.
 
-The permanently redirecting `rdcu.be` SharedIt URL reported by the incoming
-pretests has been replaced in `README.md` by the publisher's canonical,
-tokenized SharedIt ePDF URL. This preserves free access to the article while
-avoiding the permanent redirect.
-
-## Major changes
+## Release changes
 
 This release adds search-history inspection, branch- and lineage-rate
-summaries, post-hoc regime analyses, and simulation and tuning workflows. It
-removes `plot_ic_acceptance_matrix()`; the supported migration is
-`plot(icTrajectory(x))`. There are no reverse dependencies on CRAN.
+summaries, post-hoc regime analyses, and simulation and tuning workflows.
+It also fixes formula-intercept handling, inherited tuning settings, F1
+calculations, and covariance validation. NEWS.md describes the changes,
+including migration from `plot_ic_acceptance_matrix()` to
+`plot(icTrajectory(x))`.
 
 ## Package contents and network access
 
-Worked articles and empirical data are website-only and excluded from the
-source package. `bifrost_example_file()` accesses the network only after an
-explicit user request, verifies artifact SHA-256 and byte size, and fails
-gracefully. Installation, attachment, examples, and checks remain network-free.
+Worked articles and empirical data are distributed through the package website
+and excluded from the source package. `bifrost_example_file()` downloads data
+only on explicit request, verifies SHA-256 and byte size, and reports download
+failures. Package installation, attachment, and examples do not require these
+downloads.
 
-## Test environment
+## Test environments and results
 
-macOS Sequoia 15.7.9, aarch64, R 4.4.2, using mvMORPH 1.2.2 installed
-from the official CRAN source tarball. Checked on 2026-09-27.
+- Local: macOS Sequoia 15.7.9, aarch64, R 4.4.2. Compatibility was checked
+  with CRAN mvMORPH 1.2.2.
+- GitHub Actions: macOS and Windows R release; Ubuntu R release, devel, and
+  oldrel-1. All five package-check jobs passed for the merged release changes.
 
-## R CMD check results
+Additional CI checks passed for test coverage (100%, zero uncovered lines),
+parallel-worker smoke tests on Linux and Windows, vignette artifacts, and the
+pkgdown website build. The advisory checktor audit also completed; it is a
+supplementary diagnostic rather than a substitute for R CMD check.
+CI results: https://github.com/jakeberv/bifrost/pull/232/checks
 
-`R CMD check --as-cran --run-donttest` on the 2026-09-27 source tarball:
+The final local `devtools::check()` with CRAN incoming checks, the manual, and
+`run_dont_test = TRUE` completed on 2026-09-27 with:
 
 0 errors | 0 warnings | 1 note
 
-The note is the local environment's inability to verify the current time.
-Examples (including `\donttest`), tests, and the PDF and HTML manuals passed.
-The CRAN-mode test suite reported 2561 passing expectations, no failures or
-warnings, and 143 skips for CRAN-excluded tests and unavailable development-only,
-optional, or website-only inputs. The revised method-forwarding tests passed.
-
-This check preceded removal of editorial-only documentation checks.
-Rebuild and check the submission tarball after the final changes.
+The sole note is the local environment's inability to verify the current time.
+Examples (including `\donttest`), tests, and the manual passed.
