@@ -1,3 +1,5 @@
+# bifrost (development version)
+
 # bifrost 0.2.0
 
 ## Changes for existing users
