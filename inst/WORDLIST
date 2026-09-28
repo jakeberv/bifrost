@@ -13,6 +13,7 @@ Boyko
 Branchwise
 CLI
 CMD
+CMRG
 CPC
 CRC
 Caetano
@@ -58,6 +59,7 @@ KDE
 Kaliontzopoulou
 Kozak
 Kullback
+L'Ecuyer
 LLC
 LOOCV
 Lande
@@ -312,6 +314,7 @@ renderer
 renormalizes
 replicate's
 reproducibility
+rescale
 rescaled
 rescales
 rescaling
@@ -323,6 +326,7 @@ scincid
 sd
 searchOptimalConfiguration
 seg
+semidefiniteness
 setNames
 simmap
 speciation
