@@ -4,6 +4,10 @@
   *Methods in Ecology and Evolution*, retaining a separately labeled bioRxiv
   preprint link. Aligned the README citation guidance and publication badges,
   and completed the application paper's volume and page details.
+* GitHub source archives now omit website articles, empirical example data,
+  development tooling, and maintainer files already absent from the CRAN
+  package. Package code, help, tests, licensing, and citation metadata remain
+  included. Repository clones retain the complete tracked source.
 
 # bifrost 0.2.0
 

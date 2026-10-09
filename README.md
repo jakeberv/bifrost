@@ -71,6 +71,15 @@ Install [Rtools](https://cran.r-project.org/bin/windows/Rtools/) for your R vers
 **macOS users:**  
 You may need to install [XQuartz](https://www.xquartz.org/) to build or run packages that depend on certain graphical or system libraries.
 
+### Source archives
+
+GitHub source ZIP and tar.gz downloads include the package code, help files,
+and tests, together with licensing and project metadata. Website articles,
+notebooks, empirical example data, and development tools are excluded from
+these downloads. Those materials remain available in repository clones and
+through the package website and example-data guide. These archive exclusions
+also apply when Zenodo captures a GitHub release.
+
 ## Development status
 
 Version 0.2.0 requires R 4.2 or newer. See the
