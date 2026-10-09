@@ -330,53 +330,32 @@
   # A background worker used only to animate progress is still a serial fit.
   # Limit numerical threads only when multiple fitting workers can compete.
   if (workers > 1L) {
-    Sys.setenv(
-      OMP_NUM_THREADS = "1",
-      OPENBLAS_NUM_THREADS = "1",
-      MKL_NUM_THREADS = "1",
-      VECLIB_MAXIMUM_THREADS = "1",
-      NUMEXPR_NUM_THREADS = "1"
+    do.call(Sys.setenv, setNames(rep(list("1"), length(thread_vars)), thread_vars))
+  }
+
+  on.exit(
+    tryCatch(
+      # Dispose of stage workers even when the saved plan is otherwise identical.
+      plan(future::sequential),
+      finally = {
+        unset <- is.na(old_threads)
+        Sys.unsetenv(names(old_threads)[unset])
+        if (any(!unset)) do.call(Sys.setenv, as.list(old_threads[!unset]))
+        plan(old_plan)
+      }
     )
-  }
-
-  restore_threads <- function() {
-    for (nm in thread_vars) {
-      val <- old_threads[[nm]]
-      if (is.na(val)) {
-        Sys.unsetenv(nm)
-      } else {
-        do.call(Sys.setenv, setNames(list(val), nm))
-      }
-    }
-  }
-
-  tryCatch(
-    {
-      if (.Platform$OS.type == "unix" &&
-          !identical(Sys.info()[["sysname"]], "SunOS") &&
-          !is_rstudio_flag && future::supportsMulticore()) {
-        plan(multicore, workers = backend_workers)
-      } else {
-        # Equal Future strategies can reuse an existing pool whose startup
-        # environment differs from this stage's numerical-thread policy.
-        plan(future::sequential)
-        plan(multisession, workers = backend_workers)
-      }
-
-      work()
-    },
-    finally = {
-      tryCatch(
-        # Dispose of workers with stage-specific runtime thread limits, even
-        # when the caller's saved plan uses an otherwise identical strategy.
-        plan(future::sequential),
-        finally = {
-          restore_threads()
-          plan(old_plan)
-        }
-      )
-    }
   )
+
+  if (.Platform$OS.type == "unix" &&
+      !identical(Sys.info()[["sysname"]], "SunOS") &&
+      !is_rstudio_flag && future::supportsMulticore()) {
+    plan(multicore, workers = backend_workers)
+  } else {
+    # Refresh equal-sized pools so workers inherit this stage's thread settings.
+    plan(future::sequential)
+    plan(multisession, workers = backend_workers)
+  }
+  work()
 }
 
 .bifrost_search_limit_worker_threads <- function(caller_pid) {

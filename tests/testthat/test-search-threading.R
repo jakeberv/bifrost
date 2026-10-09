@@ -3,13 +3,13 @@
   "VECLIB_MAXIMUM_THREADS", "NUMEXPR_NUM_THREADS"
 )
 
-test_that("one fitting worker preserves thread settings independently of progress", {
+test_that("thread limits depend on fitting workers independently of progress", {
   withr::local_envvar(c(
     OMP_NUM_THREADS = "4", OPENBLAS_NUM_THREADS = "3",
     MKL_NUM_THREADS = "2", VECLIB_MAXIMUM_THREADS = NA,
     NUMEXPR_NUM_THREADS = NA
   ))
-  expected <- c("4", "3", "2", NA_character_, NA_character_)
+  caller_threads <- c("4", "3", "2", NA_character_, NA_character_)
   caller_pid <- Sys.getpid()
   probe <- function(i) list(
     pid = Sys.getpid(),
@@ -20,48 +20,42 @@ test_that("one fitting worker preserves thread settings independently of progres
   for (is_rstudio in backends) {
     for (progress in c(FALSE, TRUE)) {
       heartbeat <- if (progress) function() invisible(NULL) else NULL
-      for (cores in c(1L, 2L)) {
-        # Even when two cores are requested, one job only needs one worker.
-        result <- .bifrost_search_lapply(
-          1L, probe, num_cores = cores, is_rstudio = is_rstudio,
-          heartbeat = heartbeat
-        )[[1L]]
-        expect_identical(result$threads, expected)
-        if (progress) expect_false(identical(result$pid, caller_pid))
-        expect_identical(
-          unname(Sys.getenv(.search_thread_env, unset = NA_character_)), expected
-        )
+      for (jobs in 1:2) {
+        # One job needs one fitting worker even when two cores are requested.
+        expected <- if (jobs == 1L) caller_threads else rep("1", 5L)
+        for (cores in jobs:2) {
+          result <- .bifrost_search_lapply(
+            seq_len(jobs), probe, num_cores = cores, is_rstudio = is_rstudio,
+            heartbeat = heartbeat
+          )
+          for (worker in result) expect_identical(worker$threads, expected)
+          pids <- vapply(result, `[[`, integer(1), "pid")
+          expect_length(unique(pids), jobs)
+          if (progress || jobs > 1L) expect_false(any(pids == caller_pid))
+          expect_identical(
+            unname(Sys.getenv(.search_thread_env, unset = NA_character_)),
+            caller_threads
+          )
+        }
       }
     }
   }
 })
 
-test_that("concurrent fitting workers request one numerical thread", {
-  withr::local_envvar(c(
-    OMP_NUM_THREADS = "4", OPENBLAS_NUM_THREADS = "3",
-    MKL_NUM_THREADS = "2", VECLIB_MAXIMUM_THREADS = NA,
-    NUMEXPR_NUM_THREADS = NA
-  ))
-  probe <- function(i) list(
-    pid = Sys.getpid(),
-    threads = unname(Sys.getenv(.search_thread_env, unset = NA_character_))
+test_that("worker thread limits never change the calling process", {
+  # Native thread counts cannot be queried portably. Catch either setter at
+  # the library boundary without changing the test runner's thread settings.
+  testthat::local_mocked_bindings(
+    blas_set_num_threads = function(...) {
+      stop("Attempted to change the caller's BLAS threads")
+    },
+    omp_set_num_threads = function(...) {
+      stop("Attempted to change the caller's OpenMP threads")
+    },
+    .package = "RhpcBLASctl"
   )
 
-  backends <- if (future::supportsMulticore()) c(TRUE, FALSE) else TRUE
-  for (is_rstudio in backends) {
-    for (progress in c(FALSE, TRUE)) {
-      result <- .bifrost_search_lapply(
-        1:2, probe, num_cores = 2L, is_rstudio = is_rstudio,
-        heartbeat = if (progress) function() invisible(NULL) else NULL
-      )
-      expect_length(unique(vapply(result, `[[`, integer(1), "pid")), 2L)
-      for (worker in result) expect_identical(worker$threads, rep("1", 5L))
-      expect_identical(
-        unname(Sys.getenv(.search_thread_env, unset = NA_character_)),
-        c("4", "3", "2", NA_character_, NA_character_)
-      )
-    }
-  }
+  expect_invisible(.bifrost_search_limit_worker_threads(Sys.getpid()))
 })
 
 test_that("an existing multisession pool cannot bypass the thread policy", {
