@@ -1,4 +1,4 @@
-# bifrost (development version)
+# bifrost 0.2.1
 
 * Updated the primary package citation to the accepted, in-press article in
   *Methods in Ecology and Evolution*, retaining a separately labeled bioRxiv
@@ -8,6 +8,11 @@
   development tooling, and maintainer files already absent from the CRAN
   package. Package code, help, tests, licensing, and citation metadata remain
   included. Repository clones retain the complete tracked source.
+* Added validated `CITATION.cff` metadata for GitHub citations and Zenodo
+  release archiving, with the in-press package paper as the preferred citation.
+  The file is excluded from the R source-package build.
+* Updated software citation versions and clarified the distinction between
+  the CRAN release, the planned GitHub release, and development source.
 
 # bifrost 0.2.0
 

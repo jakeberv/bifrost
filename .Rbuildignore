@@ -40,3 +40,4 @@
 ^tools($|/)
 ^vignettes($|/)
 ^man/figures/cran-downloads(-dark)?[.]png$
+^CITATION\.cff$

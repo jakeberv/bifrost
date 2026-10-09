@@ -52,13 +52,13 @@ The method works with fossil tip-dated trees and with a wide range of multivaria
 
 ## Installation
 
-### Stable release
+### CRAN release (0.2.0)
 
 ```r
 install.packages("bifrost")
 ```
 
-### Development version
+### GitHub development source
 
 ```r
 # install.packages("remotes")
@@ -82,7 +82,9 @@ also apply when Zenodo captures a GitHub release.
 
 ## Development status
 
-Version 0.2.0 requires R 4.2 or newer. See the
+Version 0.2.1 is being prepared for release on GitHub; CRAN currently distributes
+0.2.0. Both require R 4.2 or newer. The 0.2.1 update covers citation metadata,
+documentation, and source-archive packaging. See the
 [development-status page](https://jakeberv.com/bifrost/articles/development-status.html)
 for current CRAN and GitHub availability, release caveats, and the website
 article policy. See [NEWS](https://jakeberv.com/bifrost/news/index.html) for the
@@ -195,7 +197,7 @@ citation("bifrost")
    Berv JS, Probst CM, Claramunt S, Shipley JR, Friedman M, Smith SA, Fouhey DF, Weeks BC (2026). *Rates of passerine body plan evolution in time and space*. *Nature Ecology & Evolution*, 10, 1559–1573. [https://doi.org/10.1038/s41559-026-03110-5](https://doi.org/10.1038/s41559-026-03110-5)
 
 3. `bifrost` software citation  
-   Berv JS, Fox N, Thorstensen MJ, Lloyd-Laney H, Troyer EM, Rivero-Vega RA, Smith SA, Friedman M, Fouhey DF, Weeks BC (2026). *Branch-Level Inference Framework for Recognizing Optimal Shifts in Traits*. R package version 0.2.0. [https://CRAN.R-project.org/package=bifrost](https://CRAN.R-project.org/package=bifrost)
+   Berv JS, Fox N, Thorstensen MJ, Lloyd-Laney H, Troyer EM, Rivero-Vega RA, Smith SA, Friedman M, Fouhey DF, Weeks BC (2026). *Branch-Level Inference Framework for Recognizing Optimal Shifts in Traits*. R package version 0.2.1. [https://github.com/jakeberv/bifrost](https://github.com/jakeberv/bifrost)
 
 4. `mvMORPH` package paper  
    Clavel J, Escarguel G, Merceron G (2015). *mvmorph: an R package for fitting multivariate evolutionary models to morphometric data*. *Methods in Ecology and Evolution*, 6(11), 1311-1319. [https://doi.org/10.1111/2041-210X.12420](https://doi.org/10.1111/2041-210X.12420)
