@@ -317,11 +317,9 @@
   # Reset the same initialization metadata as future::tweak() so restoring a
   # plan recreates its backend instead of reviving closed socket connections.
   for (i in seq_along(old_plan)) {
-    if (!is.null(attr(old_plan[[i]], "backend", exact = TRUE))) {
-      attr(old_plan[[i]], "backend") <- NULL
-      if (identical(attr(old_plan[[i]], "init", exact = TRUE), "done")) {
-        attr(old_plan[[i]], "init") <- TRUE
-      }
+    attr(old_plan[[i]], "backend") <- NULL
+    if (identical(attr(old_plan[[i]], "init", exact = TRUE), "done")) {
+      attr(old_plan[[i]], "init") <- TRUE
     }
   }
 

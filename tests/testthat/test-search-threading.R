@@ -58,6 +58,37 @@ test_that("worker thread limits never change the calling process", {
   expect_invisible(.bifrost_search_limit_worker_threads(Sys.getpid()))
 })
 
+test_that("legacy Future plans are reinitialized after stage cleanup", {
+  old_plan <- future::plan("list")
+  on.exit(future::plan(old_plan), add = TRUE)
+  future::plan(future::sequential)
+  initialization_probe <- future::future(NA)
+  active <- FALSE
+  legacy <- function(..., workers = 1L) {
+    active <<- TRUE
+    initialization_probe
+  }
+  class(legacy) <- c("legacy", "future", "function")
+  attr(legacy, "init") <- TRUE
+  attr(legacy, "cleanup") <- function() active <<- FALSE
+  future::plan(legacy)
+  expect_true(active)
+  expect_null(attr(future::plan("next"), "backend", exact = TRUE))
+  expect_identical(attr(future::plan("next"), "init", exact = TRUE), "done")
+
+  for (fail in c(FALSE, TRUE)) {
+    work <- function() {
+      if (fail) stop("synthetic fitting failure")
+      42L
+    }
+    run <- function() .bifrost_search_with_future_plan(1L, TRUE, work)
+    if (fail) expect_error(run(), "synthetic fitting failure")
+    else expect_identical(run(), 42L)
+    expect_true(active)
+    expect_s3_class(future::plan("next"), "legacy")
+  }
+})
+
 test_that("an existing multisession pool cannot bypass the thread policy", {
   withr::local_envvar(c(OMP_NUM_THREADS = "4", OPENBLAS_NUM_THREADS = "3"))
   old_plan <- future::plan("list")
