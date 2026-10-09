@@ -313,16 +313,31 @@
   )
   old_threads <- Sys.getenv(thread_vars, unset = NA_character_)
   old_plan <- future::plan("list")
+  # Preserve strategies and their tweaks, not references to workers we stop.
+  # Reset the same initialization metadata as future::tweak() so restoring a
+  # plan recreates its backend instead of reviving closed socket connections.
+  for (i in seq_along(old_plan)) {
+    if (!is.null(attr(old_plan[[i]], "backend", exact = TRUE))) {
+      attr(old_plan[[i]], "backend") <- NULL
+      if (identical(attr(old_plan[[i]], "init", exact = TRUE), "done")) {
+        attr(old_plan[[i]], "init") <- TRUE
+      }
+    }
+  }
 
   backend_workers <- if (isTRUE(ensure_async) && workers <= 1L) I(1L) else workers
 
-  Sys.setenv(
-    OMP_NUM_THREADS = "1",
-    OPENBLAS_NUM_THREADS = "1",
-    MKL_NUM_THREADS = "1",
-    VECLIB_MAXIMUM_THREADS = "1",
-    NUMEXPR_NUM_THREADS = "1"
-  )
+  # A background worker used only to animate progress is still a serial fit.
+  # Limit numerical threads only when multiple fitting workers can compete.
+  if (workers > 1L) {
+    Sys.setenv(
+      OMP_NUM_THREADS = "1",
+      OPENBLAS_NUM_THREADS = "1",
+      MKL_NUM_THREADS = "1",
+      VECLIB_MAXIMUM_THREADS = "1",
+      NUMEXPR_NUM_THREADS = "1"
+    )
+  }
 
   restore_threads <- function() {
     for (nm in thread_vars) {
@@ -339,19 +354,38 @@
     {
       if (.Platform$OS.type == "unix" &&
           !identical(Sys.info()[["sysname"]], "SunOS") &&
-          !is_rstudio_flag) {
+          !is_rstudio_flag && future::supportsMulticore()) {
         plan(multicore, workers = backend_workers)
       } else {
+        # Equal Future strategies can reuse an existing pool whose startup
+        # environment differs from this stage's numerical-thread policy.
+        plan(future::sequential)
         plan(multisession, workers = backend_workers)
       }
 
       work()
     },
     finally = {
-      plan(old_plan)
-      restore_threads()
+      tryCatch(
+        # Dispose of workers with stage-specific runtime thread limits, even
+        # when the caller's saved plan uses an otherwise identical strategy.
+        plan(future::sequential),
+        finally = {
+          restore_threads()
+          plan(old_plan)
+        }
+      )
     }
   )
+}
+
+.bifrost_search_limit_worker_threads <- function(caller_pid) {
+  # Never change the caller's initialized numerical library if a backend or
+  # test adapter evaluates work locally instead of in a child process.
+  if (identical(Sys.getpid(), caller_pid)) return(invisible(NULL))
+  RhpcBLASctl::blas_set_num_threads(1L)
+  RhpcBLASctl::omp_set_num_threads(1L)
+  invisible(NULL)
 }
 
 .bifrost_search_await_futures <- function(futures,
@@ -485,13 +519,16 @@
   item_seeds <- .bifrost_search_rng_seeds(length(X))
 
   .bifrost_search_with_future_plan(
-    workers = workers,
+    workers = chunk_count,
     is_rstudio_flag = is_rstudio_flag,
     ensure_async = TRUE,
     work = function() {
       seeded_eval <- .bifrost_search_with_rng_seed
+      limit_threads <- .bifrost_search_limit_worker_threads
+      caller_pid <- Sys.getpid()
       chunk_futures <- lapply(chunks, function(indices) {
         future::future({
+          if (chunk_count > 1L) limit_threads(caller_pid)
           lapply(indices, function(i) {
             seeded_eval(
               item_seeds[[i]],
@@ -521,9 +558,14 @@
     workers = workers,
     is_rstudio_flag = is_rstudio_flag,
     work = function() {
+      limit_threads <- .bifrost_search_limit_worker_threads
+      caller_pid <- Sys.getpid()
       future.apply::future_lapply(
         X,
-        FUN,
+        function(x) {
+          if (workers > 1L) limit_threads(caller_pid)
+          FUN(x)
+        },
         future.seed = TRUE,
         future.scheduling = TRUE
       )
@@ -536,6 +578,13 @@
                                   num_cores,
                                   is_rstudio,
                                   heartbeat = NULL) {
+  if (length(X) == 0L) return(list())
+  if (length(num_cores) != 1L || !is.numeric(num_cores) ||
+      !isTRUE(is.finite(num_cores))) {
+    stop("`num_cores` must be a single finite number.", call. = FALSE)
+  }
+  # Do not provision extra workers (or limit threads) for a single available fit.
+  num_cores <- max(1L, as.integer(min(num_cores, length(X))))
   if (!is.null(heartbeat)) {
     return(.bifrost_search_future_lapply(
       X,

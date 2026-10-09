@@ -1,0 +1,181 @@
+.search_thread_env <- c(
+  "OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS",
+  "VECLIB_MAXIMUM_THREADS", "NUMEXPR_NUM_THREADS"
+)
+
+test_that("one fitting worker preserves thread settings independently of progress", {
+  withr::local_envvar(c(
+    OMP_NUM_THREADS = "4", OPENBLAS_NUM_THREADS = "3",
+    MKL_NUM_THREADS = "2", VECLIB_MAXIMUM_THREADS = NA,
+    NUMEXPR_NUM_THREADS = NA
+  ))
+  expected <- c("4", "3", "2", NA_character_, NA_character_)
+  caller_pid <- Sys.getpid()
+  probe <- function(i) list(
+    pid = Sys.getpid(),
+    threads = unname(Sys.getenv(.search_thread_env, unset = NA_character_))
+  )
+
+  backends <- if (future::supportsMulticore()) c(TRUE, FALSE) else TRUE
+  for (is_rstudio in backends) {
+    for (progress in c(FALSE, TRUE)) {
+      heartbeat <- if (progress) function() invisible(NULL) else NULL
+      for (cores in c(1L, 2L)) {
+        # Even when two cores are requested, one job only needs one worker.
+        result <- .bifrost_search_lapply(
+          1L, probe, num_cores = cores, is_rstudio = is_rstudio,
+          heartbeat = heartbeat
+        )[[1L]]
+        expect_identical(result$threads, expected)
+        if (progress) expect_false(identical(result$pid, caller_pid))
+        expect_identical(
+          unname(Sys.getenv(.search_thread_env, unset = NA_character_)), expected
+        )
+      }
+    }
+  }
+})
+
+test_that("concurrent fitting workers request one numerical thread", {
+  withr::local_envvar(c(
+    OMP_NUM_THREADS = "4", OPENBLAS_NUM_THREADS = "3",
+    MKL_NUM_THREADS = "2", VECLIB_MAXIMUM_THREADS = NA,
+    NUMEXPR_NUM_THREADS = NA
+  ))
+  probe <- function(i) list(
+    pid = Sys.getpid(),
+    threads = unname(Sys.getenv(.search_thread_env, unset = NA_character_))
+  )
+
+  backends <- if (future::supportsMulticore()) c(TRUE, FALSE) else TRUE
+  for (is_rstudio in backends) {
+    for (progress in c(FALSE, TRUE)) {
+      result <- .bifrost_search_lapply(
+        1:2, probe, num_cores = 2L, is_rstudio = is_rstudio,
+        heartbeat = if (progress) function() invisible(NULL) else NULL
+      )
+      expect_length(unique(vapply(result, `[[`, integer(1), "pid")), 2L)
+      for (worker in result) expect_identical(worker$threads, rep("1", 5L))
+      expect_identical(
+        unname(Sys.getenv(.search_thread_env, unset = NA_character_)),
+        c("4", "3", "2", NA_character_, NA_character_)
+      )
+    }
+  }
+})
+
+test_that("an existing multisession pool cannot bypass the thread policy", {
+  withr::local_envvar(c(OMP_NUM_THREADS = "4", OPENBLAS_NUM_THREADS = "3"))
+  old_plan <- future::plan("list")
+  on.exit(future::plan(old_plan), add = TRUE)
+  future::plan(future::sequential)
+  connections_before <- nrow(showConnections())
+  probe <- function(i) Sys.getenv("OPENBLAS_NUM_THREADS")
+  for (initial_workers in c(1L, 2L)) {
+    workers <- if (initial_workers == 1L) I(1L) else initial_workers
+    future::plan(future::multisession, workers = workers)
+    expect_identical(future::value(future::future(probe(1))), "3")
+    for (progress in c(FALSE, TRUE)) {
+      result <- .bifrost_search_lapply(
+        1:2, probe, num_cores = 2L, is_rstudio = TRUE,
+        heartbeat = if (progress) function() invisible(NULL) else NULL
+      )
+      expect_identical(result, list("1", "1"))
+      expect_equal(future::nbrOfWorkers(), initial_workers)
+      expect_identical(future::value(future::future(probe(1))), "3")
+    }
+    future::plan(future::sequential)
+    expect_warning(gc(), NA)
+    expect_equal(nrow(showConnections()), connections_before)
+  }
+})
+
+test_that("disabled forking still runs fitting work outside the caller", {
+  withr::local_options(future.fork.enable = FALSE)
+  caller_pid <- Sys.getpid()
+  for (cores in 1:2) {
+    result <- .bifrost_search_lapply(
+      seq_len(cores), function(i) Sys.getpid(), num_cores = cores,
+      is_rstudio = FALSE, heartbeat = function() invisible(NULL)
+    )
+    expect_false(any(unlist(result) == caller_pid))
+    expect_length(unique(unlist(result)), cores)
+  }
+})
+
+test_that("worker counts are validated before being limited by job count", {
+  for (cores in list(c(1, 2), numeric(), Inf, NA_real_, "2")) {
+    expect_error(
+      .bifrost_search_lapply(1L, identity, cores, is_rstudio = TRUE),
+      "`num_cores` must be a single finite number", fixed = TRUE
+    )
+  }
+  withr::local_envvar(OMP_NUM_THREADS = "4")
+  result <- .bifrost_search_lapply(
+    1:2, function(i) Sys.getenv("OMP_NUM_THREADS"),
+    num_cores = 1.5, is_rstudio = TRUE
+  )
+  expect_identical(result, list("4", "4"))
+})
+
+test_that("one-worker progress restores the caller plan after a failed fit", {
+  withr::local_envvar(c(OMP_NUM_THREADS = "4", OPENBLAS_NUM_THREADS = NA))
+  old_plan <- future::plan("list")
+  on.exit(future::plan(old_plan), add = TRUE)
+  future::plan(future::sequential)
+  expect_error(
+    .bifrost_search_lapply(
+      1L, function(i) stop("synthetic serial failure"),
+      num_cores = 1L, is_rstudio = TRUE,
+      heartbeat = function() invisible(NULL)
+    ),
+    "synthetic serial failure"
+  )
+  expect_s3_class(future::plan("next"), "sequential")
+  expect_identical(Sys.getenv("OMP_NUM_THREADS"), "4")
+  expect_true(is.na(Sys.getenv("OPENBLAS_NUM_THREADS", unset = NA_character_)))
+})
+
+test_that("greedy search and serial weights preserve numerical threading", {
+  withr::local_envvar(c(OMP_NUM_THREADS = "4", OPENBLAS_NUM_THREADS = "3"))
+  set.seed(46)
+  tree <- ape::rtree(10)
+  baseline <- phytools::paintSubTree(tree, node = 11L, state = 0)
+  candidate <- generatePaintedTrees(baseline, min_tips = 3)[2]
+  fit <- function(...) {
+    # Observe settings at the fitting boundary, including in a real worker.
+    if (!identical(Sys.getenv("OMP_NUM_THREADS"), "4") ||
+        !identical(Sys.getenv("OPENBLAS_NUM_THREADS"), "3")) {
+      stop("Numerical thread settings were changed during a serial fit")
+    }
+    Sys.sleep(0.15)
+    list(GIC = list(GIC = 90))
+  }
+  backends <- if (future::supportsMulticore()) c(TRUE, FALSE) else TRUE
+  for (is_rstudio in backends) {
+    for (progress in c(FALSE, TRUE)) {
+      beats <- 0L
+      heartbeat <- if (progress) function() beats <<- beats + 1L else NULL
+      result <- .bifrost_search_forward(
+        sorted_candidates = candidate, current_best_tree = baseline,
+        current_best_ic = 100, shift_id = 0L, IC = "GIC",
+        formula = trait_data ~ 1, trait_data = matrix(0, 10, 1),
+        shift_acceptance_threshold = 5, store_model_fit_history = FALSE,
+        sub_dir = NULL, plot = FALSE, verbose_log = function(...) NULL,
+        heartbeat = heartbeat, is_rstudio = is_rstudio, fit = fit
+      )
+      expect_length(result$shift_vec, 1L)
+      weights <- .bifrost_search_calculate_ic_weights(
+        uncertaintyweights = TRUE, uncertaintyweights_par = FALSE,
+        shift_vec = result$shift_vec,
+        best_tree_no_uncertainty = result$best_tree_no_uncertainty,
+        model_with_shift_no_uncertainty = result$model_with_shift_no_uncertainty,
+        IC = "GIC", formula = trait_data ~ 1, trait_data = matrix(0, 10, 1),
+        args_list = list(), num_cores = 1L, is_rstudio = is_rstudio,
+        verbose_log = function(...) NULL, heartbeat = heartbeat, fit = fit
+      )
+      expect_equal(nrow(weights), 1L)
+      if (progress) expect_gt(beats, 0L) else expect_identical(beats, 0L)
+    }
+  }
+})

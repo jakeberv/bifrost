@@ -27,6 +27,7 @@ Imports:
     future.apply,
     parallel,
     progressr,
+    RhpcBLASctl,
     phytools (>= 2.0-3),
     plotrix,
     RRphylo,
@@ -59,7 +60,6 @@ Config/Needs/website:
     pkgload,
     plotly,
     png,
-    RhpcBLASctl,
     scatterplot3d,
     yaml
 Config/testthat/edition: 3

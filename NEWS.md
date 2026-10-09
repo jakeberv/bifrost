@@ -1,5 +1,11 @@
 # bifrost 0.2.1
 
+* Progress reporting now preserves numerical-thread environment settings for
+  single-fit stages, including the greedy search, serial IC weights, and searches
+  with `num_cores = 1`. Concurrent candidate and IC-weight fits request one
+  numerical thread per worker using startup settings and `RhpcBLASctl` runtime
+  controls. Worker pools are refreshed and cleaned up so their thread settings
+  do not carry over into later stages or the caller's Future plan.
 * Updated the primary package citation to the accepted, in-press article in
   *Methods in Ecology and Evolution*, retaining a separately labeled bioRxiv
   preprint link. Aligned the README citation guidance and publication badges,
