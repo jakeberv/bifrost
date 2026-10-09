@@ -5,6 +5,7 @@
 [![Codecov test coverage](https://codecov.io/gh/jakeberv/bifrost/graph/badge.svg)](https://app.codecov.io/gh/jakeberv/bifrost)
 [![CRAN status](https://www.r-pkg.org/badges/version/bifrost)](https://CRAN.R-project.org/package=bifrost)
 [![CRAN downloads](https://cranlogs.r-pkg.org/badges/grand-total/bifrost)](https://cran.r-project.org/package=bifrost)
+[![Package paper: Methods in Ecology and Evolution (in press)](https://img.shields.io/badge/package%20paper-MEE%20(in%20press)-005a70.svg)](#citation)
 [![Paper: Nature Ecology & Evolution](https://img.shields.io/badge/paper-Nature%20Ecology%20%26%20Evolution-000000.svg)](https://www.nature.com/articles/s41559-026-03110-5.epdf?sharing_token=PNALt0fkwK7zWng8AcHUw9RgN0jAjWel9jnR3ZoTv0MY7RbzUNNAnMQsco3ST9ehysSF4OiMNSc7ku-ywR1G5HC7BVOhY0inuNGDXiP16Z26oaZtwiblA-f61S2M-2llNRsRbegpuTeyhziEWzMipUgtyZKBEe3dsZlBVa67S4c%3D)
 [![bioRxiv preprint](https://img.shields.io/endpoint?url=https%3A%2F%2Fjakeberv.github.io%2Fbiorxiv-badge%2Fbadges%2F10.64898__2026.04.12.718036.json)](https://doi.org/10.64898/2026.04.12.718036)
 [![License: GPL (>= 2)](https://img.shields.io/badge/license-GPL%20(%E2%89%A5%202)-blue.svg)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html)
@@ -51,13 +52,13 @@ The method works with fossil tip-dated trees and with a wide range of multivaria
 
 ## Installation
 
-### Stable release
+### CRAN release (0.2.0)
 
 ```r
 install.packages("bifrost")
 ```
 
-### Development version
+### GitHub development source
 
 ```r
 # install.packages("remotes")
@@ -70,18 +71,24 @@ Install [Rtools](https://cran.r-project.org/bin/windows/Rtools/) for your R vers
 **macOS users:**  
 You may need to install [XQuartz](https://www.xquartz.org/) to build or run packages that depend on certain graphical or system libraries.
 
+### Source archives
+
+GitHub source ZIP and tar.gz downloads include the package code, help files,
+and tests, together with licensing and project metadata. Website articles,
+notebooks, empirical example data, and development tools are excluded from
+these downloads. Those materials remain available in repository clones and
+through the package website and example-data guide. These archive exclusions
+also apply when Zenodo captures a GitHub release.
+
 ## Development status
 
-Version 0.2.0 requires R 4.2 or newer. See the
+Version 0.2.1 is being prepared for release on GitHub; CRAN currently distributes
+0.2.0. Both require R 4.2 or newer. The 0.2.1 update covers citation metadata,
+documentation, and source-archive packaging. See the
 [development-status page](https://jakeberv.com/bifrost/articles/development-status.html)
 for current CRAN and GitHub availability, release caveats, and the website
 article policy. See [NEWS](https://jakeberv.com/bifrost/news/index.html) for the
 complete changelog.
-
-When upgrading from 0.1.4, replace the removed plotting wrapper with
-`plot(icTrajectory(x))` when `x` is a `bifrost_search` or compatible
-search-result list. See [NEWS](https://jakeberv.com/bifrost/news/index.html)
-for the raw-matrix migration and argument mapping.
 
 ## Example data
 
@@ -170,7 +177,7 @@ Though `bifrost` was initially developed as a framework for inferring macroevolu
 
 ## Citation
 
-If you use `bifrost`, please cite the package and methods references below. The same set is also available from:
+If you use `bifrost`, please cite the package paper first listed below and the other references as appropriate. Because `bifrost` relies on `mvMORPH` and its penalized-likelihood framework, please also cite the `mvMORPH` references below. The same set is also available from:
 
 ```r
 citation("bifrost")
@@ -178,19 +185,16 @@ citation("bifrost")
 
 ### Recommended citations
 
-1. `bifrost` methods / application paper  
-   Berv JS, Probst CM, Claramunt S, Shipley JR, Friedman M, Smith SA, Fouhey DF, Weeks BC (2026). *Rates of passerine body plan evolution in time and space*. *Nature Ecology & Evolution*. [https://doi.org/10.1038/s41559-026-03110-5](https://doi.org/10.1038/s41559-026-03110-5)
+1. `bifrost` methods / package paper\
+   Berv JS, Fox N, Thorstensen MJ, Lloyd-Laney H, Troyer EM, Rivero-Vega RA, Smith SA, Friedman M, Fouhey DF, Weeks BC (2026). *bifrost: an R package for scalable inference of phylogenetic shifts in multivariate evolutionary dynamics*. *Methods in Ecology and Evolution*. In press. [Preprint on bioRxiv](https://doi.org/10.64898/2026.04.12.718036).
 
-2. `bifrost` preprint  
-   Berv JS, Fox N, Thorstensen MJ, Lloyd-Laney H, Troyer EM, Rivero-Vega RA, Smith SA, Friedman M, Fouhey DF, Weeks BC (2026). *bifrost: an R package for scalable inference of phylogenetic shifts in multivariate evolutionary dynamics*. *bioRxiv*. [https://doi.org/10.64898/2026.04.12.718036](https://doi.org/10.64898/2026.04.12.718036)
+2. `bifrost` application paper\
+   Berv JS, Probst CM, Claramunt S, Shipley JR, Friedman M, Smith SA, Fouhey DF, Weeks BC (2026). *Rates of passerine body plan evolution in time and space*. *Nature Ecology & Evolution*, 10, 1559–1573. [https://doi.org/10.1038/s41559-026-03110-5](https://doi.org/10.1038/s41559-026-03110-5)
 
-3. `bifrost` software citation  
-   Berv JS, Fox N, Thorstensen MJ, Lloyd-Laney H, Troyer EM, Rivero-Vega RA, Smith SA, Friedman M, Fouhey DF, Weeks BC (2026). *Branch-Level Inference Framework for Recognizing Optimal Shifts in Traits*. R package version 0.2.0. [https://CRAN.R-project.org/package=bifrost](https://CRAN.R-project.org/package=bifrost)
-
-4. `mvMORPH` package paper  
+3. `mvMORPH` package paper\
    Clavel J, Escarguel G, Merceron G (2015). *mvmorph: an R package for fitting multivariate evolutionary models to morphometric data*. *Methods in Ecology and Evolution*, 6(11), 1311-1319. [https://doi.org/10.1111/2041-210X.12420](https://doi.org/10.1111/2041-210X.12420)
 
-5. Penalized-likelihood framework paper  
+4. Penalized-likelihood framework paper\
    Clavel J, Aristide L, Morlon H (2019). *A Penalized Likelihood Framework for High-Dimensional Phylogenetic Comparative Methods and an Application to New-World Monkeys Brain Evolution*. *Systematic Biology*, 68(1), 93-116. [https://doi.org/10.1093/sysbio/syy045](https://doi.org/10.1093/sysbio/syy045)
 
 ## Contributing

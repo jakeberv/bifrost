@@ -1,21 +1,32 @@
 ---
 title: "Release Status"
-description: "Release and packaging status for bifrost 0.2.0."
+description: "CRAN availability and GitHub release preparation for bifrost 0.2.1."
 ---
 
-This page describes `bifrost` 0.2.0, its release status, and the relationship
-between the CRAN package and the fuller documentation maintained on GitHub.
+This page describes the published CRAN version of `bifrost`, the planned
+0.2.1 GitHub release, and the relationship between package source archives
+and the fuller documentation maintained in the repository.
 
 ## At a glance
 
 | Distribution | Version | Installation | Best for |
 |---|---:|---|---|
-| [CRAN](https://CRAN.R-project.org/package=bifrost) | 0.1.4 | `install.packages("bifrost")` | Current published release |
-| [GitHub](https://github.com/jakeberv/bifrost) | 0.2.0 release candidate | `remotes::install_github("jakeberv/bifrost")` | Candidate source and the latest website documentation |
+| [CRAN](https://CRAN.R-project.org/package=bifrost) | 0.2.0 | `install.packages("bifrost")` | Current published CRAN release |
+| [GitHub](https://github.com/jakeberv/bifrost), planned release | 0.2.1 | `remotes::install_github("jakeberv/bifrost@v0.2.1")`, after the tag is published | Citation, documentation, and archive updates |
+| [GitHub](https://github.com/jakeberv/bifrost), development source | Version on `main` | `remotes::install_github("jakeberv/bifrost")` | Latest merged development source |
 
-The 0.2.0 release candidate requires R 4.2 or newer. Until CRAN accepts it,
-GitHub contains the candidate source while `install.packages()` installs the
-published 0.1.4 release.
+Versions 0.2.0 and 0.2.1 require R 4.2 or newer. Version 0.2.1 is being
+prepared for GitHub publication; its tag is not yet available. Publishing a
+GitHub release does not change the version installed from CRAN.
+
+## What 0.2.1 adds
+
+Version 0.2.1 updates the package's primary citation to the accepted, in-press
+paper in *Methods in Ecology and Evolution* and adds `CITATION.cff` metadata
+for GitHub and Zenodo. It also aligns GitHub source archives more closely
+with the CRAN package by excluding website articles, separately distributed
+empirical data, and development tooling. Package functions and computational
+defaults are unchanged from 0.2.0.
 
 ## What 0.2.0 adds
 
@@ -75,14 +86,16 @@ core CRAN API.
 
 The source files for the website articles and their empirical artifacts are
 maintained in this repository but excluded from the CRAN source-package
-tarball. This keeps manuscript-scale demonstrations, including the five-part
-avian skeleton workflow, out of routine package installation and CRAN checks
-while preserving the complete rendered documentation on the pkgdown website.
+tarball. Starting with 0.2.1, GitHub-generated source archives also exclude
+these materials, along with website configuration and development tooling.
+Zenodo's GitHub integration captures that filtered source archive. Repository
+clones retain the complete tracked source, and the rendered articles remain
+available on the pkgdown website.
 Readers can explicitly request checksum-verified artifacts with
 `bifrost_example_file()`; later calls reuse the verified local cache. Package
 installation, attachment, and routine checks remain network-free.
 
 For public-release information, use the
 [CRAN package page](https://CRAN.R-project.org/package=bifrost). For the full
-0.2.0 change record, consult [NEWS](../news/index.html) and the
+change record, consult [NEWS](../news/index.html) and the
 [GitHub repository](https://github.com/jakeberv/bifrost).

@@ -1,0 +1,26 @@
+# Keep GitHub source downloads (and Zenodo release archives) package-focused.
+# Keep LICENSE, CITATION.cff, CODE_OF_CONDUCT.md, .Rbuildignore, and this file.
+# These rules affect archives only; repository clones retain all tracked files.
+
+# Website articles, notebooks, figures, and site configuration.
+/vignettes export-ignore
+/pkgdown export-ignore
+/_pkgdown.yml export-ignore
+
+# Separately distributed empirical data and development-only materials.
+/data-remote export-ignore
+/data-raw export-ignore
+/experimental export-ignore
+/tools export-ignore
+/.github export-ignore
+
+# Maintainer notes, IDE configuration, saved workspace, and Git housekeeping.
+/dev-notes.md export-ignore
+/cran-comments.md export-ignore
+/bifrost.Rproj export-ignore
+/.RData export-ignore
+/.gitignore export-ignore
+
+# Generated download charts excluded from the CRAN source package as well.
+/man/figures/cran-downloads.png export-ignore
+/man/figures/cran-downloads-dark.png export-ignore

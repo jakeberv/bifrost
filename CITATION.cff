@@ -1,0 +1,163 @@
+# ------------------------------------------------
+# CITATION.cff file created with {cffr} R package
+# See also: https://docs.ropensci.org/cffr/
+# ------------------------------------------------
+
+cff-version: 1.2.0
+message: 'To cite package "bifrost" in publications use:'
+type: software
+license: GPL-2.0-or-later
+title: 'bifrost: Branch-Level Inference Framework for Recognizing Optimal Shifts in
+  Traits'
+version: 0.2.1
+abstract: Methods for detecting, visualizing, and evaluating cladogenic shifts in
+  multivariate trait data on phylogenies. Implements penalized-likelihood multivariate
+  generalized least squares models and a greedy step-wise shift search for high-dimensional
+  trait datasets and large trees via searchOptimalConfiguration(). Provides tools
+  for inspecting search trajectories, summarizing branch and lineage rates, analyzing
+  shift timing and magnitudes, estimating post-hoc regime covariance and integration,
+  and running simulation-based calibration and tuning. The search follows approaches
+  developed in Smith et al. (2023) <https://doi.org/10.1111/nph.19099> and Berv et
+  al. (2024) <https://doi.org/10.1126/sciadv.adp0114>. Methods build on multivariate
+  generalized least squares approaches described in Clavel et al. (2019) <https://doi.org/10.1093/sysbio/syy045>
+  and implemented in the mvgls() function from the 'mvMORPH' package. Documentation
+  and worked examples are available at <https://jakeberv.com/bifrost/>.
+authors:
+- family-names: Berv
+  given-names: Jacob S.
+  email: jacob.berv@gmail.com
+  orcid: https://orcid.org/0000-0002-5962-0621
+- family-names: Fox
+  given-names: Nathan
+  orcid: https://orcid.org/0000-0002-2816-9751
+- family-names: Thorstensen
+  given-names: Matt J.
+  orcid: https://orcid.org/0000-0002-7870-3369
+- family-names: Lloyd-Laney
+  given-names: Henry
+  orcid: https://orcid.org/0000-0003-4650-8937
+- family-names: Troyer
+  given-names: Emily M.
+  orcid: https://orcid.org/0000-0001-7478-2306
+- family-names: Rivero-Vega
+  given-names: Rafael A.
+  orcid: https://orcid.org/0000-0001-5937-6377
+- family-names: Smith
+  given-names: Stephen A.
+  orcid: https://orcid.org/0000-0003-2035-9531
+- family-names: Friedman
+  given-names: Matt
+  orcid: https://orcid.org/0000-0002-0114-7384
+- family-names: Fouhey
+  given-names: David F.
+  orcid: https://orcid.org/0000-0001-5028-5161
+- family-names: Weeks
+  given-names: Brian C.
+  orcid: https://orcid.org/0000-0003-2967-2970
+preferred-citation:
+  type: article
+  title: 'bifrost: an R package for scalable inference of phylogenetic shifts in multivariate
+    evolutionary dynamics'
+  authors:
+  - family-names: Berv
+    given-names: Jacob S.
+    email: jacob.berv@gmail.com
+    orcid: https://orcid.org/0000-0002-5962-0621
+  - family-names: Fox
+    given-names: Nathan
+    orcid: https://orcid.org/0000-0002-2816-9751
+  - family-names: Thorstensen
+    given-names: Matt J.
+    orcid: https://orcid.org/0000-0002-7870-3369
+  - family-names: Lloyd-Laney
+    given-names: Henry
+    orcid: https://orcid.org/0000-0003-4650-8937
+  - family-names: Troyer
+    given-names: Emily M.
+    orcid: https://orcid.org/0000-0001-7478-2306
+  - family-names: Rivero-Vega
+    given-names: Rafael A.
+    orcid: https://orcid.org/0000-0001-5937-6377
+  - family-names: Smith
+    given-names: Stephen A.
+    orcid: https://orcid.org/0000-0003-2035-9531
+  - family-names: Friedman
+    given-names: Matt
+    orcid: https://orcid.org/0000-0002-0114-7384
+  - family-names: Fouhey
+    given-names: David F.
+    orcid: https://orcid.org/0000-0001-5028-5161
+  - family-names: Weeks
+    given-names: Brian C.
+    orcid: https://orcid.org/0000-0003-2967-2970
+  year: '2026'
+  journal: Methods in Ecology and Evolution
+  notes: 'In press. Preprint: https://doi.org/10.64898/2026.04.12.718036'
+repository-code: https://github.com/jakeberv/bifrost
+url: https://jakeberv.com/bifrost/
+contact:
+- family-names: Berv
+  given-names: Jacob S.
+  email: jacob.berv@gmail.com
+  orcid: https://orcid.org/0000-0002-5962-0621
+references:
+- type: article
+  title: Rates of passerine body plan evolution in time and space
+  authors:
+  - family-names: Berv
+    given-names: Jacob S.
+  - family-names: Probst
+    given-names: Charlotte M.
+  - family-names: Claramunt
+    given-names: Santiago
+  - family-names: Shipley
+    given-names: J. Ryan
+  - family-names: Friedman
+    given-names: Matt
+  - family-names: Smith
+    given-names: Stephen A.
+  - family-names: Fouhey
+    given-names: David F.
+  - family-names: Weeks
+    given-names: Brian C.
+  year: '2026'
+  journal: Nature Ecology & Evolution
+  volume: '10'
+  doi: 10.1038/s41559-026-03110-5
+  url: https://www.nature.com/articles/s41559-026-03110-5
+  start: '1559'
+  end: '1573'
+- type: article
+  title: 'mvmorph: an R package for fitting multivariate evolutionary models to morphometric
+    data'
+  authors:
+  - family-names: Clavel
+    given-names: Julien
+  - family-names: Escarguel
+    given-names: Gilles
+  - family-names: Merceron
+    given-names: Gildas
+  year: '2015'
+  journal: Methods in Ecology and Evolution
+  volume: '6'
+  issue: '11'
+  doi: 10.1111/2041-210X.12420
+  start: '1311'
+  end: '1319'
+- type: article
+  title: A Penalized Likelihood Framework for High-Dimensional Phylogenetic Comparative
+    Methods and an Application to New-World Monkeys Brain Evolution
+  authors:
+  - family-names: Clavel
+    given-names: Julien
+  - family-names: Aristide
+    given-names: Leandro
+  - family-names: Morlon
+    given-names: Hélène
+  year: '2019'
+  journal: Systematic Biology
+  volume: '68'
+  issue: '1'
+  doi: 10.1093/sysbio/syy045
+  start: '93'
+  end: '116'
