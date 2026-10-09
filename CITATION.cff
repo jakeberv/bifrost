@@ -127,32 +127,6 @@ references:
   url: https://www.nature.com/articles/s41559-026-03110-5
   start: '1559'
   end: '1573'
-- type: manual
-  title: Branch-Level Inference Framework for Recognizing Optimal Shifts in Traits
-  authors:
-  - family-names: Berv
-    given-names: Jacob S.
-  - family-names: Fox
-    given-names: Nathan
-  - family-names: Thorstensen
-    given-names: Matt J.
-  - family-names: Lloyd-Laney
-    given-names: Henry
-  - family-names: Troyer
-    given-names: Emily M.
-  - family-names: Rivero-Vega
-    given-names: Rafael A.
-  - family-names: Smith
-    given-names: Stephen A.
-  - family-names: Friedman
-    given-names: Matt
-  - family-names: Fouhey
-    given-names: David F.
-  - family-names: Weeks
-    given-names: Brian C.
-  year: '2026'
-  notes: R package version 0.2.1
-  url: https://github.com/jakeberv/bifrost
 - type: article
   title: 'mvmorph: an R package for fitting multivariate evolutionary models to morphometric
     data'

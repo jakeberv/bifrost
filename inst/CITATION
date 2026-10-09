@@ -50,28 +50,7 @@ bibentry(
   url     = "https://www.nature.com/articles/s41559-026-03110-5"
 )
 
-## 3. Software / package manual citation
-bibentry(
-  bibtype = "Manual",
-  title   = "Branch-Level Inference Framework for Recognizing Optimal Shifts in Traits",
-  author  = c(
-    person(c("Jacob",  "S."), "Berv"),
-    person("Nathan",          "Fox"),
-    person(c("Matt",   "J."), "Thorstensen"),
-    person("Henry",           "Lloyd-Laney"),
-    person(c("Emily", "M."), "Troyer"),
-    person(c("Rafael", "A."), "Rivero-Vega"),
-    person(c("Stephen","A."), "Smith"),
-    person("Matt",            "Friedman"),
-    person(c("David","F."),   "Fouhey"),
-    person(c("Brian","C."),   "Weeks")
-  ),
-  year    = "2026",
-  note    = "R package version 0.2.1",
-  url     = "https://github.com/jakeberv/bifrost"
-)
-
-## 4. mvMORPH package citation
+## 3. mvMORPH package citation
 bibentry(
   bibtype = "Article",
   title   = "mvmorph: an R package for fitting multivariate evolutionary models to morphometric data",
@@ -88,7 +67,7 @@ bibentry(
   doi     = "10.1111/2041-210X.12420"
 )
 
-## 5. Penalized-likelihood framework citation
+## 4. Penalized-likelihood framework citation
 bibentry(
   bibtype = "Article",
   title   = "A Penalized Likelihood Framework for High-Dimensional Phylogenetic Comparative Methods and an Application to New-World Monkeys Brain Evolution",

@@ -11,8 +11,10 @@
 * Added validated `CITATION.cff` metadata for GitHub citations and Zenodo
   release archiving, with the in-press package paper as the preferred citation.
   The file is excluded from the R source-package build.
-* Updated software citation versions and clarified the distinction between
-  the CRAN release, the planned GitHub release, and development source.
+* Removed the standalone software manual entry from the recommended citations;
+  software authors and version remain recorded in `CITATION.cff`.
+* Clarified the distinction between the CRAN release, the planned GitHub release,
+  and development source.
 
 # bifrost 0.2.0
 
