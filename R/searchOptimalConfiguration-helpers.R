@@ -557,11 +557,11 @@
                                   num_cores,
                                   is_rstudio,
                                   heartbeat = NULL) {
-  if (length(X) == 0L) return(list())
   if (length(num_cores) != 1L || !is.numeric(num_cores) ||
       !isTRUE(is.finite(num_cores))) {
     stop("`num_cores` must be a single finite number.", call. = FALSE)
   }
+  if (length(X) == 0L) return(list())
   # Do not provision extra workers (or limit threads) for a single available fit.
   num_cores <- max(1L, as.integer(min(num_cores, length(X))))
   if (!is.null(heartbeat)) {

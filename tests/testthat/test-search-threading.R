@@ -98,12 +98,17 @@ test_that("disabled forking still runs fitting work outside the caller", {
 })
 
 test_that("worker counts are validated before being limited by job count", {
-  for (cores in list(c(1, 2), numeric(), Inf, NA_real_, "2")) {
-    expect_error(
-      .bifrost_search_lapply(1L, identity, cores, is_rstudio = TRUE),
-      "`num_cores` must be a single finite number", fixed = TRUE
-    )
+  for (jobs in 0:1) {
+    for (cores in list(c(1, 2), numeric(), Inf, NA_real_, "2")) {
+      expect_error(
+        .bifrost_search_lapply(seq_len(jobs), identity, cores, is_rstudio = TRUE),
+        "`num_cores` must be a single finite number", fixed = TRUE
+      )
+    }
   }
+  expect_identical(
+    .bifrost_search_lapply(integer(), identity, 2L, is_rstudio = TRUE), list()
+  )
   withr::local_envvar(OMP_NUM_THREADS = "4")
   result <- .bifrost_search_lapply(
     1:2, function(i) Sys.getenv("OMP_NUM_THREADS"),
