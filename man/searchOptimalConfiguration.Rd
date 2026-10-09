@@ -62,10 +62,12 @@ values trigger a runtime advisory and should be assessed for the dataset at hand
 
 \item{num_cores}{Integer. Maximum number of concurrent model fits during candidate
 scoring and parallel IC-weight re-estimation. With \code{progress = FALSE}, uses plain
-serial evaluation when \code{num_cores = 1}. For \code{num_cores > 1}, uses
-\code{future::plan(multicore)} on Unix outside \code{RStudio}; otherwise uses
-\code{future::plan(multisession)}. During the parallel candidate-scoring blocks,
-BLAS/OpenMP threads are capped to 1 (per worker) to avoid CPU oversubscription.}
+serial evaluation when only one fitting worker is needed. Uses
+\code{future::plan(multicore)} where forking is supported on Unix outside
+\code{RStudio}; otherwise uses \code{future::plan(multisession)}. When multiple
+fitting workers are used, requests one BLAS/OpenMP thread per worker to avoid
+CPU oversubscription. A single fitting worker retains the caller's numerical-thread
+environment settings, including when \code{num_cores = 1} and progress is enabled.}
 
 \item{ic_uncertainty_threshold}{Numeric (\eqn{\ge}0). Reserved for future development
 in post-search pruning and uncertainty analysis; currently not used by
@@ -124,7 +126,8 @@ lines for candidate scoring, the greedy shift search, and optional IC-weight
 re-estimation. On dynamic terminals, the spinner redraws continuously while a model
 fit is running; counts, percentages, and ETA advance only after completed fits.
 To keep the main process responsive for these redraws, otherwise serial fits run one
-at a time in a background Future. Set to \code{FALSE} to disable these lines and the
+at a time in a background Future without imposing a one-thread numerical limit.
+Set to \code{FALSE} to disable these lines and the
 heartbeat path; use \code{progress = FALSE, verbose = FALSE} for completely quiet
 execution.}
 }
@@ -226,8 +229,16 @@ dataset-specific simulations when conclusions depend on individual shifts.
 and parallel IC-weight re-estimation may use all requested workers, while the greedy
 search and serial IC weights always run one fit at a time. With progress enabled, fits
 run in Future workers so the main process can poll and redraw the spinner without
-advancing completion. On Unix outside \code{RStudio}, \code{multicore} is used; otherwise
-\code{multisession} is used. The previous Future plan is restored afterward. Workers
+advancing completion. Where forking is supported on Unix outside \code{RStudio},
+\code{multicore} is used; otherwise \code{multisession} is used. Numerical-thread limits
+depend on the number of fitting workers, not on \code{progress}. With multiple workers,
+thread-limit environment variables and \pkg{RhpcBLASctl} runtime controls request one
+numerical thread in each worker. Single-worker stages preserve the caller's thread-limit
+environment, allowing within-fit multithreading when supported by the numerical library.
+For consistent behavior across fresh R sessions, configure numerical-thread environment
+variables before starting R; runtime-only changes in the main process are not automatically
+copied to \code{multisession} workers. Stage workers are shut down and the previous
+thread-limit environment and Future plan are restored afterward. Workers
 signal conditions through \pkg{progressr}; only the main R process renders progress,
 verbose messages, and plots.
 
