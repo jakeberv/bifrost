@@ -1,32 +1,13 @@
 citHeader(
   paste(
-    "To cite bifrost in publications, please use the following references, as appropriate.",
+    "To cite bifrost in publications, please cite the package paper first listed below",
+    "and the other references as appropriate.",
     "Because bifrost relies on mvMORPH and its penalized-likelihood framework,",
     "please also cite the mvMORPH references below."
   )
 )
 
-## 1. Methods / application paper
-bibentry(
-  bibtype = "Article",
-  title   = "Rates of passerine body plan evolution in time and space",
-  author  = c(
-    person(c("Jacob",   "S."), "Berv"),
-    person(c("Charlotte","M."),"Probst"),
-    person("Santiago",         "Claramunt"),
-    person(c("J.", "Ryan"),    "Shipley"),
-    person("Matt",             "Friedman"),
-    person(c("Stephen","A."),  "Smith"),
-    person(c("David",  "F."),  "Fouhey"),
-    person(c("Brian",  "C."),  "Weeks")
-  ),
-  year    = "2026",
-  journal = "Nature Ecology & Evolution",
-  doi     = "10.1038/s41559-026-03110-5",
-  url     = "https://www.nature.com/articles/s41559-026-03110-5"
-)
-
-## 2. bifrost methods / package preprint
+## 1. bifrost methods / package paper
 bibentry(
   bibtype = "Article",
   title   = "bifrost: an R package for scalable inference of phylogenetic shifts in multivariate evolutionary dynamics",
@@ -43,9 +24,30 @@ bibentry(
     person(c("Brian","C."),   "Weeks")
   ),
   year    = "2026",
-  journal = "bioRxiv",
-  doi     = "10.64898/2026.04.12.718036",
-  note    = "Preprint version 1."
+  journal = "Methods in Ecology and Evolution",
+  note    = "In press. Preprint: https://doi.org/10.64898/2026.04.12.718036"
+)
+
+## 2. Application paper
+bibentry(
+  bibtype = "Article",
+  title   = "Rates of passerine body plan evolution in time and space",
+  author  = c(
+    person(c("Jacob",   "S."), "Berv"),
+    person(c("Charlotte","M."),"Probst"),
+    person("Santiago",         "Claramunt"),
+    person(c("J.", "Ryan"),    "Shipley"),
+    person("Matt",             "Friedman"),
+    person(c("Stephen","A."),  "Smith"),
+    person(c("David",  "F."),  "Fouhey"),
+    person(c("Brian",  "C."),  "Weeks")
+  ),
+  year    = "2026",
+  journal = "Nature Ecology & Evolution",
+  volume  = "10",
+  pages   = "1559-1573",
+  doi     = "10.1038/s41559-026-03110-5",
+  url     = "https://www.nature.com/articles/s41559-026-03110-5"
 )
 
 ## 3. Software / package manual citation

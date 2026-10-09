@@ -1,5 +1,10 @@
 # bifrost (development version)
 
+* Updated the primary package citation to the accepted, in-press article in
+  *Methods in Ecology and Evolution*, retaining a separately labeled bioRxiv
+  preprint link. Aligned the README citation guidance and publication badges,
+  and completed the application paper's volume and page details.
+
 # bifrost 0.2.0
 
 ## Changes for existing users
