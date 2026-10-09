@@ -90,11 +90,6 @@ for current CRAN and GitHub availability, release caveats, and the website
 article policy. See [NEWS](https://jakeberv.com/bifrost/news/index.html) for the
 complete changelog.
 
-When upgrading from 0.1.4, replace the removed plotting wrapper with
-`plot(icTrajectory(x))` when `x` is a `bifrost_search` or compatible
-search-result list. See [NEWS](https://jakeberv.com/bifrost/news/index.html)
-for the raw-matrix migration and argument mapping.
-
 ## Example data
 
 The empirical case studies use download-on-demand example data rather than
