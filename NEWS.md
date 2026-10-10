@@ -1,13 +1,17 @@
 # bifrost 0.2.1
 
-* Searches now default to `start_strategy = "legacy_1.2.1"`: data-dependent
-  BM/BMM starting values following official mvMORPH 1.2.1, supplied to the
+* Searches now default to `start_strategy = "historical"`: data-dependent
+  BM/BMM starting values following the mvMORPH development initializer used
+  for the cached vignettes, supplied to the
   installed mvMORPH through `start`. This establishes an explicit initialization
   baseline without pinning or modifying mvMORPH. Set `start_strategy = "native"`
   to use mvMORPH's own initialization (required for EmpBayes). Explicit `start`
   and `grid.search = FALSE` take precedence. Results and fitted models record
   the requested/actual strategy and mvMORPH version. The compatibility policy
-  retains the older strategy's scale dependence and convergence limitations.
+  retains the older strategy's scale dependence, random second-tip selection
+  for singleton regimes, and convergence limitations. Reproducing the cached
+  jaw sweep also requires its sequential `set.seed(1)` workflow and
+  `progress = FALSE`; a standalone threshold run has a different random state.
 * Progress reporting now preserves numerical-thread environment settings for
   single-fit stages, including the greedy search, serial IC weights, and searches
   with `num_cores = 1`. Concurrent candidate and IC-weight fits request one

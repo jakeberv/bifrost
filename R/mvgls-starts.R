@@ -1,13 +1,15 @@
-# Compatibility initialization for the published mvMORPH 1.2.1 baseline.
+# Compatibility initialization for the historical bifrost vignette baseline.
 # Adapted from .startGuess(), .rate_guess(), and BM/BMM input preparation in
-# mvMORPH 1.2.1, copyright Julien Clavel, licensed GPL (>= 2).
-# Source: https://cran.r-project.org/src/contrib/Archive/mvMORPH/mvMORPH_1.2.1.tar.gz
+# mvMORPH development code, copyright Julien Clavel, licensed GPL (>= 2).
+# Source: https://github.com/JClavel/mvMORPH/tree/023134e993c8b174cf716378503892fdc4d6616d
+# These initializers also match the experimental fork used for the cached
+# vignettes. They include the random second-tip safeguard added after 1.2.1.
 # Keep this module separate so it can be removed when native initialization is
 # adopted. The installed mvMORPH still evaluates the grid and fits the model.
 
 .bifrost_mvgls <- function(formula, data = list(), tree, model,
                           method = "PL-LOOCV", REML = TRUE, ...,
-                          start_strategy = c("legacy_1.2.1", "native")) {
+                          start_strategy = c("historical", "native")) {
   start_strategy <- match.arg(start_strategy)
   args <- list(...)
   used <- start_strategy
@@ -15,9 +17,10 @@
     used <- "supplied"
   } else if (!is.null(args$grid.search) && !args$grid.search) {
     used <- "native_no_grid"
-  } else if (start_strategy == "legacy_1.2.1") {
-    args$start <- .bifrost_mvgls_start_121(formula, data, tree, model,
-                                        method, REML, args)
+  } else if (start_strategy == "historical") {
+    args$start <- .bifrost_mvgls_start_historical(
+      formula, data, tree, model, method, REML, args
+    )
   }
   fit_args <- list(formula = formula, tree = tree, model = model)
   # Preserve omitted arguments in mvgls's saved call as well as their defaults.
@@ -43,7 +46,7 @@
   backend <- lapply(names(required), function(name) {
     fun <- get0(name, envir = asNamespace("mvMORPH"), inherits = FALSE)
     if (!is.function(fun) || !all(required[[name]] %in% names(formals(fun)))) {
-      stop("This mvMORPH version is incompatible with legacy initialization; ",
+      stop("This mvMORPH version is incompatible with historical initialization; ",
            "use start_strategy = 'native'.", call. = FALSE)
     }
     fun
@@ -52,19 +55,19 @@
   backend
 }
 
-.bifrost_mvgls_start_121 <- function(formula, data, tree, model, method, REML, args) {
+.bifrost_mvgls_start_historical <- function(formula, data, tree, model, method, REML, args) {
   method <- match.arg(method[1L], c("PL-LOOCV", "LOOCV", "LL", "H&L",
                                    "Mahalanobis", "EmpBayes"))
   if (method == "PL-LOOCV") method <- "LOOCV"
   penalty <- if (is.null(args$penalty)) "RidgeArch" else args$penalty
   if (!model %in% c("BM", "BMM") || method == "EmpBayes" ||
       !penalty %in% c("RidgeArch", "RidgeAlt", "LASSO")) {
-    stop("The legacy_1.2.1 starting strategy supports BM/BMM with the 1.2.1 ",
-         "methods and penalties; use start_strategy = 'native' for this fit.",
+    stop("This model, method, or penalty is unsupported by historical initialization; ",
+         "use start_strategy = 'native' for this fit.",
          call. = FALSE)
   }
   if (!inherits(tree, "phylo") || (model == "BMM" && !inherits(tree, "simmap"))) {
-    stop("Legacy BM/BMM initialization requires a phylo tree (simmap for BMM).",
+    stop("Historical BM/BMM initialization requires a phylo tree (simmap for BMM).",
          call. = FALSE)
   }
   if (method %in% c("H&L", "Mahalanobis") && penalty != "RidgeArch") {
@@ -77,7 +80,7 @@
   Y <- if (is.null(args$response)) stats::model.response(frame) else args$response
   if (nrow(frame) != length(tree$tip.label) || !is.matrix(Y) ||
       ncol(Y) < 2L || anyNA(Y)) {
-    stop("Legacy initialization requires complete multivariate datasets with one row per tip.",
+    stop("Historical initialization requires complete multivariate datasets with one row per tip.",
          call. = FALSE)
   }
   if (all(rownames(frame) %in% tree$tip.label)) {
@@ -108,19 +111,20 @@
     tol = args$tol, mserr = mserr, penalized = method != "LL", corrModel = corr,
     k = if (model == "BMM") ncol(tree$mapped.edge) else 1L
   )
-  .bifrost_mvgls_start_grid_121(corr, method, penalty, args$target, args$tol,
-                               backend$.loocvPhylo)
+  .bifrost_mvgls_start_grid_historical(
+    corr, method, penalty, args$target, args$tol, backend$.loocvPhylo
+  )
 }
 
-.bifrost_mvgls_rate_121 <- function(tree, Y, X) {
+.bifrost_mvgls_rate_historical <- function(tree, Y, X) {
   transform <- mvMORPH::pruning(tree, trans = FALSE)$sqrtM
   X <- crossprod(transform, X)
   Y <- crossprod(transform, Y)
   residuals <- Y - X %*% (corpcor::pseudoinverse(X) %*% Y)
-  crossprod(residuals) / ape::Ntip(tree)
+  residuals
 }
 
-.bifrost_mvgls_regime_starts_121 <- function(tree, Y, X) {
+.bifrost_mvgls_regime_starts_historical <- function(tree, Y, X) {
   terminal <- tree$edge[, 2L] %in% seq_len(ape::Ntip(tree))
   maps <- vapply(tree$maps[terminal], function(x) names(x)[length(x)], character(1))
   k <- ncol(tree$mapped.edge)
@@ -131,17 +135,22 @@
   }
   lapply(colnames(tree$mapped.edge), function(regime) {
     tips <- which(maps == regime)
-    subtree <- ape::drop.tip(tree, tree$tip.label[-tips])
-    # 1.2.1 used the whole tree for a singleton, without drawing a random tip.
+    removed <- tree$tip.label[!tree$tip.label %in% tree$tip.label[tips]]
+    # Preserve the historical safeguard and its RNG draw: a singleton needs a
+    # second species to estimate a rate. Do this before pruning the tree.
+    if (ape::Ntip(tree) - length(removed) <= 1L) {
+      removed <- removed[-sample(length(removed), size = 1)]
+    }
+    subtree <- ape::drop.tip(tree, removed)
     if (ape::Ntip(subtree) <= 1L) subtree <- tree
-    sqrt(mean(diag(.bifrost_mvgls_rate_121(
+    sqrt(mean(apply(.bifrost_mvgls_rate_historical(
       subtree, Y[subtree$tip.label, , drop = FALSE],
       X[subtree$tip.label, , drop = FALSE]
-    ))))
+    ), 2L, stats::var)))
   })
 }
 
-.bifrost_mvgls_start_grid_121 <- function(corr, method, penalty, target, tol, score) {
+.bifrost_mvgls_start_grid_historical <- function(corr, method, penalty, target, tol, score) {
   tuning <- NULL
   if (method != "LL") {
     tuning <- switch(penalty,
@@ -153,11 +162,11 @@
       cutoff <- if (penalty == "RidgeArch") tol else log(tol)
       tuning <- tuning[tuning > cutoff]
     }
-    if (!length(tuning)) stop("tol excludes every legacy initialization grid point.", call. = FALSE)
+    if (!length(tuning)) stop("tol excludes every historical initialization grid point.", call. = FALSE)
   }
   parameters <- list(tuning, 1) # Preserve the original dummy BM parameter.
   if (corr$model == "BMM") {
-    rates <- .bifrost_mvgls_regime_starts_121(corr$structure, corr$Y, corr$X)[-1L]
+    rates <- .bifrost_mvgls_regime_starts_historical(corr$structure, corr$Y, corr$X)[-1L]
     parameters <- c(list(tuning), rates)
   }
   if (!is.null(corr$mserr)) {
@@ -172,6 +181,6 @@
                   corrStr = corr, penalty = penalty, error = corr$mserr,
                   nobs = corr$nobs)
   best <- which.min(values)
-  if (!length(best)) stop("No usable legacy starting values were found.", call. = FALSE)
+  if (!length(best)) stop("No usable historical starting values were found.", call. = FALSE)
   as.numeric(grid[best, ])
 }

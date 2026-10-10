@@ -1,13 +1,32 @@
-# Regenerate only with official CRAN mvMORPH 1.2.1 in an isolated library.
-# From the repository root: Rscript tools/generate-mvgls-start-fixture.R /path/to/library
-# Expected source tarball SHA-256:
-# bea0b17824a9ac03fbca1b741b1befb5904f89486264284b8f742babd6b349bd
+# Regenerate against the historical mvMORPH initializer, without installing it.
+# From the repository root:
+# Rscript tools/generate-mvgls-start-fixture.R /path/to/historical/mvMORPH
+# The historical fork's .startGuess and .rate_guess match upstream commit
+# 023134e993c8b174cf716378503892fdc4d6616d (2025-08-25).
+# Reference source: https://github.com/JClavel/mvMORPH/tree/023134e993c8b174cf716378503892fdc4d6616d
+# The source directory supplies the reference functions, not a package dependency.
 args <- commandArgs(TRUE)
 stopifnot(length(args) == 1L)
-.libPaths(c(normalizePath(args[1L]), .libPaths()))
+source_dir <- normalizePath(args[1L])
 suppressPackageStartupMessages(library(mvMORPH))
 RhpcBLASctl::blas_set_num_threads(1L); RhpcBLASctl::omp_set_num_threads(1L)
-stopifnot(as.character(packageVersion('mvMORPH')) == '1.2.1')
+reference <- new.env(parent = asNamespace('mvMORPH'))
+for (path in list.files(file.path(source_dir, 'R'), pattern = '\\.[rR]$', full.names = TRUE)) {
+  sys.source(path, reference)
+}
+stopifnot(is.function(reference$mvgls), is.function(reference$.startGuess),
+          is.function(reference$.rate_guess))
+source_hashes <- vapply(c('.startGuess', '.rate_guess'), function(name) {
+  f <- get(name, reference)
+  digest::digest(list(formals(f), body(f)), algo = 'sha256')
+}, character(1))
+expected_hashes <- c(
+  .startGuess = 'a9b8e1b89be0205d8174ef944315c4fa10df1af999a75c8571b3220fd2143147',
+  .rate_guess = '958ccb623233abf9300df7a40aff500e13504b58a2aef75c0cc9a0380f118bee'
+)
+if (!identical(source_hashes, expected_hashes)) {
+  stop('Reference initializers differ from the pinned upstream commit.')
+}
 tr <- ape::stree(16, type='balanced'); tr$edge.length <- rep(.25,nrow(tr$edge))
 paint <- function(kind) {
   tree <- tr; states <- rep('0', nrow(tree$edge)); node <- 18L
@@ -53,13 +72,19 @@ result <- lapply(names(cases),function(name) {
     z$tree$maps <- lapply(z$tree$maps, function(x) x * 3)
     z$tree$mapped.edge <- z$tree$mapped.edge * 3
   }
-  fit <- suppressWarnings(do.call(mvMORPH::mvgls,z))
+  set.seed(71)
+  rng_before <- .Random.seed
+  fit <- suppressWarnings(do.call(reference$mvgls,z))
+  rng_after <- .Random.seed
   z$formula <- f
   if(f == 'Y ~ 1') z$data <- list(Y=Y)
   cat(name, as.numeric(fit$start_values), '\n')
   list(args=z,start=as.numeric(fit$start_values),objective=fit$opt$value,
-       parameters=as.numeric(fit$opt$par),convergence=fit$opt$convergence)
+       parameters=as.numeric(fit$opt$par),convergence=fit$opt$convergence,
+       rng_before=rng_before,rng_after=rng_after)
 })
 names(result) <- names(cases)
-saveRDS(list(source='official CRAN mvMORPH 1.2.1',cases=result),
-        'tests/testthat/fixtures/mvgls-starts-1.2.1.rds',version=2)
+saveRDS(list(source='historical mvMORPH development initializer',
+             upstream_commit='023134e993c8b174cf716378503892fdc4d6616d',
+             source_hashes=source_hashes,cases=result),
+        'tests/testthat/fixtures/mvgls-starts-historical.rds',version=2)

@@ -191,7 +191,12 @@ Sys.setenv(
 
 ### The Function Call
 
-Here is the function call we will use for this analysis. We'll break down each parameter choice below.
+Here is a standalone search with these model settings. We'll break down each
+parameter choice below. The cached figures use the threshold-20 run from the
+[full threshold sweep](rate-map-jaw-shape-vignette.html), which sets the seed
+once before thresholds 10, 15, 20, 25, 30, and 40. Starting the threshold-20
+search alone at `set.seed(1)` has a different random state and can select a
+different model.
 
 ```{r run_bifrost_setup, eval=FALSE, message = TRUE}
 # ---- Run the search ----
@@ -209,6 +214,7 @@ jaws_search <- searchOptimalConfiguration(
   method                     = "H&L", # penalized likelihood for high-dimensional data
   error                      = TRUE,
   store_model_fit_history    = TRUE,
+  progress                   = FALSE,
   verbose                    = TRUE
 )
 
@@ -273,7 +279,7 @@ Some choices deserve additional context:
 
 ## Interpreting the Output
 
-The static figures in this vignette use the same jaw-shape search settings shown above. For the cached threshold-20 run used here, the selected model retained 17 shifts and improved the GIC by more than 7,000 units relative to the single-regime baseline.
+The static figures use the cached threshold-20 run from the full sweep, with the historical initializer and its original random state. For that run, the selected model retained 17 shifts and improved the GIC by more than 7,000 units relative to the single-regime baseline.
 
 | Result | Value |
 |:--|:--|

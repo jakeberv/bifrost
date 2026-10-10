@@ -1,30 +1,30 @@
-legacy_start_cases <- function() {
-  readRDS(test_path("fixtures", "mvgls-starts-1.2.1.rds"))$cases
+historical_start_cases <- function() {
+  readRDS(test_path("fixtures", "mvgls-starts-historical.rds"))$cases
 }
 
-legacy_case_args <- function(case) {
+historical_case_args <- function(case) {
   args <- case$args
   args$formula <- stats::as.formula(args$formula)
   args
 }
 
-test_that("default starts reproduce official 1.2.1 across BM/BMM settings", {
-  for (name in names(legacy_start_cases())) {
-    case <- legacy_start_cases()[[name]]
+test_that("default starts reproduce historical starts and random draws across BM/BMM settings", {
+  for (name in names(historical_start_cases())) {
+    case <- historical_start_cases()[[name]]
     set.seed(71)
-    before <- .Random.seed
-    fit <- suppressWarnings(do.call(bifrost:::.bifrost_mvgls, legacy_case_args(case)))
+    expect_identical(.Random.seed, case$rng_before, info = name)
+    fit <- suppressWarnings(do.call(bifrost:::.bifrost_mvgls, historical_case_args(case)))
     expect_equal(as.numeric(fit$start_values), case$start, tolerance = 1e-12, info = name)
-    expect_identical(.Random.seed, before, info = name)
-    expect_identical(attr(fit, "bifrost_initialization")$used, "legacy_1.2.1")
+    expect_identical(.Random.seed, case$rng_after, info = name)
+    expect_identical(attr(fit, "bifrost_initialization")$used, "historical")
   }
 })
 
 test_that("native and supplied starts reach mvMORPH unchanged", {
-  args <- legacy_case_args(legacy_start_cases()$singleton_hl)
-  for (strategy in c("native", "legacy_1.2.1")) {
+  args <- historical_case_args(historical_start_cases()$singleton_hl)
+  for (strategy in c("native", "historical")) {
     supplied <- args
-    if (strategy == "legacy_1.2.1") supplied$start <- c(.5, .2, .3, .01)
+    if (strategy == "historical") supplied$start <- c(.5, .2, .3, .01)
     set.seed(12)
     ref <- suppressWarnings(do.call(mvMORPH::mvgls, supplied))
     rng <- .Random.seed
@@ -40,7 +40,7 @@ test_that("native and supplied starts reach mvMORPH unchanged", {
 })
 
 test_that("starts are recalculated from each candidate's data", {
-  args <- legacy_case_args(legacy_start_cases()$tipless_hl)
+  args <- historical_case_args(historical_start_cases()$tipless_hl)
   first <- do.call(bifrost:::.bifrost_mvgls, args)
   args$data$Y <- args$data$Y * 10
   second <- do.call(bifrost:::.bifrost_mvgls, args)
@@ -50,7 +50,7 @@ test_that("starts are recalculated from each candidate's data", {
 })
 
 test_that("explicitly disabling the initialization grid is respected", {
-  args <- legacy_case_args(legacy_start_cases()$bm_hl)
+  args <- historical_case_args(historical_start_cases()$bm_hl)
   args$grid.search <- FALSE
   ref <- do.call(mvMORPH::mvgls, args)
   fit <- do.call(bifrost:::.bifrost_mvgls, args)
@@ -59,8 +59,8 @@ test_that("explicitly disabling the initialization grid is respected", {
   expect_identical(attr(fit, "bifrost_initialization")$used, "native_no_grid")
 })
 
-test_that("unknown strategies and unsupported legacy settings fail clearly", {
-  args <- legacy_case_args(legacy_start_cases()$bm_hl)
+test_that("unknown strategies and unsupported historical settings fail clearly", {
+  args <- historical_case_args(historical_start_cases()$bm_hl)
   expect_error(do.call(bifrost:::.bifrost_mvgls,
                        c(args, list(start_strategy = "typo"))), "arg")
   args$method <- "EmpBayes"
@@ -68,7 +68,7 @@ test_that("unknown strategies and unsupported legacy settings fail clearly", {
 })
 
 test_that("every search stage uses the selected starting policy", {
-  args <- legacy_case_args(legacy_start_cases()$bm_hl)
+  args <- historical_case_args(historical_start_cases()$bm_hl)
   Y <- args$data$Y[, 1:2]
   Y[1:8, ] <- Y[1:8, ] * 20
   ns <- asNamespace("bifrost")
@@ -79,7 +79,7 @@ test_that("every search stage uses the selected starting policy", {
     seen[[length(seen) + 1L]] <<- attr(fit, "bifrost_initialization")
     fit
   }, ns)
-  for (strategy in c("legacy_1.2.1", "native")) {
+  for (strategy in c("historical", "native")) {
     seen <- list()
     result <- suppressWarnings(searchOptimalConfiguration(
       args$tree, Y, min_descendant_tips = 4, num_cores = 1,
@@ -99,8 +99,8 @@ test_that("every search stage uses the selected starting policy", {
   }
 })
 
-test_that("legacy preparation respects row alignment and a response override", {
-  args <- legacy_case_args(legacy_start_cases()$formula_ll)
+test_that("historical preparation respects row alignment and a response override", {
+  args <- historical_case_args(historical_start_cases()$formula_ll)
   ref <- do.call(bifrost:::.bifrost_mvgls, args)
   args$data <- args$data[rev(seq_len(nrow(args$data))), ]
   shuffled <- do.call(bifrost:::.bifrost_mvgls, args)
@@ -115,22 +115,22 @@ test_that("legacy preparation respects row alignment and a response override", {
   expect_identical(overridden$opt, replaced$opt)
 })
 
-test_that("native and explicit controls bypass the legacy backend entirely", {
+test_that("native and explicit controls bypass the historical backend entirely", {
   local_rebind(".bifrost_mvgls_start_backend", function() {
-    stop("Legacy backend unavailable")
+    stop("Historical backend unavailable")
   }, asNamespace("bifrost"))
-  args <- legacy_case_args(legacy_start_cases()$bm_hl)
-  expect_error(do.call(bifrost:::.bifrost_mvgls, args), "Legacy backend unavailable")
+  args <- historical_case_args(historical_start_cases()$bm_hl)
+  expect_error(do.call(bifrost:::.bifrost_mvgls, args), "Historical backend unavailable")
   for (control in list(list(start_strategy = "native"),
-                       list(start = legacy_start_cases()$bm_hl$start),
+                       list(start = historical_start_cases()$bm_hl$start),
                        list(grid.search = FALSE), list(grid.search = 0))) {
     expect_s3_class(do.call(bifrost:::.bifrost_mvgls, c(args, control)), "mvgls")
   }
 })
 
 test_that("numeric logical controls retain mvgls coercion semantics", {
-  case <- legacy_start_cases()$scaled_height
-  args <- legacy_case_args(case)
+  case <- historical_start_cases()$scaled_height
+  args <- historical_case_args(case)
   args$scale.height <- 1
   fit <- do.call(bifrost:::.bifrost_mvgls, args)
   expect_equal(as.numeric(fit$start_values), case$start, tolerance = 1e-12)

@@ -20,7 +20,7 @@ searchOptimalConfiguration(
   verbose = FALSE,
   ...,
   progress = TRUE,
-  start_strategy = c("legacy_1.2.1", "native")
+  start_strategy = c("historical", "native")
 )
 }
 \arguments{
@@ -133,15 +133,20 @@ heartbeat path; use \code{progress = FALSE, verbose = FALSE} for completely quie
 execution.}
 
 \item{start_strategy}{Starting-value policy for every baseline, candidate,
-forward-search, and IC-weight fit. The default, \code{"legacy_1.2.1"},
-computes data-dependent starts using the official \pkg{mvMORPH} 1.2.1
-BM/BMM strategy and passes them to the installed \code{mvgls()}. Set
+forward-search, and IC-weight fit. The default, \code{"historical"},
+computes data-dependent BM/BMM starts using the historical \pkg{mvMORPH}
+development strategy used for the cached vignettes, including its random
+second-tip safeguard for singleton regimes, and passes them to the
+installed \code{mvgls()}. Set
 \code{"native"} to use the installed \pkg{mvMORPH} initialization unchanged.
 Explicit \code{start} values or \code{grid.search = FALSE} in \code{...}
 take precedence. EmpBayes requires \code{"native"}. This compatibility
 policy preserves the older initialization, including its dependence on
-trait scale; it does not guarantee convergence or identical results across
-numerical environments or future \pkg{mvMORPH} versions.}
+trait scale and random state. To reproduce an older sequential search,
+also use \code{progress = FALSE} and the same seed and preceding searches;
+the progress heartbeat uses separate random streams. This policy does not
+guarantee convergence or identical results across numerical environments
+or future \pkg{mvMORPH} versions.}
 }
 \value{
 A named \code{list} with (at minimum):
@@ -150,7 +155,7 @@ A named \code{list} with (at minimum):
 including the resolved \code{progress} and \code{start_strategy} settings and flattened
 additional \code{mvgls()} arguments.
 \item \code{initialization}: requested and actual starting policy
-(\code{legacy_1.2.1}, \code{native}, \code{supplied}, or
+(\code{historical}, \code{native}, \code{supplied}, or
 \code{native_no_grid}), plus the installed \pkg{mvMORPH} version.
 Each fitted model also records this list in its
 \code{bifrost_initialization} attribute.
