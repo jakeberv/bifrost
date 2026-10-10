@@ -39,6 +39,8 @@ paint <- function(kind) {
   tree$mapped.edge[cbind(seq_along(states),match(states,labs))] <- tree$edge.length
   class(tree) <- c('simmap','phylo'); tree
 }
+# Pin the fixture's RNG configuration across R versions (no binomial draws).
+suppressWarnings(RNGversion("4.4.2"))
 set.seed(620)
 Y <- t(chol(ape::vcv(tr))) %*% matrix(rnorm(16*20),16,20) * .2
 rownames(Y) <- tr$tip.label

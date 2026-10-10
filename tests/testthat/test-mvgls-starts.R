@@ -9,6 +9,11 @@ historical_case_args <- function(case) {
 }
 
 test_that("default starts reproduce historical starts and random draws across BM/BMM settings", {
+  rng <- bifrost:::.bifrost_search_rng_state()
+  withr::defer(bifrost:::.bifrost_search_restore_rng(rng))
+  # Match the fixture's RNG configuration, including R-devel's new binomial kind.
+  # R-devel warns about the historical binomial algorithm; these fits do not use it.
+  suppressWarnings(RNGversion("4.4.2"))
   for (name in names(historical_start_cases())) {
     case <- historical_start_cases()[[name]]
     set.seed(71)
