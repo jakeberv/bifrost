@@ -177,13 +177,6 @@ fitted searches to a local cache and reload them for the lighter `rateMap()`
 summaries. Run the sweep chunk once, then reuse the saved results while
 exploring display, weighting, and uncertainty options.
 
-The cached sweep used the mvMORPH 1.2.1 development starting-value strategy
-(now `start_strategy = "legacy_1.2.1"`) and one `set.seed(1)` before the entire
-grid. Keep the threshold order below to preserve that original random-number
-sequence. Either `progress` setting gives the same results. The
-initializer may randomly select a second species for a regime with one tip,
-so restarting the seed before each threshold can change the search results.
-
 ```{r run_threshold_sweep}
 # Wrap the search so threshold is the only setting that changes across runs.
 run_jaw_threshold <- function(threshold) {
@@ -200,7 +193,6 @@ run_jaw_threshold <- function(threshold) {
     error                      = TRUE,
     plot                       = FALSE,
     store_model_fit_history    = FALSE,
-    start_strategy             = "legacy_1.2.1",
     verbose                    = TRUE
   )
 }
