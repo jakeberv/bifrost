@@ -1,5 +1,7 @@
 # bifrost 0.2.1
 
+* Progress now refreshes every 50 ms and advances spinner frames in order after
+  delayed redraws, while retaining the spinner's minimum frame interval.
 * Searches now default to `start_strategy = "legacy_1.2.1"`: data-dependent
   BM/BMM starting values following the mvMORPH 1.2.1 development initializer used
   for the cached vignettes (including the singleton safeguard added after the
