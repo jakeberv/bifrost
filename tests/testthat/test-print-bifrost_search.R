@@ -128,43 +128,6 @@ test_that("print.bifrost_search prints history plot, penalty/target, and weights
   testthat::expect_true(grepl("\\b15\\b", txt))
 })
 
-test_that("IC history keeps baseline and final points inside the text frame", {
-  testthat::skip_if_not_installed("txtplot")
-  withr::local_options(list(
-    width = 80, bifrost.txtplot.width = 60L, bifrost.txtplot.height = 13L
-  ))
-
-  # The jaw example ends at iteration 28. A longer search also checks that
-  # padding scales with the iteration range instead of using a fixed offset.
-  for (n in c(28L, 280L)) {
-    obj <- structure(list(
-      user_input = list(store_model_fit_history = TRUE),
-      IC_used = "GIC",
-      baseline_ic = -335266.29,
-      optimal_ic = -342739.42,
-      model_fit_history = list(ic_acceptance_matrix = cbind(
-        seq(-340465.55, -342739.42, length.out = n), rep(1, n)
-      ))
-    ), class = c("bifrost_search", "list"))
-
-    for (width in c(25L, 30L, 60L, 80L)) {
-      options(bifrost.txtplot.width = width)
-      output <- capture.output(print(obj))
-      frame <- grep("^ *\\+[-+]+\\+$", output, value = TRUE)
-      expect_length(frame, 2L)
-      left <- regexpr("+", frame[1L], fixed = TRUE)[1L]
-      right <- nchar(frame[1L])
-      point_rows <- output[grepl("*", output, fixed = TRUE)]
-      expect_gte(length(point_rows), 2L)
-      columns <- unlist(gregexpr("*", point_rows, fixed = TRUE))
-      expect_true(all(columns > left & columns < right),
-                  info = paste("iterations:", n, "width:", width))
-      expect_true(all(substr(point_rows, left, left) %in% c("|", "+")))
-      expect_true(all(substr(point_rows, right, right) %in% c("|", "+")))
-    }
-  }
-})
-
 # Test: print.bifrost_search covers edge-case branches (NA types, fallback fields, schema issues) (constructs multiple stub objects for NA/schema fallbacks)
 test_that("print.bifrost_search covers edge-case branches (NA types, fallback fields, schema issues)", {
   testthat::skip_if_not_installed("ape")

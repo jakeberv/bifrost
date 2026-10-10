@@ -303,9 +303,7 @@
 
         xr <- range(iter)
         yr <- range(best2, finite = TRUE)
-        # Keep endpoint symbols off the frame, including in longer searches.
-        xpad <- max(0.5, 0.05 * diff(xr))
-        xlim_pad <- xr + c(-xpad, xpad)
+        xlim_pad <- c(xr[1] - 0.5, xr[2])
 
         ydiff <- yr[2] - yr[1]
         ypad  <- if (is.finite(ydiff) && ydiff > 0) 0.10 * ydiff else 1
