@@ -193,9 +193,15 @@ Sys.setenv(
 
 Here is the function call we will use for this analysis. We'll break down each parameter choice below.
 
+The 54 random draws below reproduce the random-number state used for the cached
+17-shift result, following thresholds 10 and 15 in the original
+[threshold sweep](rate-map-jaw-shape-vignette.html).
+
 ```{r run_bifrost_setup, eval=FALSE, message = TRUE}
 # ---- Run the search ----
 set.seed(1)
+# Reproduce the RNG state preceding the cached threshold-20 search.
+invisible(runif(54))
 jaws_search <- searchOptimalConfiguration(
   baseline_tree              = fish.tree,
   trait_data                 = fish.data,
