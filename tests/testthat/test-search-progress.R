@@ -924,6 +924,8 @@ test_that("search progress helpers cover empty work and seedless callers", {
   if (exists(".Random.seed", envir = random_env, inherits = FALSE)) {
     rm(".Random.seed", envir = random_env)
   }
+  testthat::expect_identical(.bifrost_search_rng_seeds(0L), list())
+  testthat::expect_false(exists(".Random.seed", envir = random_env, inherits = FALSE))
   seeds <- .bifrost_search_rng_seeds(2L)
   testthat::expect_length(seeds, 2L)
   testthat::expect_true(exists(".Random.seed", envir = random_env, inherits = FALSE))

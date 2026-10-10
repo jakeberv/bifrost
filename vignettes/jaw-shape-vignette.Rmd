@@ -214,7 +214,6 @@ jaws_search <- searchOptimalConfiguration(
   method                     = "H&L", # penalized likelihood for high-dimensional data
   error                      = TRUE,
   store_model_fit_history    = TRUE,
-  progress                   = TRUE,
   verbose                    = TRUE
 )
 

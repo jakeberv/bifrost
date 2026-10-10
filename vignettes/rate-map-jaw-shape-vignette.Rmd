@@ -201,7 +201,6 @@ run_jaw_threshold <- function(threshold) {
     plot                       = FALSE,
     store_model_fit_history    = FALSE,
     start_strategy             = "legacy_1.2.1",
-    progress                   = TRUE,
     verbose                    = TRUE
   )
 }

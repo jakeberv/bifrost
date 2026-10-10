@@ -135,3 +135,43 @@ test_that("numeric logical controls retain mvgls coercion semantics", {
   fit <- do.call(bifrost:::.bifrost_mvgls, args)
   expect_equal(as.numeric(fit$start_values), case$start, tolerance = 1e-12)
 })
+
+test_that("historical initialization rejects incompatible trees, data, and methods", {
+  args <- historical_case_args(historical_start_cases()$bm_hl)
+  invalid <- list(
+    list(change = list(tree = list()), error = "phylo tree"),
+    list(change = list(model = "BMM", tree = structure(args$tree, class = "phylo")), error = "simmap"),
+    list(change = list(penalty = "RidgeAlt"), error = "require RidgeArch"),
+    list(change = list(data = list(Y = args$data$Y[-1, ])), error = "one row per tip"),
+    list(change = list(data = list(Y = args$data$Y[, 1, drop = FALSE])),
+         error = "multivariate datasets"),
+    list(change = list(method = "LL"), error = "more variables than observations")
+  )
+  for (case in invalid) {
+    invalid_args <- args
+    invalid_args[names(case$change)] <- case$change
+    expect_error(do.call(bifrost:::.bifrost_mvgls, invalid_args), case$error)
+  }
+})
+
+test_that("a changed mvMORPH private interface fails with the native escape hatch", {
+  args <- historical_case_args(historical_start_cases()$bm_hl)
+  # Simulate an upstream signature change in memory, never in the installation.
+  local_rebind(".setBounds", function(penalty) NULL, asNamespace("mvMORPH"))
+  expect_error(do.call(bifrost:::.bifrost_mvgls, args), "incompatible.*native")
+})
+
+test_that("historical grid selection respects tolerances and rejects unusable scores", {
+  corr <- list(model = "BM", nobs = 16L)
+  grid_start <- function(penalty, tol, score) {
+    bifrost:::.bifrost_mvgls_start_grid_historical(
+      corr, "LOOCV", penalty, NULL, tol, score
+    )
+  }
+  score <- function(par, ...) par[1L]^2
+  # RidgeAlt candidates are log-transformed: tol = 1 leaves 10 as the minimum.
+  expect_equal(grid_start("RidgeAlt", 1, score), c(log(10), 1))
+  expect_error(grid_start("RidgeArch", 1, score), "excludes every.*grid point")
+  expect_error(grid_start("RidgeArch", NULL, function(...) NA_real_),
+               "No usable.*starting values")
+})

@@ -5,7 +5,7 @@
 # These initializers also match the experimental fork used for the cached
 # vignettes. They include the random second-tip safeguard added after the CRAN 1.2.1 release.
 # Keep this module separate so it can be removed when native initialization is
-# adopted. The installed mvMORPH still evaluates the grid and fits the model.
+# adopted. The installed mvMORPH supplies grid scoring and model fitting.
 
 .bifrost_mvgls <- function(formula, data = list(), tree, model,
                           method = "PL-LOOCV", REML = TRUE, ...,
@@ -120,8 +120,7 @@
   transform <- mvMORPH::pruning(tree, trans = FALSE)$sqrtM
   X <- crossprod(transform, X)
   Y <- crossprod(transform, Y)
-  residuals <- Y - X %*% (corpcor::pseudoinverse(X) %*% Y)
-  residuals
+  Y - X %*% (corpcor::pseudoinverse(X) %*% Y)
 }
 
 .bifrost_mvgls_regime_starts_historical <- function(tree, Y, X) {
@@ -142,7 +141,6 @@
       removed <- removed[-sample(length(removed), size = 1)]
     }
     subtree <- ape::drop.tip(tree, removed)
-    if (ape::Ntip(subtree) <= 1L) subtree <- tree
     sqrt(mean(apply(.bifrost_mvgls_rate_historical(
       subtree, Y[subtree$tip.label, , drop = FALSE],
       X[subtree$tip.label, , drop = FALSE]

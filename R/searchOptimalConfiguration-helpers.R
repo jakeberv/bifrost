@@ -462,12 +462,9 @@
   rng_state <- .bifrost_search_rng_state
   fit_future <- future::future({
     restore_rng(state)
-    error <- NULL
-    value <- tryCatch(work(), error = function(e) {
-      error <<- e
-      NULL
-    })
-    list(value = value, error = error, state = rng_state())
+    result <- tryCatch(list(value = work()), error = function(e) list(error = e))
+    result$state <- rng_state()
+    result
   }, seed = TRUE)
   result <- .bifrost_search_await_futures(
     list(fit_future), heartbeat = heartbeat, interval = interval
@@ -522,7 +519,7 @@
       caller_pid <- Sys.getpid()
       chunk_futures <- lapply(chunks, function(indices) {
         future::future({
-          if (chunk_count > 1L) limit_threads(caller_pid)
+          limit_threads(caller_pid)
           lapply(indices, function(i) {
             seeded_eval(
               item_seeds[[i]],
