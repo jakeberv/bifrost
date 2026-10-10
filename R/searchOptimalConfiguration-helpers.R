@@ -787,6 +787,39 @@
   )
 }
 
+.bifrost_search_fit_proposal <- function(fit, fit_args, IC, current_best_ic,
+                                        shift_acceptance_threshold,
+                                        history = NULL, sub_dir = NULL) {
+  model <- do.call(fit, fit_args)
+  ic <- .bifrost_search_ic_value(model, IC)
+  delta_ic <- current_best_ic - ic
+  conditions <- list()
+  if (!is.null(history)) {
+    history <- c(history, list(
+      model = model, ic = ic,
+      accepted = delta_ic >= shift_acceptance_threshold,
+      delta_ic = delta_ic,
+      status = if (delta_ic >= shift_acceptance_threshold) "accepted" else "rejected"
+    ))
+    if (!is.null(sub_dir)) {
+      # Keep compression in the fitting worker. Relay I/O conditions after the
+      # caller's proposal tick, outside its recoverable model-error handler.
+      withCallingHandlers(
+        tryCatch(.bifrost_search_save_history(history, sub_dir, history$step + 1L),
+                 error = function(e) conditions[[length(conditions) + 1L]] <<- e),
+        warning = function(w) {
+          conditions[[length(conditions) + 1L]] <<- w
+          invokeRestart("muffleWarning")
+        }
+      )
+    }
+  }
+  # Return the fit only once; history already contains the potentially large model.
+  list(value = if (is.null(history)) {
+    list(model = model, ic = ic, delta_ic = delta_ic)
+  } else history, conditions = conditions)
+}
+
 .bifrost_search_forward <- function(sorted_candidates,
                                    current_best_tree,
                                    current_best_ic,
@@ -854,6 +887,7 @@
     percent_complete <- round((i / length(sorted_candidates)) * 100, 2)
     verbose_log("Evaluating shift at node %d (%.2f%% complete)", shift_node_number, percent_complete)
     outcome <- "error"
+    proposal <- NULL
 
     add_shift_result <- addShiftToModel(current_best_tree, shift_node_number, shift_id)
     shifted_tree <- add_shift_result$tree
@@ -865,8 +899,17 @@
 
     tryCatch({
       fit_args <- c(list(IC, formula, shifted_tree, trait_data), list(...))
-      fit_work <- function() do.call(fit, fit_args)
-      model_with_shift <- withCallingHandlers(
+      # Pass the current callback even if a worker loads an older installation.
+      fit_proposal <- .bifrost_search_fit_proposal
+      fit_work <- function() fit_proposal(
+        fit, fit_args, IC, current_best_ic, shift_acceptance_threshold,
+        history = if (store_model_fit_history) list(
+          step = i, candidate_node = shift_node_number,
+          regime_id = as.character(shift_id)
+        ),
+        sub_dir = if (!is.null(heartbeat)) sub_dir
+      )
+      proposal <- withCallingHandlers(
         if (is.null(heartbeat)) {
           fit_work()
         } else {
@@ -882,23 +925,13 @@
           invokeRestart("muffleWarning")
         }
       )
-      new_ic <- .bifrost_search_ic_value(model_with_shift, IC)
-
-      # Calculate delta IC
-      delta_ic <- current_best_ic - new_ic
+      model_with_shift <- proposal$value$model
+      new_ic <- proposal$value$ic
+      delta_ic <- proposal$value$delta_ic
 
       # Store model fit and acceptance status (including delta_ic)
       if (store_model_fit_history) {
-        model_fit_history <- list(
-          step = i,
-          candidate_node = shift_node_number,
-          regime_id = as.character(shift_id),
-          model = model_with_shift,
-          ic = new_ic,
-          accepted = delta_ic >= shift_acceptance_threshold,
-          delta_ic = delta_ic,
-          status = if (delta_ic >= shift_acceptance_threshold) "accepted" else "rejected"
-        )
+        model_fit_history <- proposal$value
       }
 
       # Decision logic (unchanged)
@@ -949,7 +982,14 @@
       shift_node_number,
       if (outcome == "error") "failed" else outcome
     ))
-    if (isTRUE(store_model_fit_history) && !is.null(sub_dir)) {
+    for (condition in proposal$conditions) {
+      if (inherits(condition, "error")) stop(condition)
+      warning(condition)
+    }
+    # Successful background fits already saved their history. Error records
+    # contain no model, so saving those here remains cheap.
+    if (isTRUE(store_model_fit_history) && !is.null(sub_dir) &&
+        (is.null(heartbeat) || outcome == "error")) {
       iteration_num <- i + 1L
       .bifrost_search_save_history(model_fit_history, sub_dir, iteration_num)
     }
