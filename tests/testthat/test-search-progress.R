@@ -556,7 +556,7 @@ test_that("animated Future failures cancel remaining work and restore settings",
   testthat::expect_identical(Sys.getenv("NUMEXPR_NUM_THREADS"), "11")
 })
 
-test_that("animated Future RNG is caller-safe and independent of chunk layout", {
+test_that("animated Future RNG matches ordinary work and preserves parallel chunk invariance", {
   run_random_work <- function(workers) {
     set.seed(42)
     .bifrost_search_future_lapply(
@@ -570,7 +570,12 @@ test_that("animated Future RNG is caller-safe and independent of chunk layout", 
   }
 
   set.seed(101)
-  seed_before <- .Random.seed
+  reference <- .bifrost_search_lapply(
+    1:3, function(i) if (i == 2L) NULL else i,
+    num_cores = 2L, is_rstudio = TRUE
+  )
+  seed_after <- .Random.seed
+  set.seed(101)
   deterministic <- .bifrost_search_future_lapply(
     1:3,
     function(i) if (i == 2L) NULL else i,
@@ -581,9 +586,12 @@ test_that("animated Future RNG is caller-safe and independent of chunk layout", 
   )
 
   testthat::expect_identical(deterministic, list(1L, NULL, 3L))
-  testthat::expect_identical(.Random.seed, seed_before)
+  testthat::expect_identical(deterministic, reference)
+  testthat::expect_identical(.Random.seed, seed_after)
   testthat::expect_equal(run_random_work(0L), run_random_work(1L))
-  testthat::expect_equal(run_random_work(1L), run_random_work(2L))
+  set.seed(42)
+  serial_reference <- as.list(stats::runif(6L))
+  testthat::expect_identical(run_random_work(1L), serial_reference)
   testthat::expect_equal(run_random_work(2L), run_random_work(3L))
   testthat::expect_error(
     run_random_work(NA_integer_),
@@ -811,8 +819,8 @@ test_that("public search keeps positional dots while progress is keyword-only", 
   ))
 
   testthat::expect_identical(
-    tail(names(formals(searchOptimalConfiguration)), 2L),
-    c("...", "progress")
+    tail(names(formals(searchOptimalConfiguration)), 3L),
+    c("...", "progress", "start_strategy")
   )
   testthat::expect_identical(
     forwarded_methods,
@@ -916,9 +924,12 @@ test_that("search progress helpers cover empty work and seedless callers", {
   if (exists(".Random.seed", envir = random_env, inherits = FALSE)) {
     rm(".Random.seed", envir = random_env)
   }
+  testthat::expect_identical(.bifrost_search_rng_seeds(0L), list())
+  testthat::expect_false(exists(".Random.seed", envir = random_env, inherits = FALSE))
   seeds <- .bifrost_search_rng_seeds(2L)
   testthat::expect_length(seeds, 2L)
-  testthat::expect_false(exists(".Random.seed", envir = random_env, inherits = FALSE))
+  testthat::expect_true(exists(".Random.seed", envir = random_env, inherits = FALSE))
+  rm(".Random.seed", envir = random_env)
 
   random_value <- .bifrost_search_with_rng_seed(
     seeds[[1L]],

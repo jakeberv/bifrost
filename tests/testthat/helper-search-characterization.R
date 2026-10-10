@@ -18,7 +18,7 @@ bifrost_characterization_run_search <- function(...) {
 bifrost_characterization_result_names <- function(result) {
   # Additive diagnostics are covered by focused contract tests; excluding them
   # keeps this fixture focused on pre-hardening search behavior and numerics.
-  setdiff(names(result), c("warnings", "candidate_nodes"))
+  setdiff(names(result), c("warnings", "candidate_nodes", "initialization"))
 }
 
 bifrost_characterization_warnings <- function(result) {
@@ -158,7 +158,7 @@ bifrost_characterization_result_summary <- function(result) {
   list(
     class = class(result),
     names = bifrost_characterization_result_names(result),
-    user_input_names = names(result$user_input),
+    user_input_names = setdiff(names(result$user_input), "start_strategy"),
     IC_used = result$IC_used,
     baseline_ic = result$baseline_ic,
     optimal_ic = result$optimal_ic,

@@ -402,74 +402,76 @@
   values
 }
 
-.bifrost_search_rng_seeds <- function(count) {
-  if (count == 0L) {
-    return(list())
-  }
+.bifrost_search_rng_state <- function() {
+  list(kind = RNGkind(), seed = get0(".Random.seed", envir = globalenv(),
+                                   inherits = FALSE))
+}
 
-  random_env <- globalenv()
-  had_seed <- exists(".Random.seed", envir = random_env, inherits = FALSE)
-  old_seed <- if (had_seed) get(".Random.seed", envir = random_env) else NULL
-  old_kind <- RNGkind()
-
-  on.exit({
-    do.call(RNGkind, as.list(old_kind))
-    if (had_seed) {
-      assign(".Random.seed", old_seed, envir = random_env)
-    } else if (exists(".Random.seed", envir = random_env, inherits = FALSE)) {
-      rm(".Random.seed", envir = random_env)
+.bifrost_search_restore_rng <- function(state) {
+  do.call(RNGkind, as.list(state$kind))
+  if (is.null(state$seed)) {
+    if (exists(".Random.seed", envir = globalenv(), inherits = FALSE)) {
+      rm(".Random.seed", envir = globalenv())
     }
-  }, add = TRUE)
-
-  if (!had_seed) {
-    stats::runif(1L)
+  } else {
+    assign(".Random.seed", state$seed, envir = globalenv())
   }
+  invisible(NULL)
+}
 
-  seed <- get(".Random.seed", envir = random_env)
-  is_lecuyer_seed <- length(seed) == 7L && seed[[1L]] %% 10000L == 407L
-  if (!is_lecuyer_seed) {
-    RNGkind("L'Ecuyer-CMRG")
-    seed <- get(".Random.seed", envir = random_env)
-  }
-
-  seeds <- vector("list", count)
-  for (i in seq_len(count)) {
-    seeds[[i]] <- parallel::nextRNGSubStream(seed)
-    seed <- parallel::nextRNGStream(seed)
-  }
-  seeds
+.bifrost_search_rng_seeds <- function(count) {
+  if (count == 0L) return(list())
+  # Ask the same public API as the non-progress path for its per-item seeds.
+  # This cheap sequential pass also advances the caller's RNG exactly as a
+  # future_lapply(..., future.seed = TRUE) would, without private Future APIs.
+  .bifrost_search_with_future_plan(
+    workers = 1L, is_rstudio_flag = TRUE,
+    work = function() future.apply::future_lapply(
+      seq_len(count), function(i) get(".Random.seed", envir = globalenv()),
+      future.seed = TRUE
+    )
+  )
 }
 
 .bifrost_search_with_rng_seed <- function(seed, work) {
-  random_env <- globalenv()
-  had_seed <- exists(".Random.seed", envir = random_env, inherits = FALSE)
-  old_seed <- if (had_seed) get(".Random.seed", envir = random_env) else NULL
-
+  # Keep this worker callback self-contained for multisession serialization.
+  kind <- RNGkind()
+  old_seed <- get0(".Random.seed", envir = globalenv(), inherits = FALSE)
   on.exit({
-    if (had_seed) {
-      assign(".Random.seed", old_seed, envir = random_env)
-    } else if (exists(".Random.seed", envir = random_env, inherits = FALSE)) {
-      rm(".Random.seed", envir = random_env)
+    do.call(RNGkind, as.list(kind))
+    if (is.null(old_seed)) {
+      if (exists(".Random.seed", envir = globalenv(), inherits = FALSE)) {
+        rm(".Random.seed", envir = globalenv())
+      }
+    } else {
+      assign(".Random.seed", old_seed, envir = globalenv())
     }
   }, add = TRUE)
-
-  assign(".Random.seed", seed, envir = random_env)
+  assign(".Random.seed", seed, envir = globalenv())
   work()
 }
 
 .bifrost_search_await_work <- function(work,
                                        heartbeat = function() invisible(NULL),
-                                       seed = NULL,
                                        interval = 0.1) {
-  if (is.null(seed)) {
-    seed <- .bifrost_search_rng_seeds(1L)[[1L]]
-  }
-  fit_future <- future::future(work(), seed = seed)
-  .bifrost_search_await_futures(
-    list(fit_future),
-    heartbeat = heartbeat,
-    interval = interval
+  state <- .bifrost_search_rng_state()
+  # Future setup and heartbeat callbacks must not affect the fitting stream.
+  # On a model error, retain the draws that model consumed before it failed.
+  on.exit(.bifrost_search_restore_rng(state), add = TRUE)
+  restore_rng <- .bifrost_search_restore_rng
+  rng_state <- .bifrost_search_rng_state
+  fit_future <- future::future({
+    restore_rng(state)
+    result <- tryCatch(list(value = work()), error = function(e) list(error = e))
+    result$state <- rng_state()
+    result
+  }, seed = TRUE)
+  result <- .bifrost_search_await_futures(
+    list(fit_future), heartbeat = heartbeat, interval = interval
   )[[1L]]
+  state <- result$state
+  if (!is.null(result$error)) stop(result$error)
+  result$value
 }
 
 .bifrost_search_future_lapply <- function(X,
@@ -489,11 +491,23 @@
   workers <- max(1L, as.integer(workers))
 
   chunk_count <- min(workers, length(X))
+  if (chunk_count == 1L) {
+    # Match plain lapply: each fit continues the previous fit's random state.
+    return(.bifrost_search_with_future_plan(
+      workers = 1L, is_rstudio_flag = is_rstudio_flag, ensure_async = TRUE,
+      work = function() lapply(X, function(x) {
+        .bifrost_search_await_work(function() FUN(x), heartbeat = heartbeat,
+                                    interval = interval)
+      })
+    ))
+  }
   chunks <- split(
     seq_along(X),
     rep(seq_len(chunk_count), length.out = length(X))
   )
   item_seeds <- .bifrost_search_rng_seeds(length(X))
+  caller_rng <- .bifrost_search_rng_state()
+  on.exit(.bifrost_search_restore_rng(caller_rng), add = TRUE)
 
   .bifrost_search_with_future_plan(
     workers = chunk_count,
@@ -505,7 +519,7 @@
       caller_pid <- Sys.getpid()
       chunk_futures <- lapply(chunks, function(indices) {
         future::future({
-          if (chunk_count > 1L) limit_threads(caller_pid)
+          limit_threads(caller_pid)
           lapply(indices, function(i) {
             seeded_eval(
               item_seeds[[i]],
@@ -522,6 +536,7 @@
       )
 
       values <- vector("list", length(X))
+      names(values) <- names(X)
       for (i in seq_along(chunks)) {
         values[chunks[[i]]] <- chunk_values[[i]]
       }
@@ -822,11 +837,6 @@
   best_tree_no_uncertainty <- NULL #initialize output
   # Initialize the list to collect warning messages
   warnings_list <- list()
-  fit_seeds <- if (is.null(heartbeat)) {
-    NULL
-  } else {
-    .bifrost_search_rng_seeds(length(sorted_candidates))
-  }
 
   # In-memory accumulator (lightweight; actual fits stored on disk)
   model_fit_history <- list()
@@ -857,8 +867,7 @@
         } else {
           .bifrost_search_await_work(
             fit_work,
-            heartbeat = heartbeat,
-            seed = fit_seeds[[i]]
+            heartbeat = heartbeat
           )
         },
         warning = function(w) {
@@ -1031,11 +1040,6 @@
         calculate_serial_weights <- function() {
           serial_weights <- .bifrost_search_empty_ic_weights_df()
           shift_nodes <- unlist(shift_vec)
-          fit_seeds <- if (is.null(heartbeat)) {
-            NULL
-          } else {
-            .bifrost_search_rng_seeds(length(shift_nodes))
-          }
 
           for (i in seq_along(shift_nodes)) {
             shift_node_number <- shift_nodes[[i]]
@@ -1055,8 +1059,7 @@
             } else {
               .bifrost_search_await_work(
                 fit_work,
-                heartbeat = heartbeat,
-                seed = fit_seeds[[i]]
+                heartbeat = heartbeat
               )
             }
             ic_without_current_shift <- .bifrost_search_ic_value(
