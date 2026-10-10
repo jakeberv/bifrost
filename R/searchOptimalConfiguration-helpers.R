@@ -12,12 +12,6 @@
   format_row <- function(row) {
     end <- if (is.null(row$finished)) now() else row$finished
     elapsed <- end - row$started
-    # Advance only one frame after a delayed redraw, without speeding up when
-    # status updates arrive faster than the spinner's intended frame interval.
-    if (row$state == "active" && 1000 * (end - row$last_frame) >= spinner$interval) {
-      row$frame <- row$frame %% length(spinner$frames) + 1L
-      row$last_frame <- end
-    }
     ratio <- if (row$total > 0L) min(row$current / row$total, 1) else 1
     filled <- round(30 * ratio)
     bar <- paste0(
@@ -26,7 +20,9 @@
     )
     icon <- switch(
       row$state,
-      active = spinner$frames[[row$frame]],
+      # Bar updates and other redraws must not reset the animation's clock.
+      active = spinner$frames[[floor(1000 * elapsed / spinner$interval) %%
+        length(spinner$frames) + 1L]],
       failed = cli::symbol$cross,
       skipped = cli::symbol$info,
       cli::symbol$tick
@@ -79,7 +75,7 @@
       id <- paste0("stage-", length(rows) + 1L)
       row <- list2env(list(
         state = "active", current = 0L, total = total, status = label,
-        started = now(), finished = NULL, frame = 0L, last_frame = -Inf
+        started = now(), finished = NULL
       ), parent = baseenv())
       rows[[id]] <<- row
       row
@@ -372,7 +368,7 @@
 
 .bifrost_search_await_futures <- function(futures,
                                           heartbeat = function() invisible(NULL),
-                                          interval = 0.05) {
+                                          interval = 0.1) {
   if (length(futures) == 0L) {
     return(list())
   }
@@ -458,7 +454,7 @@
 
 .bifrost_search_await_work <- function(work,
                                        heartbeat = function() invisible(NULL),
-                                       interval = 0.05) {
+                                       interval = 0.1) {
   state <- .bifrost_search_rng_state()
   # Future setup and heartbeat callbacks must not affect the fitting stream.
   # On a model error, retain the draws that model consumed before it failed.
@@ -484,7 +480,7 @@
                                           workers,
                                           is_rstudio_flag,
                                           heartbeat,
-                                          interval = 0.05) {
+                                          interval = 0.1) {
   if (length(X) == 0L) {
     return(list())
   }
