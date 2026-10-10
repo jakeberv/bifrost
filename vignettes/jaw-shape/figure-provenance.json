@@ -1,0 +1,30 @@
+{
+  "regeneration_command": "Rscript tools/render-jaw-shape-figures.R 'local-cache/rate-map-jaw-shape/jaw_threshold_runs_full.rds' 'output/historical-starts-implementation/threshold-20/result.rds'",
+  "cache": {
+    "path": "local-cache/rate-map-jaw-shape/jaw_threshold_runs_full.rds",
+    "sha256": "d1b3833c27e780ce1c1ecaf1f620b6d259c17bd9332dec56fed277104c7be6df",
+    "key": "GIC_threshold_20"
+  },
+  "history": {
+    "path": "output/historical-starts-implementation/threshold-20/result.rds",
+    "sha256": "4f1d6965f528e5f72329349220a4c5fe61615b1c1a3034a514755c696b82ac72",
+    "description": "Previously cached reproduction; the sweep cache omits history. Accepted nodes, rates, tree, and VCV values checked against the sweep cache; baseline and final GIC agree within 1e-7."
+  },
+  "summary": {
+    "n_proposals": 28,
+    "n_accepted": 17,
+    "n_rejected": 11,
+    "shift_nodes": [107, 113, 115, 94, 128, 129, 158, 157, 98, 161, 92, 89, 93, 96, 97, 108, 116],
+    "baseline_ic": -335266.289180069,
+    "optimal_ic": -342739.41635085,
+    "delta_ic": 7473.12717078079
+  },
+  "plot_source": "vignettes/jaw-shape-vignette.Rmd",
+  "plot_chunks": ["plot_cor", "plot_decay", "plot_tree"],
+  "artifacts_sha256": {
+    "cor_heatmap.png": "13897117959595e65bded9b57ec5b8669d5e626ce405546d04fd3ed118f40797",
+    "IC_decay.png": "dce95de6777050ed59bb0e89b55a936e4a8be9f5ef7819dd052ee4cb4e9ca4ef",
+    "branch_rates.png": "b54769984423fb6c921f71fd7cebccc8c6ff2d5ae83eb7902c8869016fa1c86c",
+    "IC_trajectory.csv": "bce95c485bb3a38ee0c4167103fc2b70ea3ca3e258ceae02fff92ac8cc02b81e"
+  }
+}
