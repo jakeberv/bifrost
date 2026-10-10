@@ -172,20 +172,24 @@ test_that("greedy search and serial weights preserve numerical threading", {
   tree <- ape::rtree(10)
   baseline <- phytools::paintSubTree(tree, node = 11L, state = 0)
   candidate <- generatePaintedTrees(baseline, min_tips = 3)[2]
+  caller_pid <- Sys.getpid()
   fit <- function(...) {
     # Observe settings at the fitting boundary, including in a real worker.
     if (!identical(Sys.getenv("OMP_NUM_THREADS"), "4") ||
         !identical(Sys.getenv("OPENBLAS_NUM_THREADS"), "3")) {
       stop("Numerical thread settings were changed during a serial fit")
     }
-    Sys.sleep(0.15)
+    # A fast fit can finish before the first heartbeat poll. Check its process
+    # directly; deterministic polling coverage lives in test-search-spinner.R.
+    if (!identical(Sys.getpid() != caller_pid, progress)) {
+      stop("Fit ran in an unexpected process for the progress setting")
+    }
     list(GIC = list(GIC = 90))
   }
   backends <- if (future::supportsMulticore()) c(TRUE, FALSE) else TRUE
   for (is_rstudio in backends) {
     for (progress in c(FALSE, TRUE)) {
-      beats <- 0L
-      heartbeat <- if (progress) function() beats <<- beats + 1L else NULL
+      heartbeat <- if (progress) function() invisible(NULL) else NULL
       result <- .bifrost_search_forward(
         sorted_candidates = candidate, current_best_tree = baseline,
         current_best_ic = 100, shift_id = 0L, IC = "GIC",
@@ -205,7 +209,6 @@ test_that("greedy search and serial weights preserve numerical threading", {
         verbose_log = function(...) NULL, heartbeat = heartbeat, fit = fit
       )
       expect_equal(nrow(weights), 1L)
-      if (progress) expect_gt(beats, 0L) else expect_identical(beats, 0L)
     }
   }
 })

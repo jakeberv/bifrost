@@ -279,7 +279,15 @@ Some choices deserve additional context:
 
 ## Interpreting the Output
 
-The static figures in this vignette use the same jaw-shape search settings shown above. For the cached threshold-20 run used here, the selected model retained 17 shifts and improved the GIC by more than 7,000 units relative to the single-regime baseline.
+Figures 3–5 show the cached threshold-20 result from the
+[threshold sweep](rate-map-jaw-shape-vignette.html). The selected model retained
+17 shifts and improved the GIC by more than 7,000 units relative to the
+single-regime baseline. The sweep cache contains the fitted model and VCVs but
+omits proposal history and drop-one support weights. Figure 4 uses a separately
+cached reproduction with proposal history: its accepted nodes, fitted rates,
+and VCV values match the sweep result, and its final GIC agrees to within
+`1e-7`. The call above saves history and requests support weights so that both
+diagnostics are available when running the example yourself.
 
 | Result | Value |
 |:--|:--|
@@ -321,10 +329,6 @@ cat("Improvement (Delta GIC):", jaws_search$baseline_ic - jaws_search$optimal_ic
 # The root state is always assigned to `0`
 heatmap(jaws_search$VCVs$`0`, labRow = "", labCol = "")
 
-# We can also visualize/extract the estimated evolutionary correlations across 
-# traits (for the 'root' regime)
-heatmap(cov2cor(jaws_search$VCVs$`0`), labRow = "", labCol = "")
-
 # The ic_weights sub-object stores detailed information about shift support
 # if uncertaintyweights_par = TRUE.
 print(as.matrix(jaws_search$ic_weights))
@@ -343,6 +347,14 @@ print(with(jaws_search$ic_weights, {
 }))
 ```
 
+```{r plot_cor, eval=FALSE}
+# Display root-regime correlations without row standardization.
+heatmap(
+  cov2cor(jaws_search$VCVs$`0`),
+  scale = "none", symm = TRUE, labRow = "", labCol = "", margins = c(1, 1)
+)
+```
+
 ```{r cor_heatmap_fig, echo=FALSE, fig.align="center", out.width="60%", fig.alt="Heatmap of estimated evolutionary correlations for the root regime in the jaw-shape example."}
 knitr::include_graphics(
   normalizePath(
@@ -354,7 +366,7 @@ knitr::include_graphics(
 )
 ```
 
-> **Figure 3. Estimated evolutionary correlations for the root regime.** Heatmap of estimated evolutionary correlations (computed as ``cov2cor(jaws_search$VCVs$`0`)``) among jaw-shape traits for the root regime inferred in the example analysis. Rows and columns are ordered by hierarchical clustering, and blocks of high correlation along the diagonal may indicate modular patterns of trait evolution.
+> **Figure 3. Estimated evolutionary correlations for the root regime.** Heatmap of estimated evolutionary correlations (computed as ``cov2cor(jaws_search$VCVs$`0`)``) among jaw-shape traits for the root regime in the cached 17-shift model. Rows and columns use the same hierarchical clustering, with no row standardization of the correlations. Blocks of high correlation along the diagonal may indicate modular patterns of trait evolution.
 
 ## Inspecting the search behavior
 
@@ -362,14 +374,15 @@ knitr::include_graphics(
 # Since we saved the model search history 
 
 # We can inspect the behavior of the search with an IC trajectory.
+op <- par(oma = c(0, 0, 1.5, 0)) # leave room for the title on file devices
 plot(
   icTrajectory(jaws_search),
-  delta_limits = c(1000, -1000),
+  delta_limits = c(6000, -3000), # include the first improvement; leave legend space
   scales = c(point = 1.30, line = 1.25, text = 1.15),
   point_sizes = c(accepted = 1.82, rejected = 1.30),
   line_widths = c(running_best = 2.52, rejected = 3.17),
   text_sizes = c(
-    main = 1.73,
+    main = 1.45,
     x_axis = 1.22,
     axis_label = 1.34,
     y_axis = 0.94,
@@ -379,7 +392,7 @@ plot(
   ),
   annotation = c(baseline_label_offset = 2.05)
 )
-
+par(op)
 ```
 
 ```{r IC_decay_fig, echo=FALSE, fig.align="center", out.width="80%", fig.alt="Information-criterion trajectory across sequentially evaluated sub-models. Accepted shifts are shown as blue points, rejected shifts as red crosses, the running best IC as a blue step line, and the baseline IC as a black point. Proposal-level delta IC is also shown."}
@@ -393,13 +406,13 @@ knitr::include_graphics(
 )
 ```
 
-> **Figure 4. Information-criterion trajectory for the jaw-shape search.** Information-criterion (IC) trajectory across sequentially evaluated sub-models during the greedy shift search. Blue points indicate accepted shifts, red crosses indicate rejected shifts, the blue step line tracks the running best IC, and the black point marks the baseline IC. The plot also shows proposal-level delta IC. Labels highlight the baseline and minimum accepted IC values.
+> **Figure 4. Information-criterion trajectory for the 17-shift jaw-shape search.** Of 28 sequential proposals, 17 were accepted (blue points) and 11 rejected (red crosses). The blue step line tracks the running best GIC, and the black point marks the baseline. The gray line shows proposal-level delta GIC on the right axis, with positive improvements drawn downward; an improvement below the 20-unit acceptance threshold is rejected. Labels mark the baseline (−335266.29) and final minimum accepted GIC (−342739.42). The delta axis includes the first improvement of about 5199 units.
 
 ## Generating a branch-rate plot
 
 ```{r plot_tree, eval=FALSE}
 
-# Mean branch-rate colors (viridis): dark purple = slow, yellow = fast
+# Rank branch rates with viridis: dark purple = slow, yellow = fast.
 cols  <- generateViridisColorScale(jaws_search$model_no_uncertainty$param)$NamedColors
 rates <- jaws_search$model_no_uncertainty$param[names(cols)]
 
@@ -410,8 +423,8 @@ plotSimmap(
   colors = cols
 )
 
-# ---- Continuous color bar (bottom-left, inside plot region) ----
-op <- par(xpd = NA); on.exit(par(op), add = TRUE)
+# ---- Ranked color key (bottom-left, inside plot region) ----
+op <- par(xpd = NA)
 usr <- par("usr"); xr <- diff(usr[1:2]); yr <- diff(usr[3:4])
 
 # Geometry (fractions of plot range)
@@ -428,7 +441,8 @@ rect(xs[-length(xs)], y0, xs[-1], y1, col = cols_ord, border = NA)
 rect(x0, y0, x1, y1, border = "grey30")
 
 text((x0 + x1) / 2, y1 + vscale * (0.03 * yr), 
-     "Mean rate (slow \u2192 fast)", cex = 0.9)
+     "Rate rank (slow to fast)", cex = 0.9)
+par(op)
 ```
 
 ```{r branch_rates_fig, echo=FALSE, fig.align="center", out.width="80%", fig.alt="Upward-oriented phylogenetic tree without tip labels. Branches are colored using a viridis gradient, where yellow branches represent faster inferred evolutionary rates and dark purple branches represent slower rates; different clades show distinct colors indicating variation in branch rates across the tree."}
@@ -442,7 +456,7 @@ knitr::include_graphics(
 )
 ```
 
-> **Figure 5. Branch-rate visualization for the jaw-shape example.** SIMMAP-style phylogeny object from the jaw-shape example, with branches colored by inferred mean evolutionary rate under the selected multi-regime model. Branch colors follow a perceptually uniform viridis scale, with yellow indicating faster rates and dark purple indicating slower rates, highlighting variation in evolutionary tempo across the tree. Faster branches on the left side correspond to Dipnoi -- or lungfish; see Troyer et al. (2025).
+> **Figure 5. Branch-rate visualization for the cached 17-shift model.** SIMMAP-style phylogeny with branches colored by the rank of their fitted regime rate. Colors are evenly spaced along the viridis palette from dark purple (slowest) to yellow (fastest); color distances do not encode differences in rate magnitude. Faster branches on the left side correspond to Dipnoi -- or lungfish; see Troyer et al. (2025).
 
 ## Conclusion
 

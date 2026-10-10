@@ -40,3 +40,26 @@ test_that("verbose output restores live progress rows in one console write", {
   expect_identical(.Random.seed, seed)
   invisible(utils::capture.output(renderer$done(), type = "message"))
 })
+
+test_that("plain console output keeps verbose text before persistent progress rows", {
+  withr::local_options(
+    cli.dynamic = FALSE, cli.num_colors = 1, cli.width = 200
+  )
+  session <- .bifrost_search_progress_session(TRUE)
+  invisible(utils::capture.output({
+    session$skip("[1/2] Candidate scoring", "complete")
+    session$skip("[2/2] Greedy search", "complete")
+  }, type = "message"))
+
+  # Exercise the real renderer: the recording renderer cannot catch dropped
+  # messages or terminal control sequences leaking into non-interactive logs.
+  rendered <- utils::capture.output(
+    session$output("Accepted shift at node 14"), type = "message"
+  )
+  expect_length(rendered, 3L)
+  expect_identical(rendered[[1L]], "Accepted shift at node 14")
+  expect_match(rendered[[2L]], "[1/2] complete", fixed = TRUE)
+  expect_match(rendered[[3L]], "[2/2] complete", fixed = TRUE)
+  expect_false(any(grepl("[\033\r]", rendered)))
+  session$finalize()
+})
