@@ -1,5 +1,7 @@
 # bifrost 0.2.1
 
+* The console IC-history plot now pads both ends of the iteration axis so
+  baseline and final points do not overwrite its frame at typical text widths.
 * Progress refreshes every 100 ms. Spinner frames follow elapsed time so
   progress-bar updates do not reset the animation's timing.
 * Searches now default to `start_strategy = "legacy_1.2.1"`: data-dependent
