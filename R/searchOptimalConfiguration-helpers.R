@@ -41,28 +41,34 @@
   }
 
   clear <- function() {
-    if (!dynamic || visible == 0L) return(invisible(NULL))
-    cat("\r\033[2K", file = stderr())
-    for (i in seq_len(visible - 1L)) cat("\033[1A\r\033[2K", file = stderr())
+    if (!dynamic || visible == 0L) return("")
+    codes <- paste0("\r\033[2K", strrep("\033[1A\r\033[2K", visible - 1L))
     visible <<- 0L
+    codes
   }
 
   set_wrap <- function(enabled) {
-    cat(if (enabled) "\033[?7h" else "\033[?7l", file = stderr())
     wrap_disabled <<- !enabled
+    if (enabled) "\033[?7h" else "\033[?7l"
   }
 
-  draw <- function(final = FALSE) {
+  draw <- function(final = FALSE, text = NULL) {
     if (!final && !cursor_hidden && isTRUE(getOption("cli.hide_cursor", TRUE))) {
       cli::ansi_hide_cursor("stderr")
       cursor_hidden <<- TRUE
     }
     lines <- vapply(rows, format_row, character(1))
-    clear()
-    if (final && wrap_disabled) set_wrap(TRUE)
-    if (!final && !wrap_disabled) set_wrap(FALSE)
-    cat(paste(lines, collapse = "\n"), if (final) "\n" else "\r",
-        sep = "", file = stderr())
+    prefix <- clear()
+    if (!is.null(text)) {
+      if (wrap_disabled) prefix <- paste0(prefix, set_wrap(TRUE))
+      prefix <- paste0(prefix, text, "\n")
+    }
+    if (final && wrap_disabled) prefix <- paste0(prefix, set_wrap(TRUE))
+    if (!final && !wrap_disabled) prefix <- paste0(prefix, set_wrap(FALSE))
+    # Send the erase, optional message, and restored rows together so the
+    # console does not display an empty progress area between writes.
+    cat(paste0(prefix, paste(lines, collapse = "\n"),
+               if (final) "\n" else "\r"), file = stderr())
     if (!final) visible <<- length(lines)
     if (final && cursor_hidden) {
       cli::ansi_show_cursor("stderr")
@@ -91,10 +97,8 @@
       )
     },
     output = function(text) {
-      clear()
-      if (wrap_disabled) set_wrap(TRUE)
-      cat(text, "\n", sep = "", file = stderr())
-      if (dynamic) draw()
+      if (dynamic) draw(text = text)
+      else cat(text, "\n", sep = "", file = stderr())
     },
     done = function() if (dynamic) draw(TRUE)
   )
