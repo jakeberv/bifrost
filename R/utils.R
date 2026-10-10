@@ -163,7 +163,7 @@ fitMvglsAndExtractGIC <- function(painted_tree, trait_data) {
   }
 
   # Fit the mvgls model directly using the matrix
-  model <- mvgls(trait_data ~ 1, tree = painted_tree, model = "BMM", method = "LL")
+  model <- .bifrost_mvgls(trait_data ~ 1, tree = painted_tree, model = "BMM", method = "LL")
   gic_value <- GIC(model)
 
   # Return a list containing the model and the GIC
@@ -226,7 +226,7 @@ fitMvglsAndExtractBIC <- function(painted_tree, trait_data) {
   }
 
   # Fit the mvgls model directly using the matrix
-  model <- mvgls(trait_data ~ 1, tree = painted_tree, model = "BMM", method = "LL")
+  model <- .bifrost_mvgls(trait_data ~ 1, tree = painted_tree, model = "BMM", method = "LL")
   bic_value <- BIC(model)
 
   # Return a list containing the model and the GIC
@@ -310,12 +310,12 @@ fitMvglsAndExtractGIC.formula <- function(formula, painted_tree, trait_data, ...
 
   if(length(unique(getStates(tree = painted_tree))) == 1){
     model <- do.call(
-      mvgls,
+      .bifrost_mvgls,
       c(list(formula_obj, tree = painted_tree, model = "BM"), args_list)
     )
   } else {
     model <- do.call(
-      mvgls,
+      .bifrost_mvgls,
       c(list(formula_obj, tree = painted_tree, model = "BMM"), args_list)
     )
   }
@@ -406,12 +406,12 @@ fitMvglsAndExtractBIC.formula <- function(formula, painted_tree, trait_data, ...
 
   if(length(unique(getStates(tree = painted_tree))) == 1){
     model <- do.call(
-      mvgls,
+      .bifrost_mvgls,
       c(list(formula_obj, tree = painted_tree, model = "BM"), args_list)
     )
   } else {
     model <- do.call(
-      mvgls,
+      .bifrost_mvgls,
       c(list(formula_obj, tree = painted_tree, model = "BMM"), args_list)
     )
   }

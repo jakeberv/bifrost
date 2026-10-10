@@ -3,6 +3,7 @@ Title: Branch-Level Inference Framework for Recognizing Optimal Shifts in Traits
 Version: 0.2.1
 Authors@R: c(
     person(given = c("Jacob", "S."), family = "Berv", email = "jacob.berv@gmail.com", role = c("aut", "cre", "cph", "fnd"), comment = c(ORCID = "0000-0002-5962-0621")),
+    person(given = "Julien", family = "Clavel", role = c("ctb", "cph"), comment = "Starting-value compatibility code adapted from mvMORPH 1.2.1"),
     person(given = "Nathan", family = "Fox", role = "aut", comment = c(ORCID = "0000-0002-2816-9751")),
     person(given = c("Matt", "J."), family = "Thorstensen", role = "aut", comment = c(ORCID = "0000-0002-7870-3369")),
     person(given = "Henry", family = "Lloyd-Laney", role = "aut", comment = c(ORCID = "0000-0003-4650-8937")),
@@ -22,6 +23,7 @@ Depends: R (>= 4.2)
 Imports:
     ape,
     cli (>= 3.6.0),
+    corpcor,
     digest,
     future (>= 1.49.0),
     future.apply,

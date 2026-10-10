@@ -103,6 +103,16 @@
 #'   Set to \code{FALSE} to disable these lines and the
 #'   heartbeat path; use \code{progress = FALSE, verbose = FALSE} for completely quiet
 #'   execution.
+#' @param start_strategy Starting-value policy for every baseline, candidate,
+#'   forward-search, and IC-weight fit. The default, \code{"legacy_1.2.1"},
+#'   computes data-dependent starts using the official \pkg{mvMORPH} 1.2.1
+#'   BM/BMM strategy and passes them to the installed \code{mvgls()}. Set
+#'   \code{"native"} to use the installed \pkg{mvMORPH} initialization unchanged.
+#'   Explicit \code{start} values or \code{grid.search = FALSE} in \code{...}
+#'   take precedence. EmpBayes requires \code{"native"}. This compatibility
+#'   policy preserves the older initialization, including its dependence on
+#'   trait scale; it does not guarantee convergence or identical results across
+#'   numerical environments or future \pkg{mvMORPH} versions.
 #' @param ... Additional arguments passed to \code{\link[mvMORPH]{mvgls}} (e.g., \code{method},
 #'   \code{penalty}, \code{target}, \code{error}, \code{REML}, etc.). In the workflows
 #'   emphasized in the package vignettes, \code{method = "H&L"} is used for
@@ -204,8 +214,13 @@
 #' @return A named \code{list} with (at minimum):
 #' \itemize{
 #'   \item \code{user_input}: captured call (as a list) for reproducibility,
-#'         including the resolved logical \code{progress} setting and flattened
+#'         including the resolved \code{progress} and \code{start_strategy} settings and flattened
 #'         additional \code{mvgls()} arguments.
+#'   \item \code{initialization}: requested and actual starting policy
+#'         (\code{legacy_1.2.1}, \code{native}, \code{supplied}, or
+#'         \code{native_no_grid}), plus the installed \pkg{mvMORPH} version.
+#'         Each fitted model also records this list in its
+#'         \code{bifrost_initialization} attribute.
 #'   \item \code{tree_no_uncertainty_transformed}: SIMMAP tree from the optimal (no-uncertainty) model
 #'         on the transformed scale used internally by \code{mvgls}.
 #'   \item \code{tree_no_uncertainty_untransformed}: same topology with original edge lengths restored.
@@ -389,7 +404,10 @@ searchOptimalConfiguration <-
            store_model_fit_history = TRUE,
            verbose = FALSE,
            ...,
-           progress = TRUE) {
+           progress = TRUE,
+           start_strategy = c("legacy_1.2.1", "native")) {
+
+    start_strategy <- match.arg(start_strategy)
 
     if (isTRUE(uncertaintyweights) && isTRUE(uncertaintyweights_par)) {
       stop("uncertaintyweights and uncertaintyweights_par cannot both be TRUE.")
@@ -428,6 +446,7 @@ searchOptimalConfiguration <-
     matched_call$... <- NULL
     user_input <- as.list(matched_call)
     user_input$progress <- isTRUE(progress)
+    user_input$start_strategy <- start_strategy
     user_input <- c(user_input, dots_input)
 
     if (!(inherits(formula, "formula") ||
@@ -495,13 +514,14 @@ searchOptimalConfiguration <-
     .progress("%s", "Fitting baseline model...")
 
     #select which information criterion to use
-    baseline_model <- .bifrost_search_fit_ic(IC, formula, baseline_tree, trait_data, ...)
+    baseline_model <- .bifrost_search_fit_ic(IC, formula, baseline_tree, trait_data,
+                                           ..., start_strategy = start_strategy)
     baseline_ic <- .bifrost_search_ic_value(baseline_model, IC)
     .progress("Baseline %s: %.2f", IC, baseline_ic)
 
     #evaluate all of the candidate trees under GIC or BIC
     # Capture additional arguments into a list
-    args_list <- list(...)
+    args_list <- list(..., start_strategy = start_strategy)
 
     is_rstudio <- identical(Sys.getenv("RSTUDIO"), "1")
 
@@ -575,6 +595,7 @@ searchOptimalConfiguration <-
           progress, tick, "[2/3] Fitting proposal"
         ),
         is_rstudio = is_rstudio,
+        start_strategy = start_strategy,
         ...
       )
     }
@@ -712,6 +733,7 @@ searchOptimalConfiguration <-
       # Create the main list that will always be returned
       result_list <- list(
         user_input = user_input,
+        initialization = attr(baseline_model$model, "bifrost_initialization"),
         tree_no_uncertainty_transformed = no_uncertainty$tree_transformed,
         tree_no_uncertainty_untransformed = no_uncertainty$tree_untransformed,
         model_no_uncertainty = no_uncertainty$model,

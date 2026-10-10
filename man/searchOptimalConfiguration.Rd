@@ -19,7 +19,8 @@ searchOptimalConfiguration(
   store_model_fit_history = TRUE,
   verbose = FALSE,
   ...,
-  progress = TRUE
+  progress = TRUE,
+  start_strategy = c("legacy_1.2.1", "native")
 )
 }
 \arguments{
@@ -130,13 +131,29 @@ at a time in a background Future without imposing a one-thread numerical limit.
 Set to \code{FALSE} to disable these lines and the
 heartbeat path; use \code{progress = FALSE, verbose = FALSE} for completely quiet
 execution.}
+
+\item{start_strategy}{Starting-value policy for every baseline, candidate,
+forward-search, and IC-weight fit. The default, \code{"legacy_1.2.1"},
+computes data-dependent starts using the official \pkg{mvMORPH} 1.2.1
+BM/BMM strategy and passes them to the installed \code{mvgls()}. Set
+\code{"native"} to use the installed \pkg{mvMORPH} initialization unchanged.
+Explicit \code{start} values or \code{grid.search = FALSE} in \code{...}
+take precedence. EmpBayes requires \code{"native"}. This compatibility
+policy preserves the older initialization, including its dependence on
+trait scale; it does not guarantee convergence or identical results across
+numerical environments or future \pkg{mvMORPH} versions.}
 }
 \value{
 A named \code{list} with (at minimum):
 \itemize{
 \item \code{user_input}: captured call (as a list) for reproducibility,
-including the resolved logical \code{progress} setting and flattened
+including the resolved \code{progress} and \code{start_strategy} settings and flattened
 additional \code{mvgls()} arguments.
+\item \code{initialization}: requested and actual starting policy
+(\code{legacy_1.2.1}, \code{native}, \code{supplied}, or
+\code{native_no_grid}), plus the installed \pkg{mvMORPH} version.
+Each fitted model also records this list in its
+\code{bifrost_initialization} attribute.
 \item \code{tree_no_uncertainty_transformed}: SIMMAP tree from the optimal (no-uncertainty) model
 on the transformed scale used internally by \code{mvgls}.
 \item \code{tree_no_uncertainty_untransformed}: same topology with original edge lengths restored.

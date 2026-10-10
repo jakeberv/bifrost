@@ -811,8 +811,8 @@ test_that("public search keeps positional dots while progress is keyword-only", 
   ))
 
   testthat::expect_identical(
-    tail(names(formals(searchOptimalConfiguration)), 2L),
-    c("...", "progress")
+    tail(names(formals(searchOptimalConfiguration)), 3L),
+    c("...", "progress", "start_strategy")
   )
   testthat::expect_identical(
     forwarded_methods,
