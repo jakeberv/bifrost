@@ -16,15 +16,15 @@ test_that("default starts reproduce historical starts and random draws across BM
     fit <- suppressWarnings(do.call(bifrost:::.bifrost_mvgls, historical_case_args(case)))
     expect_equal(as.numeric(fit$start_values), case$start, tolerance = 1e-12, info = name)
     expect_identical(.Random.seed, case$rng_after, info = name)
-    expect_identical(attr(fit, "bifrost_initialization")$used, "historical")
+    expect_identical(attr(fit, "bifrost_initialization")$used, "legacy_1.2.1")
   }
 })
 
 test_that("native and supplied starts reach mvMORPH unchanged", {
   args <- historical_case_args(historical_start_cases()$singleton_hl)
-  for (strategy in c("native", "historical")) {
+  for (strategy in c("native", "legacy_1.2.1")) {
     supplied <- args
-    if (strategy == "historical") supplied$start <- c(.5, .2, .3, .01)
+    if (strategy == "legacy_1.2.1") supplied$start <- c(.5, .2, .3, .01)
     set.seed(12)
     ref <- suppressWarnings(do.call(mvMORPH::mvgls, supplied))
     rng <- .Random.seed
@@ -79,7 +79,7 @@ test_that("every search stage uses the selected starting policy", {
     seen[[length(seen) + 1L]] <<- attr(fit, "bifrost_initialization")
     fit
   }, ns)
-  for (strategy in c("historical", "native")) {
+  for (strategy in c("legacy_1.2.1", "native")) {
     seen <- list()
     result <- suppressWarnings(searchOptimalConfiguration(
       args$tree, Y, min_descendant_tips = 4, num_cores = 1,

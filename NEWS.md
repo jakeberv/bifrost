@@ -1,8 +1,9 @@
 # bifrost 0.2.1
 
-* Searches now default to `start_strategy = "historical"`: data-dependent
-  BM/BMM starting values following the mvMORPH development initializer used
-  for the cached vignettes, supplied to the
+* Searches now default to `start_strategy = "legacy_1.2.1"`: data-dependent
+  BM/BMM starting values following the mvMORPH 1.2.1 development initializer used
+  for the cached vignettes (including the singleton safeguard added after the
+  CRAN 1.2.1 release), supplied to the
   installed mvMORPH through `start`. This establishes an explicit initialization
   baseline without pinning or modifying mvMORPH. Set `start_strategy = "native"`
   to use mvMORPH's own initialization (required for EmpBayes). Explicit `start`
@@ -10,8 +11,12 @@
   the requested/actual strategy and mvMORPH version. The compatibility policy
   retains the older strategy's scale dependence, random second-tip selection
   for singleton regimes, and convergence limitations. Reproducing the cached
-  jaw sweep also requires its sequential `set.seed(1)` workflow and
-  `progress = FALSE`; a standalone threshold run has a different random state.
+  jaw sweep also requires its sequential `set.seed(1)` workflow; a standalone
+  threshold run has a different random state.
+* Turning `progress` on or off now preserves the same fitting random sequence
+  and results for the same seed and search settings. Background serial fits
+  continue the caller's random stream, including draws consumed before a fit
+  fails; parallel fits use the same per-item streams as the non-progress path.
 * Progress reporting now preserves numerical-thread environment settings for
   single-fit stages, including the greedy search, serial IC weights, and searches
   with `num_cores = 1`. Concurrent candidate and IC-weight fits request one

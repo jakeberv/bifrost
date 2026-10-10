@@ -1,15 +1,15 @@
 # Compatibility initialization for the historical bifrost vignette baseline.
 # Adapted from .startGuess(), .rate_guess(), and BM/BMM input preparation in
-# mvMORPH development code, copyright Julien Clavel, licensed GPL (>= 2).
+# mvMORPH 1.2.1 development code, copyright Julien Clavel, licensed GPL (>= 2).
 # Source: https://github.com/JClavel/mvMORPH/tree/023134e993c8b174cf716378503892fdc4d6616d
 # These initializers also match the experimental fork used for the cached
-# vignettes. They include the random second-tip safeguard added after 1.2.1.
+# vignettes. They include the random second-tip safeguard added after the CRAN 1.2.1 release.
 # Keep this module separate so it can be removed when native initialization is
 # adopted. The installed mvMORPH still evaluates the grid and fits the model.
 
 .bifrost_mvgls <- function(formula, data = list(), tree, model,
                           method = "PL-LOOCV", REML = TRUE, ...,
-                          start_strategy = c("historical", "native")) {
+                          start_strategy = c("legacy_1.2.1", "native")) {
   start_strategy <- match.arg(start_strategy)
   args <- list(...)
   used <- start_strategy
@@ -17,7 +17,7 @@
     used <- "supplied"
   } else if (!is.null(args$grid.search) && !args$grid.search) {
     used <- "native_no_grid"
-  } else if (start_strategy == "historical") {
+  } else if (start_strategy == "legacy_1.2.1") {
     args$start <- .bifrost_mvgls_start_historical(
       formula, data, tree, model, method, REML, args
     )

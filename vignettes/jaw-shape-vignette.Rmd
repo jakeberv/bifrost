@@ -214,7 +214,7 @@ jaws_search <- searchOptimalConfiguration(
   method                     = "H&L", # penalized likelihood for high-dimensional data
   error                      = TRUE,
   store_model_fit_history    = TRUE,
-  progress                   = FALSE,
+  progress                   = TRUE,
   verbose                    = TRUE
 )
 
@@ -279,7 +279,7 @@ Some choices deserve additional context:
 
 ## Interpreting the Output
 
-The static figures use the cached threshold-20 run from the full sweep, with the historical initializer and its original random state. For that run, the selected model retained 17 shifts and improved the GIC by more than 7,000 units relative to the single-regime baseline.
+The static figures use the cached threshold-20 run from the full sweep, with the mvMORPH 1.2.1 development initializer (`legacy_1.2.1`) and its original random state. For that run, the selected model retained 17 shifts and improved the GIC by more than 7,000 units relative to the single-regime baseline.
 
 | Result | Value |
 |:--|:--|

@@ -27,7 +27,6 @@ Imports:
     digest,
     future (>= 1.49.0),
     future.apply,
-    parallel,
     progressr,
     RhpcBLASctl,
     phytools (>= 2.0-3),
