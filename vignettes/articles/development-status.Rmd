@@ -1,10 +1,10 @@
 ---
 title: "Release Status"
-description: "CRAN availability and GitHub release preparation for bifrost 0.2.2."
+description: "CRAN availability and GitHub release preparation for bifrost 0.2.1."
 ---
 
 This page describes the published CRAN version of `bifrost`, the planned
-0.2.2 GitHub release, and the relationship between package source archives
+0.2.1 GitHub release, and the relationship between package source archives
 and the fuller documentation maintained in the repository.
 
 ## At a glance
@@ -12,32 +12,12 @@ and the fuller documentation maintained in the repository.
 | Distribution | Version | Installation | Best for |
 |---|---:|---|---|
 | [CRAN](https://CRAN.R-project.org/package=bifrost) | 0.2.0 | `install.packages("bifrost")` | Current published CRAN release |
-| [GitHub](https://github.com/jakeberv/bifrost/releases/tag/v0.2.1), published release | 0.2.1 | `remotes::install_github("jakeberv/bifrost@v0.2.1")` | Citation, documentation, and archive updates |
-| [GitHub](https://github.com/jakeberv/bifrost), planned release | 0.2.2 | `remotes::install_github("jakeberv/bifrost@v0.2.2")`, after the tag is published | Explicit initialization and reproducibility corrections |
+| [GitHub](https://github.com/jakeberv/bifrost), planned release | 0.2.1 | `remotes::install_github("jakeberv/bifrost@v0.2.1")`, after the tag is published | Citation, documentation, and archive updates |
 | [GitHub](https://github.com/jakeberv/bifrost), development source | Version on `main` | `remotes::install_github("jakeberv/bifrost")` | Latest merged development source |
 
-Versions 0.2.0, 0.2.1, and 0.2.2 require R 4.2 or newer. Version 0.2.2 is being
+Versions 0.2.0 and 0.2.1 require R 4.2 or newer. Version 0.2.1 is being
 prepared for GitHub publication; its tag is not yet available. Publishing a
 GitHub release does not change the version installed from CRAN.
-
-## What 0.2.2 adds
-
-Version 0.2.2 introduces an explicit initialization policy, defaulting to
-`start_strategy = "legacy_1.2.1"` for the data-dependent BM/BMM starting
-values used in the cached vignettes. These starts are supplied to the
-installed mvMORPH; the dependency itself is neither pinned nor modified.
-Use `start_strategy = "native"` for mvMORPH's own initialization, including
-EmpBayes. Explicit `start` values and `grid.search = FALSE` take precedence.
-The compatibility policy retains the historical initializer's limitations;
-it does not guarantee a globally optimal fit.
-
-The update also corrects progress-related random-stream and numerical-thread
-handling so enabling progress does not change the fitting random sequence
-for the same seed and search settings. Results record initialization
-provenance, and console progress and IC-history displays are refined.
-Reproducing a cached threshold sweep still requires its original random
-state, not just the seed of an independently started threshold run. See
-[NEWS](../news/index.html) and the jaw-shape worked example for details.
 
 ## What 0.2.1 adds
 
