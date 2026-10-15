@@ -1,4 +1,4 @@
-# bifrost 0.2.1
+# bifrost 0.2.2
 
 * The console IC-history plot now pads both ends of the iteration axis so
   baseline and final points do not overwrite its frame at typical text widths.
@@ -27,6 +27,9 @@
   numerical thread per worker using startup settings and `RhpcBLASctl` runtime
   controls. Worker pools are refreshed and cleaned up so their thread settings
   do not carry over into later stages or the caller's Future plan.
+
+# bifrost 0.2.1
+
 * Updated the primary package citation to the accepted, in-press article in
   *Methods in Ecology and Evolution*, retaining a separately labeled bioRxiv
   preprint link. Aligned the README citation guidance and publication badges,

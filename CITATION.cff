@@ -9,7 +9,7 @@ type: software
 license: GPL-2.0-or-later
 title: 'bifrost: Branch-Level Inference Framework for Recognizing Optimal Shifts in
   Traits'
-version: 0.2.1
+version: 0.2.2
 abstract: Methods for detecting, visualizing, and evaluating cladogenic shifts in
   multivariate trait data on phylogenies. Implements penalized-likelihood multivariate
   generalized least squares models and a greedy step-wise shift search for high-dimensional
