@@ -82,13 +82,9 @@ also apply when Zenodo captures a GitHub release.
 
 ## Development status
 
-Version 0.2.2 is being prepared for release on GitHub; the latest published
-GitHub release is 0.2.1 and CRAN currently distributes 0.2.0. All require
-R 4.2 or newer. The 0.2.2 update makes search initialization explicit and
-corrects progress-related random-stream and numerical-thread handling, with
-console-display refinements. These changes can affect results relative to
-earlier releases; see the initialization and reproducibility notes in NEWS.
-See the
+Version 0.2.1 is being prepared for release on GitHub; CRAN currently distributes
+0.2.0. Both require R 4.2 or newer. The 0.2.1 update covers citation metadata,
+documentation, and source-archive packaging. See the
 [development-status page](https://jakeberv.com/bifrost/articles/development-status.html)
 for current CRAN and GitHub availability, release caveats, and the website
 article policy. See [NEWS](https://jakeberv.com/bifrost/news/index.html) for the
