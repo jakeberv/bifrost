@@ -92,6 +92,19 @@ The detailed, itemized record of these changes is maintained in
 
 ## Current caveats
 
+High-dimensional searches remain sensitive to initialization and random state,
+and some intermediate proposals can fail to converge. The compatibility
+initializer preserves an earlier strategy; it does not establish that a
+particular shift count or fitted model is optimal. Convergence diagnostics and
+handling are tracked in [issue #242](https://github.com/jakeberv/bifrost/issues/242).
+
+The Gumbel KL-divergence bootstrap has a known numerical limitation: overflow
+or underflow can discard valid large draws and make its confidence interval
+understate uncertainty. Do not rely on the affected interval as a dependable
+uncertainty estimate. The correction is deferred in
+[issue #231](https://github.com/jakeberv/bifrost/issues/231) and is not included
+in the planned 0.2.2 release.
+
 Some repository workflows and their methodological guidance remain under
 active development, especially pGLS-style uses of `bifrost` with hidden
 branch-specific rate variation. The simulation framework continues to use the
