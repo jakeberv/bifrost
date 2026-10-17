@@ -489,6 +489,11 @@ test_that("search progress stage preserves failure lifecycle and rethrows errors
 })
 
 test_that("animated Future failures cancel remaining work and restore settings", {
+  # Killing a Windows Rscript worker bypasses its normal temporary-file cleanup.
+  # Keep this fault-injection test's worker files in a directory it owns.
+  worker_tmp <- withr::local_tempdir(pattern = "bifrost-cancel-")
+  withr::local_envvar(c(TMPDIR = worker_tmp, TMP = worker_tmp, TEMP = worker_tmp))
+
   thread_vars <- c(
     "OMP_NUM_THREADS",
     "OPENBLAS_NUM_THREADS",

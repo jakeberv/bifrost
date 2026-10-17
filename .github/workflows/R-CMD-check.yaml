@@ -66,13 +66,6 @@ jobs:
             combinat=?source
           needs: check
 
-      - name: Diagnose Windows worker cancellation temporary files
-        if: runner.os == 'Windows'
-        shell: Rscript {0}
-        run: |
-          dir.create("output/windows-temp-investigation", recursive = TRUE)
-          source("tools/diagnose-windows-temp.R")
-
       # Generate NAMESPACE + Rd files from roxygen comments
       - name: Generate Rd + NAMESPACE via roxygen2
         run: Rscript -e 'roxygen2::roxygenise(roclets = c("rd","namespace"))'
