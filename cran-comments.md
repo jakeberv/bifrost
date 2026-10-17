@@ -19,10 +19,9 @@ completed on macOS arm64 (R 4.4.2) on 2026-10-17 UTC with:
 **0 errors | 0 warnings | 1 note**
 
 The sole note was `unable to verify current time`, an environment-related
-timestamp check. Installation, examples and tests passed. Testthat separately
-reported one worker-limit warning: the RNG chunk-invariance test requests
-three workers when only two cores are advertised. This test resource-use
-issue must be resolved before submission; no assertions failed.
+timestamp check. Installation, examples and tests passed, with 2,980 passing
+test assertions and no test warnings or failures. The RNG chunk-invariance
+test now exercises two and three chunks using at most two worker processes.
 
 [CI checks](https://github.com/jakeberv/bifrost/actions/runs/38823234675)
 also passed on macOS and Windows R release, and Ubuntu R release, devel and
