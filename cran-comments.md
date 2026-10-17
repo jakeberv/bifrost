@@ -14,12 +14,15 @@ Further changes and reproducibility limitations are described in NEWS.md.
 ## Checks
 
 `R CMD check --as-cran --run-donttest`, including PDF and HTML manuals,
-completed on macOS arm64 (R 4.4.2) on 2026-10-15 with:
+completed on macOS arm64 (R 4.4.2) on 2026-10-17 UTC with:
 
 **0 errors | 0 warnings | 1 note**
 
 The sole note was `unable to verify current time`, an environment-related
-timestamp check. Installation, examples and tests passed.
+timestamp check. Installation, examples and tests passed. Testthat separately
+reported one worker-limit warning: the RNG chunk-invariance test requests
+three workers when only two cores are advertised. This test resource-use
+issue must be resolved before submission; no assertions failed.
 
 [CI checks](https://github.com/jakeberv/bifrost/actions/runs/38823234675)
 also passed on macOS and Windows R release, and Ubuntu R release, devel and
