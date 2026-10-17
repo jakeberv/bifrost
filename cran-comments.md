@@ -23,9 +23,11 @@ timestamp check. Installation, examples and tests passed, with 2,980 passing
 test assertions and no test warnings or failures. The RNG chunk-invariance
 test now exercises two and three chunks using at most two worker processes.
 
-[CI checks](https://github.com/jakeberv/bifrost/actions/runs/38823234675)
-also passed on macOS and Windows R release, and Ubuntu R release, devel and
-oldrel-1 (`--as-cran --run-donttest --no-manual`).
+[CI](https://github.com/jakeberv/bifrost/pull/252/checks)
+also checks macOS and Windows R release, and Ubuntu R release, devel and
+oldrel-1 (`--as-cran --run-donttest --no-manual`). A Windows temporary-file
+note was traced to the worker-cancellation test; its worker files now use a
+test-owned temporary directory with scoped cleanup.
 
 ## Additional notes
 
