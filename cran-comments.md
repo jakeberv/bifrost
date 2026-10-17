@@ -1,7 +1,8 @@
-# CRAN submission preparation: bifrost 0.2.2
+# CRAN submission comments: bifrost 0.2.2
 
-Draft for an update from CRAN version 0.2.0 to 0.2.2. Version 0.2.1 was
-published on GitHub. Version 0.2.2 has not yet been submitted or published.
+This update is from CRAN version 0.2.0 to 0.2.2. Version 0.2.1 was
+published on GitHub only. These comments are ready for submission; version
+0.2.2 has not yet been submitted to CRAN or published on GitHub.
 
 ## Release changes
 
@@ -28,26 +29,28 @@ failures. Installation, attachment, and examples do not require these downloads.
 ## Verified CI results
 
 The following results apply to main commit
-`30e58e82af46f6f0ef35ebf69f3a563f8b459774` (2026-10-15 UTC):
+`e1d2fe3be99a6677624daf85a64e53a8c16ce166` (2026-10-15 UTC), following
+the merge of the final package-check evidence in PR #251:
 
-- [R CMD check](https://github.com/jakeberv/bifrost/actions/runs/38688925126)
+- [R CMD check](https://github.com/jakeberv/bifrost/actions/runs/38823234675)
   passed on macOS and Windows R release, and Ubuntu R release, devel, and
   oldrel-1, using `--as-cran --run-donttest --no-manual`.
-- [Coverage and parallel smoke tests](https://github.com/jakeberv/bifrost/actions/runs/38688925143)
+- [Coverage and parallel smoke tests](https://github.com/jakeberv/bifrost/actions/runs/38823234832)
   passed. Whole-package R coverage was exactly 100%, with zero uncovered rows.
   The coverage run recorded 4,947 passing assertions, zero failures or warnings,
   and 43 expected skips for coverage-specific cases or development files absent
   from the built package. Separate Linux and Windows parallel smoke jobs passed.
-- [The pkgdown build and deployment](https://github.com/jakeberv/bifrost/actions/runs/38688925130)
+- [The pkgdown build and deployment](https://github.com/jakeberv/bifrost/actions/runs/38823235095)
   passed.
-- [The advisory audit](https://github.com/jakeberv/bifrost/actions/runs/38688925163)
+- [The advisory audit](https://github.com/jakeberv/bifrost/actions/runs/38823234738)
   completed. It still reports print/cat usage and documentation/style findings;
   a successful advisory job does not mean every advisory finding is cleared.
   URL-liveness and advisory spelling checks were skipped.
 
 ## Final source-package check
 
-On 2026-10-15, `bifrost_0.2.2.tar.gz` built from the same commit passed
+On 2026-10-15, `bifrost_0.2.2.tar.gz` built from commit
+`30e58e82af46f6f0ef35ebf69f3a563f8b459774` passed
 `R CMD check --as-cran --run-donttest --library=<isolated library>` with:
 
 **0 errors | 0 warnings | 1 note**
@@ -71,12 +74,11 @@ Archive SHA-256:
 153dbcf17195ad2c0e727fda3acad1e47c91a4ae67f32f5a609b525b0dbfe92b
 ```
 
-The first attempt passed tests and the PDF manual but crashed inside the
-existing V8 8.2.0 installation during the HTML manual check. A standalone V8
-call reproduced the crash without loading bifrost. A private build of V8 8.2.0
-with bundled engine 14.6.202.26 resolved it. The complete check then passed on
-the identical archive, without disabling checks or changing bifrost source.
-Existing installations were unchanged during this validation.
+The checked archive's SHA-256 was verified again on 2026-10-16. Between its
+source commit and the CI-tested main commit above, only `cran-comments.md`
+and `tools/releases/0.2.2.md` changed. Both are excluded from source packages;
+package source is unchanged. No repeat package check was needed for those
+maintainer-note changes.
 
 ## Known limitations retained in this update
 
@@ -89,12 +91,9 @@ Existing installations were unchanged during this validation.
   deferred and is not part of 0.2.2 preparation.
   Follow-up: https://github.com/jakeberv/bifrost/issues/231.
 
-## Pending before submission
+## Submission artifact
 
-Merge the check-evidence PR through normal review and confirm CI on its merge
-commit. Select the release commit and verify that its package contents still
-match the checked source; rerun the final check if package contents change.
-These maintainer notes and `tools/releases/0.2.2.md` are excluded from source
-archives. Keep the checksum above tied to the actual checked archive, not an
-unverified rebuild. Remove draft/pending wording only when submission is
-authorized. No tag, GitHub release, or CRAN submission has been made for 0.2.2.
+Use the checked `bifrost_0.2.2.tar.gz` identified by the checksum above. These
+comments are excluded from the package, so finalizing them does not alter the
+checked artifact. If package contents change before submission, rebuild and
+recheck the package and update this evidence and checksum.
