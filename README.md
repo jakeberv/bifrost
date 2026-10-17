@@ -5,6 +5,7 @@
 [![Codecov test coverage](https://codecov.io/gh/jakeberv/bifrost/graph/badge.svg)](https://app.codecov.io/gh/jakeberv/bifrost)
 [![CRAN status](https://www.r-pkg.org/badges/version/bifrost)](https://CRAN.R-project.org/package=bifrost)
 [![CRAN downloads](https://cranlogs.r-pkg.org/badges/grand-total/bifrost)](https://cran.r-project.org/package=bifrost)
+[![Zenodo concept DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23268805.svg)](https://doi.org/10.5281/zenodo.23268805)
 [![Package paper: Methods in Ecology and Evolution (in press)](https://img.shields.io/badge/package%20paper-MEE%20(in%20press)-005a70.svg)](#citation)
 [![Paper: Nature Ecology & Evolution](https://img.shields.io/badge/paper-Nature%20Ecology%20%26%20Evolution-000000.svg)](https://www.nature.com/articles/s41559-026-03110-5.epdf?sharing_token=PNALt0fkwK7zWng8AcHUw9RgN0jAjWel9jnR3ZoTv0MY7RbzUNNAnMQsco3ST9ehysSF4OiMNSc7ku-ywR1G5HC7BVOhY0inuNGDXiP16Z26oaZtwiblA-f61S2M-2llNRsRbegpuTeyhziEWzMipUgtyZKBEe3dsZlBVa67S4c%3D)
 [![bioRxiv preprint](https://img.shields.io/endpoint?url=https%3A%2F%2Fjakeberv.github.io%2Fbiorxiv-badge%2Fbadges%2F10.64898__2026.04.12.718036.json)](https://doi.org/10.64898/2026.04.12.718036)
@@ -186,6 +187,8 @@ If you use `bifrost`, please cite the package paper first listed below and the o
 ```r
 citation("bifrost")
 ```
+
+Software releases are archived on Zenodo under the concept DOI [10.5281/zenodo.23268805](https://doi.org/10.5281/zenodo.23268805), which covers all archived versions of `bifrost`.
 
 ### Recommended citations
 
