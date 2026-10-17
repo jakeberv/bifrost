@@ -53,7 +53,7 @@ The method works with fossil tip-dated trees and with a wide range of multivaria
 
 ## Installation
 
-### CRAN release (0.2.0)
+### CRAN release (0.2.2)
 
 ```r
 install.packages("bifrost")
@@ -83,8 +83,8 @@ also apply when Zenodo captures a GitHub release.
 
 ## Development status
 
-Version 0.2.2 is being prepared for release on GitHub; the latest published
-GitHub release is 0.2.1 and CRAN currently distributes 0.2.0. All require
+Version 0.2.2 is available on CRAN. The latest published GitHub release is
+0.2.1; the 0.2.2 GitHub release is still being prepared. All require
 R 4.2 or newer. The 0.2.2 update makes search initialization explicit and
 corrects progress-related random-stream and numerical-thread handling, with
 console-display refinements. These changes can affect results relative to

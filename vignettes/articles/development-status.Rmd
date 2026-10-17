@@ -3,22 +3,22 @@ title: "Release Status"
 description: "CRAN availability and GitHub release preparation for bifrost 0.2.2."
 ---
 
-This page describes the published CRAN version of `bifrost`, the planned
-0.2.2 GitHub release, and the relationship between package source archives
-and the fuller documentation maintained in the repository.
+This page describes `bifrost` 0.2.2, published on CRAN on October 17, 2026,
+the planned 0.2.2 GitHub release, and the relationship between package source
+archives and the fuller documentation maintained in the repository.
 
 ## At a glance
 
 | Distribution | Version | Installation | Best for |
 |---|---:|---|---|
-| [CRAN](https://CRAN.R-project.org/package=bifrost) | 0.2.0 | `install.packages("bifrost")` | Current published CRAN release |
+| [CRAN](https://CRAN.R-project.org/package=bifrost) | 0.2.2 | `install.packages("bifrost")` | Current published CRAN release |
 | [GitHub](https://github.com/jakeberv/bifrost/releases/tag/v0.2.1), published release | 0.2.1 | `remotes::install_github("jakeberv/bifrost@v0.2.1")` | Citation, documentation, and archive updates |
 | [GitHub](https://github.com/jakeberv/bifrost), planned release | 0.2.2 | `remotes::install_github("jakeberv/bifrost@v0.2.2")`, after the tag is published | Explicit initialization and reproducibility corrections |
 | [GitHub](https://github.com/jakeberv/bifrost), development source | Version on `main` | `remotes::install_github("jakeberv/bifrost")` | Latest merged development source |
 
-Versions 0.2.0, 0.2.1, and 0.2.2 require R 4.2 or newer. Version 0.2.2 is being
-prepared for GitHub publication; its tag is not yet available. Publishing a
-GitHub release does not change the version installed from CRAN.
+Versions 0.2.0, 0.2.1, and 0.2.2 require R 4.2 or newer. Version 0.2.2 is
+available on CRAN; its GitHub release and tag are still pending. CRAN and
+GitHub releases are published separately.
 
 ## What 0.2.2 adds
 
@@ -103,7 +103,7 @@ or underflow can discard valid large draws and make its confidence interval
 understate uncertainty. Do not rely on the affected interval as a dependable
 uncertainty estimate. The correction is deferred in
 [issue #231](https://github.com/jakeberv/bifrost/issues/231) and is not included
-in the planned 0.2.2 release.
+in the 0.2.2 release.
 
 Some repository workflows and their methodological guidance remain under
 active development, especially pGLS-style uses of `bifrost` with hidden
