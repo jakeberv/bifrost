@@ -489,6 +489,11 @@ test_that("search progress stage preserves failure lifecycle and rethrows errors
 })
 
 test_that("animated Future failures cancel remaining work and restore settings", {
+  # Killing a Windows Rscript worker bypasses its normal temporary-file cleanup.
+  # Keep this fault-injection test's worker files in a directory it owns.
+  worker_tmp <- withr::local_tempdir(pattern = "bifrost-cancel-")
+  withr::local_envvar(c(TMPDIR = worker_tmp, TMP = worker_tmp, TEMP = worker_tmp))
+
   thread_vars <- c(
     "OMP_NUM_THREADS",
     "OPENBLAS_NUM_THREADS",
@@ -557,6 +562,21 @@ test_that("animated Future failures cancel remaining work and restore settings",
 })
 
 test_that("animated Future RNG matches ordinary work and preserves parallel chunk invariance", {
+  # Compare two and three real Future chunks on at most two worker processes.
+  # Only cap the backend; retain production chunking and per-item RNG streams.
+  with_future_plan <- .bifrost_search_with_future_plan
+  testthat::local_mocked_bindings(
+    .bifrost_search_with_future_plan = function(workers, work, ...) {
+      with_future_plan(
+        workers = min(workers, 2L),
+        work = function() {
+          testthat::expect_lte(future::nbrOfWorkers(), 2L)
+          work()
+        },
+        ...
+      )
+    }
+  )
   run_random_work <- function(workers) {
     set.seed(42)
     .bifrost_search_future_lapply(
@@ -592,7 +612,10 @@ test_that("animated Future RNG matches ordinary work and preserves parallel chun
   set.seed(42)
   serial_reference <- as.list(stats::runif(6L))
   testthat::expect_identical(run_random_work(1L), serial_reference)
-  testthat::expect_equal(run_random_work(2L), run_random_work(3L))
+  two_chunks <- run_random_work(2L)
+  seed_after <- .Random.seed
+  testthat::expect_identical(run_random_work(3L), two_chunks)
+  testthat::expect_identical(.Random.seed, seed_after)
   testthat::expect_error(
     run_random_work(NA_integer_),
     "`workers` must be a single finite number",
