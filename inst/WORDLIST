@@ -20,7 +20,6 @@ Caetano
 Carvajal
 Cheng
 Claramunt
-Clavel
 Codecov
 Colab
 Collyer
@@ -29,9 +28,9 @@ Cov
 Cracraft
 Cui
 DF
-DOI
 Dipnoi
 EB
+EmpBayes
 Escarguel
 Evaluable
 Felsenstein
@@ -54,7 +53,6 @@ Interspecific
 Iteratively
 JS
 Jolliffe
-Julien
 KDE
 Kaliontzopoulou
 Kozak
@@ -103,6 +101,7 @@ Pennell
 Phylogenies
 Phytologist
 Precompute
+Preprint
 Probst
 Purvis
 Qiao
@@ -149,12 +148,12 @@ Welch
 XQuartz
 Xie
 Zenodo
+Zenodo's
 Zhaoqi
 Zhou
 Zhu
 Ziebell
 abline
-accuracies
 acknowledgements
 adjustcolor
 adp
@@ -223,6 +222,7 @@ gic
 gmShiny
 grDevices
 grey
+gz
 heterochronous
 hindlimb
 hjust
@@ -231,6 +231,8 @@ htmltools
 ic
 idx
 ij
+initializer
+initializer's
 interpretable
 intersp
 intra
@@ -260,7 +262,10 @@ morphometric
 mtext
 mult
 multisession
+multithreading
+mustWork
 mvMORPH
+mvMORPH's
 mvPGLS
 mvgls
 mvmorph
@@ -269,6 +274,7 @@ ncol
 nodelabels
 nodepath
 nonmonophyletic
+normalizePath
 nph
 nrow
 oma
@@ -277,9 +283,7 @@ overrepresented
 oversubscription
 pGLS
 parallelization
-parallelize
 parallelizes
-parameterizing
 passerine
 pca
 pch
@@ -312,7 +316,6 @@ reclusters
 rect
 renderer
 renormalizes
-replicate's
 reproducibility
 rescale
 rescaled
@@ -345,11 +348,11 @@ tunable
 ultrametric
 ultrametricity
 uncached
-unevaluable
 unflagged
 unname
 unrepresentable
 unscaled
+unshifted
 vapply
 vdots
 vectorize
@@ -357,6 +360,7 @@ vectorized
 vectorizes
 vectorizing
 viridis
+winslash
 xend
 xlab
 xlim
