@@ -2495,7 +2495,9 @@ rateMapControl <- function(res = 100,
 #' `rateMapControl(na_action = "omit")` and are normalized to sum to one. IC
 #' weights are descriptive fit-level weights for comparable retained searches;
 #' they do not choose a formal threshold or make incomparable searches
-#' comparable.
+#' comparable. Weights are assigned to supplied fits, not unique shift
+#' configurations. If the same or a similar configuration appears in several
+#' fits, its combined contribution reflects each of those fits.
 #'
 #' **Uncertainty summaries.** The returned `intervals` data frame is the plotted
 #' summary table. With `summary = "branch"`, it has one row per branch. With
