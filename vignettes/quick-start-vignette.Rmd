@@ -136,15 +136,15 @@ The `ic_uncertainty_threshold` argument is currently reserved for future pruning
 
 ## How the search works
 
-`searchOptimalConfiguration()` performs a greedy, step-wise search:
+`searchOptimalConfiguration()` builds a model one shift at a time:
 
-1. Fit a baseline single-regime model.
-2. Generate one-shift candidate trees for internal nodes satisfying `min_descendant_tips`.
-3. Score candidate models, optionally in parallel.
-4. Iteratively accept shifts that improve the chosen information criterion by at least `shift_acceptance_threshold`.
-5. Optionally compute per-shift IC support by removing each accepted shift in turn and refitting.
+1. Fit a baseline model with one regime across the tree.
+2. Find candidate shifts at nodes other than the root that have at least `min_descendant_tips` descendant tips.
+3. Fit a model with each candidate shift and rank the candidates by how much they lower the information criterion (IC) compared with the baseline. These fits can run in parallel.
+4. Test each candidate once in that order, adding it to the best model found so far. Keep the shift if it lowers the IC by at least `shift_acceptance_threshold`.
+5. Optionally, estimate support for each accepted shift by refitting the final model with that shift removed.
 
-The accepted shifts define the configuration selected by this greedy pass under the chosen criterion (`"GIC"` or `"BIC"`). The search does not guarantee the best configuration among all possible shift sets.
+The result is the configuration selected by this greedy search. It is not guaranteed to be the best among all possible combinations of shifts.
 
 ### High-level workflow
 
