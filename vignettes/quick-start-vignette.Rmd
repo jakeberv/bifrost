@@ -127,7 +127,7 @@ The arguments you will tune most often are:
 
 Practical starting points:
 
-- use larger `min_descendant_tips` values to avoid tiny-clade shifts,
+- use larger `min_descendant_tips` values to restrict candidate nodes to larger clades,
 - start with a conservative `shift_acceptance_threshold` for exploratory work,
 - compare `"GIC"` and `"BIC"` on the same dataset when model-selection sensitivity matters,
 - perform sensitivity analyses rather than relying on a single run.
