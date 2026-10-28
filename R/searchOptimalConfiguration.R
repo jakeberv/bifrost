@@ -227,8 +227,14 @@
 #' }
 #' Additional components appear conditionally:
 #' \itemize{
-#'   \item \code{ic_weights}: a \code{data.frame} of per-shift IC weights and evidence ratios when
+#'   \item \code{ic_weights}: a data frame with one row per accepted shift when
 #'         \code{uncertaintyweights} or \code{uncertaintyweights_par} is \code{TRUE}.
+#'         Each row compares the final model (\code{ic_with_shift}) with a refit
+#'         omitting that shift (\code{ic_without_shift}). Here,
+#'         \code{delta_ic = ic_with_shift - ic_without_shift}, so negative values
+#'         favor retaining the shift. The two IC weights sum to one within each
+#'         row; they are not normalized across shifts. \code{evidence_ratio} is
+#'         \code{ic_weight_withshift / ic_weight_withoutshift}.
 #'   \item \code{warnings}: when present, a list of warning and error messages
 #'         collected during forward-proposal evaluation. It is not a complete
 #'         record of warnings from every fitting stage or of optimizer convergence codes.
