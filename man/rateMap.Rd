@@ -275,23 +275,16 @@ summaries are recomputed by \code{\link[=rateMapView]{rateMapView()}} or \code{p
 value or category breaks change. They are not computed for \code{summary = "interval"} because interval rows depend on the plotting grid rather than on
 discrete biological branch units.
 
-\strong{Rate diagnostics.} Branch-summary maps compute rate diagnostics through
-\code{rateMapControl(rate_flags = rateMapRateFlags())}. The default
-\code{rateMapRateFlags()} setting records the fitted-rate range and fold range but
-applies no special near-zero or high-outlier rule. Supplying \code{zero_floor}, equivalently
-\code{rateMapRateFlags(method = "floor", zero_floor = ...)}, flags finite rates at
-or below an explicit manual floor. Use \code{rateMapRateFlags(method = "tail_cluster")} to apply a deterministic, Otsu-style guarded two-class split
-on sorted log rates when the near-zero values form a broader separated
-lower-tail cluster rather than one extreme adjacent gap. The split is kept
-only when gap, fold-reduction, tail-fraction, and minimum-count guardrails are
-satisfied. These flags never remove branches and never alter
-\code{intervals$value}; they add \code{rate_flag} metadata, \code{rate_flag_source}
-provenance, object-level \code{rate_diagnostics}, and, in category display mode,
-special display categories such as \code{"near-zero"}. Special categories are
-colored outside the ordered palette, so the remaining regular categories
-still use the full low-to-high palette range. In category legends, diagnostic
-cutoffs mark where special categories end and regular bins begin. Set
-\code{rate_flags = NULL} to turn off rate-flag metadata and diagnostics entirely.
+\strong{Rate diagnostics.} Branch-summary maps record the fitted-rate range by
+default, without flagging near-zero or high-outlier rates. Use
+\code{\link[=rateMapRateFlags]{rateMapRateFlags()}} through \code{\link[=rateMapControl]{rateMapControl()}} to apply a manual
+\code{zero_floor} or the data-driven \code{tail_cluster} diagnostic. Flags add metadata
+and optional display categories without removing branches or changing their
+summarized values. In category plots, flagged branches use special colors
+outside the ordered palette, and the legend marks the cutoff between special
+and regular categories. Set \code{rate_flags = NULL} in \code{rateMapControl()} to
+disable diagnostics. See \code{\link[=rateMapRateFlags]{rateMapRateFlags()}} for detection methods and
+settings, and \code{\link[=plot.rateMap]{plot.rateMap()}} for display behavior.
 }
 \examples{
 \dontrun{
