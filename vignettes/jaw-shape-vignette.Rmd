@@ -349,10 +349,9 @@ cat("Baseline GIC:", jaws_search$baseline_ic, "\n")
 cat("Optimal GIC:", jaws_search$optimal_ic, "\n")
 cat("Improvement (Delta GIC):", jaws_search$baseline_ic - jaws_search$optimal_ic, "\n")
 
-# The VCV matrices for each detected regime
-# This shows the estimated rates of evolution for each regime
-# The root state is always assigned to `0`
-heatmap(jaws_search$VCVs$`0`, labRow = "", labCol = "")
+# The VCV matrices contain estimated rates and covariances for each regime.
+# The root regime is always assigned to `0`.
+dim(jaws_search$VCVs$`0`)
 
 # The ic_weights sub-object stores detailed information about shift support
 # if uncertaintyweights_par = TRUE.
@@ -373,11 +372,27 @@ print(with(jaws_search$ic_weights, {
 ```
 
 ```{r plot_cor, eval=FALSE}
-# Display root-regime correlations without row standardization.
+# Display root-regime correlations using the manuscript's color scale.
+correlation_palette <- grDevices::colorRampPalette(c(
+  "#313695", "#4575B4", "#74ADD1", "#ABD9E9", "#E0F3F8",
+  "#FFFFFF", "#FEE090", "#FDAE61", "#F46D43", "#D73027", "#A50026"
+))(201L)
+correlation_breaks <- seq(-1, 1, length.out = length(correlation_palette) + 1L)
+old_par <- par(no.readonly = TRUE)
 heatmap(
-  cov2cor(jaws_search$VCVs$`0`),
-  scale = "none", symm = TRUE, labRow = "", labCol = "", margins = c(1, 1)
+  cov2cor(jaws_search$VCVs$`0`), scale = "none", labRow = "", labCol = "",
+  margins = c(6, 0), col = correlation_palette, breaks = correlation_breaks
 )
+# Draw a labeled color scale in the bottom margin.
+par(fig = c(0.25, 0.80, 0.01, 0.10), mar = c(0, 0, 0, 0), new = TRUE, xpd = NA)
+plot.new()
+plot.window(xlim = c(-1.1, 1.1), ylim = c(0, 1), xaxs = "i", yaxs = "i")
+rect(correlation_breaks[-length(correlation_breaks)], 0.40,
+     correlation_breaks[-1L], 0.62, col = correlation_palette, border = NA)
+rect(-1, 0.40, 1, 0.62, border = "grey30")
+text(c(-1, 0, 1), 0.18, labels = c("-1", "0", "1"), cex = 0.8)
+text(0, 0.90, labels = "Evolutionary correlation (r)", cex = 0.85)
+par(old_par)
 ```
 
 ```{r cor_heatmap_fig, echo=FALSE, fig.align="center", out.width="60%", fig.alt="Heatmap of estimated evolutionary correlations for the root regime in the jaw-shape example."}
@@ -391,7 +406,7 @@ knitr::include_graphics(
 )
 ```
 
-> **Figure 3. Estimated evolutionary correlations for the root regime.** Heatmap of estimated evolutionary correlations (computed as ``cov2cor(jaws_search$VCVs$`0`)``) among jaw-shape traits for the root regime in the cached 17-shift model. Rows and columns use the same hierarchical clustering, with no row standardization of the correlations. Blocks of high correlation along the diagonal may indicate modular patterns of trait evolution.
+> **Figure 3. Estimated evolutionary correlations for the root regime.** Heatmap of estimated evolutionary correlations (computed as ``cov2cor(jaws_search$VCVs$`0`)``) among jaw-shape traits for the root regime in the cached 17-shift model. Rows and columns are hierarchically clustered, with no row standardization of the correlations. Colors range from blue for negative correlations to red for positive correlations. Blocks of high correlation along the diagonal may indicate modular patterns of trait evolution.
 
 ## Inspecting the search behavior
 
