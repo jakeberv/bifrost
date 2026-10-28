@@ -302,6 +302,13 @@ If your goal is to learn the API or inspect the final object structure, start wi
 - `method = "LL"` selects the log-likelihood optimization method from Berv et al. (2026).
 - `error = TRUE` estimates a nuisance measurement-error term; use it for empirical datasets where measurement or residual error variance should be modeled, and check sensitivity when that assumption is uncertain.
 
+The sensitivity grid above changes search settings. To assess numerical
+stability at one setting, repeat that search with the same data and model
+settings using several recorded seeds or appropriate initialization strategies,
+then compare shifts, IC values, and fitted rates. These large searches can be
+computationally expensive. Agreement across reruns does not by itself prove
+convergence.
+
 ## Loading the focal run result
 
 For inspection examples, this vignette uses the compact cached copy of the focal Berv et al. (2026) result. It has the same `bifrost_search` top-level structure as the full object and gives you enough information to inspect the final mapped tree, fitted BMM rates, accepted shifts, and stored IC trajectory. Part 2 uses this compact focal object for lineage-rate summaries, Part 3 uses it for shift timing and distribution fits, and Part 4 uses it for the single-run shift-magnitude example before switching to the compact sensitivity bundle for pooled comparisons.
@@ -366,6 +373,9 @@ data.frame(
   has_candidate_fits = !is.null(bodyplan_search$model_fit_history$fits)
 )
 
+# Inspect the optimizer status stored for the final model.
+bodyplan_search$model_no_uncertainty$opt[c("convergence", "message")]
+
 # The accepted shift nodes define the final BMM regime map.
 head(bodyplan_search$shift_nodes_no_uncertainty)
 
@@ -376,6 +386,13 @@ head(bodyplan_search$ic_weights[, support_cols])
 # VCV names correspond to fitted BMM regimes.
 head(names(bodyplan_search$VCVs))
 ```
+
+The compact focal object currently records convergence code `1` for its final
+LL fit, indicating that the optimizer reached its iteration limit. This flag
+does not quantify how much the fitted results would change with further
+optimization. The compact object omits individual proposal fits, and the
+repository does not record the script used to create this focal compact copy;
+consult the original archived fit to check its full history and provenance.
 
 ## Visualizing the search history
 

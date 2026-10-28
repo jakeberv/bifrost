@@ -83,14 +83,14 @@ res <- searchOptimalConfiguration(
 
 # Inspect the recovered shifts, information criterion, and regime covariance.
 res$shift_nodes_no_uncertainty
-res$optimal_ic - res$baseline_ic
+res$baseline_ic - res$optimal_ic
 str(res$VCVs)
 ```
 
 What to expect from this example:
 
 - `res$shift_nodes_no_uncertainty` is typically empty (possibly `NULL`),
-- `res$optimal_ic - res$baseline_ic` is typically close to `0`,
+- `res$baseline_ic - res$optimal_ic` is typically close to `0`,
 - `res$VCVs` contains a single regime-specific VCV for the baseline regime `"0"`.
 
 ## Before you run on real data
@@ -127,7 +127,7 @@ The arguments you will tune most often are:
 
 Practical starting points:
 
-- use larger `min_descendant_tips` values to avoid tiny-clade shifts,
+- use larger `min_descendant_tips` values to restrict candidate nodes to larger clades,
 - start with a conservative `shift_acceptance_threshold` for exploratory work,
 - compare `"GIC"` and `"BIC"` on the same dataset when model-selection sensitivity matters,
 - perform sensitivity analyses rather than relying on a single run.
@@ -136,15 +136,15 @@ The `ic_uncertainty_threshold` argument is currently reserved for future pruning
 
 ## How the search works
 
-`searchOptimalConfiguration()` performs a greedy, step-wise search:
+`searchOptimalConfiguration()` builds a model one shift at a time:
 
-1. Fit a baseline single-regime model.
-2. Generate one-shift candidate trees for internal nodes satisfying `min_descendant_tips`.
-3. Score candidate models, optionally in parallel.
-4. Iteratively accept shifts that improve the chosen information criterion by at least `shift_acceptance_threshold`.
-5. Optionally compute per-shift IC support by removing each accepted shift in turn and refitting.
+1. Fit a baseline model with one regime across the tree.
+2. Find candidate shifts at nodes other than the root that have at least `min_descendant_tips` descendant tips.
+3. Fit a model with each candidate shift and rank the candidates by how much they lower the information criterion (IC) compared with the baseline. These fits can run in parallel.
+4. Test each candidate once in that order, adding it to the best model found so far. Keep the shift if it lowers the IC by at least `shift_acceptance_threshold`.
+5. Optionally, estimate support for each accepted shift by refitting the final model with that shift removed.
 
-The accepted shift set defines the optimal no-uncertainty configuration under the selected criterion (`"GIC"` or `"BIC"`).
+The result is the configuration selected by this greedy search. It is not guaranteed to be the best among all possible combinations of shifts.
 
 ### High-level workflow
 
@@ -158,7 +158,7 @@ cat(sprintf(
 ))
 ```
 
-Because the search is greedy, it can converge to a local optimum. In practice, it is useful to repeat analyses with different `min_descendant_tips`, thresholds, and IC choices to assess robustness.
+For results that depend on particular shifts, check numerical stability by repeating the same search with recorded seeds or appropriate initialization strategies and comparing the selected shifts, IC values, and fitted rates. Separately, vary candidate-size settings, thresholds, and IC choices to assess sensitivity to those search settings. See the convergence and robustness section of `?searchOptimalConfiguration` for limitations of these checks.
 
 ## Core functions
 
@@ -182,7 +182,7 @@ The two returned trees distinguish transformed versus original branch lengths, a
 Interpretation guidance:
 
 - lower IC is better, so large positive values of `baseline_ic - optimal_ic` indicate stronger support for heterogeneity relative to the baseline model,
-- values of `optimal_ic - baseline_ic` close to `0` suggest little support for adding shifts,
+- values of `baseline_ic - optimal_ic` close to `0` indicate little IC improvement in the selected configuration,
 - `shift_nodes_no_uncertainty` identifies where supported changes in rate and covariance structure occur,
 - `VCVs` summarize the estimated evolutionary covariance structure within each inferred regime,
 - `ic_weights` help rank how strongly each accepted shift is supported in the final configuration,

@@ -2495,7 +2495,9 @@ rateMapControl <- function(res = 100,
 #' `rateMapControl(na_action = "omit")` and are normalized to sum to one. IC
 #' weights are descriptive fit-level weights for comparable retained searches;
 #' they do not choose a formal threshold or make incomparable searches
-#' comparable.
+#' comparable. Weights are assigned to supplied fits, not unique shift
+#' configurations. If the same or a similar configuration appears in several
+#' fits, its combined contribution reflects each of those fits.
 #'
 #' **Uncertainty summaries.** The returned `intervals` data frame is the plotted
 #' summary table. With `summary = "branch"`, it has one row per branch. With
@@ -2534,30 +2536,30 @@ rateMapControl <- function(res = 100,
 #' "interval"` because interval rows depend on the plotting grid rather than on
 #' discrete biological branch units.
 #'
-#' **Rate diagnostics.** Branch-summary maps compute rate diagnostics through
-#' `rateMapControl(rate_flags = rateMapRateFlags())`. The default
-#' `rateMapRateFlags()` setting records the fitted-rate range and fold range but
-#' applies no special near-zero or high-outlier rule. Supplying `zero_floor`, equivalently
-#' `rateMapRateFlags(method = "floor", zero_floor = ...)`, flags finite rates at
-#' or below an explicit manual floor. Use `rateMapRateFlags(method =
-#' "tail_cluster")` to apply a deterministic, Otsu-style guarded two-class split
-#' on sorted log rates when the near-zero values form a broader separated
-#' lower-tail cluster rather than one extreme adjacent gap. The split is kept
-#' only when gap, fold-reduction, tail-fraction, and minimum-count guardrails are
-#' satisfied. These flags never remove branches and never alter
-#' `intervals$value`; they add `rate_flag` metadata, `rate_flag_source`
-#' provenance, object-level `rate_diagnostics`, and, in category display mode,
-#' special display categories such as `"near-zero"`. Special categories are
-#' colored outside the ordered palette, so the remaining regular categories
-#' still use the full low-to-high palette range. In category legends, diagnostic
-#' cutoffs mark where special categories end and regular bins begin. Set
-#' `rate_flags = NULL` to turn off rate-flag metadata and diagnostics entirely.
+#' **Rate diagnostics.** Branch-summary maps record the fitted-rate range by
+#' default, without flagging near-zero or high-outlier rates. Use
+#' [rateMapRateFlags()] through [rateMapControl()] to apply a manual
+#' `zero_floor` or the data-driven `tail_cluster` diagnostic. Flags add metadata
+#' and optional display categories without removing branches or changing their
+#' summarized values. In category plots, flagged branches use special colors
+#' outside the ordered palette, and the legend marks the cutoff between special
+#' and regular categories. Set `rate_flags = NULL` in `rateMapControl()` to
+#' disable diagnostics. See [rateMapRateFlags()] for detection methods and
+#' settings, and [plot.rateMap()] for display behavior.
 #'
 #' @param fits A completed run, fitted model object, or non-empty list of these
 #'   objects. Supported shapes are `bifrost_search` objects, `mvgls` objects,
 #'   `list(model = <mvgls>)`, and scratch-style lists with `variables$tree` plus
 #'   `param`. Single supported objects are wrapped automatically as a convenience
 #'   for one-fit plotting and inspection.
+#'
+#'   The default extractor requires a mapped tree and a named, finite, positive
+#'   rate for each mapped regime. A baseline-only BM search has
+#'   `model_no_uncertainty$param = NA` and cannot currently be passed directly
+#'   to `rateMap()` with the default extractor. Its fitted global covariance is
+#'   available in `search$VCVs[["0"]]`. If invalid fits are omitted from a
+#'   multi-run map, report the omission because the map summarizes only the
+#'   retained fits.
 #' @param weights Fit-level weighting mode. `"equal"` gives every retained fit
 #'   equal weight. `"ic"` computes standard IC weights from `optimal_ic` and
 #'   requires all retained fits to have the same `IC_used`. A numeric vector is

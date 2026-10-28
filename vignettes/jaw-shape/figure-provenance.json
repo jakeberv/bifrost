@@ -22,7 +22,7 @@
   "plot_source": "vignettes/jaw-shape-vignette.Rmd",
   "plot_chunks": ["plot_cor", "plot_decay", "plot_tree"],
   "artifacts_sha256": {
-    "cor_heatmap.png": "13897117959595e65bded9b57ec5b8669d5e626ce405546d04fd3ed118f40797",
+    "cor_heatmap.png": "d71fede169b48a5536ff4ec6a28062d98b7ada82075fb78800d778434a082197",
     "IC_decay.png": "dce95de6777050ed59bb0e89b55a936e4a8be9f5ef7819dd052ee4cb4e9ca4ef",
     "branch_rates.png": "b54769984423fb6c921f71fd7cebccc8c6ff2d5ae83eb7902c8869016fa1c86c",
     "IC_trajectory.csv": "bce95c485bb3a38ee0c4167103fc2b70ea3ca3e258ceae02fff92ac8cc02b81e"
