@@ -22,7 +22,15 @@ rateMap(
 objects. Supported shapes are \code{bifrost_search} objects, \code{mvgls} objects,
 \verb{list(model = <mvgls>)}, and scratch-style lists with \code{variables$tree} plus
 \code{param}. Single supported objects are wrapped automatically as a convenience
-for one-fit plotting and inspection.}
+for one-fit plotting and inspection.
+
+The default extractor requires a mapped tree and a named, finite, positive
+rate for each mapped regime. A baseline-only BM search has
+\code{model_no_uncertainty$param = NA} and cannot currently be passed directly
+to \code{rateMap()} with the default extractor. Its fitted global covariance is
+available in \code{search$VCVs[["0"]]}. If invalid fits are omitted from a
+multi-run map, report the omission because the map summarizes only the
+retained fits.}
 
 \item{weights}{Fit-level weighting mode. \code{"equal"} gives every retained fit
 equal weight. \code{"ic"} computes standard IC weights from \code{optimal_ic} and

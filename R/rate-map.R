@@ -2558,6 +2558,14 @@ rateMapControl <- function(res = 100,
 #'   `list(model = <mvgls>)`, and scratch-style lists with `variables$tree` plus
 #'   `param`. Single supported objects are wrapped automatically as a convenience
 #'   for one-fit plotting and inspection.
+#'
+#'   The default extractor requires a mapped tree and a named, finite, positive
+#'   rate for each mapped regime. A baseline-only BM search has
+#'   `model_no_uncertainty$param = NA` and cannot currently be passed directly
+#'   to `rateMap()` with the default extractor. Its fitted global covariance is
+#'   available in `search$VCVs[["0"]]`. If invalid fits are omitted from a
+#'   multi-run map, report the omission because the map summarizes only the
+#'   retained fits.
 #' @param weights Fit-level weighting mode. `"equal"` gives every retained fit
 #'   equal weight. `"ic"` computes standard IC weights from `optimal_ic` and
 #'   requires all retained fits to have the same `IC_used`. A numeric vector is
