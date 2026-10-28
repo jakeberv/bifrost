@@ -107,6 +107,8 @@ SHA-256 checksum and byte size. Later calls reuse the verified cache, while
 identifiers and their provenance are listed in the [example-data guide](https://github.com/jakeberv/bifrost/blob/main/data-remote/README.md).
 
 ```r
+library(bifrost)
+
 tree_path <- bifrost_example_file("jaw-tree")
 landmark_path <- bifrost_example_file("jaw-landmarks")
 fish.tree <- readRDS(tree_path)
