@@ -1,26 +1,15 @@
-#' Search for an Optimal Multi-Regime (Shift) Configuration on a Phylogeny
+#' Search for a Multi-Regime Shift Configuration on a Phylogeny
 #'
 #' @description
-#' Greedy, stepwise search for evolutionary regime shifts on a phylogeny
-#' using multivariate \code{mvgls} fits from \pkg{mvMORPH}. The routine:
-#' \enumerate{
-#'   \item builds one-shift candidate trees for all internal nodes meeting a tip-size threshold
-#'         (via \code{generatePaintedTrees}),
-#'   \item fits each candidate in parallel and ranks them by improvement in the chosen
-#'         information criterion (IC; \code{GIC} or \code{BIC}),
-#'   \item iteratively adds shifts that pass a user-defined acceptance threshold,
-#'   \item optionally revisits accepted shifts to prune overfitting using a small IC tolerance window,
-#'   \item optionally computes per-shift IC weights by refitting the model with each shift removed.
-#' }
+#' Uses a greedy, single-pass search based on multivariate
+#' \code{\link[mvMORPH]{mvgls}()} fits. One-shift candidates are ranked once and
+#' then tested in that fixed order. The selected configuration is not guaranteed
+#' to be globally optimal. Optional per-shift IC weights compare the final model
+#' with refits that each omit one accepted shift.
 #'
-#' Models are fitted directly in multivariate trait space (no PCA), assuming a multi-rate
-#' Brownian Motion with proportional VCV scaling across regimes. Extra arguments in \code{...}
-#' are forwarded to \code{\link[mvMORPH]{mvgls}}. In practice, \code{method} and
-#' \code{error} are often the most important of these: the package vignettes use
-#' \code{method = "H&L"} for intercept-only, high-dimensional response matrices and
-#' \code{method = "LL"} for formula-based searches with predictors, while
-#' \code{error = TRUE} asks \code{mvgls()} to estimate a nuisance measurement-error
-#' (intraspecific-variance) term from the data.
+#' The function fits the supplied response variables directly; it does not perform
+#' PCA. Models assume multi-rate Brownian motion with proportional VCV scaling
+#' across regimes.
 #'
 #' @param baseline_tree A rooted \code{phylo} (or SIMMAP/\code{phylo}) object representing
 #'   the starting tree. It does not need to already be painted: existing SIMMAP states and
@@ -57,26 +46,24 @@
 #'   values trigger a runtime advisory and should be assessed for the dataset at hand.
 #'   This filter is applied when the initial candidate pool is generated. It is
 #'   not reapplied to each regime after shifts are accepted.
-#' @param num_cores Integer. Maximum number of concurrent model fits during candidate
-#'   scoring and parallel IC-weight re-estimation. With \code{progress = FALSE}, uses plain
-#'   serial evaluation when only one fitting worker is needed. Uses
-#'   \code{future::plan(multicore)} where forking is supported on Unix outside
-#'   \code{RStudio}; otherwise uses \code{future::plan(multisession)}. When multiple
-#'   fitting workers are used, requests one BLAS/OpenMP thread per worker to avoid
-#'   CPU oversubscription. A single fitting worker retains the caller's numerical-thread
-#'   environment settings, including when \code{num_cores = 1} and progress is enabled.
+#' @param num_cores Integer. Maximum number of simultaneous fits during candidate
+#'   scoring and parallel IC-weight estimation; defaults to \code{2}. The forward
+#'   pass and serial IC weights run one fit at a time. See "Parallelization" for
+#'   backend and numerical-thread behavior.
 #' @param ic_uncertainty_threshold Numeric (\eqn{\ge}0). Reserved for future development
 #'   in post-search pruning and uncertainty analysis; currently not used by
 #'   \code{searchOptimalConfiguration()}.
 #' @param shift_acceptance_threshold Numeric (\eqn{\ge}0). Minimum IC improvement
-#'   (baseline - new) required to accept a candidate shift during the forward search.
-#'   Larger values yield more conservative models. Defaults to \code{20}, matching the focal
+#'   (\code{current_best_ic - proposal_ic}) required to accept a candidate during
+#'   the forward search. Larger thresholds require more improvement at each
+#'   decision. Because the search is greedy, the final number and locations of
+#'   shifts need not change monotonically with the threshold. Defaults to \code{20}, matching the focal
 #'   \eqn{\Delta}GIC setting of Berv et al. (2026); their GIC and BIC simulations also evaluated
 #'   \eqn{\Delta}IC = \code{10}. Values below \code{10} trigger a runtime advisory. These
 #'   values are empirical reference points; users should explore alternative thresholds for their
 #'   own datasets. The threshold must be a single finite nonnegative numeric value.
 #' @param uncertaintyweights Logical. If \code{TRUE}, compute per-shift IC weights serially by
-#'   refitting the optimized model with each shift removed in turn. Exactly one of
+#'   refitting the final model with each shift removed in turn. Exactly one of
 #'   \code{uncertaintyweights} or \code{uncertaintyweights_par} must be \code{TRUE} to trigger
 #'   IC-weight calculations; setting both to \code{TRUE} will result in an error. When enabled,
 #'   the per-shift weights are returned in the \code{$ic_weights} component of the result.
@@ -87,10 +74,11 @@
 #'   (requires \pkg{phytools}).
 #' @param IC Character. Which information criterion to use, one of \code{"GIC"} or \code{"BIC"}
 #'   (case-sensitive).
-#' @param store_model_fit_history Logical. If \code{TRUE}, store a per-iteration record of fitted
-#'   models, acceptance decisions, and IC values. To keep memory usage low during the search,
-#'   per-iteration results are written to a temporary directory (\code{tempdir()}) and read back
-#'   into memory at the end of the run.
+#' @param store_model_fit_history Logical; \code{TRUE} by default. Retain each
+#'   forward-proposal fit, its IC, acceptance decision, and any recorded error.
+#'   Fits are written to temporary files during the search and loaded into the
+#'   returned object afterward, which can require substantial storage and memory.
+#'   Initial one-shift scoring fits and drop-one IC-weight refits are not included.
 #' @param verbose Logical. If \code{TRUE}, emit detailed candidate-generation, fitting,
 #'   acceptance, rejection, and IC messages. By default, these details are emitted via
 #'   \code{message()}. When \code{plot = TRUE} in an interactive \code{RStudio} session,
@@ -104,8 +92,8 @@
 #'   at a time in a background Future without imposing a one-thread numerical limit.
 #'   Set to \code{FALSE} to disable these lines and the
 #'   heartbeat path. Both settings preserve the same fitting random sequence
-#'   for the same seed and search settings; use \code{progress = FALSE, verbose = FALSE} for completely quiet
-#'   execution.
+#'   for the same seed and search settings. Use \code{progress = FALSE, verbose = FALSE}
+#'   to suppress progress and verbose messages; warnings and errors are still reported.
 #' @param start_strategy Starting-value policy for every baseline, candidate,
 #'   forward-search, and IC-weight fit. The default, \code{"legacy_1.2.1"},
 #'   computes data-dependent BM/BMM starts using the \pkg{mvMORPH} 1.2.1
@@ -122,18 +110,10 @@
 #'   Turning progress on or off does not change the random sequence. This policy does not
 #'   guarantee convergence or identical results across numerical environments
 #'   or future \pkg{mvMORPH} versions.
-#' @param ... Additional arguments passed to \code{\link[mvMORPH]{mvgls}} (e.g., \code{method},
-#'   \code{penalty}, \code{target}, \code{error}, \code{REML}, etc.). In the workflows
-#'   emphasized in the package vignettes, \code{method = "H&L"} is used for
-#'   intercept-only searches on high-dimensional response matrices, whereas
-#'   \code{method = "LL"} is used for formula-based searches with predictors.
-#'   When \code{IC = "BIC"} and \code{method} is omitted, *\code{bifrost}*
-#'   supplies \code{method = "LL"}; an explicitly supplied method takes
-#'   precedence. GIC searches continue to use the \code{mvgls()} method default
-#'   when \code{method} is omitted. In \pkg{mvMORPH}, \code{method = "H&L"}
-#'   is restricted to intercept-only models and the \code{"RidgeArch"} penalty.
+#' @param ... Additional arguments passed to \code{\link[mvMORPH]{mvgls}} (e.g.,
+#'   \code{method}, \code{penalty}, \code{target}, \code{error}, or \code{REML}).
 #'   Setting \code{error = TRUE} asks \code{mvgls()} to estimate a nuisance
-#'   measurement-error (intraspecific-variance) term from the data.
+#'   measurement-error (intraspecific-variance) term. See the method guidance below.
 #'
 #' @details
 #' \strong{Input requirements.}
@@ -153,22 +133,25 @@
 #' }
 #'
 #' \strong{Search outline.}
-#' \enumerate{
-#'   \item \emph{Baseline:} Fit \code{mvgls} on the baseline tree (single regime) to obtain the baseline IC.
-#'   \item \emph{Candidates:} Build one-shift trees for eligible internal nodes
-#'         (\code{generatePaintedTrees}); fit each with
-#'         \code{fitMvglsAndExtractGIC.formula} or \code{fitMvglsAndExtractBIC.formula}
-#'         (internal helpers; not exported) and rank by \eqn{\Delta}IC.
-#'   \item \emph{Greedy add:} Add the top candidate, refit, and accept if
-#'         \eqn{\Delta}IC \eqn{\ge} \code{shift_acceptance_threshold}; continue down the ranked list.
-#'   \item \emph{Optional IC weights:} If \code{uncertaintyweights} (or \code{uncertaintyweights_par})
-#'         is \code{TRUE}, compute an IC weight for each accepted shift by refitting the final model with that
-#'         shift removed and comparing the two ICs via \code{\link[mvMORPH]{aicw}}.
-#' }
+#' Fit the single-regime baseline and each eligible one-shift candidate. Rank
+#' candidates once by their IC improvement over the baseline. Visit that fixed
+#' list once, fitting each proposal on the current accepted tree. Accept it when
+#' its improvement over the current accepted model meets
+#' \code{shift_acceptance_threshold}. Rejected candidates are not revisited after
+#' later acceptances. Optional IC weights compare the final model with a refit
+#' omitting each accepted shift, using \code{\link[mvMORPH]{aicw}}.
+#'
+#' If no eligible non-root candidates remain, or no proposed shifts are accepted,
+#' the returned final model is the single-regime baseline and \code{optimal_ic}
+#' equals \code{baseline_ic}.
 #'
 #' \strong{Search-setting diagnostics.}
-#' A clade smaller than \code{min_descendant_tips} is not tested. An eligible small clade is
-#' evaluated like any other candidate and must pass \code{shift_acceptance_threshold}.
+#' \code{min_descendant_tips} filters candidate nodes using their original number
+#' of descendant tips. It is applied only when the initial candidate pool is built;
+#' it is not reapplied to the resulting regimes after nested shifts are accepted.
+#' Consequently, a resulting regime can contain fewer tips than the threshold.
+#' An eligible small clade is evaluated like any other candidate and must pass
+#' \code{shift_acceptance_threshold}.
 #' Under Brownian motion, high trait disparity concentrated on short branches implies a high
 #' evolutionary-rate estimate, but a runtime rule cannot determine whether that pattern is
 #' biological or unstable. The permissive-settings advisory is therefore a guardrail rather
@@ -204,33 +187,27 @@
 #' including regularization when used. This entry does not represent an inferred
 #' shift or an additional fit; the model's \code{param} field remains \code{NA}.
 #'
-#' For high-dimensional trait datasets (p \eqn{\ge} n), penalized-likelihood settings in
-#' \code{mvgls()} are often required for stable estimation. The package vignettes
-#' distinguish two common workflows. For intercept-only searches on high-dimensional
-#' response matrices (for example, GPA-aligned landmark data), the jaw-shape vignette
-#' uses \code{method = "H&L"} with the default \code{"RidgeArch"} penalty; in
-#' \pkg{mvMORPH}, this is a fast approximation to penalized LOOCV and is only available
-#' for intercept-only models. For formula-based searches with predictors, the avian
-#' skeleton vignette uses \code{method = "LL"} instead. When \code{IC = "BIC"}
-#' and no fitting method is supplied, *\code{bifrost}* automatically uses
-#' \code{method = "LL"}; explicit methods are preserved. GIC searches do not
-#' override an omitted method. Across empirical workflows, \code{error = TRUE}
-#' is often a sensible default because it asks \code{mvgls()} to estimate a nuisance
-#' measurement-error (intraspecific-variance) term from the data. Users should consult
-#' the \pkg{mvMORPH} documentation for details on available methods and penalties and
-#' tune these choices to the structure of their data.
+#' \strong{Fitting methods.} Choose an \code{mvgls} method appropriate for the
+#' formula and data. \code{"H&L"} with the \code{"RidgeArch"} penalty is restricted
+#' to intercept-only models. For models with predictors, \code{"LL"} is one option
+#' when an unregularized covariance can be estimated; \code{"PL-LOOCV"} is a
+#' penalized alternative. When \code{IC = "BIC"} and \code{method} is omitted,
+#' bifrost supplies \code{method = "LL"}. For \code{IC = "GIC"}, an omitted
+#' method is left to the installed \pkg{mvMORPH} default. See
+#' \code{\link[mvMORPH]{mvgls}} for method and penalty choices.
 #'
 #' @return A named \code{list} with (at minimum):
 #' \itemize{
-#'   \item \code{user_input}: captured call (as a list) for reproducibility,
-#'         including the resolved \code{progress} and \code{start_strategy} settings and flattened
-#'         additional \code{mvgls()} arguments.
-#'   \item \code{initialization}: requested and actual starting policy
+#'   \item \code{user_input}: captured call expressions, including resolved
+#'         \code{progress} and \code{start_strategy} settings and flattened
+#'         additional \code{mvgls()} arguments. This does not capture the seed,
+#'         a data snapshot, or the full software environment.
+#'   \item \code{initialization}: requested and actual starting policy for the baseline fit
 #'         (\code{legacy_1.2.1}, \code{native}, \code{supplied}, or
 #'         \code{native_no_grid}), plus the installed \pkg{mvMORPH} version.
-#'         Each fitted model also records this list in its
-#'         \code{bifrost_initialization} attribute.
-#'   \item \code{tree_no_uncertainty_transformed}: SIMMAP tree from the optimal (no-uncertainty) model
+#'         Each fitted model also records its own initialization information in
+#'         its \code{bifrost_initialization} attribute.
+#'   \item \code{tree_no_uncertainty_transformed}: SIMMAP tree from the final model
 #'         on the transformed scale used internally by \code{mvgls}.
 #'   \item \code{tree_no_uncertainty_untransformed}: same topology with original edge lengths restored.
 #'   \item \code{model_no_uncertainty}: the final \code{mvgls} model object.
@@ -252,7 +229,9 @@
 #' \itemize{
 #'   \item \code{ic_weights}: a \code{data.frame} of per-shift IC weights and evidence ratios when
 #'         \code{uncertaintyweights} or \code{uncertaintyweights_par} is \code{TRUE}.
-#'   \item \code{warnings}: character vector of warnings/errors encountered during fitting (if any).
+#'   \item \code{warnings}: when present, a list of warning and error messages
+#'         collected during forward-proposal evaluation. It is not a complete
+#'         record of warnings from every fitting stage or of optimizer convergence codes.
 #' }
 #'
 #' @section Convergence and robustness:
@@ -270,14 +249,15 @@
 #' information-criterion values, and fitted rates.
 #'
 #' Inspect optimizer codes and messages for the final model and saved forward
-#' proposals when available. A nonzero code indicates that the optimizer
-#' reported a warning or failure; code 0 does not establish a global optimum.
+#' proposals when available. A fit with a nonzero optimizer convergence code
+#' can still contribute an IC to candidate ranking or a forward acceptance
+#' decision. A nonzero code indicates that the optimizer reported a warning or
+#' failure; code 0 does not establish a global optimum. Inspect optimizer codes
+#' and messages rather than relying on \code{warnings} alone.
 #' Agreement across repeated runs is useful evidence of stability, but changing
 #' the seed may not change a deterministic initialization.
 #'
-#' \code{store_model_fit_history = TRUE} retains forward-proposal fits, but the
-#' initial one-shift candidate-scoring fits are not retained in that history.
-#' Compact example objects may omit the proposal fits as well.
+#' Compact example objects may omit the forward-proposal fits.
 #'
 #' Separately, vary \code{shift_acceptance_threshold},
 #' \code{min_descendant_tips}, or the information criterion to assess sensitivity
@@ -295,15 +275,6 @@
 #' Berv, J. S. et al. (2026). Rates of passerine body plan evolution in time
 #' and space. \emph{Nature Ecology & Evolution}.
 #' doi:10.1038/s41559-026-03110-5.
-#'
-#' @note
-#' Internally, this routine coordinates multiple unexported helper functions:
-#' \code{generatePaintedTrees}, \code{fitMvglsAndExtractGIC.formula},
-#' \code{fitMvglsAndExtractBIC.formula}, \code{addShiftToModel},
-#' \code{removeShiftFromTree}, and \code{extractRegimeVCVs}. Through these,
-#' it may also invoke lower-level utilities such as \code{paintSubTree_mod}
-#' and \code{paintSubTree_removeShift}. These helpers are internal
-#' implementation details and are not part of the public API.
 #'
 #' @examples
 #' library(ape)
@@ -354,18 +325,19 @@
 #'   shift_acceptance_threshold = 20,  # conservative GIC threshold
 #'   IC                         = "GIC",
 #'   plot                       = FALSE,
-#'   store_model_fit_history    = FALSE,
+#'   store_model_fit_history    = TRUE,
 #'   verbose                    = FALSE,
 #'   progress                   = FALSE
 #' )
 #'
 #' res$shift_nodes_no_uncertainty
-#' res$optimal_ic - res$baseline_ic
-#' str(res$VCVs)
+#' res$baseline_ic - res$optimal_ic  # total IC improvement
+#' res$model_no_uncertainty$opt[c("convergence", "message")]
+#' head(icTrajectory(res))           # forward proposals and decisions
 #'
 #' \donttest{
 #' # Intercept-only empirical-style search:
-#' # high-dimensional response matrix with H&L + measurement error
+#' # H&L + measurement error
 #' res_hl <- searchOptimalConfiguration(
 #'   baseline_tree              = as.phylo(simmap),
 #'   trait_data                 = X,
@@ -383,7 +355,7 @@
 #' )
 #'
 #' # Formula-based search with a predictor:
-#' # use LL when the model includes predictors
+#' # LL is one option for a model with predictors
 #' dat <- data.frame(
 #'   trait1    = X[, 1],
 #'   trait2    = X[, 2],
