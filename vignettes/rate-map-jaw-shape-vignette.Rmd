@@ -153,7 +153,7 @@ threshold_grid <- c(10, 15, 20, 25, 30, 40)
 min_tips <- 10
 ```
 
-Use a helper function so every run differs only in the IC threshold. Per-shift
+The helper below keeps the explicit search settings fixed while varying the IC threshold. Per-shift
 support weights from `searchOptimalConfiguration()` are optional here: set
 `uncertaintyweights_par = TRUE` only if you need those diagnostics for each
 individual search. They differ from the fit-level weights used by
@@ -207,6 +207,13 @@ cache_path <- rate_map_cache_path()
 dir.create(dirname(cache_path), recursive = TRUE, showWarnings = FALSE)
 saveRDS(jaw_threshold_runs, cache_path)
 ```
+
+The sweep sets the seed once and runs the thresholds sequentially, so each
+search begins at the next point in the random-number stream. This reproduces
+the vignette's sweep; it does not separate threshold sensitivity from
+initialization sensitivity. To investigate both, repeat individual thresholds
+using several recorded seeds. Even runs that begin with the same seed can
+consume random numbers differently if their search paths diverge.
 
 If the searches have already been run, load the saved results instead.
 

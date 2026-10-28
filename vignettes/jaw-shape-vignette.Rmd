@@ -257,7 +257,7 @@ Some choices deserve additional context:
   
   * `trait_data = fish.data`: These are the high-dimensional jaw shape coordinates modeled as the multivariate response.
   
-  * `min_descendant_tips = 10`: This user-defined constraint limits candidate shifts to internal nodes leading to at least 10 species. It helps reduce overfitting by preventing shifts on very small clades. We use 10 here, but the optimal choice depends on the dataset (~10 is recommended for large trees).
+  * `min_descendant_tips = 10`: The initial candidate pool includes internal nodes with at least 10 descendant species. The filter is not reapplied after shifts are accepted, so nested shifts can leave fewer than 10 terminal tips assigned to a resulting regime. The appropriate candidate-size setting depends on the dataset.
 
   * `num_cores = 4`: When `num_cores > 1`, *`bifrost`* uses `future` workers for parallel candidate scoring and parallel IC-weight calculations. Only those future-based parallel blocks temporarily cap BLAS/OpenMP threads to 1 per worker to avoid CPU oversubscription, then restore the previous settings. Sequential `mvgls` stages, such as the baseline fit and later greedy-search refits, use the BLAS/OpenMP settings already active in the R session; set those outside the search call if you want a higher cap for sequential linear algebra.
   
@@ -269,13 +269,38 @@ Some choices deserve additional context:
     
   * `plot = FALSE`: Live SIMMAP updates are disabled for this vignette run because they slow larger searches. Set this to `TRUE` for small interactive tests; in RStudio, the optional graphics-device block above opens an external plotting window for those updates.
   
-  * `formula = "trait_data ~ 1"`: The intercept-only model (`~ 1`) corresponds to a multi-rate Brownian Motion process where each regime has its own rate matrix. The GPA-aligned morphometric coordinates are already size and rotation adjusted, so no additional size term is needed here. For linear dimensions or other predictors, you can use formulas that reference subsets of `trait_data`, for example `"trait_data[, 1:5] ~ 1"` to treat columns 1–5 as the multivariate response, or `"trait_data[, 2:ncol(trait_data)] ~ trait_data[, 1]"` if the first column is log-mass and the remaining columns are logged linear dimensions.
+  * `formula = "trait_data ~ 1"`: The intercept-only model (`~ 1`) corresponds to a multi-rate Brownian Motion process where each regime has its own rate matrix. The GPA-aligned morphometric coordinates are already size and rotation adjusted, so no additional size term is needed here. For linear dimensions or other predictors, you can use formulas that reference subsets of `trait_data`, for example `"trait_data[, 1:5] ~ 1"` to treat columns 1–5 as the multivariate response, or `"trait_data[, 2:ncol(trait_data)] ~ trait_data[, 1]"` if the first column is log-mass and the remaining columns are logged linear dimensions. For a formula with predictors, choose a fitting method supported for that design. In `mvMORPH`, `method = "H&L"` is intended for intercept-only models.
   
   * `method = "H&L"`: H\&L is a fast, approximated leave-one-out cross-validation (LOOCV) approach based on [Hoffbeck and Landgrebe (1996)](https://doi.org/10.1109/34.506799). It is effective for intercept-only models with a "RidgeArch" default penalty, making it a reasonable choice for this high-dimensional dataset. The high-dimensional penalized likelihood framework used by `mvMORPH::mvgls` is described by [Clavel, Aristide, and Morlon (2019)](https://doi.org/10.1093/sysbio/syy045). Other options passed to `mvgls` will depend on the nature of the input dataset.
   
   * `error = TRUE`: `mvgls` estimates a measurement-error (intra-specific variance) term and incorporates it into the model. Even without explicit measurement-error values, the function treats this variance as an additional parameter, which is recommended for empirical datasets with within-species variation.
 
   * `store_model_fit_history = TRUE`: Write per-iteration model fits to a temporary directory (`tempdir()`) during the search to avoid inflating memory usage while computation is ongoing; the full model-fit history is read back into memory at the end of the search.
+
+### Checking numerical stability
+
+The seed and preceding random draws in the call above reproduce the documented
+random-number setup for the cached example. Reproducing one run does not by
+itself assess sensitivity to initialization or establish that its numerical
+fits reached the best solution.
+
+For conclusions that depend on individual shifts, repeat the search with the
+same data, tree, formula, and search settings using several recorded seeds
+when initialization is stochastic. Save the results and compare accepted
+nodes, GIC values, and fitted rates. Inspect optimizer codes and messages for
+the final model and saved forward proposals when available. A code of 0 does
+not guarantee a global optimum, and different seeds may produce the same
+starting values. Full searches and drop-one support calculations can be
+computationally expensive.
+
+```{r inspect_final_optimizer, eval=FALSE}
+jaws_search$model_no_uncertainty$opt[c("convergence", "message")]
+```
+
+The saved forward-fit history does not include the initial candidate-scoring
+fits. Per-shift IC weights describe support conditional on the selected
+fitted model; they are not a check of numerical convergence or alternative
+search paths.
 
 ## Interpreting the Output
 
@@ -460,7 +485,7 @@ knitr::include_graphics(
 
 ## Conclusion
 
-This vignette demonstrates how to use the *`bifrost`* package to analyze a complex, high-dimensional dataset to find significant shifts in evolutionary dynamics. Applying `searchOptimalConfiguration()` to a Paleozoic fish jaw dataset, we infer cladogenic events that correspond with significant shifts in multivariate phenotypic evolution, similar to the hypotheses presented in Troyer et al. (2025). This workflow allows us not only to identify *where* shifts occurred but also to quantify the *magnitude* of the change in evolutionary rates through the VCV matrices. For a deeper look at branch-rate summaries and threshold sensitivity in this same dataset, continue to the [rate-map jaw-shape vignette](rate-map-jaw-shape-vignette.html).
+This vignette demonstrates how to use `bifrost` to explore rate shifts in a high-dimensional jaw-shape dataset. The cached search selects candidate shifts under the stated GIC threshold and estimates regime-specific VCVs. Their interpretation depends on the model and search settings and should be accompanied by numerical and setting-sensitivity checks. For branch-rate summaries and threshold sensitivity in this dataset, continue to the [rate-map jaw-shape vignette](rate-map-jaw-shape-vignette.html).
 
 ## References
 

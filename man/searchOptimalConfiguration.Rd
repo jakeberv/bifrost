@@ -59,7 +59,9 @@ at zero.}
 to be considered as a candidate shift (forwarded to \code{generatePaintedTrees}). Defaults
 to \code{10}, the value evaluated and used in the focal analysis of Berv et al. (2026).
 Larger values reduce the number of candidate shifts by excluding very small clades. Smaller
-values trigger a runtime advisory and should be assessed for the dataset at hand.}
+values trigger a runtime advisory and should be assessed for the dataset at hand.
+This filter is applied when the initial candidate pool is generated. It is
+not reapplied to each regime after shifts are accepted.}
 
 \item{num_cores}{Integer. Maximum number of concurrent model fits during candidate
 scoring and parallel IC-weight re-estimation. With \code{progress = FALSE}, uses plain
@@ -304,14 +306,33 @@ implementation details and are not part of the public API.
 }
 \section{Convergence and robustness}{
 
-The search is greedy and may converge to a local optimum. Use a stricter
-\code{shift_acceptance_threshold} to reduce overfitting, and re-run the search
-with different \code{min_descendant_tips} and IC choices (\code{"GIC"} vs \code{"BIC"})
-to assess stability of the inferred shifts. For a given run, the optional IC-weight
-calculations (\code{uncertaintyweights} or \code{uncertaintyweights_par}) can be used
-to quantify support for individual shifts. It is often helpful to repeat the analysis
-under slightly different settings (e.g., thresholds or candidate-size constraints) and
-compare the resulting sets of inferred shifts.
+The search is greedy and visits candidates in an initial ranked order. The
+selected configuration is not guaranteed to minimize the information
+criterion over all possible shift configurations.
+
+Numerical fits can depend on starting values and optimizer stopping criteria
+with either \code{method = "H&L"} or \code{method = "LL"}. For conclusions
+that depend on individual shifts, repeat the search with the same data, tree,
+formula, and search settings using several recorded seeds when initialization
+is stochastic. Comparisons of supported \code{start_strategy} values can
+provide a separate initialization-sensitivity check. Record the software
+versions and parallel settings, and compare the accepted shifts,
+information-criterion values, and fitted rates.
+
+Inspect optimizer codes and messages for the final model and saved forward
+proposals when available. A nonzero code indicates that the optimizer
+reported a warning or failure; code 0 does not establish a global optimum.
+Agreement across repeated runs is useful evidence of stability, but changing
+the seed may not change a deterministic initialization.
+
+\code{store_model_fit_history = TRUE} retains forward-proposal fits, but the
+initial one-shift candidate-scoring fits are not retained in that history.
+Compact example objects may omit the proposal fits as well.
+
+Separately, vary \code{shift_acceptance_threshold},
+\code{min_descendant_tips}, or the information criterion to assess sensitivity
+to search settings. Per-shift IC weights are conditional on the selected
+fitted model; they do not assess convergence or alternative search paths.
 }
 
 \examples{
