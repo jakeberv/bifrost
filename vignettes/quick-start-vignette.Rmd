@@ -83,14 +83,14 @@ res <- searchOptimalConfiguration(
 
 # Inspect the recovered shifts, information criterion, and regime covariance.
 res$shift_nodes_no_uncertainty
-res$optimal_ic - res$baseline_ic
+res$baseline_ic - res$optimal_ic
 str(res$VCVs)
 ```
 
 What to expect from this example:
 
 - `res$shift_nodes_no_uncertainty` is typically empty (possibly `NULL`),
-- `res$optimal_ic - res$baseline_ic` is typically close to `0`,
+- `res$baseline_ic - res$optimal_ic` is typically close to `0`,
 - `res$VCVs` contains a single regime-specific VCV for the baseline regime `"0"`.
 
 ## Before you run on real data
@@ -182,7 +182,7 @@ The two returned trees distinguish transformed versus original branch lengths, a
 Interpretation guidance:
 
 - lower IC is better, so large positive values of `baseline_ic - optimal_ic` indicate stronger support for heterogeneity relative to the baseline model,
-- values of `optimal_ic - baseline_ic` close to `0` suggest little support for adding shifts,
+- values of `baseline_ic - optimal_ic` close to `0` indicate little IC improvement in the selected configuration,
 - `shift_nodes_no_uncertainty` identifies where supported changes in rate and covariance structure occur,
 - `VCVs` summarize the estimated evolutionary covariance structure within each inferred regime,
 - `ic_weights` help rank how strongly each accepted shift is supported in the final configuration,
