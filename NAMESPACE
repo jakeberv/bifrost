@@ -109,6 +109,7 @@ importFrom(mvMORPH,
   aicw,
   mvgls
 )
+importFrom(parallelly,supportsMulticore)
 importFrom(phytools,
   getDescendants,
   getParent,

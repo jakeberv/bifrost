@@ -305,6 +305,7 @@
   function() tick(amount = 0, message = message)
 }
 
+#' @importFrom parallelly supportsMulticore
 .bifrost_search_with_future_plan <- function(workers,
                                             is_rstudio_flag,
                                             work,
@@ -351,7 +352,7 @@
 
   if (.Platform$OS.type == "unix" &&
       !identical(Sys.info()[["sysname"]], "SunOS") &&
-      !is_rstudio_flag && future::supportsMulticore()) {
+      !is_rstudio_flag && supportsMulticore()) {
     plan(multicore, workers = backend_workers)
   } else {
     # Refresh equal-sized pools so workers inherit this stage's thread settings.
