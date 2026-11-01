@@ -69,7 +69,7 @@ test_that("paired tuning matches serial and parallel datasets, results and summa
   skip_on_cran()
   skip_on_covr()
   skip_on_os("windows")
-  skip_if_not(future::supportsMulticore())
+  skip_if_not(parallelly::supportsMulticore())
   withr::local_envvar(c(RSTUDIO = NA, RSTUDIO_SESSION_INITIALIZED = NA))
   args <- paired_tuning_args(paired_tuning_fixture())
   local_rebind("searchOptimalConfiguration", paired_tuning_search, environment(runSearchTuningGrid))
