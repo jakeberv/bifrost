@@ -1,6 +1,6 @@
 test_that("progress preserves serial and parallel candidate random draws", {
   withr::local_seed(51)
-  backends <- if (future::supportsMulticore()) c(TRUE, FALSE) else TRUE
+  backends <- if (parallelly::supportsMulticore()) c(TRUE, FALSE) else TRUE
   draw <- function(i) list(sample = sample.int(100L, i), normal = rnorm(i))
   for (kind in c("Mersenne-Twister", "L'Ecuyer-CMRG")) {
     for (backend in backends) {
@@ -68,7 +68,7 @@ test_that("progress preserves a real singleton BMM fit and its next random draw"
   # would load an older installation in a development load_all() session.
   installed <- file.exists(file.path(getNamespaceInfo("bifrost", "path"),
                                       "Meta", "package.rds"))
-  backends <- c(if (future::supportsMulticore()) FALSE, if (installed) TRUE)
+  backends <- c(if (parallelly::supportsMulticore()) FALSE, if (installed) TRUE)
   skip_if(length(backends) == 0L, "current package unavailable to workers")
   case <- readRDS(test_path("fixtures", "mvgls-starts-historical.rds"))$cases$singleton_hl
   args <- case$args

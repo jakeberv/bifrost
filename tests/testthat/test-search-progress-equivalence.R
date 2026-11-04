@@ -1,6 +1,6 @@
 test_that("progress preserves complete searches with serial and parallel IC weights", {
   # Forking also keeps the development namespace available without installing it.
-  skip_if_not(future::supportsMulticore(), "forked workers unavailable")
+  skip_if_not(parallelly::supportsMulticore(), "forked workers unavailable")
   case <- readRDS(test_path("fixtures", "mvgls-starts-historical.rds"))$cases$bm_hl
   Y <- case$args$data$Y[, 1:2]
   Y[1:8, ] <- Y[1:8, ] * 20

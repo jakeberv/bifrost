@@ -12,7 +12,7 @@ background_history_args <- function() {
 
 test_that("proposal history is saved in the fitting worker while the caller ticks", {
   withr::local_seed(82)
-  backends <- c(TRUE, if (future::supportsMulticore()) FALSE)
+  backends <- c(TRUE, if (parallelly::supportsMulticore()) FALSE)
   for (backend in backends) {
     # Private copies carry the instrumented writer into either worker backend.
     ns <- asNamespace("bifrost")
@@ -88,7 +88,7 @@ test_that("background history preserves accepted, rejected and failed proposals 
   expect_identical(expected$files, paste0("iteration_", 2:4, ".rds"))
   for (history in c(TRUE, FALSE)) {
     args$store_model_fit_history <- history
-    for (backend in c(TRUE, if (future::supportsMulticore()) FALSE)) {
+    for (backend in c(TRUE, if (parallelly::supportsMulticore()) FALSE)) {
       for (progress in c(FALSE, TRUE)) {
         actual <- run(progress, backend)
         expect_identical(actual$seed, expected$seed)

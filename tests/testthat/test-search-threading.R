@@ -16,7 +16,7 @@ test_that("thread limits depend on fitting workers independently of progress", {
     threads = unname(Sys.getenv(.search_thread_env, unset = NA_character_))
   )
 
-  backends <- if (future::supportsMulticore()) c(TRUE, FALSE) else TRUE
+  backends <- if (parallelly::supportsMulticore()) c(TRUE, FALSE) else TRUE
   for (is_rstudio in backends) {
     for (progress in c(FALSE, TRUE)) {
       heartbeat <- if (progress) function() invisible(NULL) else NULL
@@ -186,7 +186,7 @@ test_that("greedy search and serial weights preserve numerical threading", {
     }
     list(GIC = list(GIC = 90))
   }
-  backends <- if (future::supportsMulticore()) c(TRUE, FALSE) else TRUE
+  backends <- if (parallelly::supportsMulticore()) c(TRUE, FALSE) else TRUE
   for (is_rstudio in backends) {
     for (progress in c(FALSE, TRUE)) {
       heartbeat <- if (progress) function() invisible(NULL) else NULL

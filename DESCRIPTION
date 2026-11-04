@@ -24,6 +24,7 @@ Imports:
     cli (>= 3.6.0),
     corpcor,
     digest,
+    parallelly,
     future (>= 1.49.0),
     future.apply,
     progressr,
@@ -65,4 +66,4 @@ Config/Needs/website:
 Config/testthat/edition: 3
 Config/testthat/parallel: false
 Language: en-US
-Config/roxygen2/version: 8.1.0
+Config/roxygen2/version: 8.1.1
