@@ -7,6 +7,7 @@ man/figures/*
 !man/figures/cran-downloads-dark.png
 !man/figures/schmidt-sciences-dark.png
 .Rhistory
+/.RData
 .Rproj.user/
 .gitignore
 /doc/
