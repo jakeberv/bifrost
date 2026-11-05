@@ -1,24 +1,35 @@
 ---
 title: "Release Status"
-description: "CRAN and GitHub availability for bifrost 0.2.2."
+description: "CRAN 0.2.3 and GitHub release availability for bifrost."
 ---
 
-This page describes `bifrost` 0.2.2, published on CRAN and GitHub on
-October 17, 2026, and the relationship between package source archives
-and the fuller documentation maintained in the repository.
-Version 0.2.3 is being prepared as a CRAN update; it is not yet published.
+Version 0.2.3 is available on CRAN. The latest published GitHub release is
+0.2.2, published on October 17, 2026; GitHub publication of 0.2.3 is being
+prepared separately. This page also describes the relationship between package
+source archives and the fuller documentation maintained in the repository.
 
 ## At a glance
 
 | Distribution | Version | Installation | Best for |
 |---|---:|---|---|
-| [CRAN](https://CRAN.R-project.org/package=bifrost) | 0.2.2 | `install.packages("bifrost")` | Current published CRAN release |
+| [CRAN](https://CRAN.R-project.org/package=bifrost) | 0.2.3 | `install.packages("bifrost")` | Current published CRAN release, including the multicore-support check fix |
 | [GitHub](https://github.com/jakeberv/bifrost/releases/tag/v0.2.2), published release | 0.2.2 | `remotes::install_github("jakeberv/bifrost@v0.2.2")` | Explicit initialization and reproducibility corrections |
 | [GitHub](https://github.com/jakeberv/bifrost), development source | Version on `main` | `remotes::install_github("jakeberv/bifrost")` | Latest merged development source |
 
-Versions 0.2.0, 0.2.1, and 0.2.2 require R 4.2 or newer. Version 0.2.2 is
-available on both CRAN and GitHub. CRAN and GitHub releases are published
-separately.
+Versions 0.2.0 through 0.2.3 require R 4.2 or newer. CRAN and GitHub releases
+are published separately.
+
+## What 0.2.3 adds
+
+Version 0.2.3 replaces the deprecated `future::supportsMulticore()` re-export
+with `parallelly::supportsMulticore()`, avoiding warnings and test failures with
+parallelly 1.50.0. Thanks to Henrik Bengtsson for identifying and contributing
+the fix in [PR #264](https://github.com/jakeberv/bifrost/pull/264).
+
+The release also clarifies the fixed-order greedy search, numerical stability,
+rate-map diagnostics and fit weighting, and worked examples, and updates the
+jaw-shape correlation heatmap to match the manuscript's color scale. The
+search algorithm and initialization defaults are unchanged from 0.2.2.
 
 ## What 0.2.2 adds
 
@@ -103,7 +114,7 @@ or underflow can discard valid large draws and make its confidence interval
 understate uncertainty. Do not rely on the affected interval as a dependable
 uncertainty estimate. The correction is deferred in
 [issue #231](https://github.com/jakeberv/bifrost/issues/231) and is not included
-in the 0.2.2 release.
+in the 0.2.3 release.
 
 Some repository workflows and their methodological guidance remain under
 active development, especially pGLS-style uses of `bifrost` with hidden

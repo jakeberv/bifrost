@@ -53,7 +53,7 @@ The method works with fossil tip-dated trees and with a wide range of multivaria
 
 ## Installation
 
-### CRAN release (0.2.2)
+### CRAN release (0.2.3)
 
 ```r
 install.packages("bifrost")
@@ -83,13 +83,13 @@ also apply when Zenodo captures a GitHub release.
 
 ## Development status
 
-Version 0.2.2 is available on CRAN and is the latest published
-[GitHub release](https://github.com/jakeberv/bifrost/releases/tag/v0.2.2).
-Version 0.2.3 is being prepared as a CRAN update and is not yet published.
-It requires R 4.2 or newer. The 0.2.2 update makes search initialization explicit and
-corrects progress-related random-stream and numerical-thread handling, with
-console-display refinements. These changes can affect results relative to
-earlier releases; see the initialization and reproducibility notes in NEWS.
+Version 0.2.3 is available on CRAN. It fixes a deprecated multicore-support
+check and clarifies search, rate-map, and numerical-stability documentation.
+The latest published [GitHub release](https://github.com/jakeberv/bifrost/releases/tag/v0.2.2)
+remains 0.2.2; the separate GitHub 0.2.3 release is being prepared.
+The package requires R 4.2 or newer. The initialization, reproducibility, and
+numerical-thread corrections introduced in 0.2.2 remain in effect; see the
+initialization and reproducibility notes in NEWS.
 See the
 [development-status page](https://jakeberv.com/bifrost/articles/development-status.html)
 for current CRAN and GitHub availability, release caveats, and the website
