@@ -1,3 +1,13 @@
+# bifrost 0.2.3
+
+* Use `parallelly::supportsMulticore()` in place of the deprecated re-export
+  from `future`, avoiding warnings and test failures with parallelly 1.50.0.
+  Thanks to Henrik Bengtsson for identifying the problem and contributing the
+  fix.
+* Clarify the fixed-order greedy search, numerical stability, rate-map
+  diagnostics, and worked examples. Update the jaw-shape correlation heatmap
+  to match the manuscript's color scale.
+
 # bifrost 0.2.2
 
 * The console IC-history plot now pads both ends of the iteration axis so

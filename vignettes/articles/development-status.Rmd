@@ -6,6 +6,7 @@ description: "CRAN and GitHub availability for bifrost 0.2.2."
 This page describes `bifrost` 0.2.2, published on CRAN and GitHub on
 October 17, 2026, and the relationship between package source archives
 and the fuller documentation maintained in the repository.
+Version 0.2.3 is being prepared as a CRAN update; it is not yet published.
 
 ## At a glance
 
