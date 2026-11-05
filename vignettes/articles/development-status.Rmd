@@ -3,17 +3,16 @@ title: "Release Status"
 description: "CRAN 0.2.3 and GitHub release availability for bifrost."
 ---
 
-Version 0.2.3 is available on CRAN. The latest published GitHub release is
-0.2.2, published on October 17, 2026; GitHub publication of 0.2.3 is being
-prepared separately. This page also describes the relationship between package
-source archives and the fuller documentation maintained in the repository.
+Version 0.2.3 is available on both CRAN and GitHub. This page also describes
+the relationship between package source archives and the fuller documentation
+maintained in the repository.
 
 ## At a glance
 
 | Distribution | Version | Installation | Best for |
 |---|---:|---|---|
 | [CRAN](https://CRAN.R-project.org/package=bifrost) | 0.2.3 | `install.packages("bifrost")` | Current published CRAN release, including the multicore-support check fix |
-| [GitHub](https://github.com/jakeberv/bifrost/releases/tag/v0.2.2), published release | 0.2.2 | `remotes::install_github("jakeberv/bifrost@v0.2.2")` | Explicit initialization and reproducibility corrections |
+| [GitHub](https://github.com/jakeberv/bifrost/releases/tag/v0.2.3), published release | 0.2.3 | `remotes::install_github("jakeberv/bifrost@v0.2.3")` | Multicore-support check fix and clarified documentation |
 | [GitHub](https://github.com/jakeberv/bifrost), development source | Version on `main` | `remotes::install_github("jakeberv/bifrost")` | Latest merged development source |
 
 Versions 0.2.0 through 0.2.3 require R 4.2 or newer. CRAN and GitHub releases

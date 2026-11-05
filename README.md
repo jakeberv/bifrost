@@ -83,10 +83,10 @@ also apply when Zenodo captures a GitHub release.
 
 ## Development status
 
-Version 0.2.3 is available on CRAN. It fixes a deprecated multicore-support
-check and clarifies search, rate-map, and numerical-stability documentation.
-The latest published [GitHub release](https://github.com/jakeberv/bifrost/releases/tag/v0.2.2)
-remains 0.2.2; the separate GitHub 0.2.3 release is being prepared.
+Version 0.2.3 is available on CRAN and is the latest published
+[GitHub release](https://github.com/jakeberv/bifrost/releases/tag/v0.2.3).
+It fixes a deprecated multicore-support check and clarifies search, rate-map,
+and numerical-stability documentation.
 The package requires R 4.2 or newer. The initialization, reproducibility, and
 numerical-thread corrections introduced in 0.2.2 remain in effect; see the
 initialization and reproducibility notes in NEWS.
