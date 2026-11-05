@@ -21,6 +21,7 @@ lint.txt
 lintr.R
 experimental/
 /local-cache/
+/output/
 /preview/
 /.cache/
 __pycache__/
